@@ -59,3 +59,13 @@ GitHub Actions дополнительно собирает самостояте�
 Android/iOS каталоги генерируются Expo и исключены из git. `metro.config.cjs` сохраняет стандартную поддержку монорепозиториев Expo, добавляя только разрешение `.js` ESM-импортов общего TypeScript core.
 
 Версии сверены с `expo/bundledNativeModules.json`. Peer ranges WebRTC/config-plugin допускают выбранные версии, но upstream README plugin пока перечисляет матрицу лишь до Expo 56; совместимость на устройстве подтверждается отдельно нативной сборкой и испытанием.
+
+## Android release: WebRTC 155 и R8
+
+Expo 58 генерирует `android.enableMinifyInReleaseBuilds=true`. Минификация остаётся включённой. `plugins/withWebRtc155Release.cjs` добавляет только правило `-dontwarn org.webrtc.Dav1dDecoder$Natives` и строгий Gradle constraint на `org.jitsi:webrtc:155.0.1`, заменяющий плавающий upstream-диапазон `155.+`.
+
+Причина: в проверенном AAR 155.0.1 остался `org.webrtc.Dav1dDecoderJni`, хотя Java-обёртка `Dav1dDecoder` и её `Natives` не упакованы. `jar`/`javap` и проверка ссылок всех классов показали, что имя Dav1d встречается только в этом неиспользуемом bridge и native-объявлении `org.jni_zero.GEN_JNI`. Действующие `SoftwareVideoDecoderFactory` и его anonymous decoder вызывают собственный `SoftwareVideoDecoderFactoryJni` и C++ decoder factory. Они не создают отсутствующую Java-обёртку Dav1d. Правило не меняет factory, кодеки и native-библиотеки; общего подавления ошибок `org.webrtc.**` нет.
+
+Проверенный AAR: SHA-256 `b686b7674fd7285ddda369e155ca9663b9787f2b2f470b76691980782e13cd26`. При обновлении WebRTC нужно пересмотреть plugin и повторно проверить содержимое AAR. Это исправление упаковки для R8; работоспособность AV1 на конкретном устройстве этим анализом не подтверждается.
+
+Первичные источники: [upstream Dav1d Java wrapper](https://webrtc.googlesource.com/src/+/main/sdk/android/api/org/webrtc/Dav1dDecoder.java), [SoftwareVideoDecoderFactory](https://webrtc.googlesource.com/src/+/main/sdk/android/api/org/webrtc/SoftwareVideoDecoderFactory.java), [его C++ JNI implementation](https://webrtc.googlesource.com/src/+/main/sdk/android/src/jni/software_video_decoder_factory.cc), [upstream consumer keep rules](https://github.com/react-native-webrtc/react-native-webrtc/blob/master/android/consumer-rules.pro).

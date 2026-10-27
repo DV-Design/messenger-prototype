@@ -1,0 +1,32 @@
+p2p.lienad.ru {
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options nosniff
+        X-Frame-Options SAMEORIGIN
+        Referrer-Policy "no-referrer"
+        -Server
+    }
+    encode gzip
+
+    @signaling path /signal /ice /health
+    handle @signaling {
+        reverse_proxy messenger-signaling:8787 {
+            header_down Cache-Control "no-store"
+            header_down Referrer-Policy "no-referrer"
+        }
+    }
+
+    handle /download/*.apk {
+        root * /etc/caddy/sites/messenger-public
+        header Content-Type application/vnd.android.package-archive
+        header Content-Disposition "attachment; filename=messenger-preview.apk"
+        header Cache-Control "no-store"
+        file_server
+    }
+
+    handle {
+        root * /etc/caddy/sites/messenger-public
+        header Cache-Control "no-cache"
+        file_server
+    }
+}

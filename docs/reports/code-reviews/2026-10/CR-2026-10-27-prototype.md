@@ -7,7 +7,8 @@ browser interoperability and local infrastructure. No pre-existing messenger his
 
 Accepted as a foreground laboratory prototype. Not accepted as production secure
 messaging or a tested censorship-resistant transport. Native Android build is being
-verified in CI because local Gradle exhausted disk space. iOS native build requires
+verified in CI; a local standalone release subsequently passed after disk pressure
+was resolved and the narrow dependency fix below was applied. iOS native build requires
 full Xcode/signing; JS exports and native prebuild are separate successful checks.
 
 ## Verified corrections
@@ -41,3 +42,20 @@ remain local; do not expose Metro/Vite or unauthenticated TURN provisioning publ
 
 Production identity/ratchet, encrypted mailbox, push wake, persistence, resumable
 files, operator-network testing and abuse protection are separate tracked work.
+
+## Public preview addition
+
+The user explicitly authorized Internet publication. Independent verification of
+the isolated HTTPS deployment passed: valid TLS, health/ICE response and a real
+two-peer authenticated encrypted WSS exchange. Public discovery uses explicitly
+selected STUN endpoints; no unauthenticated TURN credentials are issued. The
+existing proxy is shared, so current limits intentionally support a small preview.
+
+Native release inspection found an orphan Dav1d JNI bridge in the pinned Jitsi
+155.0.1 AAR. A narrow generated ProGuard rule suppresses exactly the absent nested
+interface; the working native decoder factory is retained and R8 stays enabled.
+See mobile README for bytecode evidence and upstream references. This does not
+claim an AV1 device-runtime test. Android system backup is explicitly disabled.
+Final APK signature, package, minimum SDK, ARM64 ABI and embedded JS were inspected;
+public HTTPS APK download matched the local binary byte for byte. The artifact
+record includes its digest. Physical-device testing is still outstanding.

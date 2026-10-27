@@ -1,0 +1,44 @@
+# Public foreground preview. Uses existing Caddy proxy network; no published host ports.
+# Run from repository root: docker compose -p messenger-public -f infra/compose.public.yaml up -d --build
+services:
+  signaling:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.server
+    image: messenger-signaling:preview
+    container_name: messenger-signaling
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8787
+      ALLOWED_ORIGINS: https://p2p.lienad.ru
+      # Explicit public STUN choice: these providers observe discovery IP addresses.
+      STUN_URLS: stun:stun.l.google.com:19302,stun:stun.cloudflare.com:3478
+      # No public TURN credentials are issued by this preview.
+      TURN_URLS: ''
+      TURN_SHARED_SECRET: ''
+    networks:
+      proxy:
+        aliases: [messenger-signaling]
+    read_only: true
+    init: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 256m
+    cpus: 1.0
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:8787/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+        max-file: '2'
+networks:
+  proxy:
+    external: true
+    name: proxy

@@ -20,11 +20,13 @@ const config: ExpoConfig = {
   },
   android: {
     package: 'dev.messenger.prototype',
+    allowBackup: false,
     permissions: ['INTERNET', 'ACCESS_NETWORK_STATE', 'RECORD_AUDIO', 'CAMERA', 'MODIFY_AUDIO_SETTINGS'],
     // Only development builds permit local HTTP; release servers must use HTTPS.
   },
   plugins: [
     './plugins/withLocalNetworking.cjs',
+    './plugins/withWebRtc155Release.cjs',
     ['@config-plugins/react-native-webrtc', {
       cameraPermission: 'Камера нужна для видеозвонков, которые вы включаете сами.',
       microphonePermission: 'Микрофон нужен для голосовых и видеозвонков.',

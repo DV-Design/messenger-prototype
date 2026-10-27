@@ -37,7 +37,7 @@ function Messenger() {
   const systemSheet = useRef(false);
   const history = useRef<ComponentRef<typeof ScrollView>>(null);
   const [snapshot, setSnapshot] = useState<SessionSnapshot>(empty);
-  const [server, setServer] = useState(process.env.EXPO_PUBLIC_SIGNALING_URL ?? '');
+  const [server, setServer] = useState(process.env.EXPO_PUBLIC_SIGNALING_URL ?? 'https://p2p.lienad.ru');
   const [invite, setInvite] = useState('');
   const [relayOnly, setRelayOnly] = useState(false);
   const [draft, setDraft] = useState('');

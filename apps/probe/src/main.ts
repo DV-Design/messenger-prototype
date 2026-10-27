@@ -4,6 +4,7 @@ import './style.css';
 declare global { interface Window { __session?: PeerSession } }
 const node = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const server = node<HTMLInputElement>('server'), invite = node<HTMLInputElement>('invite');
+if (window.location.protocol === 'https:') server.value = window.location.origin;
 const relay = node<HTMLInputElement>('relay'), input = node<HTMLTextAreaElement>('text');
 const fileInput = node<HTMLInputElement>('file');
 const local = node<HTMLVideoElement>('local-video'), remote = node<HTMLVideoElement>('remote-video');
