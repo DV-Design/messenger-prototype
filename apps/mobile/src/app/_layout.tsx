@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { CallOverlay } from '../components/CallOverlay';
+import { PermissionSetupGate } from '../components/PermissionSetupGate';
 import { useMessenger } from '../runtime';
 import { colors, styles } from '../styles';
 
@@ -13,7 +14,9 @@ export default function RootLayout() {
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
         <Stack.Screen name="(tabs)" /><Stack.Screen name="onboarding" /><Stack.Screen name="chat/[id]" />
         <Stack.Screen name="new-group" options={{ presentation: 'modal' }} />
-      </Stack><CallOverlay />
+        <Stack.Screen name="permissions" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="phonebook" />
+      </Stack><PermissionSetupGate /><CallOverlay />
     </>}
   </SafeAreaProvider>;
 }

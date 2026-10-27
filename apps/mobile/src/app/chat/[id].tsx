@@ -8,6 +8,7 @@ import { AttachmentCard } from '../../components/AttachmentCard';
 import { Avatar, Empty, Icon, IconButton, lastSeen, time } from '../../components/ui';
 import { client, errorText, useMessenger } from '../../runtime';
 import { colors, styles } from '../../styles';
+import { transportNotice } from '../../transport-notice';
 
 export default function Chat() {
   const params = useLocalSearchParams<{ id: string }>();
@@ -29,6 +30,8 @@ export default function Chat() {
   const peer = snapshot.contacts.find(item => conversation.memberIds.includes(item.userId) && item.userId !== identity?.userId);
   const group = conversation.kind === 'group';
   const canCall = !group && !snapshot.activeCall && (peer?.online || conversation.session?.status === 'connected');
+  const notice = transportNotice({ directory: snapshot.status, group, peerOnline: peer?.online, session: conversation.session,
+    pending: conversation.messages.filter(item => item.from === identity?.userId && (item.status === 'pending' || item.status === 'sent')).length });
   async function action(operation: () => Promise<void>) {
     if (busy) return;
     setBusy(true); setError('');
@@ -60,6 +63,7 @@ export default function Chat() {
       <IconButton name="call-outline" label={group ? 'Групповые звонки недоступны' : 'Аудиозвонок'} disabled={!canCall || busy} onPress={() => void action(() => client().startCall(conversation.id, false))} />
       <IconButton name="videocam-outline" label={group ? 'Групповые видеозвонки недоступны' : 'Видеозвонок'} disabled={!canCall || busy} onPress={() => void action(() => client().startCall(conversation.id, true))} />
     </View>
+    <Pressable accessibilityRole="button" accessibilityLabel="Состояние доставки. Открыть настройки соединения" onPress={() => router.push('/(tabs)/settings')} style={{ paddingHorizontal: 15, paddingVertical: 9, backgroundColor: notice.warning ? '#FFF2D8' : '#EDF5F1' }}><Text style={[styles.info, { color: notice.warning ? '#7B5924' : '#4E7161' }]}>{notice.text}</Text></Pressable>
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={styles.conversation}>
         {group && <Text style={[styles.info, { textAlign: 'center', paddingVertical: 8, paddingHorizontal: 15 }]}>Группа до 8 участников · звонки в группах пока недоступны</Text>}

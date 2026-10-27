@@ -1,3 +1,26 @@
+# LastCall Android diagnostic preview0.2.1
+
+- Download: https://lienad.ru/messenger/download/LastCall-0.2.1.apk
+- Samepackage `dev.messenger.prototype`, versionCode3, same testcertificate.
+- Size43,758,960bytes, arm64, Android7+.
+- SHA256: `dc1b3dff9e8f03f07267c914594fc9646857c86ee6a0871896e05efece8923b5`
+
+This is an interim diagnostic/contact-permission update. It does NOT implement
+closed-app push delivery, automatic verified-phone discovery or a publicrelay.
+Those requirements were clarified during this session and require configured
+FCM/SMS services plus relay infrastructure. Do not present0.2.1 as fixing them.
+
+Verified finalsignature/version/embeddedJS+defaultHTTPSbase, READ_CONTACTS,
+CAMERA/RECORD_AUDIO, noWRITE_CONTACTS; fullnative release+R8 PASS. Downloadedpublic
+HTTPSAPK equals localverifiedbytes. Actualemulatorupgradepreservedidentity/history;
+permissioncenter persistedonce, contactsALLOW→cameraDENY→microphoneALLOW, photos
+alreadygranted(nofourthprompt); native phonebook read displayedownsyntheticcontact.
+ForegroundbidirectionalP2P andrecipientACK PASS, includingrestart. This isnotphysical
+carrier/backgroundtesting. [Evidence](../docs/reports/debugging/2026-10/native-delivery.md).
+
+Root59tests+lint/types/buildPASS; Chrome6PASS/1TURNskip.
+Previousversionedinstallersretainedforrollback; downgrademayneedAndroidhandling.
+
 # LastCall Android preview 0.2.0
 
 - Download: https://lienad.ru/messenger/download/LastCall-0.2.0.apk

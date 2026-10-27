@@ -51,6 +51,8 @@ jobs:
           "$ANDROID_HOME/build-tools/37.0.0/aapt2" dump badging "$APK" > apk-metadata.txt
           rg -F "uses-permission: name='android.permission.CAMERA'" apk-metadata.txt
           rg -F "uses-permission: name='android.permission.RECORD_AUDIO'" apk-metadata.txt
+          rg -F "uses-permission: name='android.permission.READ_CONTACTS'" apk-metadata.txt
+          if rg -F "uses-permission: name='android.permission.WRITE_CONTACTS'" apk-metadata.txt; then exit 1; fi
           rg -F "application-label:'LastCall'" apk-metadata.txt
           rg -F "native-code: 'arm64-v8a'" apk-metadata.txt
           unzip -l "$APK" | rg 'assets/index.android.bundle'

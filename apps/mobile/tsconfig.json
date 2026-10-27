@@ -4,5 +4,6 @@
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "lib": ["ES2022", "DOM", "DOM.Iterable"]
-  }
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "app.config.ts", ".expo/types/**/*.ts", "expo-env.d.ts"]
 }

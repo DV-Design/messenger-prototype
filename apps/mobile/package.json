@@ -1,6 +1,6 @@
 {
   "name": "@messenger/mobile",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "main": "expo-router/entry",
   "dependencies": {
     "@config-plugins/react-native-webrtc": "15.0.2",
@@ -9,6 +9,7 @@
     "expo": "~58.0.19",
     "expo-clipboard": "~58.0.4",
     "expo-constants": "~58.0.13",
+    "expo-contacts": "~58.0.9",
     "expo-crypto": "~58.0.7",
     "expo-dev-client": "~58.0.15",
     "expo-document-picker": "~58.0.4",
@@ -35,8 +36,9 @@
     "start": "expo start --dev-client",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.tests.json",
     "lint": "eslint src app.config.ts",
+    "test": "tsx --test tests/*.test.ts",
     "build": "expo export --platform android --platform ios",
     "native:prebuild": "expo prebuild --no-install"
   },

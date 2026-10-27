@@ -34,3 +34,22 @@ signing, TURN and production protocol review remain in Beads.
 V2 review: [report](docs/reports/code-reviews/2026-10/CR-2026-10-27-lastcall-v2.md).
 Remaining work tracked in Beads; voice notes/group calls/push/ratchet/field networks
 are separate tasks. Unsolicited-contact controls tracked msg-218.
+
+# LastCall 0.2.1
+
+- [X] Reproduce and correct missing-message delivery and stalled connections (msg-7v3)
+  → Artifacts: [scope](docs/DELIVERY-FIX-CONTRACT.md), [delivery regressions](packages/core/src/delivery.test.ts)
+- [X] Device contact sync/linking and application permission setup (msg-o0b)
+  → Artifacts: [mobile](apps/mobile/src/), [scope](docs/DELIVERY-FIX-CONTRACT.md)
+- [X] Native delivery evidence, final APK verification/publication and repository handoff
+  → Artifacts: [release](artifacts/README.md), [testing tasks](docs/TESTING-RU.md)
+
+# Required after user clarification
+
+- [ ] Closed-app generic wake notifications and authenticated FCMregistration (msg-3z9)
+- [ ] ActualSMSverifiedphone identity and automaticphonebookdiscovery (msg-p7x)
+- [ ] Reachableauthenticateddirect-firstrelayfallback (msg-bcw)
+  → Artifacts: [servicecontract](docs/SERVICES-CONTRACT.md), [networkchoice](docs/NETWORK-CHOICE.md)
+
+Firebaseclient/serverconfiguration andSMSaccountaccess are missing; currentAPK
+explicitly remainsadiagnosticpreview.

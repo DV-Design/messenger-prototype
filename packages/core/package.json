@@ -20,6 +20,8 @@
     "@noble/curves": "^2.2.0"
   },
   "devDependencies": {
-    "vitest": "^4.1.12"
+    "vitest": "^4.1.12",
+    "ws": "^8.18.3",
+    "@types/ws": "^8.18.1"
   }
 }

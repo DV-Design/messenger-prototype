@@ -24,7 +24,7 @@ const pendingSchema=z.object({conversationId:conversationIdSchema,messageId:peer
 const storedConversationSchema=z.object({id:conversationIdSchema,kind:z.enum(['direct','group']),title:z.string().min(1).max(64),memberIds:z.array(roomIdSchema).min(2).max(8),creatorId:roomIdSchema.optional(),messages:z.array(messageSchema).max(100),unread:z.number().int().min(0).max(100),updatedAt:z.number().finite().nonnegative()}).strict();
 const storedSchema=z.object({version:z.literal(2),contacts:z.array(directoryUserSchema).max(MAX_CONTACTS),conversations:z.array(storedConversationSchema).max(MAX_CONTACTS+MAX_GROUPS),pending:z.array(pendingSchema).max(MAX_PENDING_MESSAGES)}).strict().refine(state=>state.conversations.reduce((n,c)=>n+c.messages.length,0)<=MAX_HISTORY_MESSAGES,{message:'History capacity exceeded'});
 interface Request {resolve:(users:DirectoryUser[])=>void;reject:(e:Error)=>void;timer:ReturnType<typeof setTimeout>;}
-interface Pair {session:PeerSession;connecting?:Promise<void>;retry?:ReturnType<typeof setTimeout>;attempt:number;flushing:boolean;notified:boolean;lastUsed:number;lastSent:Map<string,number>;definitions:Set<string>;}
+interface Pair {session:PeerSession;connecting?:Promise<void>;retry?:ReturnType<typeof setTimeout>;attempt:number;flushing:boolean;notified:boolean;lastUsed:number;lastSent:Map<string,number>;definitions:Set<string>;pump?:ReturnType<typeof setTimeout>;}
 export class MessengerClient {
   private status:MessengerSnapshot['status']='idle';private self?:DirectoryUser;private error?:string;
   private contacts=new Map<string,DirectoryUser>();private conversations=new Map<string,InternalConversation>();private pending:PendingMessage[]=[];
@@ -138,8 +138,8 @@ export class MessengerClient {
     if(this.stopped)throw new Error('Messenger is disconnected');const user=this.contacts.get(peerId);if(!user)throw new Error('Unknown contact');
     let pair=this.pairs.get(peerId);
     if(!pair){
-      if(this.pairs.size>=MAX_SESSIONS){const idle=[...this.pairs.entries()].filter(([id,p])=>!p.flushing&&!p.connecting&&p.session.getSnapshot().callState==='idle'&&!p.session.getSnapshot().files.some(f=>f.status==='sending'||f.status==='receiving')&&!this.pending.some(m=>m.remaining.includes(id))).sort((a,b)=>a[1].lastUsed-b[1].lastUsed)[0];if(!idle)throw new Error('Active peer capacity exceeded (16)');this.pairs.delete(idle[0]);clearTimeout(idle[1].retry);idle[1].session.disconnect();}
-      const session=new PeerSession({serverUrl:this.options.serverUrl,invite:conversationInvite(this.options.identity,user.publicKey),randomBytes:this.random,rtcFactory:this.options.rtcFactory,getUserMedia:this.options.getUserMedia,onChange:snapshot=>this.pairChanged(peerId,snapshot),onMessage:message=>this.receiveMessage(peerId,message),onApplication:payload=>this.receiveApplication(peerId,payload),allowConversation:id=>this.validConversation(peerId,id)});
+      if(this.pairs.size>=MAX_SESSIONS){const idle=[...this.pairs.entries()].filter(([id,p])=>!p.flushing&&!p.connecting&&p.session.getSnapshot().callState==='idle'&&!p.session.getSnapshot().files.some(f=>f.status==='sending'||f.status==='receiving')&&!this.pending.some(m=>m.remaining.includes(id))).sort((a,b)=>a[1].lastUsed-b[1].lastUsed)[0];if(!idle)throw new Error('Active peer capacity exceeded (16)');this.pairs.delete(idle[0]);clearTimeout(idle[1].retry);clearTimeout(idle[1].pump);idle[1].session.disconnect();}
+      const session=new PeerSession({serverUrl:this.options.serverUrl,expectPeer:true,invite:conversationInvite(this.options.identity,user.publicKey),randomBytes:this.random,rtcFactory:this.options.rtcFactory,getUserMedia:this.options.getUserMedia,onChange:snapshot=>this.pairChanged(peerId,snapshot),onMessage:message=>this.receiveMessage(peerId,message),onApplication:payload=>this.receiveApplication(peerId,payload),allowConversation:id=>this.validConversation(peerId,id)});
       pair={session,attempt:0,flushing:false,notified:false,lastUsed:Date.now(),lastSent:new Map(),definitions:new Set()};this.pairs.set(peerId,pair);
     }
     pair.lastUsed=Date.now();
@@ -151,7 +151,7 @@ export class MessengerClient {
     }else if(pair.connecting)await pair.connecting;
     return pair;
   }
-  private schedulePairRetry(peerId:string){const pair=this.pairs.get(peerId);if(!pair||pair.retry||this.stopped||!this.contacts.get(peerId)?.online)return;pair.notified=false;pair.retry=setTimeout(()=>{pair.retry=undefined;void this.ensurePair(peerId,true).catch(e=>this.report(e));},Math.min(30000,1000*2**Math.min(5,pair.attempt++)));}
+  private schedulePairRetry(peerId:string){const pair=this.pairs.get(peerId);if(!pair||pair.retry||this.stopped||!this.contacts.get(peerId)?.online)return;pair.notified=false;clearTimeout(pair.pump);pair.pump=undefined;pair.retry=setTimeout(()=>{pair.retry=undefined;void this.ensurePair(peerId,true).catch(e=>this.report(e));},Math.min(30000,1000*2**Math.min(5,pair.attempt++)));}
   private wakePeer(peerId:string){const needs=this.pending.some(m=>m.remaining.includes(peerId))||this.pairs.has(peerId)||[...this.conversations.values()].some(c=>c.kind==='group'&&c.creatorId===this.options.identity.userId&&c.memberIds.includes(peerId));if(needs)void this.ensurePair(peerId,true).then(()=>this.flushPeer(peerId)).catch(e=>this.report(e));}
   private pairChanged(peerId:string,snapshot:SessionSnapshot){
     const pair=this.pairs.get(peerId);if(!pair)return;
@@ -163,7 +163,7 @@ export class MessengerClient {
     }
     for(const c of this.conversations.values())for(const file of c.files)if(c.kind==='group'&&file.senderId===this.options.identity.userId){const fanout=this.fileFanouts.get(c.id+':'+file.id);if(fanout){const observed=snapshot.files.find(f=>f.id===file.id&&f.conversationId===c.id);if(observed&&fanout.has(peerId))fanout.set(peerId,observed.status);const statuses=[...fanout.values()];file.status=statuses.some(s=>s==='error')?'error':statuses.every(s=>s==='complete')?'complete':'sending';}}
     const retained=[...this.conversations.values()].flatMap(c=>c.files).filter(f=>f.data);while(retained.length>8){const file=retained.shift()!;file.data=undefined;}
-    if(snapshot.status==='connected'){pair.attempt=0;clearTimeout(pair.retry);pair.retry=undefined;void this.flushPeer(peerId);}else if(snapshot.status==='disconnected'||snapshot.status==='error'){pair.lastSent.clear();pair.definitions.clear();this.schedulePairRetry(peerId);}else if(snapshot.status==='waiting'){pair.lastSent.clear();pair.definitions.clear();}
+    if(snapshot.status==='connected'){pair.attempt=0;clearTimeout(pair.retry);pair.retry=undefined;void this.flushPeer(peerId);}else if(snapshot.status==='disconnected'||snapshot.status==='error'){if(snapshot.error)this.error=(this.contacts.get(peerId)?.displayName??'Contact')+': '+snapshot.error;pair.lastSent.clear();pair.definitions.clear();this.schedulePairRetry(peerId);}else if(snapshot.status==='waiting'){pair.lastSent.clear();pair.definitions.clear();}
     this.emit();
   }
   private receiveMessage(peerId:string,message:ChatMessage):boolean {
@@ -206,7 +206,14 @@ export class MessengerClient {
         if(!pending.remaining.includes(peerId))continue;const key=pending.conversationId+':'+pending.messageId;if(Date.now()-(pair.lastSent.get(key)??0)<5000)continue;const c=this.conversations.get(pending.conversationId);const message=c?.messages.find(m=>m.id===pending.messageId&&m.from===this.options.identity.userId);if(!message)continue;
         pair.lastSent.set(key,Date.now());try{await pair.session.sendText(message.text,{messageId:message.id,conversationId:message.conversationId});}catch(error){pair.lastSent.delete(key);throw error;}
       }
-    }catch(error){this.report(error);}finally{pair.flushing=false;}
+    }catch(error){this.report(error);}finally{pair.flushing=false;this.scheduleOutbox(peerId);}
+  }
+  private scheduleOutbox(peerId:string){
+    const pair=this.pairs.get(peerId);if(!pair||pair.pump||this.stopped||pair.session.getSnapshot().status!=='connected')return;
+    const pending=this.pending.filter(message=>message.remaining.includes(peerId));if(!pending.length)return;
+    // Delivery progress is independent of optional getStats/presence callbacks.
+    const delay=Math.min(...pending.map(message=>Math.max(500,5000-Math.max(0,Date.now()-(pair.lastSent.get(message.conversationId+':'+message.messageId)??0)))));
+    pair.pump=setTimeout(()=>{pair.pump=undefined;void this.flushPeer(peerId);},delay);
   }
   async sendText(conversationId:string,text:string):Promise<void>{
     const c=this.conversations.get(conversationId);if(!c)throw new Error('Unknown conversation');if(!text.trim()||text.length>MAX_TEXT_CHARS)throw new Error('Text must contain 1–4000 characters');if(this.pending.length>=MAX_PENDING_MESSAGES)throw new Error('Local outbox is full');
@@ -255,7 +262,7 @@ export class MessengerClient {
     this.stopped=true;++this.epoch;this.cancelOpening?.();this.cancelOpening=undefined;clearTimeout(this.reconnect);this.reconnect=undefined;
     const socket=this.socket;this.socket=undefined;if(socket){socket.onmessage=null;socket.onclose=null;socket.onerror=null;socket.close();}
     for(const request of this.requests.values()){clearTimeout(request.timer);request.reject(new Error('Disconnected'));}this.requests.clear();
-    for(const pair of this.pairs.values()){clearTimeout(pair.retry);pair.session.disconnect();}this.pairs.clear();
+    for(const pair of this.pairs.values()){clearTimeout(pair.retry);clearTimeout(pair.pump);pair.session.disconnect();}this.pairs.clear();
     for(const [id,user] of this.contacts)this.contacts.set(id,{...user,online:false});this.status='offline';clearTimeout(this.savedTimer);this.savedTimer=undefined;void this.persist().catch(error=>this.report(error));this.emit();
   }
 }

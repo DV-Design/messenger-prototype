@@ -103,3 +103,21 @@ recipients connected and are not queued. Only the recent eight completed file by
 buffers remain available in manager memory; file metadata is bounded separately and
 files are not restored across restarts. Snapshot file buffers remain immutable by
 contract and must not be modified by application code.
+
+## Delivery recovery in 0.2.1
+
+Outbox retries run on their own bounded 0.5–5-second timer per connected pair;
+optional RTC statistics and presence events are not required for progress. This
+covers a text added while another flush is in flight and retries after local
+backpressure. Actual receiver ACKs remain the only source of `delivered` status.
+
+`PeerSession` now limits peer-present SDP/ICE/data-channel establishment stages to
+30 seconds and surfaces the failed stage, ICE/connection state and whether TURN
+was configured. Native `iceconnectionstatechange=failed` is handled directly.
+The manager passes optional `expectPeer:true` so an online directory contact that
+never joins its private signaling room also yields a bounded diagnostic and the
+existing 1–30-second reconnect backoff. The manual legacy invitation flow can
+still wait for its second participant. Timeouts keep the local message pending;
+they neither turn an absent TURN service into a working relay nor prove delivery
+across a particular mobile carrier. The focused regressions reproduce scheduling
+and waiting failures; native-device transport validation is recorded separately.

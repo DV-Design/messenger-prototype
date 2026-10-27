@@ -12,7 +12,7 @@ export interface SessionSnapshot {
   stats:{rttMs?:number;audioBitrateKbps?:number;packetsLost?:number;jitterMs?:number};files:SharedFile[];
 }
 export interface PeerSessionOptions {
-  serverUrl:string;invite:string;relayOnly?:boolean;iceServers?:RTCIceServer[];
+  serverUrl:string;invite:string;relayOnly?:boolean;iceServers?:RTCIceServer[];expectPeer?:boolean;
   randomBytes?:RandomBytes;rtcFactory?:(config:RTCConfiguration)=>RTCPeerConnection;
   getUserMedia?:(constraints:MediaStreamConstraints)=>Promise<MediaStream>;
   onChange?:(snapshot:SessionSnapshot)=>void;
@@ -53,6 +53,8 @@ export class PeerSession {
   private incoming?:{id:string;bytes:Uint8Array;offset:number;timer:ReturnType<typeof setTimeout>};
   private outgoing?:PendingTransfer;
   private openReject?: (error:Error)=>void;
+  private transportTimer?:ReturnType<typeof setTimeout>;
+  private hasTurn=false;
   constructor(options:PeerSessionOptions) {
     const base=new URL(options.serverUrl);
     if(!['http:','https:'].includes(base.protocol)||base.username||base.password||base.search||base.hash) throw new Error('serverUrl must be an http(s) base URL without credentials, query or fragment');
@@ -86,6 +88,7 @@ export class PeerSession {
         } finally {clearTimeout(timer);}
       }
       const hasTurn=iceServers.some(server=>(Array.isArray(server.urls)?server.urls:[server.urls]).some(url=>/^turns?:/i.test(url)));
+      this.hasTurn=hasTurn;
       if(this.options.relayOnly&&!hasTurn)throw new Error('Relay-only mode requires a configured TURN server');
       if(generation!==this.generation)throw new Error('Connection cancelled');
       const url=endpointUrl(this.options.serverUrl,'signal');url.protocol=url.protocol==='https:'?'wss:':'ws:';
@@ -104,18 +107,18 @@ export class PeerSession {
             if(frame.type==='joined'){
               if(joined||frame.roomId!==this.roomId||frame.peerId!==this.peerId)throw new Error('Invalid room acknowledgement');
               joined=true;clearTimeout(timeout);this.openReject=undefined;this.role=frame.role;
-              this.makePeer(iceServers!);this.change({status:'waiting'});resolve();return;
+              this.makePeer(iceServers!);this.change({status:'waiting'});if(this.options.expectPeer)this.armTransportDeadline(frame.peerPresent?'SDP negotiation':'peer room join');resolve();return;
             }
             if(!joined)throw new Error('Signal before room acknowledgement');
             if(frame.type==='peer-joined'){
-              if(frame.peerId===this.peerId)throw new Error('Invalid peer identity');this.remoteId=frame.peerId;
+              if(frame.peerId===this.peerId)throw new Error('Invalid peer identity');this.remoteId=frame.peerId;this.armTransportDeadline('SDP negotiation');
               void this.serial(()=>this.negotiate()).catch(()=>{});
             }else if(frame.type==='peer-left'){
               if(this.remoteId&&frame.peerId!==this.remoteId)return;
-              this.cleanupPeer();this.remoteId=undefined;this.makePeer(iceServers!);this.change({status:'waiting'});
+              this.cleanupPeer();this.remoteId=undefined;this.makePeer(iceServers!);this.change({status:'waiting'});if(this.options.expectPeer)this.armTransportDeadline('peer room join');
             }else if(frame.type==='signal'){
               if(this.remoteId&&frame.from!==this.remoteId)throw new Error('Unexpected peer identity');
-              const body=this.cipher.open(frame.from,frame.payload);this.remoteId=frame.from;
+              const body=this.cipher.open(frame.from,frame.payload);if(!this.remoteId)this.armTransportDeadline('SDP negotiation');this.remoteId=frame.from;
               void this.serial(()=>this.handleSignal(body)).catch(()=>{});
             }
           }catch(error){if(!joined)fail(error instanceof Error?error:new Error('Invalid signaling'));else this.report(new Error('Rejected invalid or unauthenticated signaling'));}
@@ -135,16 +138,17 @@ export class PeerSession {
       const stream=event.streams[0];if(stream)this.change({remoteStream:stream});
     };
     pc.onconnectionstatechange=()=>{if(this.pc!==pc)return;
-      if(pc.connectionState==='failed'){this.stopCall();this.change({status:'error',error:'Peer connection failed; reconnect to retry'});}
+      if(pc.connectionState==='failed'){this.failTransport('ICE/data channel failed');}
       else if(pc.connectionState==='disconnected')this.change({status:'disconnected'});
-      else if(pc.connectionState==='connected'&&this.channel?.readyState==='open')this.change({status:'connected',error:undefined});
+      else if(pc.connectionState==='connected'&&this.channel?.readyState==='open'){clearTimeout(this.transportTimer);this.change({status:'connected',error:undefined});}
     };
+    pc.oniceconnectionstatechange=()=>{if(this.pc!==pc)return;if(pc.iceConnectionState==='failed')this.failTransport('ICE candidate connectivity failed');};
     if(this.role==='initiator')this.attachChannel(pc.createDataChannel('messenger-v1',{ordered:true}));
     this.statsTimer=setInterval(()=>{void this.readStats();},2000);
   }
   private attachChannel(channel:RTCDataChannel){
     if(this.channel&&this.channel!==channel){channel.close();return;}this.channel=channel;channel.bufferedAmountLowThreshold=BUFFER_LOW;
-    channel.onopen=()=>{if(this.channel===channel)this.change({status:'connected',error:undefined});};
+    channel.onopen=()=>{if(this.channel===channel){clearTimeout(this.transportTimer);this.change({status:'connected',error:undefined});}};
     channel.onclose=()=>{if(this.channel===channel){this.failTransfers();this.stopCall();this.change({status:'disconnected'});}};
     channel.onerror=()=>this.report(new Error('Data channel error'));
     channel.onmessage=event=>{if(this.channel!==channel)return;try{if(typeof event.data!=='string'||event.data.length>MAX_DATA_FRAME)throw new Error('Oversized data frame');this.handleData(dataFrameSchema.parse(JSON.parse(event.data)));}catch(e){this.report(e);}};
@@ -158,7 +162,7 @@ export class PeerSession {
     if(pc.signalingState!=='stable'){this.offerAgain=true;return;}
     this.offerAgain=false;const offer=await pc.createOffer();if(this.pc!==pc)return;
     await pc.setLocalDescription(offer);if(this.pc!==pc)return;
-    this.signal({kind:'description',description:{type:'offer',sdp:pc.localDescription?.sdp??offer.sdp??''}});
+    this.signal({kind:'description',description:{type:'offer',sdp:pc.localDescription?.sdp??offer.sdp??''}});this.armTransportDeadline('SDP answer');
   }
   private async handleSignal(body:SignalBody){
     const pc=this.pc;if(!pc)return;
@@ -169,6 +173,7 @@ export class PeerSession {
       for(const candidate of this.pendingCandidates.splice(0))await pc.addIceCandidate(candidate);
       if(body.description.type==='offer'){const answer=await pc.createAnswer();if(this.pc!==pc)return;await pc.setLocalDescription(answer);if(this.pc!==pc)return;this.signal({kind:'description',description:{type:'answer',sdp:pc.localDescription?.sdp??answer.sdp??''}});}
       else if(this.offerAgain)await this.offer();
+      this.armTransportDeadline(pc.signalingState==='have-local-offer'?'SDP answer':'ICE/data channel');
     }else if(body.kind==='candidate'){
       if(pc.remoteDescription)await pc.addIceCandidate(body.candidate);else {if(this.pendingCandidates.length>=128)throw new Error('Too many queued ICE candidates');this.pendingCandidates.push(body.candidate);}
     }else if(body.kind==='renegotiate'){await this.offer();
@@ -179,6 +184,15 @@ export class PeerSession {
       if(this.callId!==body.callId||this.state.callState!=='outgoing')return;
       clearTimeout(this.callTimer);this.change({callState:'active'});await this.negotiate();
     }else if(body.kind==='call-end'&&body.callId===this.callId){this.stopCall();await this.negotiate();}
+  }
+  private armTransportDeadline(stage:string){
+    if(this.channel?.readyState==='open')return;clearTimeout(this.transportTimer);const pc=this.pc;
+    this.transportTimer=setTimeout(()=>{if(this.pc===pc&&this.channel?.readyState!=='open')this.failTransport(stage+' timed out');},30000);
+  }
+  private failTransport(stage:string){
+    const ice=this.pc?.iceConnectionState??'new';const connection=this.pc?.connectionState??'new';
+    const error=`Transport ${stage} (ICE=${ice}, connection=${connection}; TURN ${this.hasTurn?'configured':'not configured'}). Messages remain pending.`;
+    this.cleanupPeer();this.change({status:'error',error});
   }
   private armCallTimeout(){clearTimeout(this.callTimer);this.callTimer=setTimeout(()=>this.endCall(),45000);}
   private async acquireMedia(video:boolean){
@@ -336,9 +350,9 @@ export class PeerSession {
     }catch{/* Stats are optional and must not break the call. */}finally{this.statsBusy=false;}
   }
   private cleanupPeer(){
-    clearInterval(this.statsTimer);this.statsTimer=undefined;this.stopCall();this.failTransfers();
+    clearTimeout(this.transportTimer);this.transportTimer=undefined;clearInterval(this.statsTimer);this.statsTimer=undefined;this.stopCall();this.failTransfers();
     const channel=this.channel;this.channel=undefined;if(channel){channel.onopen=null;channel.onclose=null;channel.onmessage=null;channel.onerror=null;try{channel.close();}catch{}}
-    const pc=this.pc;this.pc=undefined;if(pc){pc.onicecandidate=null;pc.onnegotiationneeded=null;pc.ondatachannel=null;pc.ontrack=null;pc.onconnectionstatechange=null;try{pc.close();}catch{}}
+    const pc=this.pc;this.pc=undefined;if(pc){pc.onicecandidate=null;pc.onnegotiationneeded=null;pc.ondatachannel=null;pc.ontrack=null;pc.onconnectionstatechange=null;pc.oniceconnectionstatechange=null;try{pc.close();}catch{}}
     this.pendingCandidates=[];this.offerAgain=false;this.previousAudio=undefined;this.previousLoss=undefined;this.change({route:'unknown',stats:{}});
   }
   disconnect():void{
