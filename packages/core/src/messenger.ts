@@ -1,0 +1,261 @@
+import { z } from 'zod';
+import { bytesToHex, randomChecked, secureRandomBytes, type RandomBytes } from './crypto.js';
+import { directoryClientFrameSchema, directoryServerFrameSchema, directoryUserSchema, directConversationId, conversationInvite, endpointUrl, signAuthentication, usernameSchema, displayNameSchema, validateDeviceIdentity, type DeviceIdentity, type DirectoryUser, type DirectoryClientFrame } from './directory.js';
+import { conversationIdSchema, MAX_FILE_BYTES, MAX_TEXT_CHARS, peerIdSchema, roomIdSchema } from './protocol.js';
+import { openLocalState, sealLocalState } from './persistence.js';
+import { PeerSession, type PeerSessionOptions, type SessionSnapshot, type SharedFile, type ChatMessage } from './session.js';
+export interface MessengerMessage {id:string;text:string;from:string;timestamp:number;status:'pending'|'sent'|'delivered'|'received';conversationId:string;}
+export interface MessengerFile extends SharedFile {senderId:string;conversationId:string;}
+export interface Conversation {id:string;kind:'direct'|'group';title:string;memberIds:string[];messages:MessengerMessage[];files:MessengerFile[];unread:number;updatedAt:number;session?:SessionSnapshot;}
+export interface MessengerSnapshot {status:'idle'|'connecting'|'online'|'offline'|'error';self?:DirectoryUser;contacts:DirectoryUser[];conversations:Conversation[];activeCall?:{conversationId:string;peerId:string;session:SessionSnapshot};error?:string;}
+export interface MessengerOptions {serverUrl:string;identity:DeviceIdentity;username:string;displayName:string;randomBytes?:RandomBytes;rtcFactory?:PeerSessionOptions['rtcFactory'];getUserMedia?:PeerSessionOptions['getUserMedia'];onChange?:(snapshot:MessengerSnapshot)=>void;loadState?:()=>Promise<string|null>;saveState?:(sealed:string)=>Promise<void>;}
+export const MAX_CONTACTS=100;
+export const MAX_GROUPS=32;
+export const MAX_HISTORY_MESSAGES=500;
+export const MAX_PENDING_MESSAGES=100;
+const MAX_SESSIONS=16;
+const MAX_DIRECTORY_FRAME=128*1024;
+const messageSchema=z.object({id:peerIdSchema,text:z.string().min(1).max(MAX_TEXT_CHARS),from:roomIdSchema,timestamp:z.number().finite().nonnegative(),status:z.enum(['pending','sent','delivered','received']),conversationId:conversationIdSchema}).strict();
+const groupDefinitionSchema=z.object({kind:z.literal('group-definition'),id:z.string().regex(/^group:[a-f0-9]{32}$/),title:z.string().min(1).max(64),creatorId:roomIdSchema,members:z.array(directoryUserSchema).min(2).max(8)}).strict();
+type GroupDefinition=z.infer<typeof groupDefinitionSchema>;
+interface InternalConversation extends Conversation {creatorId?:string;}
+interface PendingMessage {conversationId:string;messageId:string;remaining:string[];}
+const pendingSchema=z.object({conversationId:conversationIdSchema,messageId:peerIdSchema,remaining:z.array(roomIdSchema).min(1).max(7)}).strict();
+const storedConversationSchema=z.object({id:conversationIdSchema,kind:z.enum(['direct','group']),title:z.string().min(1).max(64),memberIds:z.array(roomIdSchema).min(2).max(8),creatorId:roomIdSchema.optional(),messages:z.array(messageSchema).max(100),unread:z.number().int().min(0).max(100),updatedAt:z.number().finite().nonnegative()}).strict();
+const storedSchema=z.object({version:z.literal(2),contacts:z.array(directoryUserSchema).max(MAX_CONTACTS),conversations:z.array(storedConversationSchema).max(MAX_CONTACTS+MAX_GROUPS),pending:z.array(pendingSchema).max(MAX_PENDING_MESSAGES)}).strict().refine(state=>state.conversations.reduce((n,c)=>n+c.messages.length,0)<=MAX_HISTORY_MESSAGES,{message:'History capacity exceeded'});
+interface Request {resolve:(users:DirectoryUser[])=>void;reject:(e:Error)=>void;timer:ReturnType<typeof setTimeout>;}
+interface Pair {session:PeerSession;connecting?:Promise<void>;retry?:ReturnType<typeof setTimeout>;attempt:number;flushing:boolean;notified:boolean;lastUsed:number;lastSent:Map<string,number>;definitions:Set<string>;}
+export class MessengerClient {
+  private status:MessengerSnapshot['status']='idle';private self?:DirectoryUser;private error?:string;
+  private contacts=new Map<string,DirectoryUser>();private conversations=new Map<string,InternalConversation>();private pending:PendingMessage[]=[];
+  private fileFanouts=new Map<string,Map<string,SharedFile['status']>>();private pairs=new Map<string,Pair>();private socket?:WebSocket;private requests=new Map<string,Request>();
+  private random:RandomBytes;private stopped=true;private opening?:Promise<void>;private loaded=false;private restorePromise?:Promise<void>;
+  private reconnect?:ReturnType<typeof setTimeout>;private attempt=0;private epoch=0;private savedTimer?:ReturnType<typeof setTimeout>;private saveQueue=Promise.resolve();private dirty=false;private cancelOpening?:()=>void;
+  constructor(private options:MessengerOptions){validateDeviceIdentity(options.identity);usernameSchema.parse(options.username);displayNameSchema.parse(options.displayName);endpointUrl(options.serverUrl,'directory');this.random=options.randomBytes??secureRandomBytes;}
+  private id(){return bytesToHex(randomChecked(this.random,16));}
+  getSnapshot():MessengerSnapshot {
+    const conversations=[...this.conversations.values()].map(c=>({id:c.id,kind:c.kind,title:c.title,memberIds:[...c.memberIds],messages:c.messages.map(m=>({...m})),files:c.files.map(f=>({...f})),unread:c.unread,updatedAt:c.updatedAt,session:c.kind==='direct'?this.pairs.get(c.memberIds.find(id=>id!==this.options.identity.userId)!)?.session.getSnapshot():undefined}));
+    let activeCall:MessengerSnapshot['activeCall'];
+    for(const [peerId,pair] of this.pairs){const session=pair.session.getSnapshot();if(session.callState!=='idle'){activeCall={conversationId:directConversationId(this.options.identity.userId,peerId),peerId,session};break;}}
+    return {status:this.status,self:this.self?{...this.self}:undefined,contacts:[...this.contacts.values()].map(c=>({...c})),conversations:conversations.sort((a,b)=>b.updatedAt-a.updatedAt),activeCall,error:this.error};
+  }
+  private emit(){this.options.onChange?.(this.getSnapshot());}
+  private report(error:unknown){this.error=error instanceof Error?error.message:'Messenger operation failed';this.emit();}
+  private changed(){this.trimHistory();this.dirty=true;this.scheduleSave();this.emit();}
+  private scheduleSave(){if(!this.options.saveState||this.savedTimer)return;this.savedTimer=setTimeout(()=>{this.savedTimer=undefined;void this.persist().catch(error=>this.report(error));},250);}
+  private stored(){return {version:2,contacts:[...this.contacts.values()].map(c=>({...c,online:false})),conversations:[...this.conversations.values()].map(c=>({id:c.id,kind:c.kind,title:c.title,memberIds:c.memberIds,creatorId:c.creatorId,messages:c.messages,unread:c.unread,updatedAt:c.updatedAt})),pending:this.pending};}
+  private async persist():Promise<void>{
+    if(!this.dirty||!this.options.saveState)return this.saveQueue;this.dirty=false;
+    const state=storedSchema.parse(this.stored());const sealed=sealLocalState(this.options.identity,state,this.random);
+    this.saveQueue=this.saveQueue.catch(()=>{}).then(()=>this.options.saveState!(sealed)).catch(error=>{this.dirty=true;this.report(new Error('Local encrypted state could not be saved'));throw error;});return this.saveQueue;
+  }
+  private async restore(){
+    if(this.loaded)return;if(this.restorePromise)return this.restorePromise;
+    this.restorePromise=(async()=>{
+      const sealed=await this.options.loadState?.();if(!sealed){this.loaded=true;return;}
+      const state=storedSchema.parse(openLocalState(this.options.identity,sealed));const own=this.options.identity.userId;
+      const contacts=new Map<string,DirectoryUser>();for(const c of state.contacts){if(c.userId===own||contacts.has(c.userId))throw new Error('Invalid stored contacts');contacts.set(c.userId,{...c,online:false});}
+      const conversations=new Map<string,InternalConversation>();
+      for(const c of state.conversations){
+        if(conversations.has(c.id)||new Set(c.memberIds).size!==c.memberIds.length||!c.memberIds.includes(own)||c.memberIds.some(id=>id!==own&&!contacts.has(id)))throw new Error('Invalid stored membership');
+        if(c.kind==='direct'&&(c.memberIds.length!==2||c.id!==directConversationId(c.memberIds[0]!,c.memberIds[1]!)))throw new Error('Invalid direct conversation');
+        if(c.kind==='group'&&(!c.id.startsWith('group:')||!c.creatorId||!c.memberIds.includes(c.creatorId)))throw new Error('Invalid stored group');
+        if(c.messages.some(m=>m.conversationId!==c.id||!c.memberIds.includes(m.from)))throw new Error('Invalid stored sender');
+        conversations.set(c.id,{...c,files:[],messages:c.messages.map(m=>({...m,status:m.from===own&&m.status!=='delivered'?'pending':m.status}))});
+      }
+      if([...conversations.values()].filter(c=>c.kind==='group').length>MAX_GROUPS)throw new Error('Group capacity exceeded');
+      for(const pending of state.pending){const c=conversations.get(pending.conversationId);if(!c||!c.messages.some(m=>m.id===pending.messageId&&m.from===own)||new Set(pending.remaining).size!==pending.remaining.length||pending.remaining.some(id=>id===own||!c.memberIds.includes(id)))throw new Error('Invalid stored outbox');}
+      this.contacts=contacts;this.conversations=conversations;this.pending=state.pending;this.loaded=true;this.emit();
+    })();return this.restorePromise;
+  }
+  async connect():Promise<void>{
+    this.stopped=false;if(this.status==='online')return;if(this.opening)return this.opening;
+    clearTimeout(this.reconnect);this.opening=this.openDirectory().catch(error=>{if(!this.stopped){this.status='offline';this.report(error);this.scheduleReconnect();}throw error;}).finally(()=>{this.opening=undefined;});return this.opening;
+  }
+  private async openDirectory(){
+    try{await this.restore();}catch(error){this.status='error';this.report(new Error('Encrypted local state is invalid; it was not overwritten'));this.stopped=true;throw error;}
+    if(this.stopped)return;this.status='connecting';this.error=undefined;this.emit();const epoch=++this.epoch;
+    const url=endpointUrl(this.options.serverUrl,'directory');url.protocol=url.protocol==='https:'?'wss:':'ws:';
+    const socket=new WebSocket(url.toString());this.socket=socket;
+    return new Promise<void>((resolve,reject)=>{
+      let ready=false;let challenged=false;let settled=false;
+      const finish=(error?:Error)=>{if(settled)return;settled=true;this.cancelOpening=undefined;clearTimeout(timer);if(error)reject(error);else resolve();};
+      this.cancelOpening=()=>finish(new Error('Directory connection cancelled'));
+      const timer=setTimeout(()=>{finish(new Error('Directory authentication timed out'));socket.close();},15000);
+      socket.onmessage=event=>{
+        if(this.socket!==socket||epoch!==this.epoch)return;
+        try{
+          if(typeof event.data!=='string'||event.data.length>MAX_DIRECTORY_FRAME)throw new Error('Invalid directory frame');
+          const frame=directoryServerFrameSchema.parse(JSON.parse(event.data));
+          if(frame.type==='challenge'){
+            if(challenged||ready)throw new Error('Unexpected directory challenge');challenged=true;
+            this.directorySend({type:'authenticate',publicKey:this.options.identity.publicKey,username:this.options.username,displayName:this.options.displayName,signature:signAuthentication(this.options.identity,frame.challenge,this.options.username,this.options.displayName)});
+          }else if(frame.type==='ready'){
+            if(!challenged||ready||frame.self.userId!==this.options.identity.userId||frame.self.publicKey!==this.options.identity.publicKey)throw new Error('Directory identity mismatch');
+            ready=true;this.self=frame.self;this.status='online';this.attempt=0;this.error=undefined;finish();this.watch();this.emit();
+            void this.refreshContacts().catch(e=>this.report(e));
+          }else if(frame.type==='error'){
+            const request=frame.requestId?this.requests.get(frame.requestId):undefined;
+            if(request){clearTimeout(request.timer);this.requests.delete(frame.requestId!);request.reject(new Error(frame.message));}
+            else if(!ready){if(['username-taken','auth-failed','auth-expired','session-replaced'].includes(frame.code)){this.stopped=true;this.status='error';this.report(new Error(`${frame.code}: ${frame.message}`));}finish(new Error(`${frame.code}: ${frame.message}`));socket.close();}
+            else if(frame.code==='session-replaced'){this.stopped=true;this.status='error';this.report(new Error('This identity connected on another client; reconnect manually'));socket.close();}
+            else if(frame.code!=='peer-offline')this.report(new Error(frame.message));
+          }else {
+            if(!ready)throw new Error('Directory message before authentication');
+            if(frame.type==='results'){const request=this.requests.get(frame.requestId);if(request){clearTimeout(request.timer);this.requests.delete(frame.requestId);request.resolve(frame.users);}}
+            else if(frame.type==='presence'){this.updateContact(frame.user);if(frame.user.online)this.wakePeer(frame.user.userId);this.changed();}
+            else if(frame.type==='connect'){this.remember(frame.from);this.ensureDirect(frame.from);void this.ensurePair(frame.from.userId,false).catch(e=>this.report(e));this.watch();this.changed();}
+          }
+        }catch(error){finish(error instanceof Error?error:new Error('Invalid directory response'));this.report(error);socket.close();}
+      };
+      socket.onerror=()=>{finish(new Error('Directory connection failed'));};
+      socket.onclose=()=>{
+        if(this.socket!==socket)return;this.socket=undefined;finish(new Error('Directory disconnected'));
+        for(const request of this.requests.values()){clearTimeout(request.timer);request.reject(new Error('Directory disconnected'));}this.requests.clear();
+        for(const [id,user] of this.contacts)this.contacts.set(id,{...user,online:false});
+        if(this.status!=='error')this.status='offline';this.emit();if(!this.stopped)this.scheduleReconnect();
+      };
+    });
+  }
+  private scheduleReconnect(){if(this.stopped||this.reconnect)return;const delay=Math.min(30000,1000*2**Math.min(5,this.attempt++));this.reconnect=setTimeout(()=>{this.reconnect=undefined;void this.connect().catch(e=>this.report(e));},delay);}
+  private directorySend(frame:DirectoryClientFrame){if(this.socket?.readyState!==1)throw new Error('Directory is offline');this.socket.send(JSON.stringify(directoryClientFrameSchema.parse(frame)));}
+  private request(type:'search'|'lookup',value:string|string[]):Promise<DirectoryUser[]>{
+    if(this.status!=='online')return Promise.reject(new Error('Directory is offline'));if(this.requests.size>=32)return Promise.reject(new Error('Too many directory requests'));
+    const requestId=this.id();return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{this.requests.delete(requestId);reject(new Error('Directory request timed out'));},10000);this.requests.set(requestId,{resolve,reject,timer});try{this.directorySend(type==='search'?{type,query:value as string,requestId}:{type,userIds:value as string[],requestId});}catch(error){clearTimeout(timer);this.requests.delete(requestId);reject(error);}});
+  }
+  async search(query:string):Promise<DirectoryUser[]>{return this.request('search',query.replace(/^@/,'').toLowerCase());}
+  private watch(){if(this.status==='online')this.directorySend({type:'watch',userIds:[...this.contacts.keys()]});}
+  private async refreshContacts(){if(!this.contacts.size)return;const users=await this.request('lookup',[...this.contacts.keys()]);for(const user of users)this.updateContact(user);this.changed();for(const user of users)if(user.online)this.wakePeer(user.userId);}
+  private updateContact(user:DirectoryUser){const old=this.contacts.get(user.userId);if(old){if(old.publicKey!==user.publicKey)throw new Error('Pinned contact key changed');this.contacts.set(user.userId,user);if(old.online!==user.online){const pair=this.pairs.get(user.userId);if(pair)pair.notified=false;}const c=this.conversations.get(directConversationId(this.options.identity.userId,user.userId));if(c)c.title=user.displayName;}}
+  private remember(user:DirectoryUser){directoryUserSchema.parse(user);if(user.userId===this.options.identity.userId)throw new Error('Cannot add self');if(!this.contacts.has(user.userId)&&this.contacts.size>=MAX_CONTACTS)throw new Error('Contact capacity exceeded');this.contacts.set(user.userId,{...user});}
+  private ensureDirect(user:DirectoryUser):InternalConversation {
+    const id=directConversationId(this.options.identity.userId,user.userId);let c=this.conversations.get(id);
+    if(!c){c={id,kind:'direct',title:user.displayName,memberIds:[this.options.identity.userId,user.userId].sort(),messages:[],files:[],unread:0,updatedAt:Date.now()};this.conversations.set(id,c);}return c;
+  }
+  async addContact(user:DirectoryUser):Promise<string>{await this.restore();this.remember(user);const c=this.ensureDirect(user);this.watch();this.changed();if(user.online&&this.status==='online')void this.ensurePair(user.userId,true).catch(e=>this.report(e));return c.id;}
+  private validConversation(peerId:string,conversationId:string|undefined){if(!conversationId)return false;const c=this.conversations.get(conversationId);return !!c&&c.memberIds.includes(peerId)&&c.memberIds.includes(this.options.identity.userId);}
+  private async ensurePair(peerId:string,notify:boolean):Promise<Pair>{
+    if(this.stopped)throw new Error('Messenger is disconnected');const user=this.contacts.get(peerId);if(!user)throw new Error('Unknown contact');
+    let pair=this.pairs.get(peerId);
+    if(!pair){
+      if(this.pairs.size>=MAX_SESSIONS){const idle=[...this.pairs.entries()].filter(([id,p])=>!p.flushing&&!p.connecting&&p.session.getSnapshot().callState==='idle'&&!p.session.getSnapshot().files.some(f=>f.status==='sending'||f.status==='receiving')&&!this.pending.some(m=>m.remaining.includes(id))).sort((a,b)=>a[1].lastUsed-b[1].lastUsed)[0];if(!idle)throw new Error('Active peer capacity exceeded (16)');this.pairs.delete(idle[0]);clearTimeout(idle[1].retry);idle[1].session.disconnect();}
+      const session=new PeerSession({serverUrl:this.options.serverUrl,invite:conversationInvite(this.options.identity,user.publicKey),randomBytes:this.random,rtcFactory:this.options.rtcFactory,getUserMedia:this.options.getUserMedia,onChange:snapshot=>this.pairChanged(peerId,snapshot),onMessage:message=>this.receiveMessage(peerId,message),onApplication:payload=>this.receiveApplication(peerId,payload),allowConversation:id=>this.validConversation(peerId,id)});
+      pair={session,attempt:0,flushing:false,notified:false,lastUsed:Date.now(),lastSent:new Map(),definitions:new Set()};this.pairs.set(peerId,pair);
+    }
+    pair.lastUsed=Date.now();
+    if(notify&&this.status==='online'&&!pair.notified){this.directorySend({type:'connect',to:peerId});pair.notified=true;}
+    const status=pair.session.getSnapshot().status;
+    if(!pair.connecting&&!['connecting','waiting','connected'].includes(status)){
+      const current=pair;pair.connecting=current.session.connect().finally(()=>{current.connecting=undefined;});
+      try{await pair.connecting;}catch(error){this.schedulePairRetry(peerId);throw error;}
+    }else if(pair.connecting)await pair.connecting;
+    return pair;
+  }
+  private schedulePairRetry(peerId:string){const pair=this.pairs.get(peerId);if(!pair||pair.retry||this.stopped||!this.contacts.get(peerId)?.online)return;pair.notified=false;pair.retry=setTimeout(()=>{pair.retry=undefined;void this.ensurePair(peerId,true).catch(e=>this.report(e));},Math.min(30000,1000*2**Math.min(5,pair.attempt++)));}
+  private wakePeer(peerId:string){const needs=this.pending.some(m=>m.remaining.includes(peerId))||this.pairs.has(peerId)||[...this.conversations.values()].some(c=>c.kind==='group'&&c.creatorId===this.options.identity.userId&&c.memberIds.includes(peerId));if(needs)void this.ensurePair(peerId,true).then(()=>this.flushPeer(peerId)).catch(e=>this.report(e));}
+  private pairChanged(peerId:string,snapshot:SessionSnapshot){
+    const pair=this.pairs.get(peerId);if(!pair)return;
+    const direct=this.conversations.get(directConversationId(this.options.identity.userId,peerId));if(direct)direct.session=snapshot;
+    const nonIdle=[...this.pairs.entries()].find(([id,p])=>id!==peerId&&p.session.getSnapshot().callState!=='idle');
+    if(nonIdle&&snapshot.callState==='incoming'){pair.session.rejectCall();return;}
+    for(const file of snapshot.files){const conversationId=file.conversationId;if(!conversationId||!this.validConversation(peerId,conversationId))continue;const c=this.conversations.get(conversationId)!;const senderId=file.from==='self'?this.options.identity.userId:peerId;const index=c.files.findIndex(f=>f.id===file.id&&f.senderId===senderId);const value={...file,data:file.data??(index>=0?c.files[index]?.data:undefined),senderId,conversationId};if(c.kind==='group'&&file.from==='self'&&!this.fileFanouts.has(c.id+':'+file.id)&&index>=0)value.status=c.files[index]!.status;
+      if(index<0)c.files.push(value);else c.files[index]=value;while(c.files.length>4)c.files.shift();if(file.data&&file.status==='complete')pair.session.releaseFileData(file.id);
+    }
+    for(const c of this.conversations.values())for(const file of c.files)if(c.kind==='group'&&file.senderId===this.options.identity.userId){const fanout=this.fileFanouts.get(c.id+':'+file.id);if(fanout){const observed=snapshot.files.find(f=>f.id===file.id&&f.conversationId===c.id);if(observed&&fanout.has(peerId))fanout.set(peerId,observed.status);const statuses=[...fanout.values()];file.status=statuses.some(s=>s==='error')?'error':statuses.every(s=>s==='complete')?'complete':'sending';}}
+    const retained=[...this.conversations.values()].flatMap(c=>c.files).filter(f=>f.data);while(retained.length>8){const file=retained.shift()!;file.data=undefined;}
+    if(snapshot.status==='connected'){pair.attempt=0;clearTimeout(pair.retry);pair.retry=undefined;void this.flushPeer(peerId);}else if(snapshot.status==='disconnected'||snapshot.status==='error'){pair.lastSent.clear();pair.definitions.clear();this.schedulePairRetry(peerId);}else if(snapshot.status==='waiting'){pair.lastSent.clear();pair.definitions.clear();}
+    this.emit();
+  }
+  private receiveMessage(peerId:string,message:ChatMessage):boolean {
+    if(!this.validConversation(peerId,message.conversationId))return false;const c=this.conversations.get(message.conversationId!)!;const own=this.options.identity.userId;
+    if(message.from==='self'){
+      const target=c.messages.find(m=>m.id===message.id&&m.from===own);if(!target)return false;
+      const pending=this.pending.find(p=>p.messageId===message.id&&p.conversationId===c.id);
+      if(message.status==='delivered'&&pending){this.pairs.get(peerId)?.lastSent.delete(c.id+':'+message.id);pending.remaining=pending.remaining.filter(id=>id!==peerId);if(!pending.remaining.length){target.status='delivered';this.pending=this.pending.filter(p=>p!==pending);}else target.status='sent';}
+      else if(target.status!=='delivered')target.status='sent';
+    }else {
+      if(c.messages.some(m=>m.id===message.id&&m.from===peerId))return true;
+      c.messages.push({id:message.id,text:message.text,from:peerId,timestamp:message.timestamp,status:'received',conversationId:c.id});c.unread=Math.min(100,c.unread+1);c.updatedAt=Date.now();
+    }
+    this.changed();return true;
+  }
+  private receiveApplication(peerId:string,payload:unknown){
+    const group=groupDefinitionSchema.parse(payload);const own=this.options.identity.userId;
+    if(group.creatorId!==peerId||!group.members.some(m=>m.userId===peerId)||!group.members.some(m=>m.userId===own)||new Set(group.members.map(m=>m.userId)).size!==group.members.length)throw new Error('Invalid group definition author/membership');
+    const existing=this.conversations.get(group.id);if(existing&&(existing.creatorId!==peerId||JSON.stringify(existing.memberIds)!==JSON.stringify(group.members.map(m=>m.userId).sort())))throw new Error('Group definition is immutable in this version');
+    if(!existing&&[...this.conversations.values()].filter(c=>c.kind==='group').length>=MAX_GROUPS)throw new Error('Group capacity exceeded');
+    if(group.members.filter(m=>m.userId!==own&&!this.contacts.has(m.userId)).length+this.contacts.size>MAX_CONTACTS)throw new Error('Contact capacity exceeded');
+    for(const member of group.members)if(member.userId!==own)this.remember({...member,online:this.contacts.get(member.userId)?.online??false});
+    if(!existing)this.conversations.set(group.id,{id:group.id,kind:'group',title:group.title,memberIds:group.members.map(m=>m.userId).sort(),creatorId:peerId,messages:[],files:[],unread:0,updatedAt:Date.now()});
+    this.watch();this.changed();void this.refreshContacts().catch(e=>this.report(e));
+  }
+  private definition(c:InternalConversation):GroupDefinition {return groupDefinitionSchema.parse({kind:'group-definition',id:c.id,title:c.title,creatorId:c.creatorId,members:c.memberIds.map(id=>id===this.options.identity.userId?this.self:this.contacts.get(id))});}
+  async createGroup(title:string,userIds:string[]):Promise<string>{
+    title=z.string().trim().min(1).max(64).parse(title);if(this.status!=='online'||!this.self)throw new Error('Directory must be online');
+    const members=[...new Set([this.options.identity.userId,...userIds])].sort();if(members.length<2||members.length>8)throw new Error('Groups require 2–8 members');members.forEach(id=>roomIdSchema.parse(id));
+    if([...this.conversations.values()].filter(c=>c.kind==='group').length>=MAX_GROUPS)throw new Error('Group capacity exceeded');
+    const missing=members.filter(id=>id!==this.options.identity.userId&&!this.contacts.has(id));if(missing.length){const users=await this.request('lookup',missing);if(users.length!==missing.length)throw new Error('Unknown group member');for(const user of users)this.remember(user);}
+    const id='group:'+this.id();const c:InternalConversation={id,kind:'group',title,memberIds:members,creatorId:this.options.identity.userId,messages:[],files:[],unread:0,updatedAt:Date.now()};this.conversations.set(id,c);this.watch();this.changed();
+    for(const peerId of members)if(peerId!==this.options.identity.userId)void this.ensurePair(peerId,true).then(()=>this.flushPeer(peerId)).catch(e=>this.report(e));return id;
+  }
+  private async flushPeer(peerId:string){
+    const pair=this.pairs.get(peerId);if(!pair||pair.flushing||pair.session.getSnapshot().status!=='connected')return;pair.flushing=true;
+    try {
+      for(const c of this.conversations.values())if(c.kind==='group'&&c.creatorId===this.options.identity.userId&&c.memberIds.includes(peerId)&&!pair.definitions.has(c.id)){await pair.session.sendApplication(this.definition(c));pair.definitions.add(c.id);}
+      for(const pending of [...this.pending]){
+        if(!pending.remaining.includes(peerId))continue;const key=pending.conversationId+':'+pending.messageId;if(Date.now()-(pair.lastSent.get(key)??0)<5000)continue;const c=this.conversations.get(pending.conversationId);const message=c?.messages.find(m=>m.id===pending.messageId&&m.from===this.options.identity.userId);if(!message)continue;
+        pair.lastSent.set(key,Date.now());try{await pair.session.sendText(message.text,{messageId:message.id,conversationId:message.conversationId});}catch(error){pair.lastSent.delete(key);throw error;}
+      }
+    }catch(error){this.report(error);}finally{pair.flushing=false;}
+  }
+  async sendText(conversationId:string,text:string):Promise<void>{
+    const c=this.conversations.get(conversationId);if(!c)throw new Error('Unknown conversation');if(!text.trim()||text.length>MAX_TEXT_CHARS)throw new Error('Text must contain 1–4000 characters');if(this.pending.length>=MAX_PENDING_MESSAGES)throw new Error('Local outbox is full');
+    const message:MessengerMessage={id:this.id(),text,from:this.options.identity.userId,timestamp:Date.now(),status:'pending',conversationId};c.messages.push(message);c.updatedAt=Date.now();this.pending.push({conversationId,messageId:message.id,remaining:c.memberIds.filter(id=>id!==this.options.identity.userId)});this.changed();await this.persist();
+    for(const peerId of c.memberIds)if(peerId!==this.options.identity.userId&&this.status==='online'&&this.contacts.get(peerId)?.online)void this.ensurePair(peerId,true).then(()=>this.flushPeer(peerId)).catch(e=>this.report(e));
+  }
+  async sendFile(conversationId:string,file:{name:string;mime:string;data:Uint8Array}):Promise<void>{
+    if(file.data.length>MAX_FILE_BYTES)throw new Error('File exceeds 5 MiB limit');const c=this.conversations.get(conversationId);if(!c)throw new Error('Unknown conversation');
+    const peers=c.memberIds.filter(id=>id!==this.options.identity.userId);
+    if(peers.some(id=>this.pairs.get(id)?.session.getSnapshot().status!=='connected'&&(this.status!=='online'||!this.contacts.get(id)?.online)))throw new Error('All recipients must be online to send files; files are not queued');
+    await Promise.all(peers.map(peerId=>this.waitForPeer(peerId)));
+    if(this.fileFanouts.size>=4)throw new Error('Too many file transfers');const id=this.id();const key=conversationId+':'+id;if(c.kind==='group')this.fileFanouts.set(key,new Map(peers.map(id=>[id,'sending'])));
+    const results=await Promise.allSettled(peers.map(async peerId=>{const pair=this.pairs.get(peerId)!;if(c.kind==='group'&&c.creatorId===this.options.identity.userId)await pair.session.sendApplication(this.definition(c));await pair.session.sendFile(file,{conversationId,messageId:id});}));
+    this.fileFanouts.delete(key);const failed=results.find(result=>result.status==='rejected');const record=c.files.find(f=>f.id===id&&f.senderId===this.options.identity.userId);if(record)record.status=failed?'error':'complete';this.emit();if(failed?.status==='rejected')throw failed.reason;
+  }
+  private async waitForPeer(peerId:string):Promise<Pair>{
+    const connected=this.pairs.get(peerId);if(connected?.session.getSnapshot().status==='connected')return connected;
+    if(this.status!=='online'||!this.contacts.get(peerId)?.online)throw new Error('Contact is offline');
+    const deadline=Date.now()+15000;let timer:ReturnType<typeof setTimeout>|undefined;
+    const pair=await Promise.race([this.ensurePair(peerId,true),new Promise<never>((_resolve,reject)=>{timer=setTimeout(()=>reject(new Error('Peer connection timed out')),15000);})]).finally(()=>clearTimeout(timer));
+    while(pair.session.getSnapshot().status!=='connected'){
+      if(this.stopped||!this.contacts.get(peerId)?.online)throw new Error('Contact is offline');
+      if(Date.now()>=deadline)throw new Error('Peer connection timed out');
+      await new Promise(resolve=>setTimeout(resolve,100));
+    }
+    return pair;
+  }
+  private async readyCallPeer(conversationId:string):Promise<Pair>{
+    const c=this.conversations.get(conversationId);if(!c||c.kind!=='direct')throw new Error('Group calls are not implemented');if(this.getSnapshot().activeCall)throw new Error('Another call is already active');const peerId=c.memberIds.find(id=>id!==this.options.identity.userId)!;
+    const pair=await this.waitForPeer(peerId);
+    if(this.getSnapshot().activeCall)throw new Error('Another call is already active');return pair;
+  }
+  async startCall(conversationId:string,video=false):Promise<void>{const pair=await this.readyCallPeer(conversationId);await pair.session.startCall(video);}
+  async acceptCall():Promise<void>{const active=this.getSnapshot().activeCall;if(!active||active.session.callState!=='incoming')throw new Error('No incoming call');await this.pairs.get(active.peerId)!.session.acceptCall();}
+  rejectCall():void{const active=this.getSnapshot().activeCall;if(active)this.pairs.get(active.peerId)?.session.rejectCall();}
+  endCall():void{const active=this.getSnapshot().activeCall;if(active)this.pairs.get(active.peerId)?.session.endCall();}
+  setMuted(muted:boolean):void{const active=this.getSnapshot().activeCall;if(active)this.pairs.get(active.peerId)?.session.setMuted(muted);}
+  markRead(conversationId:string):void{const c=this.conversations.get(conversationId);if(c){c.unread=0;this.changed();}}
+  private trimHistory(){
+    const pending=new Set(this.pending.map(p=>p.conversationId+':'+p.messageId));
+    for(const c of this.conversations.values())while(c.messages.length>100){const index=c.messages.findIndex(m=>!pending.has(c.id+':'+m.id));if(index<0)break;c.messages.splice(index,1);}
+    let count=[...this.conversations.values()].reduce((n,c)=>n+c.messages.length,0);
+    while(count>MAX_HISTORY_MESSAGES){let oldest:InternalConversation|undefined;let index=-1;let timestamp=Infinity;for(const c of this.conversations.values())for(let i=0;i<c.messages.length;i++){const m=c.messages[i]!;if(!pending.has(c.id+':'+m.id)&&m.timestamp<timestamp){oldest=c;index=i;timestamp=m.timestamp;}}if(!oldest)break;oldest.messages.splice(index,1);count--;}
+  }
+  disconnect():void{
+    this.stopped=true;++this.epoch;this.cancelOpening?.();this.cancelOpening=undefined;clearTimeout(this.reconnect);this.reconnect=undefined;
+    const socket=this.socket;this.socket=undefined;if(socket){socket.onmessage=null;socket.onclose=null;socket.onerror=null;socket.close();}
+    for(const request of this.requests.values()){clearTimeout(request.timer);request.reject(new Error('Disconnected'));}this.requests.clear();
+    for(const pair of this.pairs.values()){clearTimeout(pair.retry);pair.session.disconnect();}this.pairs.clear();
+    for(const [id,user] of this.contacts)this.contacts.set(id,{...user,online:false});this.status='offline';clearTimeout(this.savedTimer);this.savedTimer=undefined;void this.persist().catch(error=>this.report(error));this.emit();
+  }
+}

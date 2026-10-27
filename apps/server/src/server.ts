@@ -2,6 +2,7 @@ import { createHmac, randomBytes } from 'node:crypto';
 import { createServer, type IncomingMessage } from 'node:http';
 import { WebSocket, WebSocketServer } from 'ws';
 import { clientFrameSchema } from '@messenger/core';
+import { Directory } from './directory.js';
 
 export interface ServerOptions {
   host?: string;
@@ -21,6 +22,9 @@ export interface ServerOptions {
   turnUrls?: string[];
   stunUrls?: string[];
   turnTtlSeconds?: number;
+  directoryDbPath?: string;
+  directoryMaxUsers?: number;
+  directoryChallengeTtlMs?: number;
 }
 type Role = 'initiator' | 'responder';
 interface Peer {
@@ -35,6 +39,7 @@ interface Peer {
   peerId?: string;
   role?: Role;
   cleaned: boolean;
+  kind: 'signal' | 'directory';
 }
 const MAX_FRAME_BYTES = 96 * 1024;
 
@@ -58,6 +63,12 @@ export function createSignalingServer(options: ServerOptions = {}) {
   const requests = new Map<string, { at: number; count: number }>();
   const allowed = new Set(config.allowedOrigins);
   let closing = false;
+  const directory = new Directory({
+    dbPath: options.directoryDbPath ?? ':memory:', maxUsers: options.directoryMaxUsers ?? 10_000,
+    challengeTtlMs: options.directoryChallengeTtlMs,
+    send: (ws, frame) => { const peer = peers.get(ws); if (peer) send(peer, frame); },
+    reject: (ws, code, message, close, requestId) => { const peer = peers.get(ws); if (peer) reject(peer, code, message, close, requestId); },
+  });
   const originAllowed = (request: IncomingMessage) => request.headers.origin === undefined || allowed.has(request.headers.origin);
   const ipOf = (request: IncomingMessage) => request.socket.remoteAddress ?? 'unknown'; // Do not trust X-Forwarded-For.
   function acceptRequest(request: IncomingMessage) {
@@ -127,16 +138,17 @@ export function createSignalingServer(options: ServerOptions = {}) {
     if (peer.cleaned) return;
     peer.cleaned = true;
     leave(peer);
+    directory.disconnect(peer.ws);
     peers.delete(peer.ws);
   }
-  function reject(peer: Peer, code: string, message: string, close = false) {
-    send(peer, { type: 'error', code, message });
+  function reject(peer: Peer, code: string, message: string, close = false, requestId?: string) {
+    send(peer, { type: 'error', code, message, ...(requestId ? { requestId } : {}) });
     if (close) { cleanup(peer); peer.ws.close(1008, code); }
   }
   http.on('upgrade', (request, socket, head) => {
     socket.on('error', () => undefined);
     const deny = (status: number) => { socket.end(`HTTP/1.1 ${status} Rejected\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`); };
-    if (closing || request.url !== '/signal') return deny(404);
+    if (closing || (request.url !== '/signal' && request.url !== '/directory')) return deny(404);
     if (!originAllowed(request)) return deny(403);
     if (!acceptRequest(request)) return deny(429);
     const ip = ipOf(request);
@@ -145,7 +157,7 @@ export function createSignalingServer(options: ServerOptions = {}) {
     if (peers.size >= config.maxConnections || ipCount >= config.maxConnectionsPerIp) return deny(503);
     wss.handleUpgrade(request, socket, head, (ws) => {
       const now = Date.now();
-      const peer: Peer = { ws, ip, alive: true, openedAt: now, windowAt: now, frames: 0, bytes: 0, cleaned: false };
+      const peer: Peer = { ws, ip, alive: true, openedAt: now, windowAt: now, frames: 0, bytes: 0, cleaned: false, kind: request.url === '/directory' ? 'directory' : 'signal' };
       peers.set(ws, peer);
       ws.on('error', () => { cleanup(peer); ws.terminate(); });
       ws.on('close', () => cleanup(peer));
@@ -156,9 +168,10 @@ export function createSignalingServer(options: ServerOptions = {}) {
         if (now - peer.windowAt >= config.rateWindowMs) { peer.windowAt = now; peer.frames = 0; peer.bytes = 0; }
         const bytes = Array.isArray(data) ? data.reduce((sum, part) => sum + part.length, 0) : data.byteLength;
         if (++peer.frames > config.frameLimit || (peer.bytes += bytes) > config.bytesLimit) return reject(peer, 'rate-limit', 'Signaling rate exceeded', true);
-        if (binary || bytes > MAX_FRAME_BYTES) return reject(peer, 'invalid-frame', 'Text JSON frame required', true);
+        if (binary || bytes > (peer.kind === 'directory' ? 16 * 1024 : MAX_FRAME_BYTES)) return reject(peer, 'invalid-frame', 'Text JSON frame required', true);
         let json: unknown;
         try { json = JSON.parse(data.toString()); } catch { return reject(peer, 'invalid-frame', 'Invalid JSON', true); }
+        if (peer.kind === 'directory') { directory.handle(ws, json); return; }
         const result = clientFrameSchema.safeParse(json);
         if (!result.success) return reject(peer, 'invalid-frame', 'Invalid signaling frame', true);
         const frame = result.data;
@@ -184,13 +197,16 @@ export function createSignalingServer(options: ServerOptions = {}) {
         if (!other) return reject(peer, 'peer-unavailable', 'The other peer is not connected');
         send(other, { type: 'signal', from: peer.peerId, payload: frame.payload });
       });
+      if (peer.kind === 'directory') directory.open(ws);
     });
   });
   const heartbeat = setInterval(() => {
     const now = Date.now();
     for (const [ip, bucket] of requests) if (now - bucket.at >= config.rateWindowMs) requests.delete(ip);
+    directory.expire(now);
     for (const peer of peers.values()) {
-      if (!peer.alive || (!peer.roomId && now - peer.openedAt >= config.joinTimeoutMs)) { cleanup(peer); peer.ws.terminate(); continue; }
+      const active = peer.kind === 'directory' ? directory.isAuthenticated(peer.ws) : Boolean(peer.roomId);
+      if (!peer.alive || (!active && now - peer.openedAt >= config.joinTimeoutMs)) { cleanup(peer); peer.ws.terminate(); continue; }
       peer.alive = false; peer.ws.ping();
     }
   }, Math.min(config.heartbeatMs, config.joinTimeoutMs));
@@ -212,6 +228,7 @@ export function createSignalingServer(options: ServerOptions = {}) {
       requests.clear();
       await new Promise<void>((resolve) => wss.close(() => resolve()));
       if (http.listening) await new Promise<void>((resolve, reject) => http.close((error) => error ? reject(error) : resolve()));
+      directory.close();
     },
   };
 }
@@ -233,5 +250,12 @@ export function optionsFromEnv(env: NodeJS.ProcessEnv = process.env): ServerOpti
     ...(env.ALLOWED_ORIGINS !== undefined ? { allowedOrigins: list('ALLOWED_ORIGINS') } : {}),
     turnSharedSecret: env.TURN_SHARED_SECRET, turnUrls, stunUrls,
     turnTtlSeconds: numberEnv(env, 'TURN_TTL_SECONDS', 600, 60, 3600),
+    directoryDbPath: env.DIRECTORY_DB_PATH || ':memory:',
+    directoryMaxUsers: numberEnv(env, 'DIRECTORY_MAX_USERS', 10_000, 1, 1_000_000),
+    maxConnections: numberEnv(env, 'MAX_CONNECTIONS', 128, 1, 100_000),
+    maxConnectionsPerIp: numberEnv(env, 'MAX_CONNECTIONS_PER_IP', 8, 1, 100_000),
+    maxRooms: numberEnv(env, 'MAX_ROOMS', 64, 1, 100_000),
+    requestLimit: numberEnv(env, 'REQUEST_LIMIT', 120, 1, 100_000),
+    rateWindowMs: numberEnv(env, 'RATE_WINDOW_MS', 10_000, 100, 60_000),
   };
 }

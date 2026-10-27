@@ -1,10 +1,15 @@
 {
-  "name": "messenger-prototype",
-  "version": "0.1.0",
+  "name": "lastcall",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
-  "workspaces": ["apps/*", "packages/*"],
-  "engines": { "node": "^22.13.0 || ^24.3.0 || >=26.0.0" },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": "^24.3.0 || >=26.0.0"
+  },
   "scripts": {
     "dev:server": "npm run dev -w @messenger/server",
     "dev:probe": "npm run dev -w @messenger/probe",

@@ -1,13 +1,13 @@
 {
   "name": "@messenger/server",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/main.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "build": "esbuild src/main.ts --bundle --platform=node --target=node22 --format=esm --external:ws --outfile=dist/main.js",
+    "build": "esbuild src/main.ts --bundle --platform=node --target=node24 --format=esm --external:ws --outfile=dist/main.js",
     "start": "node dist/main.js"
   },
   "dependencies": { "@messenger/core": "*", "ws": "^8.18.3" },

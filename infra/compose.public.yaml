@@ -10,7 +10,14 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: 8787
-      ALLOWED_ORIGINS: https://p2p.lienad.ru
+      ALLOWED_ORIGINS: https://lienad.ru,https://p2p.lienad.ru
+      DIRECTORY_DB_PATH: /data/directory.sqlite
+      DIRECTORY_MAX_USERS: 10000
+      MAX_CONNECTIONS: 256
+      MAX_CONNECTIONS_PER_IP: 256
+      MAX_ROOMS: 256
+      REQUEST_LIMIT: 1200
+      RATE_WINDOW_MS: 60000
       # Explicit public STUN choice: these providers observe discovery IP addresses.
       STUN_URLS: stun:stun.l.google.com:19302,stun:stun.cloudflare.com:3478
       # No public TURN credentials are issued by this preview.
@@ -20,6 +27,8 @@ services:
       proxy:
         aliases: [messenger-signaling]
     read_only: true
+    volumes:
+      - directory:/data
     init: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
@@ -42,3 +51,5 @@ networks:
   proxy:
     external: true
     name: proxy
+volumes:
+  directory:

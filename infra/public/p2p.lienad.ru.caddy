@@ -8,7 +8,7 @@ p2p.lienad.ru {
     }
     encode gzip
 
-    @signaling path /signal /ice /health
+    @signaling path /signal /directory /ice /health
     handle @signaling {
         reverse_proxy messenger-signaling:8787 {
             header_down Cache-Control "no-store"
@@ -19,7 +19,7 @@ p2p.lienad.ru {
     handle /download/*.apk {
         root * /etc/caddy/sites/messenger-public
         header Content-Type application/vnd.android.package-archive
-        header Content-Disposition "attachment; filename=messenger-preview.apk"
+        header Content-Disposition "attachment; filename=LastCall.apk"
         header Cache-Control "no-store"
         file_server
     }

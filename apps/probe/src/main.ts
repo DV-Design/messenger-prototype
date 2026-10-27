@@ -1,10 +1,19 @@
-import { createInvite, PeerSession, type SessionSnapshot } from '@messenger/core';
+import { createInvite, createDeviceIdentity, MessengerClient, PeerSession, type MessengerOptions, type SessionSnapshot } from '@messenger/core';
 import './style.css';
 
-declare global { interface Window { __session?: PeerSession } }
+declare global { interface Window {
+  __session?: PeerSession;
+  __messenger?: MessengerClient;
+  __createMessenger?: (options: MessengerOptions) => MessengerClient;
+  __createIdentity?: typeof createDeviceIdentity;
+} }
+if (import.meta.env.DEV) {
+  window.__createMessenger = options => new MessengerClient(options);
+  window.__createIdentity = createDeviceIdentity;
+}
 const node = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const server = node<HTMLInputElement>('server'), invite = node<HTMLInputElement>('invite');
-if (window.location.protocol === 'https:') server.value = window.location.origin;
+if (window.location.protocol === 'https:') server.value = window.location.origin + (window.location.pathname.startsWith('/messenger/') ? '/messenger' : '');
 const relay = node<HTMLInputElement>('relay'), input = node<HTMLTextAreaElement>('text');
 const fileInput = node<HTMLInputElement>('file');
 const local = node<HTMLVideoElement>('local-video'), remote = node<HTMLVideoElement>('remote-video');

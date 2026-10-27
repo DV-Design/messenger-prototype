@@ -25,7 +25,7 @@ export default defineConfig({
     {
       command: 'npm run dev:server',
       url: `http://127.0.0.1:${serverPort}/health`,
-      env: { PORT: serverPort, HOST: '127.0.0.1', ALLOWED_ORIGINS: baseURL, TURN_URLS: process.env.PW_TEST_TURN === '1' ? process.env.TURN_URLS || '' : '', TURN_SHARED_SECRET: process.env.PW_TEST_TURN === '1' ? process.env.TURN_SHARED_SECRET || '' : '', STUN_URLS: '' },
+      env: { PORT: serverPort, HOST: '127.0.0.1', MAX_CONNECTIONS_PER_IP: '32', ALLOWED_ORIGINS: baseURL, TURN_URLS: process.env.PW_TEST_TURN === '1' ? process.env.TURN_URLS || '' : '', TURN_SHARED_SECRET: process.env.PW_TEST_TURN === '1' ? process.env.TURN_SHARED_SECRET || '' : '', STUN_URLS: '' },
       reuseExistingServer: false,
       timeout: 30_000,
     },

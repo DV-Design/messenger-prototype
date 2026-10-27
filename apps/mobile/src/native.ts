@@ -25,6 +25,5 @@ export function validateServerUrl(input: string): string {
   if (url.protocol !== 'https:' && !((__DEV__ || process.env.EXPO_PUBLIC_ALLOW_LOCAL_HTTP === '1') && local)) {
     throw new Error('Нужен HTTPS. Локальный HTTP разрешён только в тестовой сборке.');
   }
-  if (url.pathname !== '/' && url.pathname !== '') throw new Error('Укажите базовый адрес сервера без пути.');
-  return url.origin;
+  return url.origin + url.pathname.replace(/\/+$/, '');
 }

@@ -1,9 +1,10 @@
+import { endpointUrl } from './directory.js';
 import { audioPolicy } from './audio.js';
 import { bytesToHex, hexToBytes, randomChecked, secureRandomBytes, SignalingCipher, type RandomBytes } from './crypto.js';
 import { dataFrameSchema, FILE_CHUNK_BYTES, MAX_FILE_BYTES, MAX_FILES, MAX_TEXT_CHARS, MAX_WIRE_BYTES, serverFrameSchema, type ClientFrame, type DataFrame, type SignalBody } from './protocol.js';
 
-export interface ChatMessage {id:string;text:string;from:'self'|'peer';timestamp:number;}
-export interface SharedFile {id:string;name:string;mime:string;size:number;from:'self'|'peer';status:'sending'|'receiving'|'complete'|'error';receivedBytes:number;data?:Uint8Array;}
+export interface ChatMessage {id:string;text:string;from:'self'|'peer';timestamp:number;conversationId?:string;status?:'sent'|'delivered'|'received';}
+export interface SharedFile {id:string;name:string;mime:string;size:number;from:'self'|'peer';status:'sending'|'receiving'|'complete'|'error';receivedBytes:number;data?:Uint8Array;conversationId?:string;}
 export interface SessionSnapshot {
   status:'idle'|'connecting'|'waiting'|'connected'|'disconnected'|'error';error?:string;
   messages:ChatMessage[];callState:'idle'|'outgoing'|'incoming'|'active';muted:boolean;
@@ -15,6 +16,9 @@ export interface PeerSessionOptions {
   randomBytes?:RandomBytes;rtcFactory?:(config:RTCConfiguration)=>RTCPeerConnection;
   getUserMedia?:(constraints:MediaStreamConstraints)=>Promise<MediaStream>;
   onChange?:(snapshot:SessionSnapshot)=>void;
+  onMessage?:(message:ChatMessage)=>boolean|void;
+  onApplication?:(payload:unknown)=>void;
+  allowConversation?:(conversationId:string|undefined)=>boolean;
 }
 const initialSnapshot=():SessionSnapshot=>({status:'idle',messages:[],callState:'idle',muted:false,route:'unknown',stats:{},files:[]});
 interface PendingTransfer {id:string;resolve:()=>void;reject:(e:Error)=>void;timer:ReturnType<typeof setTimeout>;ended:boolean;}
@@ -76,7 +80,7 @@ export class PeerSession {
     try {
       let iceServers=this.options.iceServers;
       if(!iceServers){const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),10000);
-        try {const response=await fetch(new URL('/ice',this.options.serverUrl),{signal:controller.signal});if(!response.ok)throw new Error('ICE configuration request failed');
+        try {const response=await fetch(endpointUrl(this.options.serverUrl,'ice'),{signal:controller.signal});if(!response.ok)throw new Error('ICE configuration request failed');
           const value=await response.json() as {iceServers?:RTCIceServer[]};
           if(!Array.isArray(value.iceServers)||value.iceServers.length>20)throw new Error('Invalid ICE configuration');iceServers=value.iceServers;
         } finally {clearTimeout(timer);}
@@ -84,7 +88,7 @@ export class PeerSession {
       const hasTurn=iceServers.some(server=>(Array.isArray(server.urls)?server.urls:[server.urls]).some(url=>/^turns?:/i.test(url)));
       if(this.options.relayOnly&&!hasTurn)throw new Error('Relay-only mode requires a configured TURN server');
       if(generation!==this.generation)throw new Error('Connection cancelled');
-      const url=new URL('/signal',this.options.serverUrl);url.protocol=url.protocol==='https:'?'wss:':'ws:';
+      const url=endpointUrl(this.options.serverUrl,'signal');url.protocol=url.protocol==='https:'?'wss:':'ws:';
       const socket=new WebSocket(url.toString());this.socket=socket;
       await new Promise<void>((resolve,reject)=>{
         let joined=false;const timeout=setTimeout(()=>fail(new Error('Signaling join timed out')),10000);
@@ -214,23 +218,33 @@ export class PeerSession {
   }
   setMuted(muted:boolean):void{this.state.localStream?.getAudioTracks().forEach(track=>{track.enabled=!muted;});this.change({muted});}
   private dataSend(frame:DataFrame){const channel=this.channel;if(channel?.readyState!=='open')throw new Error('Peer data channel is not connected');const text=JSON.stringify(frame);if(text.length>MAX_DATA_FRAME)throw new Error('Data frame exceeds limit');channel.send(text);}
-  async sendText(text:string):Promise<void>{
+  async sendText(text:string,metadata:{messageId?:string;conversationId?:string}={}):Promise<void>{
     if(!text.trim()||text.length>MAX_TEXT_CHARS)throw new Error(`Text must contain 1–${MAX_TEXT_CHARS} characters`);
     if((this.channel?.bufferedAmount??0)>BUFFER_HIGH)throw new Error('Data channel busy; retry after transfer');
-    const frame={kind:'text' as const,id:this.id(),text,timestamp:Date.now()};this.dataSend(frame);
-    this.state.messages=[...this.state.messages,{id:frame.id,text,from:'self' as const,timestamp:frame.timestamp}].slice(-100);this.emit();
+    const frame=dataFrameSchema.parse({kind:'text',id:metadata.messageId??this.id(),conversationId:metadata.conversationId,text,timestamp:Date.now()});
+    if(frame.kind!=='text')return;this.dataSend(frame);
+    const message:ChatMessage={id:frame.id,text,conversationId:frame.conversationId,from:'self',timestamp:frame.timestamp,status:'sent'};
+    const old=this.state.messages.findIndex(x=>x.id===frame.id&&x.conversationId===frame.conversationId&&x.from==='self');
+    if(old<0)this.state.messages=[...this.state.messages,message].slice(-100);else if(this.state.messages[old]?.status!=='delivered')this.state.messages[old]=message;
+    this.options.onMessage?.(message);this.emit();
   }
+  async sendApplication(payload:unknown):Promise<void>{
+    if((this.channel?.bufferedAmount??0)>BUFFER_HIGH)throw new Error('Data channel busy');
+    const frame=dataFrameSchema.parse({kind:'application',id:this.id(),body:JSON.stringify(payload)});this.dataSend(frame);
+  }
+  /** Manager may retain the immutable completed bytes itself, then release this duplicate reference. */
+  releaseFileData(fileId:string):void{const file=this.state.files.find(f=>f.id===fileId);if(file?.status==='complete')file.data=undefined;}
   private reserveFile(file:SharedFile){
     if(this.state.files.some(x=>x.id===file.id))throw new Error('Duplicate file ID');
     while(this.state.files.length>=MAX_FILES){const index=this.state.files.findIndex(x=>x.status==='complete'||x.status==='error');if(index<0)throw new Error('File capacity exhausted');this.state.files.splice(index,1);}
     this.state.files.push(file);this.emit();
   }
-  async sendFile(file:{name:string;mime:string;data:Uint8Array}):Promise<void>{
+  async sendFile(file:{name:string;mime:string;data:Uint8Array},metadata:{conversationId?:string;messageId?:string}={}):Promise<void>{
     if(!(file.data instanceof Uint8Array)||file.data.length>MAX_FILE_BYTES)throw new Error('File exceeds 5 MiB limit');
     if(this.outgoing)throw new Error('One outgoing file at a time');
-    const id=this.id();const start=dataFrameSchema.parse({kind:'file-start',id,name:file.name,mime:file.mime,size:file.data.length});
+    const id=metadata.messageId??this.id();const start=dataFrameSchema.parse({kind:'file-start',id,conversationId:metadata.conversationId,name:file.name,mime:file.mime,size:file.data.length});
     if(this.channel?.readyState!=='open')throw new Error('Peer data channel is not connected');
-    this.reserveFile({id,name:file.name,mime:file.mime,size:file.data.length,from:'self',status:'sending',receivedBytes:0});
+    this.reserveFile({id,name:file.name,mime:file.mime,size:file.data.length,from:'self',status:'sending',receivedBytes:0,conversationId:metadata.conversationId});
     let ackResolve!:()=>void;let ackReject!:(e:Error)=>void;
     const acknowledged=new Promise<void>((resolve,reject)=>{ackResolve=resolve;ackReject=reject;});
     // Handle rejection immediately while the producer is still draining the channel.
@@ -254,12 +268,21 @@ export class PeerSession {
     if(this.channel?.readyState!=='open'||this.outgoing?.id!==id)throw new Error('Transfer disconnected');
   }
   private handleData(frame:DataFrame){
-    if(frame.kind==='text'){
-      if(this.state.messages.some(x=>x.id===frame.id))return;
-      this.state.messages=[...this.state.messages,{id:frame.id,text:frame.text,from:'peer' as const,timestamp:frame.timestamp}].slice(-100);this.emit();
+    if(frame.kind==='application'){
+      this.options.onApplication?.(JSON.parse(frame.body));
+    }else if(frame.kind==='text-ack'){
+      const message=this.state.messages.find(x=>x.id===frame.id&&x.conversationId===frame.conversationId&&x.from==='self');
+      if(message){message.status='delivered';this.options.onMessage?.({...message});this.emit();}
+    }else if(frame.kind==='text'){
+      if(this.options.allowConversation?.(frame.conversationId)===false)return;
+      const message:ChatMessage={id:frame.id,text:frame.text,conversationId:frame.conversationId,from:'peer',timestamp:frame.timestamp,status:'received'};
+      if(this.options.onMessage?.(message)===false)return;
+      if(!this.state.messages.some(x=>x.id===frame.id&&x.conversationId===frame.conversationId&&x.from==='peer'))this.state.messages=[...this.state.messages,message].slice(-100);
+      this.dataSend({kind:'text-ack',id:frame.id,conversationId:frame.conversationId});this.emit();
     }else if(frame.kind==='file-start'){
+      if(this.options.allowConversation?.(frame.conversationId)===false)throw new Error('Unknown file conversation');
       if(this.incoming)throw new Error('One incoming file at a time');
-      this.reserveFile({id:frame.id,name:frame.name,mime:frame.mime,size:frame.size,from:'peer',status:'receiving',receivedBytes:0});
+      this.reserveFile({id:frame.id,name:frame.name,mime:frame.mime,size:frame.size,from:'peer',status:'receiving',receivedBytes:0,conversationId:frame.conversationId});
       this.incoming={id:frame.id,bytes:new Uint8Array(frame.size),offset:0,timer:setTimeout(()=>this.failIncoming(),REQUEST_TIMEOUT)};
     }else if(frame.kind==='file-chunk'){
       const incoming=this.incoming;

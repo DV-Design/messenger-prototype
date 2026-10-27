@@ -1,5 +1,11 @@
 # Browser diagnostic client
 
+LastCall 0.2 uses the directory/contact UI in the native app. This page deliberately
+retains the earlier invitation-based transport diagnostic, not the account UI.
+The three-client directory integration uses dev-only MessengerClient factories;
+these handles are removed from the production build. Public diagnostics live at
+`https://lienad.ru/messenger/diagnostics/`, with the gateway prefix preserved.
+
 Run `npm run dev:server` and `npm run dev:probe` from repository root, then open
 `http://127.0.0.1:5173` in two separate browser profiles or devices. Each browser
 uses the same `@messenger/core` PeerSession as the mobile app. Generate an invite
