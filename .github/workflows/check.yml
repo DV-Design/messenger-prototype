@@ -30,6 +30,8 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
       - run: npm ci
       - name: Generate internal Android preview
         run: npm run native:prebuild -w @messenger/mobile -- --platform android
