@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ru">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="dark"><title>P2P · лаборатория связи</title></head>
+<body>
+  <main class="shell">
+    <header class="masthead"><div><p class="eyebrow">ANDROID ↔ IOS ↔ WEB</p><h1>Связь напрямую.</h1><p class="intro">Два устройства. Общий секрет. Ваш разговор.</p></div><span class="edition">ЛАБОРАТОРИЯ<br>ПРОТОТИП / 01</span></header>
+    <p class="notice">Технический прототип: держите приложение открытым. История не сохраняется; офлайн-доставки пока нет.</p>
+    <section class="workspace">
+      <aside class="panel setup"><h2><span>01</span> Соединение</h2>
+        <label for="server">Сервер соединений</label><input id="server" data-testid="server-url" type="url" value="http://127.0.0.1:8787" autocomplete="off">
+        <label for="invite">Секрет приглашения</label><input id="invite" data-testid="invite" type="password" placeholder="Создайте или вставьте секрет" autocomplete="off" spellcheck="false" maxlength="64"><p class="hint">Передайте секрет собеседнику по доверенному каналу. Не публикуйте его.</p>
+        <div class="actions"><button id="generate" class="secondary" data-testid="generate">Создать</button><button id="copy" class="secondary" data-testid="copy">Копировать</button></div>
+        <label class="switch"><input id="relay" data-testid="relay-only" type="checkbox"><span>Только через TURN</span></label><p class="hint">Прямой маршрут раскрывает IP собеседнику. Для режима TURN нужен свой настроенный сервер.</p>
+        <div class="actions"><button id="connect" data-testid="connect">Соединиться</button><button id="disconnect" class="secondary" data-testid="disconnect" disabled>Отключить</button></div>
+        <div id="error" data-testid="error" class="error" role="alert" hidden></div>
+        <div class="telemetry"><div><span>Состояние</span><strong id="status" data-testid="status" data-state="idle">Не подключён</strong></div><div><span>Маршрут</span><strong id="route" data-testid="route" data-route="unknown">Ещё не определён</strong></div><div><span>RTT</span><strong id="rtt">—</strong></div><div><span>Звук / потери / jitter</span><strong id="audio-stats">—</strong></div></div>
+      </aside>
+      <section class="panel conversation"><div class="section-title"><h2><span>02</span> Разговор</h2><span class="live-dot" id="live-dot"></span></div>
+        <div class="call-actions"><button id="audio-call" data-testid="audio-call" class="secondary" disabled>Позвонить</button><button id="video-call" data-testid="video-call" class="secondary" disabled>Видеозвонок</button><span id="call-state" data-testid="call-state" data-state="idle">Без звонка</span></div>
+        <div id="incoming" class="incoming" hidden><strong>Входящий звонок</strong><button id="accept" data-testid="accept-call">Ответить</button><button id="reject" data-testid="reject-call" class="secondary">Отклонить</button></div>
+        <div id="media" class="media" hidden><div class="remote-feed"><video id="remote-video" data-testid="remote-video" autoplay playsinline></video><span class="video-label">Собеседник</span></div><div class="local-feed"><video id="local-video" data-testid="local-video" autoplay muted playsinline></video><span class="video-label">Вы</span></div></div>
+        <div id="active-call" class="active-call" hidden><button id="mute" data-testid="mute" class="secondary">Выключить микрофон</button><button id="end" data-testid="end-call" class="danger">Завершить звонок</button></div>
+        <div id="messages" data-testid="messages" class="messages" aria-live="polite"><p class="empty">Разговор начнётся, когда оба устройства окажутся в сети.</p></div>
+        <form id="chat" class="composer"><label class="sr-only" for="text">Сообщение</label><textarea id="text" data-testid="message-input" placeholder="Ваше сообщение…" maxlength="4000" rows="2" disabled></textarea><button id="send" data-testid="send-message" disabled>Отправить</button></form>
+        <div class="file-area"><label class="file-label" for="file">Прикрепить файл <span>до 5 МиБ</span></label><input id="file" data-testid="file-input" type="file" disabled><div id="files" data-testid="files"></div></div>
+      </section>
+    </section>
+    <footer>Шифрование signaling по секрету приглашения · WebRTC для данных и медиа · Сменный сервер соединений</footer>
+  </main>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

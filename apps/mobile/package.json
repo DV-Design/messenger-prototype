@@ -1,0 +1,38 @@
+{
+  "name": "@messenger/mobile",
+  "version": "0.1.0",
+  "main": "index.ts",
+  "dependencies": {
+    "@config-plugins/react-native-webrtc": "15.0.2",
+    "@messenger/core": "*",
+    "expo": "~58.0.19",
+    "expo-clipboard": "~58.0.4",
+    "expo-crypto": "~58.0.7",
+    "expo-dev-client": "~58.0.15",
+    "expo-document-picker": "~58.0.4",
+    "expo-file-system": "~58.0.12",
+    "expo-image-picker": "~58.0.10",
+    "expo-sharing": "~58.0.20",
+    "expo-status-bar": "~58.0.4",
+    "react": "19.3.0",
+    "react-native": "0.88.0",
+    "react-native-safe-area-context": "~5.10.1",
+    "react-native-webrtc": "155.0.1"
+  },
+  "devDependencies": {
+    "@types/react": "~19.3.0",
+    "eslint": "^9.39.4",
+    "eslint-config-expo": "~58.0.4",
+    "typescript": "~6.0.3"
+  },
+  "scripts": {
+    "start": "expo start --dev-client",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint App.tsx src app.config.ts index.ts",
+    "build": "expo export --platform android --platform ios",
+    "native:prebuild": "expo prebuild --no-install"
+  },
+  "private": true
+}

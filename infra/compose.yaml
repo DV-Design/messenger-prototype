@@ -1,0 +1,45 @@
+# Local laboratory only. Run with: docker compose --env-file infra/.env -f infra/compose.yaml up --build
+# Add --profile turn only after generating TURN_SHARED_SECRET in infra/.env.
+services:
+  signaling:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.server
+    ports:
+      - "127.0.0.1:8787:8787"
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8787
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
+      TURN_SHARED_SECRET: ${TURN_SHARED_SECRET:-}
+      TURN_URLS: ${TURN_URLS:-}
+      STUN_URLS: ${STUN_URLS:-}
+      TURN_TTL_SECONDS: ${TURN_TTL_SECONDS:-600}
+    read_only: true
+    init: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+  coturn:
+    profiles: [turn]
+    image: coturn/coturn:4.7.0
+    entrypoint: ["/bin/sh", "/local/start-turn.sh"]
+    environment:
+      TURN_SHARED_SECRET: ${TURN_SHARED_SECRET:-}
+      TURN_EXTERNAL_IP: ${TURN_EXTERNAL_IP:-127.0.0.1}
+      TURN_ALLOW_LOOPBACK: ${TURN_ALLOW_LOOPBACK:-false}
+    volumes:
+      - ./coturn/turnserver.conf:/local/turnserver.conf:ro
+      - ./coturn/start-turn.sh:/local/start-turn.sh:ro
+    ports:
+      - "127.0.0.1:3478:3478/tcp"
+      - "127.0.0.1:3478:3478/udp"
+      - "127.0.0.1:49160-49200:49160-49200/udp"
+    tmpfs: [/tmp]
+    read_only: true
+    cap_drop: [ALL]
+    # The upstream turnserver executable carries NET_BIND_SERVICE file capability;
+    # excluding it from the bounding set makes exec fail with EPERM even on port 3478.
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
