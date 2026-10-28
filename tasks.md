@@ -1,4 +1,4 @@
-# Initial technical prototype
+# Initial technical prototype (historical)
 
 - [X] Shared authenticated signaling and WebRTC core (verified: 15 tests)
   → Artifacts: [core](packages/core/src/session.ts), [crypto](packages/core/src/crypto.ts)
@@ -15,8 +15,10 @@
 - [X] Publish public HTTPS preview and Android installer
   → Artifacts: [app](https://p2p.lienad.ru/download/messenger-preview.apk), [tasks](https://p2p.lienad.ru/tasks.txt)
 
-V0.1 follow-up is superseded by the V0.2 work below. Real-device feedback, iOS
-signing, TURN and production protocol review remain in Beads.
+V0.1 follow-up is superseded by the later work below. TURN provisioning was
+pending at that historical checkpoint; its completed external verification is
+recorded in the current TURN section. Real-device feedback, iOS signing and
+production protocol review remain in Beads.
 
 # LastCall 0.2
 
@@ -77,25 +79,34 @@ Its former mobile paths were removed; implementation history remains in commit 9
 
 - [ ] Configure Firebase and validate actual Android closed-app notifications; iOS/APNs/system calls (msg-3z9)
 - [X] Retire phone registration/discovery requirement by user direction (msg-p7x)
-- [ ] Provision and validate reachable authenticated P2P relay fallback (msg-bcw)
-  → Artifacts: [service contract](docs/SERVICES-CONTRACT.md), [network choice](docs/NETWORK-CHOICE.md)
+- [X] Provision and validate reachable authenticated P2P relay fallback (msg-bcw)
+  → Artifacts: [network choice](docs/NETWORK-CHOICE.md), [native deployment](infra/native-turn/README.md), [external evidence](docs/reports/code-reviews/2026-10/CR-2026-10-28-native-turn.md)
+- [ ] Validate physical Russian operators, poor links and call handover (msg-9rr)
 
 Firebase project/client configuration exists in0.5; server FCM identity/key still
 await approval and actual validation. It is needed only for notifications;
 username registration and server-directory sync do not need it.
-SMS.ru is no longer required. Closed-app delivery and public TURN remain pending.
+SMS.ru is no longer required. Closed-app delivery remains pending; public TURN
+is active and independently verified over UDP/TCP/TLS. Restart both 0.5 apps to
+refresh ICE; the APK/version did not change for this server configuration.
 
-# TURN preparation on the current server (msg-bcw)
+# Public TURN fallback verified on the current server (msg-bcw)
 
 - [X] Isolated authenticated relay configuration, private TLS copy and scoped certificate refresh
   → Artifacts: [deployment](infra/public/compose.turn.yaml), [runbook](infra/public/TURN.md), [refresh](infra/public/refresh-turn-cert.sh)
 - [X] Independent configuration, TLS and LAN TCP allocation checks
   → Artifacts: [review and evidence](docs/reports/code-reviews/2026-10/CR-2026-10-28-turn-preparation.md)
-- [ ] User-applied router forwarding, diagnose Docker Desktop UDP publishing, then external forced-relay bytes/audio and physical mobile networks (msg-bcw)
+- [X] User-applied router forwarding and native coturn after Docker Desktop UDP diagnosis
+  → Artifacts: [native deployment](infra/native-turn/README.md), [relay review](docs/reports/code-reviews/2026-10/CR-2026-10-28-native-turn.md)
+- [X] External UDP/TCP/TLS forced-relay text ACK, exact file bytes and bidirectional received audio RTP; authenticated production ICE enabled
+  → Artifacts: [external run 40782070981](https://github.com/DV-Design/messenger-prototype/actions/runs/40782070981), [service configuration](infra/public/SERVICES.md)
 - [ ] Automate certificate/public-IP maintenance before sustained deployment (msg-0aa)
+- [ ] Review 32-allocation / 41-port capacity for a fully relayed eight-member mesh (msg-d05)
 
-The relay is running separately, but signaling still advertises STUN only until
-the external path is verified. No new APK or successful mobile fix is claimed.
+Only native Homebrew coturn 4.18.0 / `dev.lastcall.turn` is active; Docker
+`lastcall-coturn` is stopped. Authenticated signaling now supplies 600-second
+TURN credentials; anonymous GET `/ice` stays STUN-only. External relay evidence
+does not replace physical Russian-operator tests (`msg-9rr`) or turn on FCM.
 
 # LastCall 0.4: server usernames (msg-5oa)
 

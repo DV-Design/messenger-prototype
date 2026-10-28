@@ -1,48 +1,63 @@
-# Connection choice after the 0.2 delivery report
+# P2P first, authenticated relay fallback
 
-The user explicitly selected P2P first with an encrypted relay fallback. The
-current deployment still advertises STUN only: no public TURN has been deployed
-or validated. The directory is not a content relay or offline mailbox.
+## Current checkpoint — 2026-10-28
 
-Actual native0.2 QA proved both directions work with a reachable direct browser
-peer, while another Chrome candidate-privacy configuration remained waiting. This
-does not establish the user's network conditions. The user clarified that their
-missed messages occur when the recipient backgrounds or closes LastCall.
+The public LastCall deployment now advertises authenticated TURN over UDP, TCP
+and TLS after signed directory authentication. It prefers direct WebRTC and can
+use the authorized encrypted relay fallback when NAT/firewall blocks a direct
+route. The unchanged Android 0.5.0/code6 APK supports this; restart both apps to
+refresh cached ICE settings. Anonymous HTTP `GET /ice` intentionally remains
+STUN-only (`REQUIRE_ICE_AUTH=1`). Production credentials expire after 600 seconds.
 
-A practical availability option is direct-first ICE with an authenticated TURN
-fallback when NAT/firewall prevents direct candidates. TURN forwards encrypted
-DTLS/SRTP packets; the relay does not terminate peer content encryption, but
-content traffic does traverse a relay and it incurs bandwidth cost/metadata.
-This fallback is now authorized. Never advertise TURN-only availability or
-DPI invisibility merely because a TLS listener answers.
+Only native Homebrew coturn 4.18.0, user LaunchAgent `dev.lastcall.turn`, runs on
+the Mac. Docker `lastcall-coturn` is stopped. The user forwarded 3478 UDP/TCP,
+5349 TCP and 49160–49200 UDP to identical ports on `192.168.1.26`. The active
+signaling deployment explicitly uses `infra/.env.public-turn`; omitting that file
+on recreation would disable fallback. [Native runbook](../infra/native-turn/README.md),
+[service configuration](../infra/public/SERVICES.md).
 
-Deployment still required: deploy a separate narrowly scoped relay, short-lived authenticated
-credentials issued only after signed identity authentication, per-identity/relay
-quotas, no private/loopback peer targets, correct external relay address/port
-reachability, validated TLS for a dedicated hostname. Test forced-relay exact
-bytes and actual audio, then cross-operator physical phones. A Docker Desktop
-loopback test previously failed and is not a production relay recipe.
+Each public hostname transport passed forced-relay bidirectional text with real
+ACK, exact 30 KB file bytes, increasing inbound audio RTP bytes on both peers,
+and track cleanup. Independent external Azure runner
+[40782070981](https://github.com/DV-Design/messenger-prototype/actions/runs/40782070981),
+commit `5088fce`, passed **3/3 UDP/TCP/TLS** on 2026-10-28 22:43–22:44 UTC.
+The private workflow is accessible to the repository owner. A further local
+verification used actual production-issued 600-second credentials and passed
+all three transports. [Review and evidence](reports/code-reviews/2026-10/CR-2026-10-28-native-turn.md).
 
-Until deployed: report actual connection failure, preserve pending text
-and retry, explain that some network pairs remain unavailable. Permissions alone
-cannot create a NAT path or wake an OS-suspended process. Push/background/offline
-content custody are separate design decisions.
+The directory and push do not receive chat content. TURN physically forwards
+encrypted DTLS/SRTP packets without terminating peer content encryption or
+creating a chat archive. It consumes server bandwidth and exposes traffic
+metadata. The sender-held seven-day text/file queue and signed group peer sync
+remain on devices; TURN is not an offline mailbox.
 
-Primary transport reference: https://webrtc.org/getting-started/turn-server
+This establishes an external relay path, not universal mobile availability or
+DPI invisibility. Physical Russian-operator tests remain `msg-9rr`; certificate
+and public-IP maintenance automation remains `msg-0aa`. Server FCM and iOS/APNs
+are still disabled/unconfigured, so this transport work does not fix background
+notifications or system incoming calls. The ten-second recovery budget is not
+a promise of uninterrupted audio when no usable network exists.
 
-2026-10-28 preparation: the user selected the current Mac and will apply router
-forwarding personally. An isolated authenticated coturn instance now runs with
-LastCall-only TLS files outside Git; see [deployment/ports](../infra/public/TURN.md).
-LAN TCP authenticated allocation and TLS trust succeeded. Native host/LAN UDP
-requests timed out, while bridge-internal authenticated UDP allocation succeeded;
-the Docker Desktop UDP publication path remains under investigation. Router WAN
-forwarding and external forced-relay content/audio are not verified. Signaling
-continues to advertise STUN only; this checkpoint does not resolve msg-bcw.
+## Historical evidence and deployment choice
 
-Coturn behind NAT needs an external relay address and identical external/internal
-UDP relay port mappings, in addition to the TLS listener. The existing host is
-Docker Desktop behind a router; TCP 443 is already shared by other services. A
-dedicated Linux host with a public IP is the simplest deployment option; no such
-host/account is connected for this project. Do not change unrelated services or
-advertise the old loopback-only laboratory recipe as a public fallback.
-Reference: https://github.com/coturn/coturn/blob/master/man/man1/turnserver.1
+The native 0.2 investigation proved direct transfer with reachable browser host
+candidates; a different Chrome privacy configuration remained waiting. That did
+not establish conditions on the user's phones. The user also clarified missed
+messages when the recipient backgrounds or closes LastCall, a separate OS/push
+availability concern.
+
+Initial Docker preparation passed LAN TCP allocation and trusted TLS, while
+host-to-Docker published UDP failed even for a generic echo/STUN probe.
+Bridge-internal authenticated UDP allocation did work. After router forwarding,
+Docker public TURN-over-TCP carried actual text/file/audio; the local UDP failure
+therefore was not evidence that every external path failed. Switching only the
+LastCall relay to native coturn removed the Docker NAT hop. The completed native
+and independent external checks above supersede the earlier STUN-only checkpoint.
+
+Coturn behind NAT needs a correct public relay address and identical mapped UDP
+relay ports as well as its listener ports. Existing TCP 443 remains shared by
+other applications and was not repurposed. A listener or relay candidate alone
+is weaker evidence than forced-relay bytes and received audio RTP.
+
+Primary references: [WebRTC TURN](https://webrtc.org/getting-started/turn-server),
+[coturn configuration](https://github.com/coturn/coturn/blob/master/man/man1/turnserver.1).

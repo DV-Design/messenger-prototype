@@ -29,10 +29,10 @@ number, SMS.ru account or Firebase configuration is needed to register and searc
 the server directory. Production ignores legacy SMS environment settings; old
 phone endpoints remain unavailable for older clients.
 
-The public preview server currently starts with FCM and TURN genuinely disabled. Merely
-building the SDK into the image does not configure an external provider. This
-recipe does not create a Firebase account, claim notification delivery, or
-provision a media relay. Existing directory data remains in its named volume.
+The public preview currently has authenticated TURN enabled and FCM disabled.
+The base compose file without the private TURN env still disables both; merely
+building an SDK into the image does not configure a provider. Existing directory
+data remains in its named volume. Keep the active env selection on recreation.
 
 `compose.public.yaml` sets `REQUIRE_ICE_AUTH=1`. Public GET `/ice` remains STUN-only;
 TURN REST credentials, if TURN is explicitly configured, are returned only by an
@@ -40,7 +40,7 @@ authenticated directory `ice` request with identity quotas. Do not disable this
 flag to work around a legacy client. Standalone local `compose.yaml` keeps its
 laboratory behavior.
 
-## Disabled default
+## Disabled base and active deployment
 
 The public file requires no environment file or private JSON mount:
 
@@ -49,8 +49,16 @@ docker compose -p messenger-public -f infra/compose.public.yaml config --quiet
 docker build -f infra/Dockerfile.server -t messenger-signaling:preview .
 ```
 
-The user authorized publication; the base preview is deployed with providers
-disabled. Configured providers still require their actual account credentials.
+The user authorized publication. The current deployment explicitly selects the
+existing ignored TURN env and recreates only the LastCall signaling service:
+
+```sh
+docker compose --env-file infra/.env.public-turn -p messenger-public -f infra/compose.public.yaml config --quiet
+docker compose --env-file infra/.env.public-turn -p messenger-public -f infra/compose.public.yaml up -d --no-deps signaling
+```
+
+Do not print resolved Compose configuration: it contains the shared TURN secret.
+Omitting this env file on recreation would disable the working relay fallback.
 Build uses a
 locked builder install and a separate `npm ci --omit=dev` production dependency
 stage. The final image includes `firebase-admin`'s external runtime imports and
@@ -67,8 +75,13 @@ readable by the container's Node UID. Set its absolute host path in
 optional override; the unconfigured default never references a missing file:
 
 ```sh
-docker compose --env-file infra/.env.public-services -p messenger-public -f infra/compose.public.yaml -f infra/public/compose.firebase.example.yaml config --quiet
+docker compose --env-file infra/.env.public-services --env-file infra/.env.public-turn -p messenger-public -f infra/compose.public.yaml -f infra/public/compose.firebase.example.yaml config --quiet
 ```
+
+This is a future FCM recipe, not the current deployment. Keep the TURN env
+**last**: the services example contains blank TURN values and must not overwrite
+the active relay settings. Use the identical file order for the later authorized
+`up -d --no-deps signaling` command after FCM credentials are approved.
 
 The override bind-mounts the file read-only at `/run/secrets/firebase-admin.json`;
 `create_host_path: false` prevents accidentally creating a directory for a mistyped
@@ -86,24 +99,36 @@ the sender-local pending message.
 
 ## TURN
 
-Current-server preparation and exact router mappings are in [TURN.md](TURN.md).
-The isolated relay is started, but its external UDP/data path remains unverified;
-it has not been advertised to clients. The user is applying router mappings.
+Public TURN is active through native Homebrew coturn 4.18.0 and user LaunchAgent
+`dev.lastcall.turn`; Docker `lastcall-coturn` is stopped. The user forwarded
+3478 UDP/TCP, 5349 TCP and 49160–49200 UDP to the same ports on `192.168.1.26`.
+Use the [native runbook](../native-turn/README.md); exactly one backend may own
+those ports. The host-to-Docker UDP path failed locally; native mode removes
+that NAT hop. No unrelated proxy, host VPN or application service was changed.
 
-`TURN_URLS` and `TURN_SHARED_SECRET` must be set together only after a reachable
-relay is provisioned and tested across the intended networks. TURN TTL defaults
-to 600 seconds. This optional env file does not publish relay ports, install TLS
-certificates or alter the shared proxy. A relay configured flag is not a successful
-forced-relay/media test. The external TURN host, firewall, TLS and actual transport
-verification remain separate work.
+Each public hostname transport (UDP/TCP/TLS) passed forced-relay text ACK in
+both directions, exact 30 KB file bytes, increasing received audio RTP bytes on
+both peers and track cleanup. An independent external Azure IPv4 runner passed
+3/3 transports in [run 40782070981](https://github.com/DV-Design/messenger-prototype/actions/runs/40782070981).
+Actual production-issued 600-second credentials passed another 3/3 verification.
+[Review/evidence](../../docs/reports/code-reviews/2026-10/CR-2026-10-28-native-turn.md).
+These checks do not guarantee all Russian operators or DPI evasion.
+
+`TURN_URLS` and `TURN_SHARED_SECRET` are set together in `infra/.env.public-turn`.
+TTL is 600 seconds; authenticated services report relay=true, push=false and
+phone features=false. Anonymous GET `/ice` remains STUN-only. Catalog/push never
+receive chat content; TURN forwards encrypted packets without a chat archive,
+with real server bandwidth and traffic metadata costs. Restart both 0.5 clients
+to refresh ICE; the APK itself is unchanged. Certificate/public-IP automation
+(`msg-0aa`) and physical Russian-operator tests (`msg-9rr`) remain open.
 
 ## Deployment and rollback
 
 For a configured deployment, use the same explicit `--env-file` and `-f` selection
 on the authorized `up -d` command; otherwise optional services stay disabled.
-The public deployment uses only the unconfigured base compose file. Reverting
-to only the base compose file and blank provider env disables adapters on next
-preview-container recreation. Keep the named directory volume for stable users
+The active deployment uses the base compose file plus `infra/.env.public-turn`.
+Reverting to only the base compose file and blank provider env deliberately
+disables adapters on next preview-container recreation. Keep the named directory volume for stable users
 and verification metadata. Active sockets and in-memory OTP challenges end when
 the preview process restarts. Do not restart unrelated containers or delete the
 shared proxy network.

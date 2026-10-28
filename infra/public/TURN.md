@@ -1,9 +1,15 @@
 # LastCall TURN on the existing Mac/router
 
-Opt-in coturn 4.7.0 deployment, separate from signaling and the shared Caddy
-network. The relay forwards encrypted WebRTC packets; it does not save chat
-content. Do not advertise it to clients until an authenticated allocation and
-actual forced-relay text/file/audio transfer succeed from outside the LAN.
+The active deployment uses [native coturn4.18.0](../native-turn/README.md) and
+user agent `dev.lastcall.turn`; Docker `lastcall-coturn` is stopped. Native
+UDP/TCP/TLS passed external forced-relay text, exact file bytes and inbound audio
+in [job40782070981](https://github.com/DV-Design/messenger-prototype/actions/runs/40782070981).
+Authenticated production ICE is enabled. Run exactly one relay backend.
+
+The opt-in Docker4.7.0 recipe below is retained for the earlier experiment and
+controlled rollback. It is separate from signaling and the shared Caddy network.
+The relay forwards encrypted WebRTC packets without saving chat content. Any
+replacement deployment requires external forced-relay data/audio verification.
 
 ## Ports and NAT
 
@@ -134,6 +140,6 @@ use bounded macOS syslog instead of Docker log rotation.
 Local generic UDP echo tests showed a host-to-Docker published UDP failure, not
 a universal external failure: after router forwarding, public TURN-over-TCP
 carried chat, exact file bytes and call traffic in the existing browser test.
-Native UDP/TCP/TLS and independent external delivery still require their own
-checks. The Docker certificate-refresh helper does not restart the native user
+Native UDP/TCP/TLS subsequently passed independent external delivery checks and
+production-issued credential checks. The Docker certificate-refresh helper does not restart the native user
 agent; use the native renewal instructions until backend-aware scheduling exists.
