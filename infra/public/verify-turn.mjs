@@ -4,6 +4,7 @@ import {build} from 'esbuild';
 import {chromium} from 'playwright';
 import {createHash} from 'node:crypto';
 import {isIP} from 'node:net';
+import {resolve4} from 'node:dns/promises';
 import {fileURLToPath} from 'node:url';
 const root=fileURLToPath(new URL('../../',import.meta.url));
 const origin='https://lienad.ru';
@@ -55,6 +56,10 @@ async function egress(){
     try{const response=await fetch(url,{signal:AbortSignal.timeout(5000)});const value=(await response.text()).trim();if(response.ok&&isIP(value))return value;}catch{/* Try the second IP-only endpoint. */}
   }
   throw new Error('egress-unavailable');
+}
+async function requireExternal(publicIp){
+  const addresses=await resolve4('p2p.lienad.ru');
+  if(isIP(publicIp)!==4||!addresses.length||addresses.some(address=>isIP(address)!==4)||addresses.includes(publicIp))throw new Error('not-external');
 }
 async function factory(){
   const result=await build({absWorkingDir:root,stdin:{contents:`
@@ -121,7 +126,7 @@ async function runTransport(browser,bundle,peers,transport,publicIp){
 let browser;
 try{
   const inputs=requireInput();delete process.env.LASTCALL_TURN_QA_ICE;
-  const publicIp=await egress();if(process.env.TURN_QA_REQUIRE_EXTERNAL==='1'&&(isIP(publicIp)!==4||publicIp==='178.222.108.208'))throw new Error('not-external');const bundle=await factory();
+  const publicIp=await egress();if(process.env.TURN_QA_REQUIRE_EXTERNAL==='1')await requireExternal(publicIp);const bundle=await factory();
   browser=await chromium.launch({channel:'chrome',headless:true,args:['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream','--autoplay-policy=no-user-gesture-required']});
   const results=[];
   for(const transport of transports){const result=await runTransport(browser,bundle,inputs.find(input=>input.url===transport.url).peers,transport,publicIp);results.push(result);console.log(JSON.stringify(result));}

@@ -4,7 +4,7 @@ Date: 2026-10-28. Reviewed native launcher/plist/runbook, TURN runbook additions
 dispatch-only workflow and relay verifier in the main context after reading
 existing configuration/session/tests and history8070e4f.
 
-Verdict: PASS for implementation/local verification. External activation pending.
+Verdict: PASS. Native relay and authenticated production advertisement are active.
 
 ## Findings addressed
 
@@ -49,7 +49,33 @@ CI additionally requires a different public IPv4 from the relay host.
 - Native UDP valid auth succeeded; loopback permission denied403; wrong password
   denied401. Host and public STUN transaction IDs matched.
 
-External runner results and production advertisement will be appended after the
-manual job. Native APK/app sources did not change; no rebuild is claimed.
+## External verification and production activation
+
+[External job40782070981](https://github.com/DV-Design/messenger-prototype/actions/runs/40782070981)
+ran on revision5088fce from Azure IPv4 `52.173.179.40`, distinct from the relay
+host. All three transports passed with two relay routes, two text ACKs, matching
+30,000-byte file hash, stopped tracks and these inbound audio byte increases:
+
+| Transport | Peer A | Peer B |
+|---|---:|---:|
+| UDP | 622 | 412 |
+| TCP | 678 | 410 |
+| TLS | 641 | 427 |
+
+The temporary encrypted repository client-credential secret was deleted after
+completion; the shared server secret never left the Mac. The final verifier now
+compares egress against the approved hostname's current DNS addresses, avoiding
+a stale hardcoded-IP check after a future ISP address change.
+
+Only LastCall signaling was recreated with the private TURN env file; the
+directory volume and shared proxy were preserved. A short startup502 cleared;
+HTTPS health is healthy. Anonymous `/ice` still returns STUN only. Authenticated
+services report relay=true, push=false, phoneVerification=false; six real
+server-issued credentials expire within600s. These credentials independently
+passed UDP/TCP/TLS text/file/inbound-audio checks through the public hostname.
+Bad-password authentication returned401, private-loopback permission403, and a
+TLS1.1 client received an explicit server protocol-version rejection.
+
+Native APK/app sources did not change; no rebuild is claimed.
 Certificate/public-IP automation remains msg-0aa and physical Russian operator
 validation remains msg-9rr; push setup remains independent msg-3z9.
