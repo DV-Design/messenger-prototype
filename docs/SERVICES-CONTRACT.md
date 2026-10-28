@@ -26,12 +26,13 @@ properties to ready or spontaneously send new frames to0.2 clients.
 ## Frozen service types and frames
 
 Core exported types:
-ServiceCapabilities={phoneVerification:boolean,push:boolean,relay:boolean}
+ServiceCapabilities={phoneVerification:boolean,push:boolean,relay:boolean,phoneVerified:boolean}
 PhoneChallenge={challengeId:string32hex,expiresAt:number,retryAt:number}
 PhoneMatch={hash:string64hex,user:DirectoryUser}
 
 New authenticated directory client frames (strict bounded):
 - {type:'services',requestId:32hex}
+- {type:'ice',requestId:32hex}
 - {type:'phone-start',phone:E164string,requestId:32hex}
 - {type:'phone-verify',challengeId:32hex,code:6digits,requestId:32hex}
 - {type:'phone-discover',hashes:64hex[] max100,requestId:32hex}
@@ -40,6 +41,7 @@ New authenticated directory client frames (strict bounded):
 
 New server frames:
 - {type:'services',requestId,capabilities:ServiceCapabilities}
+- {type:'ice',requestId,iceServers:RTCIceServer[] max20}
 - {type:'phone-challenge',requestId,challenge:PhoneChallenge}
 - {type:'phone-verified',requestId}
 - {type:'phone-matches',requestId,matches:PhoneMatch[] max100}
@@ -50,7 +52,14 @@ Core methods (public freeze): getServices():Promise<ServiceCapabilities>,
 startPhoneVerification(phone:string):Promise<PhoneChallenge>,
 verifyPhone(challengeId:string,code:string):Promise<void>,
 discoverPhones(hashes:string[]):Promise<PhoneMatch[]>,
-registerPushToken(token:string):Promise<void>.
+registerPushToken(token:string):Promise<void>, getIceServers():Promise<RTCIceServer[]>.
+Directory getServices phoneVerified is ownidentity verification state; no numberecho.
+Manager supplies async getIceServers provider to PeerSession; legacy standalone
+PeerSession keeps /ice GET fallback. Add optional getIceServers option to
+PeerSessionOptions; no RTC duplication when concurrent pair opens await config.
+Server REQUIRE_ICE_AUTH=1 inpublicdeploy means GET/ice STUNonly; TURNcredentials
+only through authenticated directory ice request with user-scoped quota. Legacy
+laboratory default remainscompatible and cannotbe used as publicquota shortcut.
 Core helpers normalizePhone(input:string,defaultCountry?:'RU'):string (E164 via
 maintained libphonenumber-js), phoneLookupHash(e164:string):string = SHA256 UTF8
 JSON.stringify(['lastcall/phone-lookup/v1', e164]). Reject malformed inputs.
@@ -89,7 +98,7 @@ No automatic notification to every searchable profile/stranger. Push body generi
 'LastCall'/'Есть новое сообщение. Откройте LastCall.' Provider success is not a
 receipt ACK and does not mark text delivered.
 
-Service configuration: SMSRU_API_ID, PHONE_VERIFICATION_SECRET(random>=32bytes),
+Service configuration: SMSRU_API_ID, PHONE_VERIFICATION_SECRET(random>=32bytes), REQUIRE_ICE_AUTH=1,
 GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/firebase-admin.json. Keepactualfiles
 ignored/readonlymounted; repo examples placeholders only. Singleprocesspreview.
 Push adapters use minimal timeouts andbounded concurrency, errorsgeneric.

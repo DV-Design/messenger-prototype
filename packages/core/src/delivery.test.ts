@@ -41,7 +41,7 @@ describe('automatic coordinator peer join',()=>{
   server.on('connection',(socket,request)=>{
     if(request.url==='/directory'){
       socket.send(JSON.stringify({type:'challenge',challenge:'ab'.repeat(32)}));
-      socket.on('message',raw=>{const frame=JSON.parse(raw.toString());if(frame.type==='authenticate')socket.send(JSON.stringify({type:'ready',self:{userId:alice.userId,publicKey:alice.publicKey,username:'alice',displayName:'Alice',online:true,lastSeen:1}}));});
+      socket.on('message',raw=>{const frame=JSON.parse(raw.toString());if(frame.type==='authenticate')socket.send(JSON.stringify({type:'ready',self:{userId:alice.userId,publicKey:alice.publicKey,username:'alice',displayName:'Alice',online:true,lastSeen:1}}));if(frame.type==='ice')socket.send(JSON.stringify({type:'ice',requestId:frame.requestId,iceServers:[]}));});
     }else if(request.url==='/signal')socket.on('message',raw=>{const frame=JSON.parse(raw.toString());if(frame.type==='join')socket.send(JSON.stringify({type:'joined',roomId:frame.roomId,peerId:frame.peerId,role:'initiator',peerPresent:false}));});
   });
   vi.useFakeTimers();vi.setSystemTime(new Date('2026-10-27T12:00:00Z'));vi.stubGlobal('fetch',async()=>({ok:true,json:async()=>({iceServers:[]})}));

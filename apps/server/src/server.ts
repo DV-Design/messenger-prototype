@@ -3,8 +3,11 @@ import { createServer, type IncomingMessage } from 'node:http';
 import { WebSocket, WebSocketServer } from 'ws';
 import { clientFrameSchema } from '@messenger/core';
 import { Directory } from './directory.js';
+import { createFcmPushProvider, createSmsRuProvider } from './providers.js';
+import type { ServiceOptions } from './services.js';
 
-export interface ServerOptions {
+export interface ServerOptions extends ServiceOptions {
+  requireIceAuth?: boolean;
   host?: string;
   port?: number;
   allowedOrigins?: string[];
@@ -63,7 +66,17 @@ export function createSignalingServer(options: ServerOptions = {}) {
   const requests = new Map<string, { at: number; count: number }>();
   const allowed = new Set(config.allowedOrigins);
   let closing = false;
+  function iceServers(includeTurn = true): RTCIceServer[] {
+    const servers: RTCIceServer[] = [];
+    if (options.stunUrls?.length) servers.push({ urls: options.stunUrls });
+    if (includeTurn && options.turnSharedSecret && options.turnUrls?.length) {
+      const username = `${Math.floor(Date.now() / 1000) + config.turnTtlSeconds}:${randomBytes(12).toString('hex')}`;
+      servers.push({ urls: options.turnUrls, username, credential: createHmac('sha1', options.turnSharedSecret).update(username).digest('base64') });
+    }
+    return servers;
+  }
   const directory = new Directory({
+    ...options, iceServers: () => iceServers(),
     dbPath: options.directoryDbPath ?? ':memory:', maxUsers: options.directoryMaxUsers ?? 10_000,
     challengeTtlMs: options.directoryChallengeTtlMs,
     send: (ws, frame) => { const peer = peers.get(ws); if (peer) send(peer, frame); },
@@ -99,14 +112,7 @@ export function createSignalingServer(options: ServerOptions = {}) {
     if (request.method !== 'GET') return respond(405, { error: 'GET required' });
     if (request.url === '/health') return respond(200, { status: 'ok' });
     if (request.url === '/ice') {
-      const iceServers: { urls: string[]; username?: string; credential?: string }[] = [];
-      if (options.stunUrls?.length) iceServers.push({ urls: options.stunUrls });
-      if (options.turnSharedSecret && options.turnUrls?.length) {
-        const username = `${Math.floor(Date.now() / 1000) + config.turnTtlSeconds}:${randomBytes(12).toString('hex')}`;
-        const credential = createHmac('sha1', options.turnSharedSecret).update(username).digest('base64');
-        iceServers.push({ urls: options.turnUrls, username, credential });
-      }
-      return respond(200, { iceServers });
+      return respond(200, { iceServers: iceServers(!options.requireIceAuth) });
     }
     respond(404, { error: 'Not found' });
   });
@@ -171,7 +177,7 @@ export function createSignalingServer(options: ServerOptions = {}) {
         if (binary || bytes > (peer.kind === 'directory' ? 16 * 1024 : MAX_FRAME_BYTES)) return reject(peer, 'invalid-frame', 'Text JSON frame required', true);
         let json: unknown;
         try { json = JSON.parse(data.toString()); } catch { return reject(peer, 'invalid-frame', 'Invalid JSON', true); }
-        if (peer.kind === 'directory') { directory.handle(ws, json); return; }
+        if (peer.kind === 'directory') { void directory.handle(ws, json).catch(() => reject(peer, 'directory-error', 'Directory operation failed', true)); return; }
         const result = clientFrameSchema.safeParse(json);
         if (!result.success) return reject(peer, 'invalid-frame', 'Invalid signaling frame', true);
         const frame = result.data;
@@ -228,7 +234,7 @@ export function createSignalingServer(options: ServerOptions = {}) {
       requests.clear();
       await new Promise<void>((resolve) => wss.close(() => resolve()));
       if (http.listening) await new Promise<void>((resolve, reject) => http.close((error) => error ? reject(error) : resolve()));
-      directory.close();
+      await directory.close();
     },
   };
 }
@@ -249,6 +255,13 @@ export function optionsFromEnv(env: NodeJS.ProcessEnv = process.env): ServerOpti
     host: env.HOST || '127.0.0.1', port: numberEnv(env, 'PORT', 8787, 0, 65535),
     ...(env.ALLOWED_ORIGINS !== undefined ? { allowedOrigins: list('ALLOWED_ORIGINS') } : {}),
     turnSharedSecret: env.TURN_SHARED_SECRET, turnUrls, stunUrls,
+    requireIceAuth: env.REQUIRE_ICE_AUTH === '1',
+    phoneVerificationSecret: env.PHONE_VERIFICATION_SECRET,
+    smsProvider: env.SMSRU_API_ID && env.PHONE_VERIFICATION_SECRET && Buffer.byteLength(env.PHONE_VERIFICATION_SECRET) >= 32 ? createSmsRuProvider(env.SMSRU_API_ID) : undefined,
+    pushProvider: env.GOOGLE_APPLICATION_CREDENTIALS ? createFcmPushProvider(env.GOOGLE_APPLICATION_CREDENTIALS) : undefined,
+    smsMaxPerHour: numberEnv(env, 'SMS_MAX_PER_HOUR', 60, 1, 10_000),
+    smsIdentityMaxPerHour: numberEnv(env, 'SMS_IDENTITY_MAX_PER_HOUR', 5, 1, 100),
+    smsPhoneMaxPerHour: numberEnv(env, 'SMS_PHONE_MAX_PER_HOUR', 3, 1, 100),
     turnTtlSeconds: numberEnv(env, 'TURN_TTL_SECONDS', 600, 60, 3600),
     directoryDbPath: env.DIRECTORY_DB_PATH || ':memory:',
     directoryMaxUsers: numberEnv(env, 'DIRECTORY_MAX_USERS', 10_000, 1, 1_000_000),

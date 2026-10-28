@@ -3,6 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type { WebSocket } from 'ws';
+import { DirectoryServices, ServiceError, type ServiceOptions } from './services.js';
 import { directoryClientFrameSchema, userIdFromPublicKey, verifyAuthentication, type DirectoryUser } from '@messenger/core';
 
 type ProfileRow = { user_id: string; public_key: string; username: string; display_name: string; last_seen: number };
@@ -13,7 +14,8 @@ interface Connection {
   userId?: string;
   watches: Set<string>;
 }
-export interface DirectoryOptions {
+export interface DirectoryOptions extends ServiceOptions {
+  iceServers: () => RTCIceServer[];
   dbPath: string;
   maxUsers: number;
   challengeTtlMs?: number;
@@ -21,12 +23,13 @@ export interface DirectoryOptions {
   reject: (ws: WebSocket, code: string, message: string, close?: boolean, requestId?: string) => void;
 }
 
-/** Persistent public metadata only. Presence, challenges and subscriptions never enter SQLite. */
+/** Profiles and service metadata persist; live presence, OTPs and content do not. */
 export class Directory {
   private db: DatabaseSync;
   private connections = new Map<WebSocket, Connection>();
   private online = new Map<string, Connection>();
   private closed = false;
+  private services: DirectoryServices;
   constructor(private options: DirectoryOptions) {
     if (options.dbPath !== ':memory:') mkdirSync(dirname(options.dbPath), { recursive: true, mode: 0o700 });
     this.db = new DatabaseSync(options.dbPath);
@@ -41,6 +44,7 @@ export class Directory {
         last_seen INTEGER NOT NULL
       ) STRICT;
     `);
+    this.services = new DirectoryServices(this.db, options, (id) => { const row = this.row(id); return row && this.user(row); }, options.iceServers);
   }
   open(ws: WebSocket) {
     const challenge = randomBytes(32).toString('hex');
@@ -49,6 +53,7 @@ export class Directory {
   }
   isAuthenticated(ws: WebSocket) { return Boolean(this.connections.get(ws)?.userId); }
   expire(now: number) {
+    try { this.services.expire(); } catch { console.error('Directory quota cleanup failed'); }
     for (const connection of this.connections.values()) {
       if (!connection.userId && now >= connection.expiresAt) this.options.reject(connection.ws, 'auth-expired', 'Authentication challenge expired', true);
     }
@@ -64,7 +69,7 @@ export class Directory {
     const user = this.user(row);
     for (const connection of this.connections.values()) if (connection.userId && connection.watches.has(userId)) this.options.send(connection.ws, { type: 'presence', user });
   }
-  handle(ws: WebSocket, raw: unknown) {
+  async handle(ws: WebSocket, raw: unknown) {
     const connection = this.connections.get(ws); if (!connection) return;
     const parsed = directoryClientFrameSchema.safeParse(raw);
     if (!parsed.success) return this.options.reject(ws, 'invalid-frame', 'Invalid directory control frame', true);
@@ -93,7 +98,25 @@ export class Directory {
         return;
       }
       if (!connection.userId || this.online.get(connection.userId) !== connection) return this.options.reject(ws, 'not-authenticated', 'Authenticate before using the directory', true);
-      if (frame.type === 'search') {
+      if (frame.type === 'services') {
+        this.options.send(ws, { type: 'services', requestId: frame.requestId, capabilities: this.services.capabilities(connection.userId) });
+      } else if (frame.type === 'ice') {
+        this.options.send(ws, { type: 'ice', requestId: frame.requestId, iceServers: this.services.iceServers(connection.userId) });
+      } else if (frame.type === 'phone-start') {
+        const challenge = await this.services.startPhone(connection.userId, frame.phone);
+        this.options.send(ws, { type: 'phone-challenge', requestId: frame.requestId, challenge });
+      } else if (frame.type === 'phone-verify') {
+        this.services.verifyPhone(connection.userId, frame.challengeId, frame.code);
+        this.options.send(ws, { type: 'phone-verified', requestId: frame.requestId });
+      } else if (frame.type === 'phone-discover') {
+        const matches = this.services.discover(connection.userId, frame.hashes);
+        this.options.send(ws, { type: 'phone-matches', requestId: frame.requestId, matches });
+      } else if (frame.type === 'push-register') {
+        this.services.registerPush(connection.userId, frame.token);
+        this.options.send(ws, { type: 'push-registered', requestId: frame.requestId });
+      } else if (frame.type === 'wake') {
+        await this.services.wake(connection.userId, frame.to);
+      } else if (frame.type === 'search') {
         // Escape SQL LIKE wildcards; the query is always a bound parameter.
         const escaped = frame.query.replace(/[\\%_]/g, (value) => `\\${value}`);
         const rows = this.db.prepare(`SELECT * FROM directory_users WHERE username LIKE ? ESCAPE '\\' OR display_name LIKE ? ESCAPE '\\' ORDER BY username LIMIT 200`)
@@ -103,6 +126,7 @@ export class Directory {
         const users = [...new Set(frame.userIds)].map((id) => this.row(id)).filter((row): row is ProfileRow => Boolean(row)).map((row) => this.user(row));
         this.options.send(ws, { type: 'results', requestId: frame.requestId, users });
       } else if (frame.type === 'watch') {
+        this.services.replaceWatchConsent(connection.userId, frame.userIds);
         connection.watches = new Set(frame.userIds);
         // Initial snapshots and future changes go only to this explicit authenticated subscription.
         for (const id of connection.watches) {
@@ -115,9 +139,11 @@ export class Directory {
         const sender = this.row(connection.userId)!;
         this.options.send(target.ws, { type: 'connect', from: this.user(sender) });
       }
-    } catch {
-      // Do not expose database paths, SQL, profile values or cryptographic material.
-      this.options.reject(ws, 'directory-error', 'Directory operation failed', true);
+    } catch (error) {
+      // Service errors are generic and correlated; provider bodies/phones/tokens never leave here.
+      const requestId = 'requestId' in frame ? frame.requestId : undefined;
+      if (error instanceof ServiceError) this.options.reject(ws, error.code, error.message, false, requestId);
+      else this.options.reject(ws, 'directory-error', 'Directory operation failed', true, requestId);
     }
   }
   disconnect(ws: WebSocket) {
@@ -135,10 +161,11 @@ export class Directory {
       console.error('Directory metadata update failed during disconnect');
     }
   }
-  close() {
+  async close() {
     if (this.closed) return;
-    for (const ws of this.connections.keys()) this.disconnect(ws);
     this.closed = true;
+    for (const ws of this.connections.keys()) this.disconnect(ws);
+    await this.services.close();
     this.db.close();
   }
 }

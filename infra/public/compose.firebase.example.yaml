@@ -1,0 +1,13 @@
+# Explicit opt-in override; the default compose.public.yaml never requires a private file.
+# Select with -f infra/public/compose.firebase.example.yaml AFTER -f infra/compose.public.yaml.
+services:
+  signaling:
+    environment:
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/firebase-admin.json
+    volumes:
+      - type: bind
+        source: ${FIREBASE_ADMIN_CREDENTIALS_FILE:?Set an absolute external Firebase admin JSON path}
+        target: /run/secrets/firebase-admin.json
+        read_only: true
+        bind:
+          create_host_path: false

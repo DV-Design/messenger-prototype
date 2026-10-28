@@ -5,22 +5,24 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Icon, IconButton, type IconName } from '../components/ui';
 import { PERMISSION_ORDER, UNKNOWN_ACCESS, hasAccess, inSequence, type Access, type PermissionKind } from '../permission-model';
 import { completeSetup, expandContactAccess, readPermission, requestPermission } from '../permissions';
+import { pushUnavailable } from '../notifications';
 import { errorText } from '../runtime';
 import { colors, styles } from '../styles';
 const details: Record<PermissionKind, { title: string; purpose: string; icon: IconName }> = {
-  contacts: { title: 'Контакты', purpose: 'Читать контакты телефона и вручную связывать их с профилями LastCall. Телефонная книга не загружается на сервер.', icon: 'people-outline' },
+  contacts: { title: 'Контакты', purpose: 'Читать контакты телефона. Автопоиск по хешам номеров включается отдельно и только с вашего согласия.', icon: 'people-outline' },
   camera: { title: 'Камера', purpose: 'Показывать вас собеседнику в видеозвонках.', icon: 'videocam-outline' },
   microphone: { title: 'Микрофон', purpose: 'Передавать ваш голос во время звонка.', icon: 'mic-outline' },
+  notifications: { title: 'Уведомления', purpose: 'Показывать уведомление о новом сообщении и открывать приложение для доставки. Android может задерживать уведомления; отправитель должен оставаться доступным.', icon: 'notifications-outline' },
   photos: { title: 'Фото и видео', purpose: 'Выбирать изображения и видео для отправки. Можно дать доступ только к выбранным файлам.', icon: 'images-outline' },
 };
-const labels: Record<Access['status'], string> = { unknown: 'Проверяем…', undetermined: 'Ещё не запрошено', denied: 'Не разрешено', limited: 'Выбранные элементы', granted: 'Разрешено' };
+const labels: Record<Access['status'], string> = { unavailable: 'Не настроено', unknown: 'Проверяем…', undetermined: 'Ещё не запрошено', denied: 'Не разрешено', limited: 'Выбранные элементы', granted: 'Разрешено' };
 async function currentAccess() {
   const results = await Promise.all(PERMISSION_ORDER.map(async kind => [kind, await readPermission(kind)] as const));
   return Object.fromEntries(results) as Record<PermissionKind, Access>;
 }
 export default function PermissionScreen() {
   const { setup } = useLocalSearchParams<{ setup?: string }>();
-  const [values, setValues] = useState<Record<PermissionKind, Access>>({ contacts: UNKNOWN_ACCESS, camera: UNKNOWN_ACCESS, microphone: UNKNOWN_ACCESS, photos: UNKNOWN_ACCESS });
+  const [values, setValues] = useState<Record<PermissionKind, Access>>({ contacts: UNKNOWN_ACCESS, camera: UNKNOWN_ACCESS, microphone: UNKNOWN_ACCESS, photos: UNKNOWN_ACCESS, notifications: UNKNOWN_ACCESS });
   const [busy, setBusy] = useState<PermissionKind | 'all' | 'done' | null>(null);
   const [error, setError] = useState('');
   async function refresh() {
@@ -65,9 +67,10 @@ export default function PermissionScreen() {
         <View style={styles.row}><Icon name={item.icon} /><Text style={[styles.rowName, styles.flex]}>{item.title}</Text><Text style={[styles.info, hasAccess(access) && { color: colors.accent }]}>{labels[access.status]}</Text></View>
         <Text style={styles.body}>{item.purpose}</Text>
         {access.status === 'limited' && kind === 'contacts' && Platform.OS === 'ios' && <Button title="Выбрать ещё контакты" secondary disabled={!!busy} onPress={() => void selectContacts()} />}
-        {!hasAccess(access) && access.status !== 'unknown' && (access.canAskAgain
+        {!hasAccess(access) && access.status !== 'unknown' && access.status !== 'unavailable' && (access.canAskAgain
           ? <Button title="Разрешить" secondary busy={busy === kind} disabled={!!busy && busy !== kind} onPress={() => void request(kind)} />
           : <Button title="Открыть настройки телефона" secondary disabled={!!busy} onPress={() => void settings()} />)}
+        {access.status === 'unavailable' && <Text style={styles.info}>{pushUnavailable}</Text>}
         {access.status === 'denied' && access.canAskAgain && <Text style={styles.info}>Если системное окно больше не появляется, включите доступ в настройках телефона.</Text>}
       </View>; })}
       {!!error && <Text style={[styles.error, { margin: 16 }]}>{error}</Text>}

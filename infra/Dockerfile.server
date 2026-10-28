@@ -1,4 +1,5 @@
 # Run from repository root: docker build -f infra/Dockerfile.server -t messenger-signal .
+# Both dependency stages consume the same committed lock; SDK runtime imports stay external.
 FROM node:24-bookworm-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json tsconfig.base.json ./
@@ -9,11 +10,22 @@ COPY packages/core ./packages/core
 COPY apps/server ./apps/server
 RUN npm run build --workspace @messenger/server
 
-FROM node:24-bookworm-slim
+FROM node:24-bookworm-slim AS production-deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+COPY apps/server/package.json ./apps/server/package.json
+COPY packages/core/package.json ./packages/core/package.json
+RUN npm ci --omit=dev --workspace @messenger/server --include-workspace-root && npm cache clean --force
+
+FROM node:24-bookworm-slim AS runtime
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=8787
 WORKDIR /app
+COPY --from=production-deps /app/package.json ./package.json
+COPY --from=production-deps /app/apps/server/package.json ./apps/server/package.json
+COPY --from=production-deps /app/packages/core/package.json ./packages/core/package.json
+# Includes firebase-admin and its locked transitive dependencies; ws-only copying is insufficient.
+COPY --from=production-deps /app/node_modules ./node_modules
 COPY --from=build /app/apps/server/dist ./dist
-COPY --from=build /app/node_modules/ws ./node_modules/ws
 RUN mkdir -p /data && chown node:node /data
 USER node
 EXPOSE 8787

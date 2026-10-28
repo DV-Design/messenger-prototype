@@ -1,6 +1,6 @@
-export type PermissionKind = 'contacts' | 'camera' | 'microphone' | 'photos';
-export type Access = { status: 'unknown' | 'undetermined' | 'denied' | 'limited' | 'granted'; canAskAgain: boolean };
-export const PERMISSION_ORDER: PermissionKind[] = ['contacts', 'camera', 'microphone', 'photos'];
+export type PermissionKind = 'contacts' | 'camera' | 'microphone' | 'photos' | 'notifications';
+export type Access = { status: 'unknown' | 'undetermined' | 'denied' | 'limited' | 'granted' | 'unavailable'; canAskAgain: boolean };
+export const PERMISSION_ORDER: PermissionKind[] = ['contacts', 'camera', 'microphone', 'photos', 'notifications'];
 export const UNKNOWN_ACCESS: Access = { status: 'unknown', canAskAgain: true };
 export function normalizeAccess(value: { granted?: boolean; status?: string; canAskAgain?: boolean; accessPrivileges?: string }): Access {
   if (value.accessPrivileges === 'limited') return { status: 'limited', canAskAgain: value.canAskAgain ?? false };

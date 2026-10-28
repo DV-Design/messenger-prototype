@@ -20,9 +20,19 @@ services:
       RATE_WINDOW_MS: 60000
       # Explicit public STUN choice: these providers observe discovery IP addresses.
       STUN_URLS: stun:stun.l.google.com:19302,stun:stun.cloudflare.com:3478
-      # No public TURN credentials are issued by this preview.
-      TURN_URLS: ''
-      TURN_SHARED_SECRET: ''
+      # TURN credentials are issued only over authenticated directory requests.
+      REQUIRE_ICE_AUTH: '1'
+      TURN_URLS: ${TURN_URLS:-}
+      TURN_SHARED_SECRET: ${TURN_SHARED_SECRET:-}
+      TURN_TTL_SECONDS: ${TURN_TTL_SECONDS:-600}
+      # Empty values genuinely disable providers. Use the explicit services env file to opt in.
+      SMSRU_API_ID: ${SMSRU_API_ID:-}
+      PHONE_VERIFICATION_SECRET: ${PHONE_VERIFICATION_SECRET:-}
+      SMS_MAX_PER_HOUR: ${SMS_MAX_PER_HOUR:-60}
+      SMS_IDENTITY_MAX_PER_HOUR: ${SMS_IDENTITY_MAX_PER_HOUR:-5}
+      SMS_PHONE_MAX_PER_HOUR: ${SMS_PHONE_MAX_PER_HOUR:-3}
+      # Only the optional Firebase override sets this and mounts a private external file.
+      GOOGLE_APPLICATION_CREDENTIALS: ''
     networks:
       proxy:
         aliases: [messenger-signaling]

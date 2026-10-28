@@ -121,3 +121,45 @@ still wait for its second participant. Timeouts keep the local message pending;
 they neither turn an absent TURN service into a working relay nor prove delivery
 across a particular mobile carrier. The focused regressions reproduce scheduling
 and waiting failures; native-device transport validation is recorded separately.
+
+## Authenticated services and pending wake intents
+
+New clients explicitly request four capability flags: phone verification, push,
+relay configuration and their own phone verification state. Older clients still
+receive the original ready frame. Service calls share a bounded pool of at most
+32 correlated requests with 10-second expiry, expected response type checks and
+socket/disconnect cleanup. Provider failure rejects the caller; it is never a
+verification or push success. OTPs and push tokens are not added to history/state.
+
+`normalizePhone()` uses maintained `libphonenumber-js/min` metadata with whole-input
+parsing, optional RU default country, validity checks and no extension extraction.
+`phoneLookupHash()` requires a canonical E.164 number and hashes the exact frozen
+`['lastcall/phone-lookup/v1', e164]` JSON payload. Hashes remain enumerable personal
+data, not anonymous contact discovery. Numbers must be verified by the server's
+actual SMS provider; address-book names/numbers do not establish user identity.
+
+The manager obtains ICE servers through its authenticated directory request and
+coalesces concurrent requests. Each caller receives a separate configuration copy
+because native WebRTC sanitizes its input objects. Standalone `PeerSession` accepts
+an optional asynchronous `getIceServers` provider; without one it retains legacy
+GET `/ice`. A failed authenticated provider never falls back to that public route.
+At most 20 ICE server records are accepted. Configured relay capability means an
+endpoint exists, not that relay media was successfully tested in a user's network.
+
+While outgoing text awaits real recipient ACK, the manager can send only
+`{type:'wake',to:userId}` control intents, at most once every 30 seconds per peer.
+The loop also covers directory-online but OS-suspended recipients and stops when
+no messages remain pending or the sender disconnects. No text, attachment, SDP or
+phonebook enters that frame. Server watch consent and provider quotas still apply.
+A provider-accepted generic notification merely invites the recipient to reopen;
+both sides must then be available for ordinary authenticated P2P transfer. There
+is no content mailbox, silent reliable background delivery or optimistic ACK.
+Actual FCM/SMS/APNs configuration and physical-device verification remain separate
+from these protocol/helper tests.
+
+Wake scheduling first obtains capabilities, cached/coalesced only for the current
+authenticated directory connection. A disabled push provider suppresses wake
+intents, so normal pending P2P texts do not acquire a false service-unavailable
+error. Reconnect refreshes capabilities; a failed optional lookup retries at most
+every 30 seconds while pending text remains. An enabled provider still cannot
+mark a message delivered: only the actual peer ACK does that.

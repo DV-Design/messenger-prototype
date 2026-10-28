@@ -1,9 +1,12 @@
 import type { ExpoConfig } from 'expo/config';
 
+// Only the Firebase Android client file belongs in a native build.
+// The Firebase Admin service account stays exclusively on the server.
+const googleServicesFile = process.env.MESSENGER_GOOGLE_SERVICES_FILE;
 const config: ExpoConfig = {
   name: 'LastCall',
   slug: 'messenger-prototype',
-  version: '0.2.1',
+  version: '0.3.0',
   scheme: 'messenger-preview',
   orientation: 'default',
   userInterfaceStyle: 'light',
@@ -11,7 +14,7 @@ const config: ExpoConfig = {
   ios: {
     supportsTablet: true,
     bundleIdentifier: 'dev.messenger.prototype',
-    buildNumber: '3',
+    buildNumber: '4',
     infoPlist: {
       // Local-network HTTP is only for an explicitly configured development server.
       NSAppTransportSecurity: process.env.MESSENGER_ALLOW_LOCAL_HTTP === '1'
@@ -22,16 +25,19 @@ const config: ExpoConfig = {
   },
   android: {
     package: 'dev.messenger.prototype',
-    versionCode: 3,
+    versionCode: 4,
     allowBackup: false,
+    ...(googleServicesFile ? { googleServicesFile } : {}),
     permissions: ['INTERNET', 'ACCESS_NETWORK_STATE', 'RECORD_AUDIO', 'CAMERA', 'MODIFY_AUDIO_SETTINGS', 'READ_CONTACTS'],
     blockedPermissions: ['android.permission.WRITE_CONTACTS'],
     // Only development builds permit local HTTP; release servers must use HTTPS.
   },
+  extra: { nativeFcmConfigured: !!googleServicesFile },
   plugins: [
     'expo-router',
+    ...(googleServicesFile ? [['expo-notifications', { defaultChannel: 'lastcall-messages' }] as [string, Record<string, string>]] : []),
     ['expo-secure-store', { configureAndroidBackup: false }],
-    ['expo-contacts', { contactsPermission: 'LastCall читает выбранные контакты, чтобы вы могли связать их с профилями. Телефонная книга не загружается на сервер.' }],
+    ['expo-contacts', { contactsPermission: 'LastCall читает выбранные контакты. Автопоиск по хешам номеров включается отдельно с вашего согласия.' }],
     './plugins/withLocalNetworking.cjs',
     './plugins/withWebRtc155Release.cjs',
     ['@config-plugins/react-native-webrtc', {

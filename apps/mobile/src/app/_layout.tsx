@@ -2,6 +2,8 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { DiscoveryBridge } from '../components/DiscoveryBridge';
+import { PushBridge } from '../components/PushBridge';
 import { CallOverlay } from '../components/CallOverlay';
 import { PermissionSetupGate } from '../components/PermissionSetupGate';
 import { useMessenger } from '../runtime';
@@ -15,8 +17,8 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" /><Stack.Screen name="onboarding" /><Stack.Screen name="chat/[id]" />
         <Stack.Screen name="new-group" options={{ presentation: 'modal' }} />
         <Stack.Screen name="permissions" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="phonebook" />
-      </Stack><PermissionSetupGate /><CallOverlay />
+        <Stack.Screen name="phonebook" /><Stack.Screen name="phone" />
+      </Stack><PermissionSetupGate /><PushBridge /><DiscoveryBridge /><CallOverlay />
     </>}
   </SafeAreaProvider>;
 }

@@ -1,3 +1,4 @@
+import { e164PhoneSchema, iceServersSchema, phoneChallengeSchema, serviceCapabilitiesSchema } from './services.js';
 import { z } from 'zod';
 import { ed25519, x25519 } from '@noble/curves/ed25519.js';
 import { sha256 } from '@noble/hashes/sha2.js';
@@ -43,7 +44,16 @@ export function conversationInvite(identity:DeviceIdentity,remotePublicKey:strin
 }
 export const directoryUserSchema=z.object({userId:roomIdSchema,publicKey:roomIdSchema,username:usernameSchema,displayName:displayNameSchema,online:z.boolean(),lastSeen:z.number().finite().nonnegative()}).strict().refine(user=>{try{return userIdFromPublicKey(user.publicKey)===user.userId;}catch{return false;}},{message:'User ID does not match public key'});
 export type DirectoryUser=z.infer<typeof directoryUserSchema>;
+export const phoneMatchSchema=z.object({hash:roomIdSchema,user:directoryUserSchema}).strict();
+export type PhoneMatch=z.infer<typeof phoneMatchSchema>;
 export const directoryClientFrameSchema=z.discriminatedUnion('type',[
+  z.object({type:z.literal('services'),requestId:peerIdSchema}).strict(),
+  z.object({type:z.literal('ice'),requestId:peerIdSchema}).strict(),
+  z.object({type:z.literal('phone-start'),phone:e164PhoneSchema,requestId:peerIdSchema}).strict(),
+  z.object({type:z.literal('phone-verify'),challengeId:peerIdSchema,code:z.string().regex(/^[0-9]{6}$/),requestId:peerIdSchema}).strict(),
+  z.object({type:z.literal('phone-discover'),hashes:z.array(roomIdSchema).max(100),requestId:peerIdSchema}).strict(),
+  z.object({type:z.literal('push-register'),token:z.string().min(1).max(4096),requestId:peerIdSchema}).strict(),
+  z.object({type:z.literal('wake'),to:roomIdSchema}).strict(),
   z.object({type:z.literal('authenticate'),publicKey:roomIdSchema,username:usernameSchema,displayName:displayNameSchema,signature:z.string().regex(/^[0-9a-f]{128}$/)}).strict(),
   z.object({type:z.literal('search'),query:z.string().max(24),requestId:peerIdSchema}).strict(),
   z.object({type:z.literal('lookup'),userIds:z.array(roomIdSchema).max(200),requestId:peerIdSchema}).strict(),
@@ -51,6 +61,12 @@ export const directoryClientFrameSchema=z.discriminatedUnion('type',[
   z.object({type:z.literal('connect'),to:roomIdSchema}).strict(),
 ]);
 export const directoryServerFrameSchema=z.discriminatedUnion('type',[
+  z.object({type:z.literal('services'),requestId:peerIdSchema,capabilities:serviceCapabilitiesSchema}).strict(),
+  z.object({type:z.literal('ice'),requestId:peerIdSchema,iceServers:iceServersSchema}).strict(),
+  z.object({type:z.literal('phone-challenge'),requestId:peerIdSchema,challenge:phoneChallengeSchema}).strict(),
+  z.object({type:z.literal('phone-verified'),requestId:peerIdSchema}).strict(),
+  z.object({type:z.literal('phone-matches'),requestId:peerIdSchema,matches:z.array(phoneMatchSchema).max(100)}).strict(),
+  z.object({type:z.literal('push-registered'),requestId:peerIdSchema}).strict(),
   z.object({type:z.literal('challenge'),challenge:roomIdSchema}).strict(),
   z.object({type:z.literal('ready'),self:directoryUserSchema}).strict(),
   z.object({type:z.literal('results'),requestId:peerIdSchema,users:z.array(directoryUserSchema).max(200)}).strict(),

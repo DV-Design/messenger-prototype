@@ -44,12 +44,26 @@ are separate tasks. Unsolicited-contact controls tracked msg-218.
 - [X] Native delivery evidence, final APK verification/publication and repository handoff
   → Artifacts: [release](artifacts/README.md), [testing tasks](docs/TESTING-RU.md)
 
-# Required after user clarification
+# LastCall 0.3 implementation checkpoint
 
-- [ ] Closed-app generic wake notifications and authenticated FCMregistration (msg-3z9)
-- [ ] ActualSMSverifiedphone identity and automaticphonebookdiscovery (msg-p7x)
-- [ ] Reachableauthenticateddirect-firstrelayfallback (msg-bcw)
-  → Artifacts: [servicecontract](docs/SERVICES-CONTRACT.md), [networkchoice](docs/NETWORK-CHOICE.md)
+- [X] Strict phone/push service APIs, authenticated ICE and capability-aware wake
+  → Artifacts: [core](packages/core/src/services.ts), [service tests](packages/core/src/services.test.ts)
+- [X] Real SMS.ru/FCM adapters, bounded OTP/lookup/wake requests and persisted consent
+  → Artifacts: [providers](apps/server/src/providers.ts), [services](apps/server/src/services.ts), [live contract tests](apps/server/test/services.test.ts)
+- [X] Phone verification screens, consent-based phonebook hashes and conditional FCM
+  → Artifacts: [phone screen](apps/mobile/src/app/phone.tsx), [discovery](apps/mobile/src/discovery.ts), [push](apps/mobile/src/components/PushBridge.tsx)
+- [X] Locked production runtime/configuration, review and Android release build
+  → Artifacts: [service setup](infra/public/SERVICES.md), [review](docs/reports/code-reviews/2026-10/CR-2026-10-28-services.md), [native evidence](docs/reports/debugging/2026-10/native-services.md)
+- [X] Final APK download verification and public handoff (msg-s39)
+  → Artifacts: [release record](artifacts/README.md), [phone testing tasks](docs/TESTING-RU.md)
 
-Firebaseclient/serverconfiguration andSMSaccountaccess are missing; currentAPK
-explicitly remainsadiagnosticpreview.
+# Required for working external services
+
+- [ ] Configure Firebase and validate actual Android closed-app notifications; iOS/APNs/system calls (msg-3z9)
+- [ ] Configure SMS.ru and prove real phone verification and automatic discovery (msg-p7x)
+- [ ] Provision and validate reachable authenticated P2P relay fallback (msg-bcw)
+  → Artifacts: [service contract](docs/SERVICES-CONTRACT.md), [network choice](docs/NETWORK-CHOICE.md)
+
+Firebase project/client/server configuration and SMS.ru account access are absent.
+The 0.3 APK is an implementation checkpoint with explicit unavailable-service
+states. It must not be described as a completed closed-app delivery fix.

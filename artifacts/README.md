@@ -1,4 +1,42 @@
-# LastCall Android diagnostic preview0.2.1
+# LastCall Android service preview 0.3.0
+
+- Download: https://lienad.ru/messenger/download/LastCall-0.3.0.apk
+- Alternate: https://p2p.lienad.ru/download/LastCall-0.3.0.apk
+- Local: `artifacts/LastCall-0.3.0.apk` (ignored binary)
+- Package `dev.messenger.prototype`, versionCode 4, same internal test certificate.
+- Size **44,637,258 bytes**; arm64, minimum Android API 24, target API 36.
+- SHA256: `7bf3d634aaa60ceb2884ecb49086a8b44137ecb6c24c61cb52f43e0ce09dd645`
+
+Phone verification/discovery and FCM integration are implemented, but the actual
+Firebase/SMS.ru accounts are not configured. This APK has **no Firebase Android
+client configuration** and explicitly reports push unavailable. The server reports
+SMS unavailable. It does not yet fix closed-app notification delivery or provide
+actual phone matching; a configured rebuild and real delivery tests are required.
+Public TURN is also not deployed.
+
+Clean native release/R8/lint PASS: 819 tasks, 3m07s. Verified final signature,
+code4/package/label, ARM64/min24/target36, embedded Hermes bytecode/default HTTPS,
+READ_CONTACTS/CAMERA/RECORD_AUDIO, absence of WRITE_CONTACTS and disabled backup.
+POST_NOTIFICATIONS is present through the notification dependency; its manifest
+presence is not proof of configured push. Certificate SHA256:
+`fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c`.
+
+Root lint/types/build and **85 tests** PASS; real Chrome **6 PASS/1 TURN skip**.
+Android/iOS JavaScript exports PASS; no signed native iOS artifact. Production
+server audit reports 0 advisories. Public server normal DNS/TLS/directory/service
+smoke PASS on both hostnames with genuine disabled-provider status.
+
+Downloaded the published APK from both HTTPS hostnames through normal DNS and
+verified exact equality with the signed local file. Upgrade from code3 preserved
+the native QA identity/history/permissions; current messages and recipient ACK
+passed in both directions, and all six messages survived process relaunch.
+Versioned 0.2.1/0.2.0/0.1.0 installers remain available for rollback.
+
+[Native upgrade evidence](../docs/reports/debugging/2026-10/native-services.md) ·
+[Review](../docs/reports/code-reviews/2026-10/CR-2026-10-28-services.md) ·
+[Testing tasks](../docs/TESTING-RU.md)
+
+# LastCall Android diagnostic preview 0.2.1
 
 - Download: https://lienad.ru/messenger/download/LastCall-0.2.1.apk
 - Samepackage `dev.messenger.prototype`, versionCode3, same testcertificate.

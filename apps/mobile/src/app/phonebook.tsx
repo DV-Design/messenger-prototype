@@ -4,6 +4,7 @@ import { ActivityIndicator, Alert, AppState, FlatList, Linking, Modal, Platform,
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Contacts from 'expo-contacts';
 import type { DirectoryUser } from '@messenger/core';
+import { useDiscovery } from '../discovery';
 import { Avatar, Button, Empty, Icon, IconButton } from '../components/ui';
 import { getContactLink, readDeviceContacts, saveContactLink } from '../phonebook';
 import type { DeviceContact } from '../phonebook-model';
@@ -14,6 +15,7 @@ import { colors, styles } from '../styles';
 
 export default function Phonebook() {
   const { snapshot, profile, identity } = useMessenger();
+  const discovery = useDiscovery();
   const [access, setAccess] = useState<Access>(UNKNOWN_ACCESS);
   const [rows, setRows] = useState<DeviceContact[]>([]);
   const [query, setQuery] = useState('');
@@ -90,7 +92,7 @@ export default function Phonebook() {
     } catch (cause) { if (epoch === searchEpoch.current && selectedId.current === contactId) setError(errorText(cause)); } finally { if (epoch === searchEpoch.current) setLinking(false); }
   }
   function confirmLink(user: DirectoryUser) {
-    Alert.alert('Связать контакт с профилем?', `«${selected?.name}» → ${user.displayName} (@${user.username}). Номер телефона этого профиля не проверен. Убедитесь, что выбрали нужного человека.`,
+    Alert.alert('Связать контакт с профилем?', `«${selected?.name}» → ${user.displayName} (@${user.username}). Ручная связь не проверяет совпадение номера. Убедитесь, что выбрали нужного человека.`,
       [{ text: 'Отмена', style: 'cancel' }, { text: 'Связать', onPress: () => { void link(user); } }]);
   }
   async function openLinked(user: DirectoryUser) {
@@ -106,12 +108,13 @@ export default function Phonebook() {
     try { await Share.share({ title: 'Приглашение в LastCall', message: `Давайте общаться в LastCall. Найдите меня по @${profile?.username ?? ''}. Установка: https://lienad.ru/messenger/` }); }
     catch (cause) { if (selectedId.current === contactId) setError(errorText(cause)); }
   }
-  const linked = snapshot.contacts.find(user => user.userId === linkedId);
+  const linked = snapshot.contacts.find(user => user.userId === linkedId) ?? discovery.matches.find(match => match.user.userId === linkedId)?.user;
   const options = directoryQuery.trim() ? results : snapshot.contacts;
   return <SafeAreaView style={styles.whiteScreen}>
-    <View style={styles.header}><IconButton name="chevron-back" label="Назад" onPress={() => router.back()} /><View style={styles.flex}><Text style={[styles.title, { fontSize: 23 }]}>Контакты телефона</Text><Text style={styles.subtitle}>Только на устройстве</Text></View><IconButton name="refresh" label="Обновить контакты" disabled={loading} onPress={() => void load()} /></View>
+    <View style={styles.header}><IconButton name="chevron-back" label="Назад" onPress={() => router.back()} /><View style={styles.flex}><Text style={[styles.title, { fontSize: 23 }]}>Контакты телефона</Text><Text style={styles.subtitle}>Ручное связывание</Text></View><IconButton name="refresh" label="Обновить контакты" disabled={loading} onPress={() => void load()} /></View>
     <View style={styles.search}><Icon name="search" size={19} color={colors.secondary} /><TextInput style={styles.searchInput} value={query} onChangeText={setQuery} maxLength={100} placeholder="Поиск в телефоне" placeholderTextColor={colors.secondary} accessibilityLabel="Локальный поиск контактов телефона" /></View>
-    <Text style={[styles.info, { marginHorizontal: 18, marginBottom: 12 }]}>Имена и номера не отправляются на сервер. В этой версии профиль выбираете вы; автоматического поиска по номеру нет.</Text>
+    <Text style={[styles.info, { marginHorizontal: 18, marginBottom: 12 }]}>В ручном режиме профиль выбираете вы. Автопоиск по хешам номеров включается отдельно, после подтверждения своего номера.</Text>
+    <View style={{ paddingHorizontal: 18, marginBottom: 12 }}><Button title="Номер и автопоиск контактов" secondary onPress={() => router.push('/phone')} /></View>
     {access.status === 'limited' && <View style={{ paddingHorizontal: 17, gap: 9, marginBottom: 12 }}><Text style={styles.info}>Доступ только к выбранным контактам.</Text>{Platform.OS === 'ios' && <Button title="Выбрать ещё контакты" secondary onPress={() => void expand()} />}</View>}
     {!hasAccess(access) && access.status !== 'unknown' && <View style={styles.content}><Button title={access.canAskAgain ? 'Разрешить чтение контактов' : 'Открыть настройки телефона'} onPress={() => { if (access.canAskAgain) void allow(); else void Linking.openSettings().catch(cause => setError(errorText(cause))); }} /><Text style={styles.info}>Можно продолжать пользоваться LastCall без доступа к телефонной книге.</Text></View>}
     {!!error && !selected && <Text style={[styles.error, { margin: 16 }]}>{error}</Text>}

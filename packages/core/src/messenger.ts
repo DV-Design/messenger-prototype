@@ -1,6 +1,7 @@
+import { normalizePhone, iceServersSchema, type ServiceCapabilities, type PhoneChallenge } from './services.js';
 import { z } from 'zod';
 import { bytesToHex, randomChecked, secureRandomBytes, type RandomBytes } from './crypto.js';
-import { directoryClientFrameSchema, directoryServerFrameSchema, directoryUserSchema, directConversationId, conversationInvite, endpointUrl, signAuthentication, usernameSchema, displayNameSchema, validateDeviceIdentity, type DeviceIdentity, type DirectoryUser, type DirectoryClientFrame } from './directory.js';
+import { directoryClientFrameSchema, directoryServerFrameSchema, directoryUserSchema, directConversationId, conversationInvite, endpointUrl, signAuthentication, usernameSchema, displayNameSchema, validateDeviceIdentity, type DeviceIdentity, type DirectoryUser, type DirectoryClientFrame, type DirectoryServerFrame, type PhoneMatch } from './directory.js';
 import { conversationIdSchema, MAX_FILE_BYTES, MAX_TEXT_CHARS, peerIdSchema, roomIdSchema } from './protocol.js';
 import { openLocalState, sealLocalState } from './persistence.js';
 import { PeerSession, type PeerSessionOptions, type SessionSnapshot, type SharedFile, type ChatMessage } from './session.js';
@@ -23,12 +24,14 @@ interface PendingMessage {conversationId:string;messageId:string;remaining:strin
 const pendingSchema=z.object({conversationId:conversationIdSchema,messageId:peerIdSchema,remaining:z.array(roomIdSchema).min(1).max(7)}).strict();
 const storedConversationSchema=z.object({id:conversationIdSchema,kind:z.enum(['direct','group']),title:z.string().min(1).max(64),memberIds:z.array(roomIdSchema).min(2).max(8),creatorId:roomIdSchema.optional(),messages:z.array(messageSchema).max(100),unread:z.number().int().min(0).max(100),updatedAt:z.number().finite().nonnegative()}).strict();
 const storedSchema=z.object({version:z.literal(2),contacts:z.array(directoryUserSchema).max(MAX_CONTACTS),conversations:z.array(storedConversationSchema).max(MAX_CONTACTS+MAX_GROUPS),pending:z.array(pendingSchema).max(MAX_PENDING_MESSAGES)}).strict().refine(state=>state.conversations.reduce((n,c)=>n+c.messages.length,0)<=MAX_HISTORY_MESSAGES,{message:'History capacity exceeded'});
-interface Request {resolve:(users:DirectoryUser[])=>void;reject:(e:Error)=>void;timer:ReturnType<typeof setTimeout>;}
+type RequestInput<T=DirectoryClientFrame>=T extends {requestId:string}?Omit<T,'requestId'>:never;
+type ReplyType=Exclude<Extract<DirectoryServerFrame,{requestId:string}>['type'],'error'>;
+interface Request {expected:ReplyType;resolve:(frame:DirectoryServerFrame)=>void;reject:(e:Error)=>void;timer:ReturnType<typeof setTimeout>;}
 interface Pair {session:PeerSession;connecting?:Promise<void>;retry?:ReturnType<typeof setTimeout>;attempt:number;flushing:boolean;notified:boolean;lastUsed:number;lastSent:Map<string,number>;definitions:Set<string>;pump?:ReturnType<typeof setTimeout>;}
 export class MessengerClient {
   private status:MessengerSnapshot['status']='idle';private self?:DirectoryUser;private error?:string;
   private contacts=new Map<string,DirectoryUser>();private conversations=new Map<string,InternalConversation>();private pending:PendingMessage[]=[];
-  private fileFanouts=new Map<string,Map<string,SharedFile['status']>>();private pairs=new Map<string,Pair>();private socket?:WebSocket;private requests=new Map<string,Request>();
+  private fileFanouts=new Map<string,Map<string,SharedFile['status']>>();private pairs=new Map<string,Pair>();private socket?:WebSocket;private requests=new Map<string,Request>();private iceRequest?:Promise<RTCIceServer[]>;private wakeTimer?:ReturnType<typeof setTimeout>;private lastWake=new Map<string,number>();private services?:ServiceCapabilities;private servicesRequest?:Promise<ServiceCapabilities>;private wakeCapabilitiesRequest?:Promise<ServiceCapabilities>;
   private random:RandomBytes;private stopped=true;private opening?:Promise<void>;private loaded=false;private restorePromise?:Promise<void>;
   private reconnect?:ReturnType<typeof setTimeout>;private attempt=0;private epoch=0;private savedTimer?:ReturnType<typeof setTimeout>;private saveQueue=Promise.resolve();private dirty=false;private cancelOpening?:()=>void;
   constructor(private options:MessengerOptions){validateDeviceIdentity(options.identity);usernameSchema.parse(options.username);displayNameSchema.parse(options.displayName);endpointUrl(options.serverUrl,'directory');this.random=options.randomBytes??secureRandomBytes;}
@@ -92,7 +95,7 @@ export class MessengerClient {
             this.directorySend({type:'authenticate',publicKey:this.options.identity.publicKey,username:this.options.username,displayName:this.options.displayName,signature:signAuthentication(this.options.identity,frame.challenge,this.options.username,this.options.displayName)});
           }else if(frame.type==='ready'){
             if(!challenged||ready||frame.self.userId!==this.options.identity.userId||frame.self.publicKey!==this.options.identity.publicKey)throw new Error('Directory identity mismatch');
-            ready=true;this.self=frame.self;this.status='online';this.attempt=0;this.error=undefined;finish();this.watch();this.emit();
+            ready=true;this.services=undefined;this.servicesRequest=undefined;this.wakeCapabilitiesRequest=undefined;this.self=frame.self;this.status='online';this.attempt=0;this.error=undefined;finish();this.watch();this.wakePending();this.emit();
             void this.refreshContacts().catch(e=>this.report(e));
           }else if(frame.type==='error'){
             const request=frame.requestId?this.requests.get(frame.requestId):undefined;
@@ -102,7 +105,7 @@ export class MessengerClient {
             else if(frame.code!=='peer-offline')this.report(new Error(frame.message));
           }else {
             if(!ready)throw new Error('Directory message before authentication');
-            if(frame.type==='results'){const request=this.requests.get(frame.requestId);if(request){clearTimeout(request.timer);this.requests.delete(frame.requestId);request.resolve(frame.users);}}
+            if('requestId' in frame){const request=this.requests.get(frame.requestId);if(request){clearTimeout(request.timer);this.requests.delete(frame.requestId);if(frame.type!==request.expected)request.reject(new Error('Unexpected directory response type'));else request.resolve(frame);}}
             else if(frame.type==='presence'){this.updateContact(frame.user);if(frame.user.online)this.wakePeer(frame.user.userId);this.changed();}
             else if(frame.type==='connect'){this.remember(frame.from);this.ensureDirect(frame.from);void this.ensurePair(frame.from.userId,false).catch(e=>this.report(e));this.watch();this.changed();}
           }
@@ -110,7 +113,7 @@ export class MessengerClient {
       };
       socket.onerror=()=>{finish(new Error('Directory connection failed'));};
       socket.onclose=()=>{
-        if(this.socket!==socket)return;this.socket=undefined;finish(new Error('Directory disconnected'));
+        if(this.socket!==socket)return;this.socket=undefined;this.services=undefined;this.servicesRequest=undefined;this.wakeCapabilitiesRequest=undefined;clearTimeout(this.wakeTimer);this.wakeTimer=undefined;finish(new Error('Directory disconnected'));
         for(const request of this.requests.values()){clearTimeout(request.timer);request.reject(new Error('Directory disconnected'));}this.requests.clear();
         for(const [id,user] of this.contacts)this.contacts.set(id,{...user,online:false});
         if(this.status!=='error')this.status='offline';this.emit();if(!this.stopped)this.scheduleReconnect();
@@ -119,9 +122,53 @@ export class MessengerClient {
   }
   private scheduleReconnect(){if(this.stopped||this.reconnect)return;const delay=Math.min(30000,1000*2**Math.min(5,this.attempt++));this.reconnect=setTimeout(()=>{this.reconnect=undefined;void this.connect().catch(e=>this.report(e));},delay);}
   private directorySend(frame:DirectoryClientFrame){if(this.socket?.readyState!==1)throw new Error('Directory is offline');this.socket.send(JSON.stringify(directoryClientFrameSchema.parse(frame)));}
-  private request(type:'search'|'lookup',value:string|string[]):Promise<DirectoryUser[]>{
-    if(this.status!=='online')return Promise.reject(new Error('Directory is offline'));if(this.requests.size>=32)return Promise.reject(new Error('Too many directory requests'));
-    const requestId=this.id();return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{this.requests.delete(requestId);reject(new Error('Directory request timed out'));},10000);this.requests.set(requestId,{resolve,reject,timer});try{this.directorySend(type==='search'?{type,query:value as string,requestId}:{type,userIds:value as string[],requestId});}catch(error){clearTimeout(timer);this.requests.delete(requestId);reject(error);}});
+  private requestFrame<T extends ReplyType>(input:RequestInput,expected:T):Promise<Extract<DirectoryServerFrame,{type:T}>>{
+    if(this.status!=='online')return Promise.reject(new Error('Directory is offline'));
+    if(this.requests.size>=32)return Promise.reject(new Error('Too many directory requests'));
+    const requestId=this.id();const frame=directoryClientFrameSchema.parse({...input,requestId});
+    return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{this.requests.delete(requestId);reject(new Error('Directory request timed out'));},10000);
+      this.requests.set(requestId,{expected,resolve:reply=>resolve(reply as Extract<DirectoryServerFrame,{type:T}>),reject,timer});
+      try{this.directorySend(frame);}catch(error){clearTimeout(timer);this.requests.delete(requestId);reject(error);}
+    });
+  }
+  private async request(type:'search'|'lookup',value:string|string[]):Promise<DirectoryUser[]>{
+    const frame=await this.requestFrame(type==='search'?{type,query:value as string}:{type,userIds:value as string[]},'results');return frame.users;
+  }
+  async getServices():Promise<ServiceCapabilities>{
+    if(this.services&&this.status==='online')return {...this.services};
+    if(!this.servicesRequest){const socket=this.socket;const request=this.requestFrame({type:'services'},'services').then(frame=>{const capabilities={...frame.capabilities};if(this.socket===socket&&this.status==='online')this.services=capabilities;return capabilities;});this.servicesRequest=request;
+      void request.finally(()=>{if(this.servicesRequest===request)this.servicesRequest=undefined;}).catch(()=>{});
+    }
+    return {...await this.servicesRequest};
+  }
+  async startPhoneVerification(phone:string):Promise<PhoneChallenge>{return (await this.requestFrame({type:'phone-start',phone:normalizePhone(phone,'RU')},'phone-challenge')).challenge;}
+  async verifyPhone(challengeId:string,code:string):Promise<void>{await this.requestFrame({type:'phone-verify',challengeId,code},'phone-verified');if(this.services)this.services={...this.services,phoneVerified:true};}
+  async discoverPhones(hashes:string[]):Promise<PhoneMatch[]>{return (await this.requestFrame({type:'phone-discover',hashes},'phone-matches')).matches;}
+  async registerPushToken(token:string):Promise<void>{await this.requestFrame({type:'push-register',token},'push-registered');}
+  async getIceServers():Promise<RTCIceServer[]>{
+    if(!this.iceRequest){const request=this.requestFrame({type:'ice'},'ice').then(frame=>iceServersSchema.parse(frame.iceServers));this.iceRequest=request;
+      void request.finally(()=>{if(this.iceRequest===request)this.iceRequest=undefined;}).catch(()=>{});
+    }
+    const servers=await this.iceRequest;return servers.map(server=>({...server,urls:Array.isArray(server.urls)?[...server.urls]:server.urls}));
+  }
+  private wakePending():void {
+    clearTimeout(this.wakeTimer);this.wakeTimer=undefined;
+    if(this.stopped||this.status!=='online')return;
+    const peers=[...new Set(this.pending.flatMap(message=>message.remaining))];if(!peers.length)return;
+    if(!this.services){
+      if(this.wakeCapabilitiesRequest)return;const socket=this.socket;const request=this.getServices();this.wakeCapabilitiesRequest=request;
+      void request.then(()=>{if(this.socket===socket&&this.status==='online')this.wakePending();}).catch(()=>{
+        // Optional push lookup failure must not make a normal P2P send look failed.
+        if(this.socket===socket&&!this.stopped&&this.status==='online')this.wakeTimer=setTimeout(()=>this.wakePending(),30000);
+      }).finally(()=>{if(this.wakeCapabilitiesRequest===request)this.wakeCapabilitiesRequest=undefined;});return;
+    }
+    if(!this.services.push)return;
+    const now=Date.now();let delay=30000;
+    for(const peerId of peers){if(!this.contacts.has(peerId))continue;let previous=this.lastWake.get(peerId);if(previous!==undefined&&previous>now){previous=now;this.lastWake.set(peerId,now);}
+      if(previous===undefined||now-previous>=30000){try{this.directorySend({type:'wake',to:peerId});this.lastWake.set(peerId,now);}catch{/* Directory reconnect resumes the bounded wake loop. */}}
+      delay=Math.min(delay,Math.max(500,30000-Math.max(0,now-(this.lastWake.get(peerId)??now))));
+    }
+    this.wakeTimer=setTimeout(()=>this.wakePending(),delay);
   }
   async search(query:string):Promise<DirectoryUser[]>{return this.request('search',query.replace(/^@/,'').toLowerCase());}
   private watch(){if(this.status==='online')this.directorySend({type:'watch',userIds:[...this.contacts.keys()]});}
@@ -139,7 +186,7 @@ export class MessengerClient {
     let pair=this.pairs.get(peerId);
     if(!pair){
       if(this.pairs.size>=MAX_SESSIONS){const idle=[...this.pairs.entries()].filter(([id,p])=>!p.flushing&&!p.connecting&&p.session.getSnapshot().callState==='idle'&&!p.session.getSnapshot().files.some(f=>f.status==='sending'||f.status==='receiving')&&!this.pending.some(m=>m.remaining.includes(id))).sort((a,b)=>a[1].lastUsed-b[1].lastUsed)[0];if(!idle)throw new Error('Active peer capacity exceeded (16)');this.pairs.delete(idle[0]);clearTimeout(idle[1].retry);clearTimeout(idle[1].pump);idle[1].session.disconnect();}
-      const session=new PeerSession({serverUrl:this.options.serverUrl,expectPeer:true,invite:conversationInvite(this.options.identity,user.publicKey),randomBytes:this.random,rtcFactory:this.options.rtcFactory,getUserMedia:this.options.getUserMedia,onChange:snapshot=>this.pairChanged(peerId,snapshot),onMessage:message=>this.receiveMessage(peerId,message),onApplication:payload=>this.receiveApplication(peerId,payload),allowConversation:id=>this.validConversation(peerId,id)});
+      const session=new PeerSession({serverUrl:this.options.serverUrl,expectPeer:true,getIceServers:()=>this.getIceServers(),invite:conversationInvite(this.options.identity,user.publicKey),randomBytes:this.random,rtcFactory:this.options.rtcFactory,getUserMedia:this.options.getUserMedia,onChange:snapshot=>this.pairChanged(peerId,snapshot),onMessage:message=>this.receiveMessage(peerId,message),onApplication:payload=>this.receiveApplication(peerId,payload),allowConversation:id=>this.validConversation(peerId,id)});
       pair={session,attempt:0,flushing:false,notified:false,lastUsed:Date.now(),lastSent:new Map(),definitions:new Set()};this.pairs.set(peerId,pair);
     }
     pair.lastUsed=Date.now();
@@ -177,7 +224,7 @@ export class MessengerClient {
       if(c.messages.some(m=>m.id===message.id&&m.from===peerId))return true;
       c.messages.push({id:message.id,text:message.text,from:peerId,timestamp:message.timestamp,status:'received',conversationId:c.id});c.unread=Math.min(100,c.unread+1);c.updatedAt=Date.now();
     }
-    this.changed();return true;
+    this.changed();this.wakePending();return true;
   }
   private receiveApplication(peerId:string,payload:unknown){
     const group=groupDefinitionSchema.parse(payload);const own=this.options.identity.userId;
@@ -217,7 +264,7 @@ export class MessengerClient {
   }
   async sendText(conversationId:string,text:string):Promise<void>{
     const c=this.conversations.get(conversationId);if(!c)throw new Error('Unknown conversation');if(!text.trim()||text.length>MAX_TEXT_CHARS)throw new Error('Text must contain 1–4000 characters');if(this.pending.length>=MAX_PENDING_MESSAGES)throw new Error('Local outbox is full');
-    const message:MessengerMessage={id:this.id(),text,from:this.options.identity.userId,timestamp:Date.now(),status:'pending',conversationId};c.messages.push(message);c.updatedAt=Date.now();this.pending.push({conversationId,messageId:message.id,remaining:c.memberIds.filter(id=>id!==this.options.identity.userId)});this.changed();await this.persist();
+    const message:MessengerMessage={id:this.id(),text,from:this.options.identity.userId,timestamp:Date.now(),status:'pending',conversationId};c.messages.push(message);c.updatedAt=Date.now();this.pending.push({conversationId,messageId:message.id,remaining:c.memberIds.filter(id=>id!==this.options.identity.userId)});this.changed();await this.persist();this.wakePending();
     for(const peerId of c.memberIds)if(peerId!==this.options.identity.userId&&this.status==='online'&&this.contacts.get(peerId)?.online)void this.ensurePair(peerId,true).then(()=>this.flushPeer(peerId)).catch(e=>this.report(e));
   }
   async sendFile(conversationId:string,file:{name:string;mime:string;data:Uint8Array}):Promise<void>{
@@ -259,8 +306,8 @@ export class MessengerClient {
     while(count>MAX_HISTORY_MESSAGES){let oldest:InternalConversation|undefined;let index=-1;let timestamp=Infinity;for(const c of this.conversations.values())for(let i=0;i<c.messages.length;i++){const m=c.messages[i]!;if(!pending.has(c.id+':'+m.id)&&m.timestamp<timestamp){oldest=c;index=i;timestamp=m.timestamp;}}if(!oldest)break;oldest.messages.splice(index,1);count--;}
   }
   disconnect():void{
-    this.stopped=true;++this.epoch;this.cancelOpening?.();this.cancelOpening=undefined;clearTimeout(this.reconnect);this.reconnect=undefined;
-    const socket=this.socket;this.socket=undefined;if(socket){socket.onmessage=null;socket.onclose=null;socket.onerror=null;socket.close();}
+    this.stopped=true;++this.epoch;this.cancelOpening?.();this.cancelOpening=undefined;clearTimeout(this.wakeTimer);this.wakeTimer=undefined;clearTimeout(this.reconnect);this.reconnect=undefined;
+    const socket=this.socket;this.socket=undefined;this.services=undefined;this.servicesRequest=undefined;this.wakeCapabilitiesRequest=undefined;if(socket){socket.onmessage=null;socket.onclose=null;socket.onerror=null;socket.close();}
     for(const request of this.requests.values()){clearTimeout(request.timer);request.reject(new Error('Disconnected'));}this.requests.clear();
     for(const pair of this.pairs.values()){clearTimeout(pair.retry);clearTimeout(pair.pump);pair.session.disconnect();}this.pairs.clear();
     for(const [id,user] of this.contacts)this.contacts.set(id,{...user,online:false});this.status='offline';clearTimeout(this.savedTimer);this.savedTimer=undefined;void this.persist().catch(error=>this.report(error));this.emit();

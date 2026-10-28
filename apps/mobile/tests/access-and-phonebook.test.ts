@@ -24,8 +24,8 @@ test('request all serializes OS prompts and continues after one permission error
     return 'granted';
   });
   assert.equal(maximum, 1);
-  assert.deepEqual(visited, ['contacts', 'camera', 'microphone', 'photos']);
-  assert.equal(results.length, 4);
+  assert.deepEqual(visited, ['contacts', 'camera', 'microphone', 'photos', 'notifications']);
+  assert.equal(results.length, 5);
   assert.ok(results[1]?.error);
   assert.equal(results[3]?.result, 'granted');
 });

@@ -1,3 +1,4 @@
+import { iceServersSchema } from './services.js';
 import { endpointUrl } from './directory.js';
 import { audioPolicy } from './audio.js';
 import { bytesToHex, hexToBytes, randomChecked, secureRandomBytes, SignalingCipher, type RandomBytes } from './crypto.js';
@@ -12,7 +13,7 @@ export interface SessionSnapshot {
   stats:{rttMs?:number;audioBitrateKbps?:number;packetsLost?:number;jitterMs?:number};files:SharedFile[];
 }
 export interface PeerSessionOptions {
-  serverUrl:string;invite:string;relayOnly?:boolean;iceServers?:RTCIceServer[];expectPeer?:boolean;
+  serverUrl:string;invite:string;relayOnly?:boolean;iceServers?:RTCIceServer[];expectPeer?:boolean;getIceServers?:()=>Promise<RTCIceServer[]>;
   randomBytes?:RandomBytes;rtcFactory?:(config:RTCConfiguration)=>RTCPeerConnection;
   getUserMedia?:(constraints:MediaStreamConstraints)=>Promise<MediaStream>;
   onChange?:(snapshot:SessionSnapshot)=>void;
@@ -81,12 +82,14 @@ export class PeerSession {
     this.change({status:'connecting',error:undefined});
     try {
       let iceServers=this.options.iceServers;
+      if(!iceServers&&this.options.getIceServers)iceServers=await this.options.getIceServers();
       if(!iceServers){const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),10000);
         try {const response=await fetch(endpointUrl(this.options.serverUrl,'ice'),{signal:controller.signal});if(!response.ok)throw new Error('ICE configuration request failed');
           const value=await response.json() as {iceServers?:RTCIceServer[]};
           if(!Array.isArray(value.iceServers)||value.iceServers.length>20)throw new Error('Invalid ICE configuration');iceServers=value.iceServers;
         } finally {clearTimeout(timer);}
       }
+      iceServers=iceServersSchema.parse(iceServers);
       const hasTurn=iceServers.some(server=>(Array.isArray(server.urls)?server.urls:[server.urls]).some(url=>/^turns?:/i.test(url)));
       this.hasTurn=hasTurn;
       if(this.options.relayOnly&&!hasTurn)throw new Error('Relay-only mode requires a configured TURN server');

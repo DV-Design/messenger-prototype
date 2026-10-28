@@ -5,3 +5,4 @@ export * from './session.js';
 export * from './directory.js';
 export * from './persistence.js';
 export * from './messenger.js';
+export * from './services.js';
