@@ -122,3 +122,18 @@ a reachable path no reconnect code can guarantee delivery or continuous audio.
 Sources: [coturn NAT and peer rules](https://github.com/coturn/coturn/wiki/turnserver),
 [coturn 4.7.0 configuration](https://github.com/coturn/coturn/blob/4.7.0/examples/etc/turnserver.conf),
 [official Docker image](https://github.com/coturn/coturn/tree/4.7.0/docker/coturn).
+
+## Native macOS alternative
+
+[Native LastCall launcher and user LaunchAgent](../native-turn/README.md) use
+maintained Homebrew coturn 4.18.0 on the same LAN IP and forwarded ports, removing
+the Docker NAT hop. Exactly one backend may own those ports. Native mode keeps
+private REST/TLS configuration and the same peer rules/preview quotas; its logs
+use bounded macOS syslog instead of Docker log rotation.
+
+Local generic UDP echo tests showed a host-to-Docker published UDP failure, not
+a universal external failure: after router forwarding, public TURN-over-TCP
+carried chat, exact file bytes and call traffic in the existing browser test.
+Native UDP/TCP/TLS and independent external delivery still require their own
+checks. The Docker certificate-refresh helper does not restart the native user
+agent; use the native renewal instructions until backend-aware scheduling exists.

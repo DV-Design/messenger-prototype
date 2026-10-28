@@ -1,0 +1,22 @@
+name: external TURN smoke
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  relay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chrome
+      - name: Verify each public authenticated TURN transport
+        run: node infra/public/verify-turn.mjs
+        env:
+          TURN_QA_REQUIRE_EXTERNAL: '1'
+          LASTCALL_TURN_QA_ICE: ${{ secrets.LASTCALL_TURN_QA_ICE }}

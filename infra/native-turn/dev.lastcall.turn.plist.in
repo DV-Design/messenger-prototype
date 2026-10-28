@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>dev.lastcall.turn</string>
+  <key>ProgramArguments</key><array>
+    <string>/usr/bin/python3</string>
+    <string>@REPO@/infra/native-turn/start_native_turn.py</string>
+    <string>--env-file</string><string>@REPO@/infra/.env.public-turn</string>
+  </array>
+  <key>WorkingDirectory</key><string>@REPO@</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
+  <key>ThrottleInterval</key><integer>10</integer>
+  <key>ExitTimeOut</key><integer>10</integer>
+  <key>ProcessType</key><string>Background</string>
+  <key>StandardOutPath</key><string>/dev/null</string>
+  <key>StandardErrorPath</key><string>/dev/null</string>
+  <key>SoftResourceLimits</key><dict><key>NumberOfFiles</key><integer>2048</integer></dict>
+  <key>HardResourceLimits</key><dict><key>NumberOfFiles</key><integer>2048</integer></dict>
+</dict>
+</plist>
