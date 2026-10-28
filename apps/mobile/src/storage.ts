@@ -1,7 +1,7 @@
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import { Directory, File, Paths } from 'expo-file-system';
-import { createDeviceIdentity, MAX_LOCAL_STATE_BYTES, type DeviceIdentity } from '@messenger/core';
+import { createDeviceIdentity, validateDeviceIdentity, MAX_LOCAL_STATE_BYTES, MAX_SEALED_ATTACHMENT_BYTES, type DeviceIdentity } from '@messenger/core';
 
 export const DEFAULT_SERVER = process.env.EXPO_PUBLIC_SIGNALING_URL ?? 'https://lienad.ru/messenger';
 export type LocalProfile = { username: string; displayName: string; serverUrl: string };
@@ -45,11 +45,23 @@ export async function saveProfile(profile: LocalProfile): Promise<void> {
 }
 
 export async function sealedStateAdapter(identity: DeviceIdentity, serverUrl: string) {
+  validateDeviceIdentity(identity);
   const serverHash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, serverUrl);
   const directory = new Directory(Paths.document, 'messenger-v2');
   directory.create({ intermediates: true, idempotent: true });
   const target = new File(directory, `${identity.userId}-${serverHash}.sealed`);
+  const attachments = new Directory(directory, `${identity.userId}-${serverHash}-attachments`);
+  attachments.create({ intermediates: true, idempotent: true });
   let writes = Promise.resolve();
+  const serialized = (operation: () => Promise<void>) => {
+    const next = writes.catch(() => {}).then(operation);
+    writes = next;
+    return next;
+  };
+  const attachment = (key: string, suffix = '.sealed') => {
+    if (typeof key !== 'string' || !hex.test(key)) throw new Error('Некорректный ключ вложения.');
+    return new File(attachments, `${key}${suffix}`);
+  };
   return {
     loadState: async () => {
       if (!target.exists) return null;
@@ -60,13 +72,37 @@ export async function sealedStateAdapter(identity: DeviceIdentity, serverUrl: st
       if (sealed.length > MAX_SEALED_BYTES) return Promise.reject(new Error('Локальное хранилище превышает допустимый размер.'));
       // Only sealed ciphertext supplied by core reaches the file adapter.
       // SecureStore is the only storage location for the device seed.
-      const next = writes.catch(() => {}).then(async () => {
+      return serialized(async () => {
         const temporary = new File(directory, `${identity.userId}-${serverHash}.next`);
         await temporary.write(sealed);
         await temporary.move(target, { overwrite: true });
       });
-      writes = next;
-      return next;
+    },
+    saveAttachment: (key: string, sealed: string) => {
+      const destination = attachment(key);
+      if (typeof sealed !== 'string' || sealed.length > MAX_SEALED_ATTACHMENT_BYTES) return Promise.reject(new Error('Зашифрованное вложение превышает допустимый размер.'));
+      return serialized(async () => {
+        const temporary = attachment(key, '.next');
+        await temporary.write(sealed);
+        await temporary.move(destination, { overwrite: true });
+      });
+    },
+    loadAttachment: async (key: string): Promise<string | null> => {
+      const source = attachment(key);
+      await writes.catch(() => {});
+      if (!source.exists) return null;
+      if (source.size > MAX_SEALED_ATTACHMENT_BYTES) throw new Error('Зашифрованное вложение превышает допустимый размер.');
+      const sealed = await source.text();
+      if (sealed.length > MAX_SEALED_ATTACHMENT_BYTES) throw new Error('Зашифрованное вложение превышает допустимый размер.');
+      return sealed;
+    },
+    deleteAttachment: (key: string) => {
+      const source = attachment(key);
+      return serialized(async () => {
+        if (source.exists) source.delete();
+        const temporary = attachment(key, '.next');
+        if (temporary.exists) temporary.delete();
+      });
     },
   };
 }

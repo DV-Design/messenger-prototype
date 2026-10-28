@@ -1,9 +1,11 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { AppState } from 'react-native';
+import * as Network from 'expo-network';
 import { MessengerClient, resolveDeviceProfile, type DeviceIdentity, type DirectoryUser, type MessengerSnapshot } from '@messenger/core';
 import { nativeRtc, validateServerUrl } from './native';
 import { CanonicalProfileStore, profileSignature, registrationCandidate } from './registration-model';
 import { DEFAULT_SERVER, loadIdentity, loadProfile, saveProfile, sealedStateAdapter, type LocalProfile } from './storage';
+import { monitorNetworkRecovery } from './network-recovery';
 
 const empty: MessengerSnapshot = { status: 'idle', contacts: [], conversations: [] };
 type Runtime = { ready: boolean; busy: boolean; registration: 'checking' | 'unregistered' | 'unavailable' | 'bound'; profile: LocalProfile | null; identity?: DeviceIdentity; snapshot: MessengerSnapshot; error?: string };
@@ -13,6 +15,8 @@ let manager: MessengerClient | null = null;
 let bootPromise: Promise<void> | null = null;
 let generation = 0;
 let profiles = new CanonicalProfileStore(saveProfile);
+let networkRecovery: ReturnType<typeof monitorNetworkRecovery> | undefined;
+let resumeSubscription: ReturnType<typeof AppState.addEventListener> | undefined;
 const publish = (update: Partial<Runtime>) => { state = { ...state, ...update }; listeners.forEach(listener => listener()); };
 export const errorText = (error: unknown) => error instanceof Error ? error.message : 'Не удалось выполнить действие. Попробуйте ещё раз.';
 function canonicalProfile(serverUrl: string, user: DirectoryUser): LocalProfile {
@@ -86,8 +90,20 @@ export function boot(): Promise<void> {
       else await checkRegistration();
     } catch (error) { publish({ ready: true, registration: state.profile ? 'bound' : 'unavailable', error: errorText(error) }); }
   })();
-  AppState.addEventListener('change', value => {
-    if (value === 'active' && manager && ['offline', 'error', 'idle'].includes(manager.getSnapshot().status)) void reconnect();
+  // One app-scoped subscription survives navigation; never tear down peers merely
+  // because Wi-Fi disappears while Android switches its default route to mobile.
+  networkRecovery?.stop();
+  resumeSubscription?.remove();
+  networkRecovery = monitorNetworkRecovery({
+    read: Network.getNetworkStateAsync,
+    listen: Network.addNetworkStateListener,
+    onReachable: async () => {
+      const current = manager;
+      if (current) await current.networkChanged();
+    },
+  });
+  resumeSubscription = AppState.addEventListener('change', value => {
+    if (value === 'active') void networkRecovery?.resume();
   });
   return bootPromise;
 }

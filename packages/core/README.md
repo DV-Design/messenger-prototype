@@ -1,4 +1,7 @@
-# Shared foreground prototype core
+# Shared LastCall prototype core
+
+The 0.5 manager section below supersedes historical queue/group limitations.
+`PeerSession` is the transport; durable storage is supplied by `MessengerClient` adapters.
 
 `PeerSession` runs on browser WebRTC or injected React Native WebRTC bindings. Inject
 `rtcFactory`, `getUserMedia` and a cryptographically secure `randomBytes` on mobile.
@@ -18,11 +21,12 @@ DTLS fingerprints through that authenticated signaling; payload goes over DTLS/S
 
 All WebRTC negotiation operations use one serialized queue. Only the initial room
 initiator generates offers; its role remains stable while another occupant rejoins.
-Only foreground live peers can communicate. There is no durable history/outbox,
-background wake guarantee, offline delivery or DPI disguise. A connected data channel
+A standalone transport requires live peers; it has no durable storage itself.
+The manager supplies the durable sender-held queue described below. Background
+wake and DPI guarantees are not provided. A connected data channel
 is required before sending chat or starting calls. A file is marked complete for the
-sender only after a receiver acknowledgement. Chat entries mean accepted by the local
-RTC channel; they are not delivery receipts.
+sender only after a receiver acknowledgement. Text status `delivered` requires a recipient ACK. Promise-capable receive callbacks
+are awaited before ACK, so the manager can enforce durable local acceptance.
 
 Resource limits: 100 chat entries, four retained file records, each at most 5 MiB;
 one incoming and one outgoing transfer; 12 KiB binary content per encoded chunk;
@@ -189,3 +193,48 @@ entries to contacts or start P2P sessions. Search accepts at most 48 characters 
 NFKC normalization, whitespace/@ cleanup and Unicode lowercasing. Server pagination,
 uniqueness, literal SQL matching and immutable registration enforcement are validated
 by backend tests separately from these client protocol/lifecycle regressions.
+
+## Sender-held queue and signed peer sync in 0.5
+
+`sendText` and `sendFile` resolve after durable local enqueue, before recipient
+availability. With durable adapters configured, no physical fanout starts before
+the encrypted metadata write succeeds; files first save an authenticated encrypted
+blob. `saveAttachment(key,sealed)`, `loadAttachment(key)` and `deleteAttachment(key)`
+use 64-hex keys, never names/paths or plaintext. `sealAttachment`/`openAttachment`
+bind ciphertext to the installation identity and blob key. `getFileData(chat,id,author?)`
+lazily retrieves immutable bytes after restart. The metadata envelope never embeds
+file bytes and keeps the existing 8 MiB limit. Version-2 text state migrates in place.
+
+Every waiting item retains its original creation timestamp, seven-day expiry and
+remaining recipient IDs. Reconnect, relay and retry do not extend the deadline. At
+the boundary it becomes visibly `expired`, stops retrying/waking and releases pending
+file bytes only after metadata durably drops their reference. ACK persistence failure
+restores the pending queue; duplicate inbound items retry their failed durable write
+before ACK. A receiver ACK means successful adapter storage, not an OS fsync warranty.
+`recipientIds`/`deliveredTo` expose partial group delivery. File `deliveryStatus` is
+separate from transport `status`; sender completion requires every member's real ACK.
+
+Limits are explicit: 100 waiting texts, 500 retained texts total/100 per chat, 16
+retained file blobs and 40 MiB of file bytes total, 5 MiB per file, 64 file metadata
+records per chat including expired records. Full storage rejects a new item without
+evicting waiting content. Delivered file bytes remain history and count toward file
+capacity. There is no history-file deletion UI yet. Whole files retry with stable IDs;
+chunk-level resume is not implemented. Independent peer pumps allow online members
+to receive while another member is offline. Both peers must eventually execute and
+connect within the deadline; uninstall/key loss can destroy the only waiting copy.
+
+Groups remain immutable and at most eight members. The creator signs the roster;
+forwarded rosters require that signature. Original authors sign group ID, message ID,
+author, type, original timestamp/expiry and text/file-content hash. Any roster member
+can supply retained verified records and file blobs when the author is offline.
+Deduplication uses original author plus ID; altered content, author or expiry fails
+verification. Recipient-signed receipts may travel through peers, but a relay transport
+ACK never impersonates the final recipient. Retained history bounds peer synchronization;
+this is not an unlimited archive or group-membership/key-rotation protocol. Old unsigned
+group definitions may be read from their creator, but cannot authorize forwarding;
+the creator must supply a signed roster before new group content can sync.
+
+`networkChanged():Promise<void>` refreshes the directory and authenticated ICE cache
+while retaining peer instances, local queue and active call tracks. It invokes the
+transport's recovery hook rather than disconnecting all peers. Actual path recovery
+depends on reachable ICE/TURN infrastructure and platform network behavior.

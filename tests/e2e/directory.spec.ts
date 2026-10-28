@@ -8,13 +8,17 @@ type ClientWindow = Window & {
 };
 const serverUrl = process.env.PW_SIGNALING_URL ?? `http://127.0.0.1:${process.env.PW_SERVER_PORT || '8799'}`;
 async function state(page: Page) {
-  return page.evaluate(() => {
-    const s = (window as ClientWindow).__messenger.getSnapshot();
-    return { status: s.status, contacts: s.contacts, conversations: s.conversations.map(c => ({
+  return page.evaluate(async () => {
+    const manager = (window as ClientWindow).__messenger;
+    const s = manager.getSnapshot();
+    return { status: s.status, contacts: s.contacts, conversations: await Promise.all(s.conversations.map(async c => ({
       id: c.id, kind: c.kind, title: c.title, messages: c.messages,
       status: c.session?.status, route: c.session?.route,
-      files: c.files.map(f => ({ name: f.name, status: f.status, bytes: f.data ? Array.from(f.data) : undefined })),
-    })), activeCall: s.activeCall ? { peerId: s.activeCall.peerId, state: s.activeCall.session.callState } : undefined };
+      files: await Promise.all(c.files.map(async f => {
+        const data = await manager.getFileData(c.id, f.id, f.senderId);
+        return { name: f.name, status: f.status, bytes: data ? Array.from(data) : undefined };
+      })),
+    }))), activeCall: s.activeCall ? { peerId: s.activeCall.peerId, state: s.activeCall.session.callState } : undefined };
   });
 }
 async function add(page: Page, user: DirectoryUser) {

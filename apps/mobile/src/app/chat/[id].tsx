@@ -9,6 +9,7 @@ import { Avatar, Empty, Icon, IconButton, lastSeen, time } from '../../component
 import { client, errorText, useMessenger } from '../../runtime';
 import { colors, styles } from '../../styles';
 import { transportNotice } from '../../transport-notice';
+import { deliveryLabel, waitingForDelivery } from '../../delivery-model';
 
 export default function Chat() {
   const params = useLocalSearchParams<{ id: string }>();
@@ -31,7 +32,8 @@ export default function Chat() {
   const group = conversation.kind === 'group';
   const canCall = !group && !snapshot.activeCall && (snapshot.status === 'online' || conversation.session?.status === 'connected');
   const notice = transportNotice({ directory: snapshot.status, group, peerOnline: peer?.online, session: conversation.session,
-    pending: conversation.messages.filter(item => item.from === identity?.userId && (item.status === 'pending' || item.status === 'sent')).length });
+    pending: conversation.messages.filter(item => item.from === identity?.userId && waitingForDelivery(item)).length
+      + conversation.files.filter(item => item.senderId === identity?.userId && waitingForDelivery(item)).length });
   async function action(operation: () => Promise<void>) {
     if (busy) return;
     setBusy(true); setError('');
@@ -50,11 +52,14 @@ export default function Chat() {
   function renderMessage(item: MessengerMessage) {
     const own = item.from === identity?.userId;
     const sender = snapshot.contacts.find(contact => contact.userId === item.from)?.displayName ?? 'Участник';
-    const pending = item.status === 'pending';
+    const pending = waitingForDelivery(item);
     const delivered = item.status === 'delivered';
+    const expired = item.status === 'expired';
+    const label = deliveryLabel(item, group);
     return <View style={[styles.bubble, own && styles.bubbleSelf]}>
       {group && !own && <Text style={styles.senderName}>{sender}</Text>}<Text selectable style={styles.message}>{item.text}</Text>
-      <View style={styles.messageMeta}><Text style={styles.messageTime}>{time(item.timestamp)}</Text>{own && <View accessibilityLabel={pending ? 'Ожидает отправки' : delivered ? 'Доставлено' : 'Отправлено'}><Icon name={pending ? 'time-outline' : delivered ? 'checkmark-done' : 'checkmark'} size={15} color={delivered ? colors.accent : '#70877D'} /></View>}</View>
+      {own && (group || expired) && <Text style={[styles.fileMeta, expired && { color: '#A33535' }]}>{label}</Text>}
+      <View style={styles.messageMeta}><Text style={styles.messageTime}>{time(item.timestamp)}</Text>{own && <View accessibilityLabel={label}><Icon name={expired ? 'alert-circle-outline' : pending ? 'time-outline' : delivered ? 'checkmark-done' : 'checkmark'} size={15} color={expired ? '#A33535' : delivered ? colors.accent : '#70877D'} /></View>}</View>
     </View>;
   }
   return <SafeAreaView style={styles.whiteScreen} edges={['top', 'bottom']}>
@@ -69,8 +74,8 @@ export default function Chat() {
         {group && <Text style={[styles.info, { textAlign: 'center', paddingVertical: 8, paddingHorizontal: 15 }]}>Группа до 8 участников · звонки в группах пока недоступны</Text>}
         <FlatList ref={list} data={conversation.messages} keyExtractor={item => item.id + item.from} contentContainerStyle={styles.messages} keyboardShouldPersistTaps="handled" onContentSizeChange={() => list.current?.scrollToEnd({ animated: true })}
           renderItem={({ item }) => renderMessage(item)}
-          ListEmptyComponent={conversation.files.length === 0 ? <Empty icon="chatbubble-ellipses-outline" title="Начните разговор" text={group ? 'Сообщения отправляются участникам напрямую.' : 'Отправьте первое сообщение. Если друга нет в сети, текст подождёт на вашем устройстве.'} /> : undefined}
-          ListFooterComponent={<>{conversation.files.map(file => <View key={`${file.id}-${file.senderId}`} style={{ marginTop: 9 }}><AttachmentCard file={file} self={file.senderId === identity?.userId} sender={group ? snapshot.contacts.find(contact => contact.userId === file.senderId)?.displayName : undefined} onOpen={() => void action(() => shareFile(file))} /></View>)}</>} />
+          ListEmptyComponent={conversation.files.length === 0 ? <Empty icon="chatbubble-ellipses-outline" title="Начните разговор" text={group ? 'Данные синхронизируются между телефонами участников.' : 'Отправьте первое сообщение. Если друга нет в сети, оно подождёт на вашем устройстве до 7 дней.'} /> : undefined}
+          ListFooterComponent={<>{conversation.files.map(file => <View key={`${file.id}-${file.senderId}`} style={{ marginTop: 9 }}><AttachmentCard file={file} self={file.senderId === identity?.userId} group={group} sender={group ? snapshot.contacts.find(contact => contact.userId === file.senderId)?.displayName : undefined} onOpen={() => void action(() => shareFile(file))} /></View>)}</>} />
       </View>
       {!!error && <Pressable accessibilityRole="button" accessibilityLabel="Скрыть ошибку" onPress={() => setError('')}><Text style={[styles.error, { borderRadius: 0 }]}>{error}</Text></Pressable>}
       {attachments && <View><View style={styles.attachmentMenu}>

@@ -62,13 +62,27 @@ Its former mobile paths were removed; implementation history remains in commit 9
 
 # Required for working external services
 
+## Active 0.5 delivery work
+
+- [X] Firebase LastCall project and Android client configuration; server key approval/actual push remain open (msg-3z9)
+  → Artifacts: [setup checkpoint](infra/public/SERVICES.md)
+- [X] Durable seven-day sender outbox for text and files, recipient persistence before ACK (msg-c0z, msg-row)
+  → Artifacts: [manager](packages/core/src/messenger.ts), [regressions](packages/core/src/outbox.test.ts)
+- [X] Authenticated group peer synchronization while original sender is offline (msg-c0z, msg-t02)
+  → Artifacts: [signed records](packages/core/src/group-sync.ts), [real peer tests](tests/e2e/outbox-sync.spec.ts)
+- [X] Network observer, bounded ten-second ICE/signaling recovery and explicit-leave compatibility (msg-3t3)
+  → Artifacts: [contract](docs/NETWORK-HANDOVER-CONTRACT.md), [transport](packages/core/src/session.ts), [resume tests](apps/server/test/network-resume.test.ts)
+- [X] Independent review, quality gates, Android artifact and publication
+  → Artifacts: [review](docs/reports/code-reviews/2026-10/CR-2026-10-28-lastcall-05.md), [native evidence](docs/reports/debugging/2026-10/native-050.md), [release](artifacts/README.md), [APK](https://lienad.ru/messenger/download/LastCall-0.5.0.apk)
+
 - [ ] Configure Firebase and validate actual Android closed-app notifications; iOS/APNs/system calls (msg-3z9)
 - [X] Retire phone registration/discovery requirement by user direction (msg-p7x)
 - [ ] Provision and validate reachable authenticated P2P relay fallback (msg-bcw)
   → Artifacts: [service contract](docs/SERVICES-CONTRACT.md), [network choice](docs/NETWORK-CHOICE.md)
 
-Firebase project/client/server configuration remains absent. It is needed only
-for notifications; username registration and server-directory sync do not need it.
+Firebase project/client configuration exists in0.5; server FCM identity/key still
+await approval and actual validation. It is needed only for notifications;
+username registration and server-directory sync do not need it.
 SMS.ru is no longer required. Closed-app delivery and public TURN remain pending.
 
 # LastCall 0.4: server usernames (msg-5oa)

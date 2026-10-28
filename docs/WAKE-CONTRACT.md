@@ -1,5 +1,11 @@
 # Direct delivery first, short-lived wake intents second
 
+0.5 supersedes the sender-memory file wait below: durable sender-held text/files
+wait up to seven days, restore after restart and retry per recipient. An individual
+push intent still expires within60s (call30s); FCM never carries the content or
+the seven-day queue. See [active outbox contract](OUTBOX-CONTRACT.md). The old
+60s file-memory-only readiness behavior below records the 0.4 checkpoint only.
+
 Extends the active 0.4 username/branding milestone after the latest user request.
 No chat/media/file payload is accepted or stored by the coordination server.
 It retains profiles/device push tokens/consent/quotas only. Content queue stays

@@ -1,6 +1,7 @@
 import { describe,it,expect,vi } from 'vitest';
 import { createDeviceIdentity,userIdFromPublicKey,signAuthentication,verifyAuthentication,authenticationPayload,conversationInvite,directConversationId,endpointUrl,directoryClientFrameSchema,directoryServerFrameSchema,type DeviceIdentity,type DirectoryUser } from './directory.js';
 import { sealLocalState,openLocalState,MAX_LOCAL_STATE_BYTES } from './persistence.js';
+import { signGroupDefinition } from './group-sync.js';
 import { MessengerClient,MAX_PENDING_MESSAGES } from './messenger.js';
 import { PeerSession,type ChatMessage } from './session.js';
 import { type DataFrame } from './protocol.js';
@@ -60,7 +61,7 @@ describe('bounded encrypted state',()=>{
     const client=new MessengerClient({serverUrl:'https://lienad.ru/messenger',identity:alice,username:'alice',displayName:'Alice',randomBytes:random(),saveState:async value=>{sealed=value;saved.push(value);}});
     const id=await client.addContact(user(bob,'bob'));await client.sendText(id,'pending while offline');
     expect(saved.length).toBeGreaterThan(0);expect(sealed).not.toContain('pending while offline');
-    const state=openLocalState(alice,sealed!) as any;expect(state.pending[0].remaining).toEqual([bob.userId]);expect(JSON.stringify(state)).not.toContain(alice.privateKey);expect(state.conversations[0]).not.toHaveProperty('files');
+    const state=openLocalState(alice,sealed!) as any;expect(state.pending[0].remaining).toEqual([bob.userId]);expect(JSON.stringify(state)).not.toContain(alice.privateKey);expect(state.conversations[0].files).toEqual([]);
     const restored=new MessengerClient({serverUrl:'https://lienad.ru/messenger',identity:alice,username:'alice',displayName:'Alice',loadState:async()=>sealed});
     await restored.addContact(user(bob,'bob'));const snapshot=restored.getSnapshot();expect(snapshot.conversations[0]?.messages[0]?.status).toBe('pending');expect(snapshot.contacts[0]?.online).toBe(false);
     client.disconnect();restored.disconnect();
@@ -83,20 +84,20 @@ describe('receiver text acknowledgements',()=>{
     ai.channel={readyState:'open',bufferedAmount:0,send:(frame:string)=>channelA.push(JSON.parse(frame))} as unknown as RTCDataChannel;
     bi.channel={readyState:'open',bufferedAmount:0,send:(frame:string)=>channelB.push(JSON.parse(frame))} as unknown as RTCDataChannel;
     const conversationId=directConversationId(alice.userId,bob.userId);await a.sendText('hello',{messageId:'cd'.repeat(16),conversationId});expect(a.getSnapshot().messages[0]?.status).toBe('sent');
-    bi.handleData(channelA[0]!);expect(b.getSnapshot().messages[0]?.text).toBe('hello');expect(channelB[0]?.kind).toBe('text-ack');ai.handleData(channelB[0]!);expect(a.getSnapshot().messages[0]?.status).toBe('delivered');
-    bi.handleData(channelA[0]!);expect(b.getSnapshot().messages).toHaveLength(1);expect(channelB).toHaveLength(2);
+    await bi.handleData(channelA[0]!);expect(b.getSnapshot().messages[0]?.text).toBe('hello');expect(channelB[0]?.kind).toBe('text-ack');await ai.handleData(channelB[0]!);expect(a.getSnapshot().messages[0]?.status).toBe('delivered');
+    await bi.handleData(channelA[0]!);expect(b.getSnapshot().messages).toHaveLength(1);expect(channelB).toHaveLength(2);
   });
   it('only marks group text delivered after acknowledgements from every recipient',async()=>{
     const client=new MessengerClient({serverUrl:'https://lienad.ru/messenger',identity:alice,username:'alice',displayName:'Alice',randomBytes:random()});await client.addContact(user(bob,'bob'));await client.addContact(user(charlie,'charlie'));
     const id='group:'+'ef'.repeat(16);const internal=client as unknown as {conversations:Map<string,any>;receiveMessage:(peer:string,message:ChatMessage)=>boolean};
     internal.conversations.set(id,{id,kind:'group',title:'Three',creatorId:alice.userId,memberIds:[alice.userId,bob.userId,charlie.userId],messages:[],files:[],unread:0,updatedAt:0});await client.sendText(id,'all peers');
     const message=client.getSnapshot().conversations.find(c=>c.id===id)!.messages[0]!;
-    internal.receiveMessage(bob.userId,{id:message.id,text:message.text,from:'self',timestamp:1,status:'delivered',conversationId:id});expect(client.getSnapshot().conversations.find(c=>c.id===id)?.messages[0]?.status).toBe('sent');
-    internal.receiveMessage(charlie.userId,{id:message.id,text:message.text,from:'self',timestamp:1,status:'delivered',conversationId:id});expect(client.getSnapshot().conversations.find(c=>c.id===id)?.messages[0]?.status).toBe('delivered');client.disconnect();
+    await internal.receiveMessage(bob.userId,{id:message.id,text:message.text,from:'self',timestamp:1,status:'delivered',conversationId:id});expect(client.getSnapshot().conversations.find(c=>c.id===id)?.messages[0]?.status).toBe('sent');
+    await internal.receiveMessage(charlie.userId,{id:message.id,text:message.text,from:'self',timestamp:1,status:'delivered',conversationId:id});expect(client.getSnapshot().conversations.find(c=>c.id===id)?.messages[0]?.status).toBe('delivered');client.disconnect();
   });
   it('rejects text for a group the authenticated peer does not belong to',async()=>{
     const client=new MessengerClient({serverUrl:'https://lienad.ru/messenger',identity:alice,username:'alice',displayName:'Alice'});const id=await client.addContact(user(bob,'bob'));const internal=client as unknown as {receiveMessage:(peer:string,message:ChatMessage)=>boolean};
-    expect(internal.receiveMessage(charlie.userId,{id:'ab'.repeat(16),text:'spoof',from:'peer',timestamp:1,conversationId:id})).toBe(false);expect(client.getSnapshot().conversations[0]?.messages).toHaveLength(0);client.disconnect();
+    expect(await internal.receiveMessage(charlie.userId,{id:'ab'.repeat(16),text:'spoof',from:'peer',timestamp:1,conversationId:id})).toBe(false);expect(client.getSnapshot().conversations[0]?.messages).toHaveLength(0);client.disconnect();
   });
 });
 
@@ -121,8 +122,8 @@ describe('directory replacement and group ownership',()=>{
   it('rejects definitions from non-creators and modified membership',async()=>{
     const client=new MessengerClient({serverUrl:'https://lienad.ru/messenger',identity:alice,username:'alice',displayName:'Alice'});await client.addContact(user(bob,'bob'));
     const internal=client as unknown as {receiveApplication:(peerId:string,payload:unknown)=>void};const definition={kind:'group-definition',id:'group:'+'ab'.repeat(16),title:'Private',creatorId:bob.userId,members:[user(alice,'alice'),user(bob,'bob')]};
-    expect(()=>internal.receiveApplication(charlie.userId,definition)).toThrow(/author/);internal.receiveApplication(bob.userId,definition);
-    expect(()=>internal.receiveApplication(bob.userId,{...definition,members:[...definition.members,user(charlie,'charlie')]})).toThrow(/immutable/);expect(client.getSnapshot().conversations.find(c=>c.id===definition.id)?.memberIds).toHaveLength(2);client.disconnect();
+    await expect(internal.receiveApplication(charlie.userId,definition)).rejects.toThrow(/author/);await internal.receiveApplication(bob.userId,definition);
+    await expect(internal.receiveApplication(bob.userId,{...definition,members:[...definition.members,user(charlie,'charlie')]})).rejects.toThrow(/immutable/);expect(client.getSnapshot().conversations.find(c=>c.id===definition.id)?.memberIds).toHaveLength(2);client.disconnect();
   });
 });
 
@@ -131,12 +132,12 @@ describe('group recipient file readiness',()=>{
     const client=new MessengerClient({serverUrl:'https://lienad.ru/messenger',identity:bob,username:'bob',displayName:'Bob'});
     await client.addContact(user(alice,'alice'));
     const internal=client as unknown as {status:string;contacts:Map<string,DirectoryUser>;pairs:Map<string,any>;receiveApplication:(peer:string,payload:unknown)=>void;ensurePair:(peer:string,notify:boolean)=>Promise<any>};
-    const id='group:'+'ac'.repeat(16);internal.receiveApplication(alice.userId,{kind:'group-definition',id,title:'Three',creatorId:alice.userId,members:[user(alice,'alice'),user(bob,'bob'),user(charlie,'charlie')]});
+    const id='group:'+'ac'.repeat(16);await internal.receiveApplication(alice.userId,signGroupDefinition(alice,{kind:'group-definition',id,title:'Three',creatorId:alice.userId,members:[user(alice,'alice'),user(bob,'bob'),user(charlie,'charlie')]}));
     expect(client.getSnapshot().conversations.some(c=>c.id===directConversationId(bob.userId,charlie.userId))).toBe(false);
     (internal as any).stopped=false;internal.status='online';for(const [id,c] of internal.contacts)internal.contacts.set(id,{...c,online:true});
     const sends:string[]=[];const created:string[]=[];
-    internal.ensurePair=async peerId=>{created.push(peerId);const pair={session:{getSnapshot:()=>({status:'connected'}),sendFile:async(_file:unknown,meta:{conversationId:string})=>{expect(meta.conversationId).toBe(id);sends.push(peerId);},disconnect:()=>{}}};internal.pairs.set(peerId,pair);return pair;};
+    internal.ensurePair=async peerId=>{created.push(peerId);const pair={flushing:false,attempt:0,lastSent:new Map(),definitions:new Set(),session:{sendApplication:async()=>{},getSnapshot:()=>({status:'connected'}),sendFile:async(_file:unknown,meta:{conversationId:string})=>{expect(meta.conversationId).toBe(id);sends.push(peerId);},disconnect:()=>{}}};internal.pairs.set(peerId,pair);return pair;};
     await client.sendFile(id,{name:'group.txt',mime:'text/plain',data:new Uint8Array([1,2,3])});
-    expect(created.sort()).toEqual([alice.userId,charlie.userId].sort());expect(sends.sort()).toEqual([alice.userId,charlie.userId].sort());client.disconnect();
+    await vi.waitFor(()=>expect(sends).toHaveLength(2));expect(created.sort()).toEqual([alice.userId,charlie.userId].sort());expect(sends.sort()).toEqual([alice.userId,charlie.userId].sort());client.disconnect();
   });
 });

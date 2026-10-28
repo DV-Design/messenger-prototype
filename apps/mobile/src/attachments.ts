@@ -7,11 +7,16 @@ import { client } from './runtime';
 const MAX_FILE = 5 * 1024 * 1024;
 async function transmit(current: MessengerClient, conversationId: string, uri: string, name: string, mime: string, reportedSize?: number) {
   const file = new File(uri);
-  if ((reportedSize ?? file.size) > MAX_FILE || file.size > MAX_FILE) throw new Error('Можно передавать файлы не больше 5 МиБ.');
-  const data = await file.bytes();
-  if (data.byteLength > MAX_FILE) throw new Error('Файл больше 5 МиБ.');
-  if (client() !== current) throw new Error('Сервер изменён. Откройте чат ещё раз.');
-  await current.sendFile(conversationId, { name, mime, data });
+  try {
+    if ((reportedSize ?? file.size) > MAX_FILE || file.size > MAX_FILE) throw new Error('Можно передавать файлы не больше 5 МиБ.');
+    const data = await file.bytes();
+    if (data.byteLength > MAX_FILE) throw new Error('Файл больше 5 МиБ.');
+    if (client() !== current) throw new Error('Сервер изменён. Откройте чат ещё раз.');
+    await current.sendFile(conversationId, { name, mime, data });
+  } finally {
+    // Remove picker-created cache copies, never the user's original document.
+    if (file.uri.startsWith(`${Paths.cache.uri.replace(/\/$/, '')}/`) && file.exists) file.delete();
+  }
 }
 export async function pickDocument(conversationId: string) {
   const current = client();
@@ -27,12 +32,20 @@ export async function pickMedia(conversationId: string) {
   const asset = result.assets?.[0];
   if (!result.canceled && asset) await transmit(current, conversationId, asset.uri, asset.fileName ?? (asset.type === 'video' ? 'video.mp4' : 'photo.jpg'), asset.mimeType ?? (asset.type === 'video' ? 'video/mp4' : 'image/jpeg'), asset.fileSize);
 }
+export async function loadFileData(item: MessengerFile): Promise<Uint8Array | null> {
+  if (item.deliveryStatus === 'expired') return null;
+  const current = client();
+  const data = item.data ?? await current.getFileData(item.conversationId, item.id, item.senderId);
+  if (client() !== current) throw new Error('Сервер изменён. Откройте чат ещё раз.');
+  return data;
+}
 export async function shareFile(item: MessengerFile) {
-  if (!item.data) throw new Error('Файл доступен только в текущем запуске приложения.');
+  const data = await loadFileData(item);
+  if (!data) throw new Error('Файл больше не хранится на этом устройстве.');
   if (!(await Sharing.isAvailableAsync())) throw new Error('На устройстве недоступно меню сохранения файлов.');
   const safeName = item.name.replace(/[^\p{L}\p{N}._ -]/gu, '_').slice(0, 100) || 'file';
   const file = new File(Paths.cache, `${item.id.replace(/[^a-zA-Z0-9-]/g, '')}-${safeName}`);
-  await file.write(item.data);
+  await file.write(data);
   try { await Sharing.shareAsync(file.uri, { mimeType: item.mime, dialogTitle: 'Сохранить или открыть файл' }); }
   finally { if (file.exists) file.delete(); }
 }

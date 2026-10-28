@@ -41,6 +41,7 @@ interface Peer {
   roomId?: string;
   peerId?: string;
   role?: Role;
+  resumeToken?: string;
   cleaned: boolean;
   kind: 'signal' | 'directory';
 }
@@ -62,6 +63,9 @@ export function createSignalingServer(options: ServerOptions = {}) {
   if (config.turnTtlSeconds < 60 || config.turnTtlSeconds > 3600) throw new Error('TURN TTL must be 60–3600 seconds');
   const peers = new Map<WebSocket, Peer>();
   const rooms = new Map<string, Map<string, Peer>>();
+  const resumes = new Map<string,{token:string;role:Role;expiresAt:number}>();
+  const resumeKey=(roomId:string,peerId:string)=>roomId+':'+peerId;
+  function expireResumes(now=Date.now()){for(const [key,entry] of resumes)if(entry.expiresAt<=now)resumes.delete(key);}
   // Bounded, expiring anti-abuse metadata only; no messages, keys or durable storage.
   const requests = new Map<string, { at: number; count: number }>();
   const allowed = new Set(config.allowedOrigins);
@@ -129,21 +133,24 @@ export function createSignalingServer(options: ServerOptions = {}) {
     }
     peer.ws.send(data, (error) => { if (error) { cleanup(peer); peer.ws.terminate(); } });
   }
-  function leave(peer: Peer) {
-    const { roomId, peerId } = peer;
+  function leave(peer: Peer, resumable=false) {
+    const { roomId, peerId, role, resumeToken } = peer;
     peer.roomId = undefined; peer.peerId = undefined; peer.role = undefined;
     if (!roomId || !peerId) return;
     const room = rooms.get(roomId);
     // Identity check prevents an old close/error callback removing a newly joined occupant.
     if (room?.get(peerId) !== peer) return;
+    const key=resumeKey(roomId,peerId);
+    if(resumable&&!closing&&resumeToken&&role){expireResumes();if(resumes.size<config.maxConnections||resumes.has(key))resumes.set(key,{token:resumeToken,role,expiresAt:Date.now()+10000});}
+    else resumes.delete(key);
     room.delete(peerId);
     if (room.size === 0) rooms.delete(roomId);
-    else for (const other of room.values()) send(other, { type: 'peer-left', peerId });
+    else for (const other of room.values()) send(other, { type: 'peer-left', peerId,...(other.resumeToken?{reason:resumable&&resumeToken?'disconnected':'left'}:{}) });
   }
   function cleanup(peer: Peer) {
     if (peer.cleaned) return;
     peer.cleaned = true;
-    leave(peer);
+    leave(peer, true);
     directory.disconnect(peer.ws);
     peers.delete(peer.ws);
   }
@@ -184,16 +191,26 @@ export function createSignalingServer(options: ServerOptions = {}) {
         if (frame.type === 'leave') { leave(peer); return; }
         if (frame.type === 'join') {
           if (peer.roomId) return reject(peer, 'already-joined', 'Leave the current room first');
-          let room = rooms.get(frame.roomId);
-          if (room?.has(frame.peerId)) return reject(peer, 'duplicate-peer', 'Peer identifier is already present');
-          if (room && room.size >= 2) return reject(peer, 'room-full', 'Room already has two peers');
+          expireResumes();let room = rooms.get(frame.roomId);
+          const old=room?.get(frame.peerId);let resumedRole:Role|undefined;
+          const retained=resumes.get(resumeKey(frame.roomId,frame.peerId));
+          if(old){
+            if(!frame.resumeToken||!old.resumeToken||frame.resumeToken!==old.resumeToken)return reject(peer,'duplicate-peer','Peer identifier is already present');
+            resumedRole=old.role;
+          }else if(retained){
+            if(!frame.resumeToken||frame.resumeToken!==retained.token)return reject(peer,'invalid-resume','Signaling resume token is invalid');
+            resumedRole=retained.role;
+          }
+          if (room && room.size >= 2 && !old) return reject(peer, 'room-full', 'Room already has two peers');
           if (!room && rooms.size >= config.maxRooms) return reject(peer, 'server-full', 'Room capacity reached');
           if (!room) { room = new Map(); rooms.set(frame.roomId, room); }
-          const other = room.values().next().value as Peer | undefined;
+          const other = [...room.values()].find(entry=>entry!==old);
+          if(resumedRole&&other?.role===resumedRole)return reject(peer,'resume-role-conflict','Cannot safely resume this peer connection');
           peer.roomId = frame.roomId; peer.peerId = frame.peerId;
-          peer.role = other?.role === 'initiator' ? 'responder' : 'initiator';
-          room.set(frame.peerId, peer);
-          send(peer, { type: 'joined', roomId: frame.roomId, peerId: frame.peerId, role: peer.role, peerPresent: Boolean(other) });
+          peer.role = resumedRole??(other?.role === 'initiator' ? 'responder' : 'initiator');peer.resumeToken=frame.resumeToken;
+          room.set(frame.peerId, peer);resumes.delete(resumeKey(frame.roomId,frame.peerId));
+          if(old){cleanup(old);old.ws.close(4000,'Signaling resumed');}
+          send(peer, { type: 'joined', roomId: frame.roomId, peerId: frame.peerId, role: peer.role, peerPresent: Boolean(other),...(resumedRole?{resumed:true}:{}) });
           if (other) send(other, { type: 'peer-joined', peerId: frame.peerId });
           return;
         }
@@ -209,7 +226,7 @@ export function createSignalingServer(options: ServerOptions = {}) {
   const heartbeat = setInterval(() => {
     const now = Date.now();
     for (const [ip, bucket] of requests) if (now - bucket.at >= config.rateWindowMs) requests.delete(ip);
-    directory.expire(now);
+    directory.expire(now);expireResumes(now);
     for (const peer of peers.values()) {
       const active = peer.kind === 'directory' ? directory.isAuthenticated(peer.ws) : Boolean(peer.roomId);
       if (!peer.alive || (!active && now - peer.openedAt >= config.joinTimeoutMs)) { cleanup(peer); peer.ws.terminate(); continue; }
@@ -231,7 +248,7 @@ export function createSignalingServer(options: ServerOptions = {}) {
     async close() {
       closing = true; clearInterval(heartbeat);
       for (const peer of peers.values()) { cleanup(peer); peer.ws.terminate(); }
-      requests.clear();
+      requests.clear();resumes.clear();
       await new Promise<void>((resolve) => wss.close(() => resolve()));
       if (http.listening) await new Promise<void>((resolve, reject) => http.close((error) => error ? reject(error) : resolve()));
       await directory.close();

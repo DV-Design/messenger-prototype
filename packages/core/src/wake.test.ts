@@ -73,18 +73,17 @@ describe('bounded sender-local calls and files',()=>{
    await vi.advanceTimersByTimeAsync(30000);await result;expect(f.session.endCall).toHaveBeenCalled();release();await Promise.resolve();expect(invited).toBe(false);expect(f.client.getSnapshot().activeCall).toBeUndefined();
   }finally{release?.();f.client.disconnect();}
  });
- it('retains at most one bounded file wait, rejects oversize, and releases it after60s',async()=>{
+ it('keeps bounded files pending beyond the former60second wait and emits file wake',async()=>{
   const f=await fixture();try{
    const file={name:'file',mime:'application/octet-stream',data:new Uint8Array([1])};
    await expect(f.client.sendFile(f.id,{...file,data:new Uint8Array(5*1024*1024+1)})).rejects.toThrow(/5 MiB/);
-   const pending=f.client.sendFile(f.id,file);const result=expect(pending).rejects.toThrow(/timed out/);
-   await expect(f.client.sendFile(f.id,file)).rejects.toThrow(/already pending/);await vi.advanceTimersByTimeAsync(2500);expect(f.sent.find(x=>x.type==='wake').kind).toBe('file');
-   await vi.advanceTimersByTimeAsync(57500);await result;expect(f.internal.pendingFile).toBeUndefined();f.snapshot.status='connected';await vi.advanceTimersByTimeAsync(10000);expect(f.session.sendFile).not.toHaveBeenCalled();
+   await f.client.sendFile(f.id,file);await vi.advanceTimersByTimeAsync(2500);expect(f.sent.find(x=>x.type==='wake').kind).toBe('file');
+   await vi.advanceTimersByTimeAsync(60000);expect(f.client.getSnapshot().conversations[0]!.files[0]!.deliveryStatus).toBe('pending');expect(f.session.sendFile).not.toHaveBeenCalled();
   }finally{f.client.disconnect();}
  });
  it('starts only after direct connection and disconnect cancels pending work',async()=>{
   const f=await fixture();try{
-   const pending=f.client.sendFile(f.id,{name:'file',mime:'',data:new Uint8Array([1,2])});await vi.advanceTimersByTimeAsync(2000);f.snapshot.status='connected';await vi.advanceTimersByTimeAsync(100);await pending;expect(f.session.sendFile).toHaveBeenCalledTimes(1);expect(f.sent.filter(x=>x.type==='wake')).toHaveLength(0);
+   const pending=f.client.sendFile(f.id,{name:'file',mime:'',data:new Uint8Array([1,2])});await vi.advanceTimersByTimeAsync(2000);f.snapshot.status='connected';f.internal.pairs.set(bob.userId,f.pair);await f.internal.flushPeer(bob.userId);await pending;expect(f.session.sendFile).toHaveBeenCalledTimes(1);expect(f.sent.filter(x=>x.type==='wake')).toHaveLength(0);
    f.snapshot.status='waiting';const call=f.client.startCall(f.id);const rejected=expect(call).rejects.toThrow(/cancelled/);f.client.disconnect();await rejected;f.snapshot.status='connected';await vi.advanceTimersByTimeAsync(60000);expect(f.session.startCall).not.toHaveBeenCalled();
   }finally{f.client.disconnect();}
  });

@@ -1,5 +1,13 @@
 # LastCall public preview
 
+0.5: sender-held encrypted text/file queue survives restart up to seven days;
+signed group records synchronize between devices, with final per-member receipts.
+Network handover retains active PC/tracks during a bounded10s recovery and resumes
+signaling roles using ephemeral tokens. Server content storage has not been added.
+Image rollback tag `messenger-signaling:rollback-0.4.0` preserves the prior runtime.
+Firebase project/Android client exist; server FCM key awaits approval, push remains
+disabled. No public TURN exists yet; mobile-operator compatibility is not claimed.
+
 Primary gateway: **https://lienad.ru/messenger**. The legacy
 `https://p2p.lienad.ru` endpoint remains compatible. The apex gateway avoids the
 reproduced negative DNS cache on some resolvers; it uses normal DNS and TLS.
@@ -64,7 +72,7 @@ future push/system-call work. No audited ratchet, key transparency or multi-devi
 identity yet. Server updates briefly disconnect preview sessions. In 0.4,
 registration uses a unique username bound to the installation key and a persistent
 server profile. No SMS account is required. Android FCM remains disabled until
-Firebase/client configuration and real delivery checks are completed independently.
+server-key provisioning and real delivery checks are completed independently.
 
 ## Rollback
 

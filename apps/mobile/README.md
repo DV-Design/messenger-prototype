@@ -1,6 +1,6 @@
 # LastCall · Android и iOS
 
-Версия 0.4.0 / Android versionCode 5. Package ID `dev.messenger.prototype` и ключ подписи сохраняются для обновления без удаления данных. Основной сервер: `https://lienad.ru/messenger`.
+Версия 0.5.0 / Android versionCode 6. Package ID `dev.messenger.prototype` и ключ подписи сохраняются для обновления без удаления данных. Основной сервер: `https://lienad.ru/messenger`.
 
 Светлый интерфейс со стандартными системными шрифтами: вкладки «Чаты», «Контакты», «Настройки», личные диалоги и группы до 8 участников. Телефон, SMS и доступ к телефонной книге больше не нужны.
 
@@ -32,7 +32,7 @@ Core шифрует контакты, группы, недавний текст 
 
 Остались только камера, микрофон, фото/видео и уведомления. При первом запуске после локальной загрузки ключа, до завершения сетевой проверки регистрации, открывается экран доступов. Системные запросы автоматически идут в порядке микрофон → камера → фото → уведомления; отказ или ошибка одного не мешает остальным. ОС сама решает, нужен ли запрос для уже доступной категории. Повторное событие foreground не запускает новую последовательность; перед первым запросом сохраняется attempted marker, после завершения — done. Завершённый marker прежней версии сохраняет силу. В настройках остаются индивидуальные и повторные ручные запросы. Камера/микрофон не включаются для проверки доступа. `expo-contacts`, телефонные экраны и READ/WRITE_CONTACTS удалены из активного продукта. Старые пользовательские данные не очищаются.
 
-Android FCM остаётся независимым от регистрации. Системное разрешение уведомлений можно запросить без Firebase; интерфейс отдельно показывает OS permission и отсутствие push-конфигурации. Для получения FCM-токена требуется внешняя клиентская конфигурация `MESSENGER_GOOGLE_SERVICES_FILE=/absolute/path/google-services.json`, с Android package `dev.messenger.prototype`. Тот же env нужен при native prebuild и финальном JS/native build. Без него `extra.nativeFcmConfigured=false`, token API не вызывается и push-статус показывает «Не настроено». Firebase Admin JSON и SMS API keys никогда не входят в мобильное приложение.
+Android FCM остаётся независимым от регистрации. В 0.5 зарегистрирован Firebase-проект LastCall; клиентская конфигурация хранится вне Git и включается через `MESSENGER_GOOGLE_SERVICES_FILE=/absolute/path/google-services.json`, Android package `dev.messenger.prototype`. Тот же env нужен при native prebuild и финальном JS/native build. Серверный FCM-ключ ещё ожидает подтверждения выпуска, поэтому реальные push пока выключены. Без клиентского env `extra.nativeFcmConfigured=false`, token API не вызывается. Firebase Admin JSON никогда не входит в мобильное приложение.
 
 Канал `lastcall-messages` создаётся до permission/token. Native токен получается через SDK58 `getDevicePushTokenAsync`, регистрируется только после authenticated directory online; listener обрабатывает rotation без рекурсивного получения токена. Нажатие уведомления/resume переподключает directory и позволяет P2P/outbox доставить текст. Push общий, без автора/содержимого. Регистрация токена не доказывает реальную доставку.
 
@@ -57,7 +57,7 @@ npm run android -w @messenger/mobile
 npm run start -w @messenger/mobile
 ```
 
-Восемь focused tests проверяют permission semantics/последовательность, отсутствие ложного ACK, authoritative registration outcome, восстановление после локального save failure, deduplicated canonical writes, Unicode query/latest-request wins, старую pagination response после смены запроса и маскирование личных данных диагностики. Native upgrade и реальные SMS/FCM не подменяются этими проверками; SMS больше не является частью продукта.
+13 focused tests проверяют доступы, регистрацию/каталог, маскирование диагностики, состояния семидневной очереди и сериализацию/актуальность событий сети. Отдельные core-тесты проверяют шифрование вложений, durable ACK, срок, подписи и передачу; Chrome — реальные байты и ICE/аудио. Native upgrade и настоящие FCM не подменяются этими проверками; SMS не является частью продукта.
 
 Адрес можно изменить в настройках. Префикс gateway сохраняется. Для локального HTTP задайте `MESSENGER_ALLOW_LOCAL_HTTP=1` при prebuild и `EXPO_PUBLIC_ALLOW_LOCAL_HTTP=1` при JS/native build; валидатор допускает только LAN/loopback/`.local`. Публичные endpoint используют HTTPS. Генерируемые android/ios не редактируются вручную.
 

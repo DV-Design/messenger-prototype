@@ -1,4 +1,62 @@
-# LastCall Android preview 0.4.0
+# LastCall Android preview 0.5.0
+
+- Download: https://lienad.ru/messenger/download/LastCall-0.5.0.apk
+- Alternate: https://p2p.lienad.ru/download/LastCall-0.5.0.apk
+- Local: `artifacts/LastCall-0.5.0.apk` (ignored binary)
+- Package `dev.messenger.prototype`, versionCode6, same internal test certificate.
+- Size **46,380,521 bytes**; ARM64, minimum API24, target API36.
+- SHA256: `47e8e8dfa6c69932969b677b54aa408b53b02c1580a5aec5db1eb56cbe770b8d`
+
+Encrypted sender-held text/file queue waits up to seven days with original
+deadlines across restart. Durable receiver storage precedes ACK; group progress
+tracks final recipients. Verified member phones synchronize creator-signed roster,
+author-signed text/files and signed recipient receipts even while author is offline.
+Files retry whole bytes after reconnect; no chunk-offset resume claim. Limits:
+5MiB/file,16 retained attachment blobs/40MiB total,100 pending texts, group8.
+Delivered file history occupies this preview capacity; removal UI remains pending.
+
+Native reachable-network observer invokes directory/signaling recovery and ICE
+restart, retaining PC/live tracks within a ten-second application recovery budget.
+Secret-token signaling resume retains roles; explicit leave frees state immediately.
+This is not uninterrupted sound without network or verified cross-carrier service.
+Public TURN is not deployed. No DPI invisibility or unconditional delivery claim.
+
+Firebase project LastCall (`lastcall-f8b4c`) created on Spark without Analytics;
+Android client registered and externally stored config included in native prebuild
+and JS/native build. Server FCM key is not issued: awaiting explicit user approval
+for the dedicated FCM-only account/key. Server push remains disabled; APNs/system
+incoming calls remain unconfigured. No Admin credential included in APK or Git.
+
+Final Node24 check PASS: **160 tests** (101core,46server,13mobile), lint/typecheck,
+Android+iOS JS exports/server build. Chrome **9PASS/1explicit TURN skip**,27.5s:
+exact file bytes and queue after restart, author-offline member synchronization,
+same PC/live tracks plus changed ICE ufrag/stable signaling/bounded offers and
+growing inbound audio packet count after recovery. Initial full-suite explicit
+leave regression was corrected and original survivor assertion preserved.
+
+Clean native release/R8/lint PASS:820tasks,3m4s; final reviewed fresh-Hermes build
+30s. Packaged bytecode equals final generated bundle and is newer than final
+source fixes. Backup=false, no READ_CONTACTS/WRITE_CONTACTS, Firebase messaging
+services present; microphone/camera/notification permissions present. Signature
+SHA256 `fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c`.
+
+Public server8e843549b275 deployed independently of unrelated services; profile
+volume preserved and rollback image0.4 retained. Normal-DNS/TLS health, encrypted
+WSS exchange and username/catalog/resolver smoke PASS after final deployment.
+Native upgrade/file/network evidence and public download comparison are recorded
+in [native report](../docs/reports/debugging/2026-10/native-050.md) and
+[review](../docs/reports/code-reviews/2026-10/CR-2026-10-28-lastcall-05.md).
+
+Native Owner0 upgrade preserved username and six old messages. Actual Android
+picker queued a29-byte file offline; force-stop/reopen restored file plus text
+before recipient returned, then exact bytes and delivery ACK were verified. One
+own-emulator Wi-Fi→CELLULAR→Wi-Fi cycle recovered direct text/ACK automatically.
+No live native call/audio timing or physical carrier test is claimed. Own QA
+browser/AVD exited, Wi-Fi restored, userdata retained. Both public HTTPS versioned
+APKs were downloaded through normal DNS/TLS and match the local SHA/bytes exactly;
+published landing/tasks/research files also match sources. Old APKs are retained.
+
+# Historical Android preview 0.4.0
 
 - Download: https://lienad.ru/messenger/download/LastCall-0.4.0.apk
 - Alternate: https://p2p.lienad.ru/download/LastCall-0.4.0.apk

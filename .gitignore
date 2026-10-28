@@ -14,4 +14,7 @@ apps/mobile/ios/
 *.apk
 *.aab
 *.ipa
+google-services*.json
+*firebase-admin*.json
+*gserviceaccount*.json
 .beads.gate.lock

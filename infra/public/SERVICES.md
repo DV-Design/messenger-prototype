@@ -1,11 +1,35 @@
 # Optional FCM and authenticated ICE configuration
 
+## LastCall 0.5 setup checkpoint (2026-10-28)
+
+Created Firebase project `lastcall-f8b4c` (LastCall), Spark/no-cost plan, without
+Google Analytics. Registered Android package `dev.messenger.prototype`, nickname
+LastCall Android. Downloaded and validated its client file, stored outside Git at
+`/Users/daniel/.config/lastcall/google-services.json` (0600 in a 0700 directory).
+The 0.5 native prebuild and JS/native release build use
+`MESSENGER_GOOGLE_SERVICES_FILE` with this path. No Admin key enters the APK.
+
+Prepared (not submitted) the dedicated service account `lastcall-push`. Issuing
+its persistent JSON key and granting the FCM API role await the user's explicit
+confirmation required by browser controls. The server remains genuinely disabled
+until this is approved, provisioned, mounted and checked with an actual device.
+The broader default Firebase Admin SDK service-account key has not been issued.
+
+After confirmation use only `roles/firebasecloudmessaging.admin` on this project,
+not Owner/Editor. It grants FCM send/topic resources, not app chat content:
+[official role permissions](https://docs.cloud.google.com/iam/docs/roles-permissions/firebasecloudmessaging).
+Store the downloaded JSON outside Git/static assets/APK, then use the explicit
+override below. Validate actual content-free notification arrival in background,
+tap/resume, recipient reconnection and real durable message ACK independently.
+Do not equate valid credential parsing or provider acceptance with delivery.
+APNs/PushKit/CallKit and iOS signing remain unconfigured.
+
 Registration in 0.4 uses a unique username and a device installation key. No phone
 number, SMS.ru account or Firebase configuration is needed to register and search
 the server directory. Production ignores legacy SMS environment settings; old
 phone endpoints remain unavailable for older clients.
 
-The public preview starts with FCM and TURN genuinely disabled. Merely
+The public preview server currently starts with FCM and TURN genuinely disabled. Merely
 building the SDK into the image does not configure an external provider. This
 recipe does not create a Firebase account, claim notification delivery, or
 provision a media relay. Existing directory data remains in its named volume.
