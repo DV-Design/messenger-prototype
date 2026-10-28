@@ -44,14 +44,17 @@ are separate tasks. Unsolicited-contact controls tracked msg-218.
 - [X] Native delivery evidence, final APK verification/publication and repository handoff
   → Artifacts: [release](artifacts/README.md), [testing tasks](docs/TESTING-RU.md)
 
-# LastCall 0.3 implementation checkpoint
+# LastCall 0.3 implementation checkpoint (historical)
+
+Phone verification/discovery was superseded by the user's 0.4 registration model.
+Its former mobile paths were removed; implementation history remains in commit 907817b.
 
 - [X] Strict phone/push service APIs, authenticated ICE and capability-aware wake
   → Artifacts: [core](packages/core/src/services.ts), [service tests](packages/core/src/services.test.ts)
 - [X] Real SMS.ru/FCM adapters, bounded OTP/lookup/wake requests and persisted consent
   → Artifacts: [providers](apps/server/src/providers.ts), [services](apps/server/src/services.ts), [live contract tests](apps/server/test/services.test.ts)
 - [X] Phone verification screens, consent-based phonebook hashes and conditional FCM
-  → Artifacts: [phone screen](apps/mobile/src/app/phone.tsx), [discovery](apps/mobile/src/discovery.ts), [push](apps/mobile/src/components/PushBridge.tsx)
+  → Artifacts: [historical phone screen](https://github.com/DV-Design/messenger-prototype/blob/907817b/apps/mobile/src/app/phone.tsx), [push](apps/mobile/src/components/PushBridge.tsx)
 - [X] Locked production runtime/configuration, review and Android release build
   → Artifacts: [service setup](infra/public/SERVICES.md), [review](docs/reports/code-reviews/2026-10/CR-2026-10-28-services.md), [native evidence](docs/reports/debugging/2026-10/native-services.md)
 - [X] Final APK download verification and public handoff (msg-s39)
@@ -60,10 +63,34 @@ are separate tasks. Unsolicited-contact controls tracked msg-218.
 # Required for working external services
 
 - [ ] Configure Firebase and validate actual Android closed-app notifications; iOS/APNs/system calls (msg-3z9)
-- [ ] Configure SMS.ru and prove real phone verification and automatic discovery (msg-p7x)
+- [X] Retire phone registration/discovery requirement by user direction (msg-p7x)
 - [ ] Provision and validate reachable authenticated P2P relay fallback (msg-bcw)
   → Artifacts: [service contract](docs/SERVICES-CONTRACT.md), [network choice](docs/NETWORK-CHOICE.md)
 
-Firebase project/client/server configuration and SMS.ru account access are absent.
-The 0.3 APK is an implementation checkpoint with explicit unavailable-service
-states. It must not be described as a completed closed-app delivery fix.
+Firebase project/client/server configuration remains absent. It is needed only
+for notifications; username registration and server-directory sync do not need it.
+SMS.ru is no longer required. Closed-app delivery and public TURN remain pending.
+
+# LastCall 0.4: server usernames (msg-5oa)
+
+- [X] Immutable unique username per installation key, canonical profile recovery
+  → Artifacts: [contract](docs/USERNAME-CONTRACT.md), [server](apps/server/src/directory.ts)
+- [X] Paginated server directory and Unicode login/name search
+  → Artifacts: [core](packages/core/src/directory.ts), [contacts](apps/mobile/src/app/(tabs)/contacts.tsx)
+- [X] Remove mobile phone binding and unnecessary phonebook permission
+  → Artifacts: [mobile](apps/mobile/src/), [config](apps/mobile/app.config.ts)
+- [X] Independent gates, Android upgrade, publication and pushed handoff
+  → Artifacts: [release](artifacts/README.md), [testing tasks](docs/TESTING-RU.md)
+
+# LastCall 0.4 additions: logo, permissions and wake (msg-8n8)
+
+- [X] Edit supplied logo, reduce white margins and wire native launcher/splash
+  → Artifacts: [icon](apps/mobile/assets/lastcall-icon.png), [provenance](apps/mobile/assets/README.md)
+- [X] Automatic sequential native permission requests before registration
+  → Artifacts: [gate](apps/mobile/src/components/PermissionSetupGate.tsx), [permissions](apps/mobile/src/permissions.ts)
+- [X] Direct-first typed wake with short TTL, limits and cancelled/expired-call safety
+  → Artifacts: [contract](docs/WAKE-CONTRACT.md), [core tests](packages/core/src/wake.test.ts), [server](apps/server/src/providers.ts)
+- [X] Research similar projects, platform limits and architecture trade-offs
+  → Artifacts: [study](docs/P2P-WAKE-RESEARCH-RU.md)
+- [X] Final native evidence, public download verification and pushed checkpoint
+  → Artifacts: [review](docs/reports/code-reviews/2026-10/CR-2026-10-28-lastcall-04.md), [release](artifacts/README.md)

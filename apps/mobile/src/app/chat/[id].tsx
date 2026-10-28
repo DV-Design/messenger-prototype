@@ -29,7 +29,7 @@ export default function Chat() {
   if (!conversation) return <SafeAreaView style={styles.whiteScreen}><View style={styles.chatHeader}><IconButton name="chevron-back" label="Назад" onPress={() => router.back()} /></View><Empty icon="chatbubble-outline" title="Чат не найден" text="Он может относиться к другому серверу. Вернитесь к списку чатов." /></SafeAreaView>;
   const peer = snapshot.contacts.find(item => conversation.memberIds.includes(item.userId) && item.userId !== identity?.userId);
   const group = conversation.kind === 'group';
-  const canCall = !group && !snapshot.activeCall && (peer?.online || conversation.session?.status === 'connected');
+  const canCall = !group && !snapshot.activeCall && (snapshot.status === 'online' || conversation.session?.status === 'connected');
   const notice = transportNotice({ directory: snapshot.status, group, peerOnline: peer?.online, session: conversation.session,
     pending: conversation.messages.filter(item => item.from === identity?.userId && (item.status === 'pending' || item.status === 'sent')).length });
   async function action(operation: () => Promise<void>) {

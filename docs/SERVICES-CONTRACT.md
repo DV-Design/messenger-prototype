@@ -1,5 +1,9 @@
 # Next milestone: verified phones, wake notifications and relay readiness
 
+Historical 0.3 contract. The user superseded all phone verification/discovery and
+SMS account requirements with [server usernames](USERNAME-CONTRACT.md) in 0.4.
+Push and authenticated ICE remain independent; phone code is not a live product flow.
+
 User clarification: original delivery complaint occurs when recipient closes or
 backgrounds app. They explicitly require automatic phonebook matching and allow
 P2P-first encrypted relay fallback. Code3/0.2.1 is an interim diagnostic/contact

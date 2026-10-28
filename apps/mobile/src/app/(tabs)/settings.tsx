@@ -28,7 +28,7 @@ export default function Settings() {
       ...snapshot.conversations.flatMap(item => [item.title, ...item.messages.map(message => message.text)])];
     const sanitize = (value?: string) => sanitizeDiagnostic(value, privateValues);
     const peers = snapshot.conversations.filter(item => item.kind === 'direct');
-    const report = ['LastCall 0.3.0', `Платформа: ${Platform.OS} ${Platform.Version}`, `Сервер: ${sanitize(profile?.serverUrl)}`, `Directory: ${snapshot.status}`, `Личных соединений: ${peers.length}`, `Ошибка приложения: ${sanitize(snapshot.error)}`,
+    const report = ['LastCall 0.4.0', `Платформа: ${Platform.OS} ${Platform.Version}`, `Сервер: ${sanitize(profile?.serverUrl)}`, `Directory: ${snapshot.status}`, `Личных соединений: ${peers.length}`, `Ошибка приложения: ${sanitize(snapshot.error)}`,
       ...peers.map((item, index) => `Контакт ${index + 1}: ${item.session?.status ?? 'idle'} / ${item.session?.route ?? 'unknown'} / ${sanitize(item.session?.error)}`)].join('\n');
     try { await Clipboard.setStringAsync(report); setReportCopied(true); }
     catch (cause) { setLocalError(errorText(cause)); }
@@ -37,10 +37,9 @@ export default function Settings() {
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 35 }}>
       <View style={styles.profile}><Avatar name={profile?.displayName ?? ''} id={identity?.userId} size={86} /><Text style={styles.profileName}>{profile?.displayName}</Text>
         <Pressable accessibilityRole="button" accessibilityLabel="Скопировать имя пользователя" onPress={() => { void Clipboard.setStringAsync(`@${profile?.username ?? ''}`).then(() => setCopied(true)).catch(cause => setLocalError(errorText(cause))); }}><Text style={styles.profileUsername}>@{profile?.username}</Text></Pressable>{copied && <Text style={styles.info}>Имя пользователя скопировано</Text>}
-      </View>
-      <Text style={styles.sectionTitle}>ДОСТУПЫ И КОНТАКТЫ</Text>
-      <View style={[styles.section, { marginTop: 0 }]}><Pressable style={styles.listRow} accessibilityRole="button" onPress={() => router.push('/phone')}><Icon name="call-outline" /><View style={styles.rowBody}><Text style={styles.rowName}>Номер и автопоиск контактов</Text><Text style={styles.rowText}>SMS-подтверждение и совпадения по номерам</Text></View><Icon name="chevron-forward" size={18} color={colors.secondary} /></Pressable></View>
-      <View style={[styles.section, { marginTop: 0 }]}><Pressable style={styles.listRow} accessibilityRole="button" onPress={() => router.push('/permissions')}><Icon name="shield-checkmark-outline" /><Text style={[styles.rowName, styles.flex]}>Доступы приложения</Text><Icon name="chevron-forward" size={18} color={colors.secondary} /></Pressable><Pressable style={styles.listRow} accessibilityRole="button" onPress={() => router.push('/phonebook')}><Icon name="book-outline" /><Text style={[styles.rowName, styles.flex]}>Контакты телефона</Text><Icon name="chevron-forward" size={18} color={colors.secondary} /></Pressable></View>
+      <Text style={[styles.info, { marginTop: 12, textAlign: 'center' }]}>Логин подтверждён сервером и закреплён за ключом этого устройства.</Text></View>
+      <Text style={styles.sectionTitle}>ДОСТУПЫ</Text>
+      <View style={[styles.section, { marginTop: 0 }]}><Pressable style={styles.listRow} accessibilityRole="button" onPress={() => router.push('/permissions')}><Icon name="shield-checkmark-outline" /><Text style={[styles.rowName, styles.flex]}>Доступы приложения</Text><Icon name="chevron-forward" size={18} color={colors.secondary} /></Pressable></View>
       <Text style={styles.sectionTitle}>ПОДКЛЮЧЕНИЕ</Text>
       <View style={[styles.section, { marginTop: 0 }]}>
         <View style={styles.listRow}><Icon name={snapshot.status === 'online' ? 'checkmark-circle' : 'cloud-offline-outline'} color={snapshot.status === 'online' ? colors.accent : colors.secondary} /><View style={styles.rowBody}><Text style={styles.rowName}>{connectionLabel[snapshot.status]}</Text><Text style={styles.rowText}>Статусы и поиск контактов</Text></View></View>
@@ -51,7 +50,7 @@ export default function Settings() {
       {!!(localError || error || snapshot.error) && <Text style={[styles.error, { marginHorizontal: 16, marginTop: 16 }]}>{localError || error || snapshot.error}</Text>}
       <Text style={styles.sectionTitle}>УВЕДОМЛЕНИЯ</Text><View style={[styles.section, styles.content]}><Text style={styles.body}>{pushStatus}</Text><Button title="Настроить доступы" secondary onPress={() => router.push('/permissions')} /></View>
       <Text style={styles.sectionTitle}>О ПРИЛОЖЕНИИ</Text>
-      <View style={[styles.section, { marginTop: 0, padding: 18, gap: 13 }]}><Text style={styles.rowName}>LastCall · 0.3.0</Text>
+      <View style={[styles.section, { marginTop: 0, padding: 18, gap: 13 }]}><Text style={styles.rowName}>LastCall · 0.4.0</Text>
         <Text style={styles.body}>Сервер хранит профиль и помогает находить собеседников. Текст, файлы и звонки идут по защищённому соединению между участниками; при необходимости WebRTC использует TURN.</Text>
         <Text style={styles.body}>Контакты, группы и недавняя переписка зашифрованы на устройстве. Ожидающие сообщения отправятся, когда оба участника будут доступны. Файлы до 5 МиБ доступны в текущем запуске и требуют соединения со всеми получателями.</Text>
         <Text style={styles.body}>Android-уведомления работают, только если Firebase настроен в сборке и на сервере и вы дали разрешение. Уведомление предлагает открыть LastCall; доставка текста требует доступности отправителя. После принудительной остановки приложения Android push не работает до ручного открытия. iOS push, фоновые входящие звонки, голосовые заметки и групповые звонки пока недоступны.</Text>

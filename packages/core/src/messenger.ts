@@ -1,7 +1,7 @@
 import { normalizePhone, iceServersSchema, type ServiceCapabilities, type PhoneChallenge } from './services.js';
 import { z } from 'zod';
 import { bytesToHex, randomChecked, secureRandomBytes, type RandomBytes } from './crypto.js';
-import { directoryClientFrameSchema, directoryServerFrameSchema, directoryUserSchema, directConversationId, conversationInvite, endpointUrl, signAuthentication, usernameSchema, displayNameSchema, validateDeviceIdentity, type DeviceIdentity, type DirectoryUser, type DirectoryClientFrame, type DirectoryServerFrame, type PhoneMatch } from './directory.js';
+import { directoryClientFrameSchema, directoryServerFrameSchema, directoryUserSchema, directConversationId, conversationInvite, endpointUrl, signAuthentication, usernameSchema, displayNameSchema, validateDeviceIdentity, type DeviceIdentity, type DirectoryUser, type DirectoryClientFrame, type DirectoryServerFrame, type PhoneMatch, type DirectoryPage, type WakeKind } from './directory.js';
 import { conversationIdSchema, MAX_FILE_BYTES, MAX_TEXT_CHARS, peerIdSchema, roomIdSchema } from './protocol.js';
 import { openLocalState, sealLocalState } from './persistence.js';
 import { PeerSession, type PeerSessionOptions, type SessionSnapshot, type SharedFile, type ChatMessage } from './session.js';
@@ -20,6 +20,7 @@ const messageSchema=z.object({id:peerIdSchema,text:z.string().min(1).max(MAX_TEX
 const groupDefinitionSchema=z.object({kind:z.literal('group-definition'),id:z.string().regex(/^group:[a-f0-9]{32}$/),title:z.string().min(1).max(64),creatorId:roomIdSchema,members:z.array(directoryUserSchema).min(2).max(8)}).strict();
 type GroupDefinition=z.infer<typeof groupDefinitionSchema>;
 interface InternalConversation extends Conversation {creatorId?:string;}
+interface PendingOperation {controller:AbortController;started:number;timeout:number;timer?:ReturnType<typeof setTimeout>;conversationId:string;peerId?:string;}
 interface PendingMessage {conversationId:string;messageId:string;remaining:string[];}
 const pendingSchema=z.object({conversationId:conversationIdSchema,messageId:peerIdSchema,remaining:z.array(roomIdSchema).min(1).max(7)}).strict();
 const storedConversationSchema=z.object({id:conversationIdSchema,kind:z.enum(['direct','group']),title:z.string().min(1).max(64),memberIds:z.array(roomIdSchema).min(2).max(8),creatorId:roomIdSchema.optional(),messages:z.array(messageSchema).max(100),unread:z.number().int().min(0).max(100),updatedAt:z.number().finite().nonnegative()}).strict();
@@ -31,7 +32,7 @@ interface Pair {session:PeerSession;connecting?:Promise<void>;retry?:ReturnType<
 export class MessengerClient {
   private status:MessengerSnapshot['status']='idle';private self?:DirectoryUser;private error?:string;
   private contacts=new Map<string,DirectoryUser>();private conversations=new Map<string,InternalConversation>();private pending:PendingMessage[]=[];
-  private fileFanouts=new Map<string,Map<string,SharedFile['status']>>();private pairs=new Map<string,Pair>();private socket?:WebSocket;private requests=new Map<string,Request>();private iceRequest?:Promise<RTCIceServer[]>;private wakeTimer?:ReturnType<typeof setTimeout>;private lastWake=new Map<string,number>();private services?:ServiceCapabilities;private servicesRequest?:Promise<ServiceCapabilities>;private wakeCapabilitiesRequest?:Promise<ServiceCapabilities>;
+  private fileFanouts=new Map<string,Map<string,SharedFile['status']>>();private pairs=new Map<string,Pair>();private socket?:WebSocket;private requests=new Map<string,Request>();private iceRequest?:Promise<RTCIceServer[]>;private wakeTimer?:ReturnType<typeof setTimeout>;private lastWake=new Map<string,number>();private wakeStarted=new Map<string,number>();private pendingCall?:PendingOperation;private pendingFile?:PendingOperation;private services?:ServiceCapabilities;private servicesRequest?:Promise<ServiceCapabilities>;private wakeCapabilitiesRequest?:Promise<ServiceCapabilities>;
   private random:RandomBytes;private stopped=true;private opening?:Promise<void>;private loaded=false;private restorePromise?:Promise<void>;
   private reconnect?:ReturnType<typeof setTimeout>;private attempt=0;private epoch=0;private savedTimer?:ReturnType<typeof setTimeout>;private saveQueue=Promise.resolve();private dirty=false;private cancelOpening?:()=>void;
   constructor(private options:MessengerOptions){validateDeviceIdentity(options.identity);usernameSchema.parse(options.username);displayNameSchema.parse(options.displayName);endpointUrl(options.serverUrl,'directory');this.random=options.randomBytes??secureRandomBytes;}
@@ -40,6 +41,7 @@ export class MessengerClient {
     const conversations=[...this.conversations.values()].map(c=>({id:c.id,kind:c.kind,title:c.title,memberIds:[...c.memberIds],messages:c.messages.map(m=>({...m})),files:c.files.map(f=>({...f})),unread:c.unread,updatedAt:c.updatedAt,session:c.kind==='direct'?this.pairs.get(c.memberIds.find(id=>id!==this.options.identity.userId)!)?.session.getSnapshot():undefined}));
     let activeCall:MessengerSnapshot['activeCall'];
     for(const [peerId,pair] of this.pairs){const session=pair.session.getSnapshot();if(session.callState!=='idle'){activeCall={conversationId:directConversationId(this.options.identity.userId,peerId),peerId,session};break;}}
+    if(!activeCall&&this.pendingCall){const op=this.pendingCall;const snapshot=this.pairs.get(op.peerId!)?.session.getSnapshot();activeCall={conversationId:op.conversationId,peerId:op.peerId!,session:{status:'connecting',messages:[],muted:false,route:'unknown',stats:{},files:[],...snapshot,callState:'outgoing'}};}
     return {status:this.status,self:this.self?{...this.self}:undefined,contacts:[...this.contacts.values()].map(c=>({...c})),conversations:conversations.sort((a,b)=>b.updatedAt-a.updatedAt),activeCall,error:this.error};
   }
   private emit(){this.options.onChange?.(this.getSnapshot());}
@@ -100,9 +102,9 @@ export class MessengerClient {
           }else if(frame.type==='error'){
             const request=frame.requestId?this.requests.get(frame.requestId):undefined;
             if(request){clearTimeout(request.timer);this.requests.delete(frame.requestId!);request.reject(new Error(frame.message));}
-            else if(!ready){if(['username-taken','auth-failed','auth-expired','session-replaced'].includes(frame.code)){this.stopped=true;this.status='error';this.report(new Error(`${frame.code}: ${frame.message}`));}finish(new Error(`${frame.code}: ${frame.message}`));socket.close();}
-            else if(frame.code==='session-replaced'){this.stopped=true;this.status='error';this.report(new Error('This identity connected on another client; reconnect manually'));socket.close();}
-            else if(frame.code!=='peer-offline')this.report(new Error(frame.message));
+            else if(!ready){if(['username-taken','auth-failed','auth-expired','session-replaced','device-already-registered'].includes(frame.code)){this.stopped=true;this.status='error';this.report(new Error(`${frame.code}: ${frame.message}`));}finish(new Error(`${frame.code}: ${frame.message}`));socket.close();}
+            else if(frame.code==='session-replaced'||frame.code==='device-already-registered'){this.stopped=true;this.status='error';this.report(new Error(frame.code==='session-replaced'?'This identity connected on another client; reconnect manually':'This device is already registered on this server; resolve its existing profile'));socket.close();}
+            else if(frame.code!=='peer-offline'&&(frame.requestId!==undefined||!['wake-expired','wake-not-allowed','provider-failed','service-rate-limit','service-busy','service-unavailable'].includes(frame.code)))this.report(new Error(frame.message));
           }else {
             if(!ready)throw new Error('Directory message before authentication');
             if('requestId' in frame){const request=this.requests.get(frame.requestId);if(request){clearTimeout(request.timer);this.requests.delete(frame.requestId);if(frame.type!==request.expected)request.reject(new Error('Unexpected directory response type'));else request.resolve(frame);}}
@@ -151,26 +153,38 @@ export class MessengerClient {
     }
     const servers=await this.iceRequest;return servers.map(server=>({...server,urls:Array.isArray(server.urls)?[...server.urls]:server.urls}));
   }
+  private now(){return performance.now();}
+  private async sendWake(peerId:string,kind:WakeKind,remaining:number,valid:()=>boolean):Promise<void>{
+    if(this.stopped||this.status!=='online'||remaining<=0)return;
+    const began=this.now();
+    try{
+      const socket=this.socket;const capabilities=await this.getServices();
+      remaining-=this.now()-began;
+      if(this.socket!==socket||this.stopped||this.status!=='online'||!capabilities.push||remaining<=0||!valid())return;
+      const key=(kind==='call'?'call:':'data:')+peerId;const now=this.now();const previous=this.lastWake.get(key);
+      if(previous!==undefined&&now-previous<30000)return;
+      this.directorySend({type:'wake',to:peerId,kind,intentId:this.id(),expiresAt:Date.now()+Math.max(1,Math.ceil(Math.min(kind==='call'?30000:60000,remaining)))});
+      this.lastWake.set(key,now);
+    }catch{/* Optional wake failures never mark content delivered or fail direct delivery. */}
+  }
   private wakePending():void {
     clearTimeout(this.wakeTimer);this.wakeTimer=undefined;
-    if(this.stopped||this.status!=='online')return;
-    const peers=[...new Set(this.pending.flatMap(message=>message.remaining))];if(!peers.length)return;
-    if(!this.services){
-      if(this.wakeCapabilitiesRequest)return;const socket=this.socket;const request=this.getServices();this.wakeCapabilitiesRequest=request;
-      void request.then(()=>{if(this.socket===socket&&this.status==='online')this.wakePending();}).catch(()=>{
-        // Optional push lookup failure must not make a normal P2P send look failed.
-        if(this.socket===socket&&!this.stopped&&this.status==='online')this.wakeTimer=setTimeout(()=>this.wakePending(),30000);
-      }).finally(()=>{if(this.wakeCapabilitiesRequest===request)this.wakeCapabilitiesRequest=undefined;});return;
-    }
-    if(!this.services.push)return;
-    const now=Date.now();let delay=30000;
-    for(const peerId of peers){if(!this.contacts.has(peerId))continue;let previous=this.lastWake.get(peerId);if(previous!==undefined&&previous>now){previous=now;this.lastWake.set(peerId,now);}
-      if(previous===undefined||now-previous>=30000){try{this.directorySend({type:'wake',to:peerId});this.lastWake.set(peerId,now);}catch{/* Directory reconnect resumes the bounded wake loop. */}}
-      delay=Math.min(delay,Math.max(500,30000-Math.max(0,now-(this.lastWake.get(peerId)??now))));
+    const peers=new Set(this.pending.flatMap(message=>message.remaining));
+    for(const peerId of this.wakeStarted.keys())if(!peers.has(peerId))this.wakeStarted.delete(peerId);
+    const now=this.now();for(const peerId of peers)if(!this.wakeStarted.has(peerId))this.wakeStarted.set(peerId,now);
+    if(this.stopped||this.status!=='online'||!peers.size)return;
+    let delay=30000;
+    for(const peerId of peers){
+      const grace=2500-(now-this.wakeStarted.get(peerId)!);
+      const previous=this.lastWake.get('data:'+peerId);const cooldown=previous===undefined?0:30000-(now-previous);
+      const due=Math.max(grace,cooldown);
+      if(due<=0)void this.sendWake(peerId,'message',60000,()=>this.pending.some(message=>message.remaining.includes(peerId)));
+      else delay=Math.min(delay,Math.max(500,due));
     }
     this.wakeTimer=setTimeout(()=>this.wakePending(),delay);
   }
-  async search(query:string):Promise<DirectoryUser[]>{return this.request('search',query.replace(/^@/,'').toLowerCase());}
+  async search(query:string):Promise<DirectoryUser[]>{return this.request('search',query.normalize('NFKC').trim().replace(/^@/,'').trim().toLowerCase());}
+  async listUsers(cursor?:string):Promise<DirectoryPage>{const frame=await this.requestFrame({type:'list-users',...(cursor!==undefined?{cursor}: {})},'users-page');return {users:frame.users.map(user=>({...user})),...(frame.nextCursor!==undefined?{nextCursor:frame.nextCursor}: {})};}
   private watch(){if(this.status==='online')this.directorySend({type:'watch',userIds:[...this.contacts.keys()]});}
   private async refreshContacts(){if(!this.contacts.size)return;const users=await this.request('lookup',[...this.contacts.keys()]);for(const user of users)this.updateContact(user);this.changed();for(const user of users)if(user.online)this.wakePeer(user.userId);}
   private updateContact(user:DirectoryUser){const old=this.contacts.get(user.userId);if(old){if(old.publicKey!==user.publicKey)throw new Error('Pinned contact key changed');this.contacts.set(user.userId,user);if(old.online!==user.online){const pair=this.pairs.get(user.userId);if(pair)pair.notified=false;}const c=this.conversations.get(directConversationId(this.options.identity.userId,user.userId));if(c)c.title=user.displayName;}}
@@ -203,6 +217,7 @@ export class MessengerClient {
   private pairChanged(peerId:string,snapshot:SessionSnapshot){
     const pair=this.pairs.get(peerId);if(!pair)return;
     const direct=this.conversations.get(directConversationId(this.options.identity.userId,peerId));if(direct)direct.session=snapshot;
+    if(this.pendingCall&&snapshot.callState==='incoming'){pair.session.rejectCall();return;}
     const nonIdle=[...this.pairs.entries()].find(([id,p])=>id!==peerId&&p.session.getSnapshot().callState!=='idle');
     if(nonIdle&&snapshot.callState==='incoming'){pair.session.rejectCall();return;}
     for(const file of snapshot.files){const conversationId=file.conversationId;if(!conversationId||!this.validConversation(peerId,conversationId))continue;const c=this.conversations.get(conversationId)!;const senderId=file.from==='self'?this.options.identity.userId:peerId;const index=c.files.findIndex(f=>f.id===file.id&&f.senderId===senderId);const value={...file,data:file.data??(index>=0?c.files[index]?.data:undefined),senderId,conversationId};if(c.kind==='group'&&file.from==='self'&&!this.fileFanouts.has(c.id+':'+file.id)&&index>=0)value.status=c.files[index]!.status;
@@ -264,39 +279,69 @@ export class MessengerClient {
   }
   async sendText(conversationId:string,text:string):Promise<void>{
     const c=this.conversations.get(conversationId);if(!c)throw new Error('Unknown conversation');if(!text.trim()||text.length>MAX_TEXT_CHARS)throw new Error('Text must contain 1–4000 characters');if(this.pending.length>=MAX_PENDING_MESSAGES)throw new Error('Local outbox is full');
-    const message:MessengerMessage={id:this.id(),text,from:this.options.identity.userId,timestamp:Date.now(),status:'pending',conversationId};c.messages.push(message);c.updatedAt=Date.now();this.pending.push({conversationId,messageId:message.id,remaining:c.memberIds.filter(id=>id!==this.options.identity.userId)});this.changed();await this.persist();this.wakePending();
+    const message:MessengerMessage={id:this.id(),text,from:this.options.identity.userId,timestamp:Date.now(),status:'pending',conversationId};c.messages.push(message);c.updatedAt=Date.now();this.pending.push({conversationId,messageId:message.id,remaining:c.memberIds.filter(id=>id!==this.options.identity.userId)});this.changed();
     for(const peerId of c.memberIds)if(peerId!==this.options.identity.userId&&this.status==='online'&&this.contacts.get(peerId)?.online)void this.ensurePair(peerId,true).then(()=>this.flushPeer(peerId)).catch(e=>this.report(e));
+    this.wakePending();await this.persist();
+  }
+  private operation(conversationId:string,timeout:number,peerId?:string):PendingOperation {
+    const operation:PendingOperation={controller:new AbortController(),started:this.now(),timeout,conversationId,peerId};
+    operation.timer=setTimeout(()=>operation.controller.abort(new Error('Recipient connection timed out')),timeout);return operation;
+  }
+  private assertOperation(operation:PendingOperation){
+    if(operation.controller.signal.aborted)throw operation.controller.signal.reason??new Error('Operation cancelled');
+    if(this.stopped)throw new Error('Messenger is disconnected');
+    if(this.now()-operation.started>=operation.timeout)throw new Error('Recipient connection timed out');
+  }
+  private async waitForPeer(peerId:string,operation:PendingOperation,kind:'file'|'call'):Promise<Pair>{
+    let attempted=false;let nextAttempt=0;let nextWake=2500;
+    while(true){
+      this.assertOperation(operation);const pair=this.pairs.get(peerId);
+      if(pair?.session.getSnapshot().status==='connected')return pair;
+      const elapsed=this.now()-operation.started;
+      if(!attempted||elapsed>=nextAttempt){attempted=true;nextAttempt=elapsed+5000;
+        void this.ensurePair(peerId,true).catch(()=>{/* Bounded readiness loop and peer snapshot expose transport failures. */});
+      }
+      if(elapsed>=nextWake){nextWake=elapsed+30000;void this.sendWake(peerId,kind,operation.timeout-elapsed,()=>!operation.controller.signal.aborted&&this.now()-operation.started<operation.timeout&&this.pairs.get(peerId)?.session.getSnapshot().status!=='connected');}
+      await new Promise<void>((resolve,reject)=>{
+        const abort=()=>{clearTimeout(timer);reject(operation.controller.signal.reason??new Error('Operation cancelled'));};
+        const timer=setTimeout(()=>{operation.controller.signal.removeEventListener('abort',abort);resolve();},100);
+        operation.controller.signal.addEventListener('abort',abort,{once:true});
+      });
+    }
   }
   async sendFile(conversationId:string,file:{name:string;mime:string;data:Uint8Array}):Promise<void>{
-    if(file.data.length>MAX_FILE_BYTES)throw new Error('File exceeds 5 MiB limit');const c=this.conversations.get(conversationId);if(!c)throw new Error('Unknown conversation');
-    const peers=c.memberIds.filter(id=>id!==this.options.identity.userId);
-    if(peers.some(id=>this.pairs.get(id)?.session.getSnapshot().status!=='connected'&&(this.status!=='online'||!this.contacts.get(id)?.online)))throw new Error('All recipients must be online to send files; files are not queued');
-    await Promise.all(peers.map(peerId=>this.waitForPeer(peerId)));
-    if(this.fileFanouts.size>=4)throw new Error('Too many file transfers');const id=this.id();const key=conversationId+':'+id;if(c.kind==='group')this.fileFanouts.set(key,new Map(peers.map(id=>[id,'sending'])));
-    const results=await Promise.allSettled(peers.map(async peerId=>{const pair=this.pairs.get(peerId)!;if(c.kind==='group'&&c.creatorId===this.options.identity.userId)await pair.session.sendApplication(this.definition(c));await pair.session.sendFile(file,{conversationId,messageId:id});}));
-    this.fileFanouts.delete(key);const failed=results.find(result=>result.status==='rejected');const record=c.files.find(f=>f.id===id&&f.senderId===this.options.identity.userId);if(record)record.status=failed?'error':'complete';this.emit();if(failed?.status==='rejected')throw failed.reason;
+    if(file.data.length>MAX_FILE_BYTES)throw new Error('File exceeds 5 MiB limit');
+    if(this.pendingFile)throw new Error('Another file transfer is already pending');
+    const c=this.conversations.get(conversationId);if(!c)throw new Error('Unknown conversation');
+    if(typeof file.name!=='string'||!file.name.length||file.name.length>255||typeof file.mime!=='string'||file.mime.length>255)throw new Error('Invalid file metadata');
+    const operation=this.operation(conversationId,60000);this.pendingFile=operation;
+    const retained={name:file.name,mime:file.mime,data:file.data.slice()};const peers=c.memberIds.filter(id=>id!==this.options.identity.userId);
+    try{
+      await Promise.all(peers.map(peerId=>this.waitForPeer(peerId,operation,'file')));this.assertOperation(operation);
+      clearTimeout(operation.timer); // The existing bounded PeerSession transfer/ACK timeout governs actual transfer.
+      const id=this.id();const key=conversationId+':'+id;if(c.kind==='group')this.fileFanouts.set(key,new Map(peers.map(id=>[id,'sending'])));
+      try{
+        const results=await Promise.allSettled(peers.map(async peerId=>{const pair=this.pairs.get(peerId)!;if(c.kind==='group'&&c.creatorId===this.options.identity.userId)await pair.session.sendApplication(this.definition(c));if(operation.controller.signal.aborted)throw new Error('File transfer cancelled');await pair.session.sendFile(retained,{conversationId,messageId:id});}));
+        const failed=results.find(result=>result.status==='rejected');const record=c.files.find(f=>f.id===id&&f.senderId===this.options.identity.userId);if(record)record.status=failed?'error':'complete';this.emit();if(failed?.status==='rejected')throw failed.reason;
+      }finally{this.fileFanouts.delete(key);}
+    }finally{clearTimeout(operation.timer);if(this.pendingFile===operation)this.pendingFile=undefined;}
   }
-  private async waitForPeer(peerId:string):Promise<Pair>{
-    const connected=this.pairs.get(peerId);if(connected?.session.getSnapshot().status==='connected')return connected;
-    if(this.status!=='online'||!this.contacts.get(peerId)?.online)throw new Error('Contact is offline');
-    const deadline=Date.now()+15000;let timer:ReturnType<typeof setTimeout>|undefined;
-    const pair=await Promise.race([this.ensurePair(peerId,true),new Promise<never>((_resolve,reject)=>{timer=setTimeout(()=>reject(new Error('Peer connection timed out')),15000);})]).finally(()=>clearTimeout(timer));
-    while(pair.session.getSnapshot().status!=='connected'){
-      if(this.stopped||!this.contacts.get(peerId)?.online)throw new Error('Contact is offline');
-      if(Date.now()>=deadline)throw new Error('Peer connection timed out');
-      await new Promise(resolve=>setTimeout(resolve,100));
-    }
-    return pair;
+  async startCall(conversationId:string,video=false):Promise<void>{
+    const c=this.conversations.get(conversationId);if(!c||c.kind!=='direct')throw new Error('Group calls are not implemented');
+    if(this.getSnapshot().activeCall)throw new Error('Another call is already active');
+    const peerId=c.memberIds.find(id=>id!==this.options.identity.userId)!;const operation=this.operation(conversationId,30000,peerId);this.pendingCall=operation;this.emit();
+    try{
+      const pair=await this.waitForPeer(peerId,operation,'call');this.assertOperation(operation);
+      if([...this.pairs.values()].some(p=>p.session.getSnapshot().callState!=='idle'))throw new Error('Another call is already active');
+      // Cancellation also invalidates an outstanding microphone permission request.
+      let abort!:()=>void;
+      const cancelled=new Promise<never>((_resolve,reject)=>{abort=()=>{pair.session.endCall();reject(operation.controller.signal.reason??new Error('Call cancelled'));};operation.controller.signal.addEventListener('abort',abort,{once:true});});
+      try{await Promise.race([pair.session.startCall(video),cancelled]);}finally{operation.controller.signal.removeEventListener('abort',abort);}
+    }finally{clearTimeout(operation.timer);if(this.pendingCall===operation)this.pendingCall=undefined;this.emit();}
   }
-  private async readyCallPeer(conversationId:string):Promise<Pair>{
-    const c=this.conversations.get(conversationId);if(!c||c.kind!=='direct')throw new Error('Group calls are not implemented');if(this.getSnapshot().activeCall)throw new Error('Another call is already active');const peerId=c.memberIds.find(id=>id!==this.options.identity.userId)!;
-    const pair=await this.waitForPeer(peerId);
-    if(this.getSnapshot().activeCall)throw new Error('Another call is already active');return pair;
-  }
-  async startCall(conversationId:string,video=false):Promise<void>{const pair=await this.readyCallPeer(conversationId);await pair.session.startCall(video);}
   async acceptCall():Promise<void>{const active=this.getSnapshot().activeCall;if(!active||active.session.callState!=='incoming')throw new Error('No incoming call');await this.pairs.get(active.peerId)!.session.acceptCall();}
   rejectCall():void{const active=this.getSnapshot().activeCall;if(active)this.pairs.get(active.peerId)?.session.rejectCall();}
-  endCall():void{const active=this.getSnapshot().activeCall;if(active)this.pairs.get(active.peerId)?.session.endCall();}
+  endCall():void{const pending=this.pendingCall;this.pendingCall=undefined;if(pending){clearTimeout(pending.timer);pending.controller.abort(new Error('Call cancelled'));}const active=this.getSnapshot().activeCall;if(active)this.pairs.get(active.peerId)?.session.endCall();else if(pending)this.pairs.get(pending.peerId!)?.session.endCall();this.emit();}
   setMuted(muted:boolean):void{const active=this.getSnapshot().activeCall;if(active)this.pairs.get(active.peerId)?.session.setMuted(muted);}
   markRead(conversationId:string):void{const c=this.conversations.get(conversationId);if(c){c.unread=0;this.changed();}}
   private trimHistory(){
@@ -306,6 +351,7 @@ export class MessengerClient {
     while(count>MAX_HISTORY_MESSAGES){let oldest:InternalConversation|undefined;let index=-1;let timestamp=Infinity;for(const c of this.conversations.values())for(let i=0;i<c.messages.length;i++){const m=c.messages[i]!;if(!pending.has(c.id+':'+m.id)&&m.timestamp<timestamp){oldest=c;index=i;timestamp=m.timestamp;}}if(!oldest)break;oldest.messages.splice(index,1);count--;}
   }
   disconnect():void{
+    if(this.pendingCall)this.endCall();if(this.pendingFile){clearTimeout(this.pendingFile.timer);this.pendingFile.controller.abort(new Error('Disconnected'));this.pendingFile=undefined;}
     this.stopped=true;++this.epoch;this.cancelOpening?.();this.cancelOpening=undefined;clearTimeout(this.wakeTimer);this.wakeTimer=undefined;clearTimeout(this.reconnect);this.reconnect=undefined;
     const socket=this.socket;this.socket=undefined;this.services=undefined;this.servicesRequest=undefined;this.wakeCapabilitiesRequest=undefined;if(socket){socket.onmessage=null;socket.onclose=null;socket.onerror=null;socket.close();}
     for(const request of this.requests.values()){clearTimeout(request.timer);request.reject(new Error('Disconnected'));}this.requests.clear();

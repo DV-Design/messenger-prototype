@@ -6,7 +6,8 @@ const googleServicesFile = process.env.MESSENGER_GOOGLE_SERVICES_FILE;
 const config: ExpoConfig = {
   name: 'LastCall',
   slug: 'messenger-prototype',
-  version: '0.3.0',
+  icon: './assets/lastcall-icon.png',
+  version: '0.4.0',
   scheme: 'messenger-preview',
   orientation: 'default',
   userInterfaceStyle: 'light',
@@ -14,7 +15,7 @@ const config: ExpoConfig = {
   ios: {
     supportsTablet: true,
     bundleIdentifier: 'dev.messenger.prototype',
-    buildNumber: '4',
+    buildNumber: '5',
     infoPlist: {
       // Local-network HTTP is only for an explicitly configured development server.
       NSAppTransportSecurity: process.env.MESSENGER_ALLOW_LOCAL_HTTP === '1'
@@ -25,19 +26,21 @@ const config: ExpoConfig = {
   },
   android: {
     package: 'dev.messenger.prototype',
-    versionCode: 4,
+    versionCode: 5,
     allowBackup: false,
+    adaptiveIcon: { foregroundImage: './assets/lastcall-icon.png', backgroundColor: '#FFFFFF' },
     ...(googleServicesFile ? { googleServicesFile } : {}),
-    permissions: ['INTERNET', 'ACCESS_NETWORK_STATE', 'RECORD_AUDIO', 'CAMERA', 'MODIFY_AUDIO_SETTINGS', 'READ_CONTACTS'],
-    blockedPermissions: ['android.permission.WRITE_CONTACTS'],
+    permissions: ['INTERNET', 'ACCESS_NETWORK_STATE', 'RECORD_AUDIO', 'CAMERA', 'MODIFY_AUDIO_SETTINGS'],
+    blockedPermissions: ['android.permission.READ_CONTACTS', 'android.permission.WRITE_CONTACTS'],
     // Only development builds permit local HTTP; release servers must use HTTPS.
   },
   extra: { nativeFcmConfigured: !!googleServicesFile },
   plugins: [
     'expo-router',
+    ['expo-splash-screen', { image: './assets/lastcall-icon.png', imageWidth: 160, resizeMode: 'contain', backgroundColor: '#FFFFFF' }],
+    './plugins/withAdaptiveIconInset.cjs',
     ...(googleServicesFile ? [['expo-notifications', { defaultChannel: 'lastcall-messages' }] as [string, Record<string, string>]] : []),
     ['expo-secure-store', { configureAndroidBackup: false }],
-    ['expo-contacts', { contactsPermission: 'LastCall читает выбранные контакты. Автопоиск по хешам номеров включается отдельно с вашего согласия.' }],
     './plugins/withLocalNetworking.cjs',
     './plugins/withWebRtc155Release.cjs',
     ['@config-plugins/react-native-webrtc', {

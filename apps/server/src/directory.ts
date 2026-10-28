@@ -4,7 +4,7 @@ import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type { WebSocket } from 'ws';
 import { DirectoryServices, ServiceError, type ServiceOptions } from './services.js';
-import { directoryClientFrameSchema, userIdFromPublicKey, verifyAuthentication, type DirectoryUser } from '@messenger/core';
+import { directoryClientFrameSchema, userIdFromPublicKey, verifyAuthentication, verifyProfileResolve, wakeIntentSchema, type DirectoryUser } from '@messenger/core';
 
 type ProfileRow = { user_id: string; public_key: string; username: string; display_name: string; last_seen: number };
 interface Connection {
@@ -43,7 +43,14 @@ export class Directory {
         display_name TEXT NOT NULL,
         last_seen INTEGER NOT NULL
       ) STRICT;
+      CREATE TRIGGER IF NOT EXISTS directory_username_immutable
+      BEFORE UPDATE OF username ON directory_users
+      WHEN NEW.username <> OLD.username
+      BEGIN SELECT RAISE(ABORT, 'Immutable username'); END;
     `);
+    // SQLite's built-in lower()/LIKE fold only ASCII. Keep existing stored names
+    // intact and fold both operands with the same Unicode rule instead.
+    this.db.function('lastcall_fold', { deterministic: true }, (value) => String(value ?? '').normalize('NFKC').toLowerCase());
     this.services = new DirectoryServices(this.db, options, (id) => { const row = this.row(id); return row && this.user(row); }, options.iceServers);
   }
   open(ws: WebSocket) {
@@ -75,6 +82,16 @@ export class Directory {
     if (!parsed.success) return this.options.reject(ws, 'invalid-frame', 'Invalid directory control frame', true);
     const frame = parsed.data;
     try {
+      if (frame.type === 'resolve-profile') {
+        const challenge = connection.challenge; connection.challenge = undefined;
+        if (connection.userId || !challenge || Date.now() >= connection.expiresAt) return this.options.reject(ws, 'auth-expired', 'Authentication challenge is unavailable or expired', true);
+        if (!verifyProfileResolve(frame.publicKey, challenge, frame.signature)) return this.options.reject(ws, 'auth-failed', 'Signature verification failed', true);
+        const row = this.row(userIdFromPublicKey(frame.publicKey));
+        this.options.send(ws, { type: 'profile', user: row ? this.user(row) : null });
+        // Resolution is purpose-separated and never takes ownership of presence.
+        ws.close(1000, 'Profile resolved');
+        return;
+      }
       if (frame.type === 'authenticate') {
         // Consume before signature/database work; invalid attempts cannot reuse a challenge.
         const challenge = connection.challenge; connection.challenge = undefined;
@@ -82,12 +99,13 @@ export class Directory {
         if (!verifyAuthentication(frame.publicKey, challenge, frame.username, frame.displayName, frame.signature)) return this.options.reject(ws, 'auth-failed', 'Signature verification failed', true);
         const userId = userIdFromPublicKey(frame.publicKey);
         const existing = this.row(userId);
+        if (existing && existing.username !== frame.username) return this.options.reject(ws, 'device-already-registered', 'This installation already owns a username', true);
         const occupied = this.db.prepare('SELECT user_id FROM directory_users WHERE username = ? AND user_id <> ?').get(frame.username, userId);
         if (occupied) return this.options.reject(ws, 'username-taken', 'This username is already registered', true);
         const count = this.db.prepare('SELECT COUNT(*) AS total FROM directory_users').get() as { total: number };
         if (!existing && count.total >= this.options.maxUsers) return this.options.reject(ws, 'directory-full', 'User directory capacity reached', true);
-        this.db.prepare(`INSERT INTO directory_users (user_id, public_key, username, display_name, last_seen) VALUES (?, ?, ?, ?, ?)
-          ON CONFLICT(user_id) DO UPDATE SET username = excluded.username, display_name = excluded.display_name, last_seen = excluded.last_seen`)
+        if (existing) this.db.prepare('UPDATE directory_users SET last_seen = ? WHERE user_id = ?').run(Date.now(), userId);
+        else this.db.prepare('INSERT INTO directory_users (user_id, public_key, username, display_name, last_seen) VALUES (?, ?, ?, ?, ?)')
           .run(userId, frame.publicKey, frame.username, frame.displayName, Date.now());
         const old = this.online.get(userId);
         connection.userId = userId;
@@ -98,7 +116,11 @@ export class Directory {
         return;
       }
       if (!connection.userId || this.online.get(connection.userId) !== connection) return this.options.reject(ws, 'not-authenticated', 'Authenticate before using the directory', true);
-      if (frame.type === 'services') {
+      if (frame.type === 'list-users') {
+        const rows = this.db.prepare('SELECT * FROM directory_users WHERE username > ? ORDER BY username LIMIT 101').all(frame.cursor ?? '') as ProfileRow[];
+        const page = rows.slice(0, 100);
+        this.options.send(ws, { type: 'users-page', requestId: frame.requestId, users: page.map((row) => this.user(row)), ...(rows.length > 100 ? { nextCursor: page.at(-1)!.username } : {}) });
+      } else if (frame.type === 'services') {
         this.options.send(ws, { type: 'services', requestId: frame.requestId, capabilities: this.services.capabilities(connection.userId) });
       } else if (frame.type === 'ice') {
         this.options.send(ws, { type: 'ice', requestId: frame.requestId, iceServers: this.services.iceServers(connection.userId) });
@@ -115,11 +137,11 @@ export class Directory {
         this.services.registerPush(connection.userId, frame.token);
         this.options.send(ws, { type: 'push-registered', requestId: frame.requestId });
       } else if (frame.type === 'wake') {
-        await this.services.wake(connection.userId, frame.to);
+        await this.services.wake(connection.userId, frame.to, frame.kind === undefined ? undefined : wakeIntentSchema.parse({ kind: frame.kind, intentId: frame.intentId, expiresAt: frame.expiresAt }));
       } else if (frame.type === 'search') {
         // Escape SQL LIKE wildcards; the query is always a bound parameter.
-        const escaped = frame.query.replace(/[\\%_]/g, (value) => `\\${value}`);
-        const rows = this.db.prepare(`SELECT * FROM directory_users WHERE username LIKE ? ESCAPE '\\' OR display_name LIKE ? ESCAPE '\\' ORDER BY username LIMIT 200`)
+        const escaped = frame.query.normalize('NFKC').toLowerCase().replace(/[\\%_]/g, (value) => `\\${value}`);
+        const rows = this.db.prepare(`SELECT * FROM directory_users WHERE username LIKE ? ESCAPE '\\' OR lastcall_fold(display_name) LIKE ? ESCAPE '\\' ORDER BY username LIMIT 200`)
           .all(`${escaped}%`, `%${escaped}%`) as ProfileRow[];
         this.options.send(ws, { type: 'results', requestId: frame.requestId, users: rows.map((row) => this.user(row)) });
       } else if (frame.type === 'lookup') {

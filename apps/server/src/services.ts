@@ -1,12 +1,14 @@
 import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
-import { normalizePhone, phoneLookupHash, type DirectoryUser, type PhoneChallenge, type PhoneMatch, type ServiceCapabilities } from '@messenger/core';
+import { normalizePhone, phoneLookupHash, type DirectoryUser, type PhoneChallenge, type PhoneMatch, type ServiceCapabilities, type WakeIntent } from '@messenger/core';
 import { InvalidPushToken, type PushProvider, type SMSProvider } from './providers.js';
 
 export class ServiceError extends Error {
   constructor(readonly code: string, message: string) { super(message); }
 }
 export interface ServiceOptions {
+  /** Private legacy regression injection only. No environment switch enables phone features. */
+  enableLegacyPhoneServices?: boolean;
   smsProvider?: SMSProvider;
   pushProvider?: PushProvider;
   phoneVerificationSecret?: string;
@@ -31,12 +33,13 @@ export class DirectoryServices {
   private activeSms = 0;
   private activePush = 0;
   private operations = new Set<Promise<unknown>>();
+  private wakeIntents = new Map<string, number>();
   private closed = false;
   private secret?: Buffer;
   private now: () => number;
   constructor(private db: DatabaseSync, private options: ServiceOptions, private lookup: (id: string) => DirectoryUser | undefined, private ice: () => RTCIceServer[]) {
     this.now = options.serviceNow ?? Date.now;
-    if (options.phoneVerificationSecret && Buffer.byteLength(options.phoneVerificationSecret) >= 32) this.secret = Buffer.from(options.phoneVerificationSecret);
+    if (options.enableLegacyPhoneServices && options.phoneVerificationSecret && Buffer.byteLength(options.phoneVerificationSecret) >= 32) this.secret = Buffer.from(options.phoneVerificationSecret);
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS verified_phones (user_id TEXT PRIMARY KEY REFERENCES directory_users(user_id), phone_hash TEXT NOT NULL UNIQUE, verified_at INTEGER NOT NULL) STRICT;
       CREATE TABLE IF NOT EXISTS push_tokens (user_id TEXT PRIMARY KEY REFERENCES directory_users(user_id), token TEXT NOT NULL UNIQUE, updated_at INTEGER NOT NULL) STRICT;
@@ -44,10 +47,11 @@ export class DirectoryServices {
       CREATE TABLE IF NOT EXISTS service_quotas (scope TEXT NOT NULL, quota_key TEXT NOT NULL, period INTEGER NOT NULL, count INTEGER NOT NULL, PRIMARY KEY (scope, quota_key, period)) STRICT;
       CREATE TABLE IF NOT EXISTS sms_last_attempt (scope TEXT NOT NULL, quota_key TEXT NOT NULL, attempted_at INTEGER NOT NULL, PRIMARY KEY(scope, quota_key)) STRICT;
       CREATE TABLE IF NOT EXISTS wake_last_attempt (recipient_id TEXT PRIMARY KEY, attempted_at INTEGER NOT NULL) STRICT;
+      CREATE TABLE IF NOT EXISTS wake_call_last_attempt (recipient_id TEXT PRIMARY KEY, attempted_at INTEGER NOT NULL) STRICT;
     `);
   }
   capabilities(userId: string): ServiceCapabilities {
-    return { phoneVerification: Boolean(this.options.smsProvider && this.secret), push: Boolean(this.options.pushProvider), relay: this.ice().some(server => (Array.isArray(server.urls) ? server.urls : [server.urls]).some(url => /^turns?:/.test(url))), phoneVerified: this.verified(userId) };
+    return { phoneVerification: Boolean(this.options.smsProvider && this.secret), push: Boolean(this.options.pushProvider), relay: this.ice().some(server => (Array.isArray(server.urls) ? server.urls : [server.urls]).some(url => /^turns?:/.test(url))), phoneVerified: Boolean(this.options.enableLegacyPhoneServices && this.verified(userId)) };
   }
   private verified(userId: string) { return Boolean(this.db.prepare('SELECT 1 FROM verified_phones WHERE user_id = ?').get(userId)); }
   private checkOpen() { if (this.closed) throw unavailable(); }
@@ -68,9 +72,11 @@ export class DirectoryServices {
   expire() {
     const now = this.now();
     for (const [id, value] of this.challenges) if (now >= value.expiresAt) { value.digest.fill(0); this.challenges.delete(id); }
+    for (const [id, expiresAt] of this.wakeIntents) if (now >= expiresAt) this.wakeIntents.delete(id);
     this.db.prepare('DELETE FROM service_quotas WHERE period < ?').run(Math.floor(now / 3_600_000) - 1);
     this.db.prepare('DELETE FROM sms_last_attempt WHERE attempted_at < ?').run(now - 3_600_000);
     this.db.prepare('DELETE FROM wake_last_attempt WHERE attempted_at < ?').run(now - 3_600_000);
+    this.db.prepare('DELETE FROM wake_call_last_attempt WHERE attempted_at < ?').run(now - 3_600_000);
   }
   private digest(userId: string, challengeId: string, phoneHash: string, code: string) {
     return createHmac('sha256', this.secret!).update(JSON.stringify(['lastcall/otp/v1', userId, challengeId, phoneHash, code])).digest();
@@ -144,6 +150,7 @@ export class DirectoryServices {
     this.db.prepare('INSERT INTO verified_phones(user_id,phone_hash,verified_at) VALUES (?,?,?) ON CONFLICT(user_id) DO UPDATE SET phone_hash=excluded.phone_hash,verified_at=excluded.verified_at').run(userId, challenge.phoneHash, this.now());
   }
   discover(userId: string, hashes: string[]): PhoneMatch[] {
+    if (!this.options.enableLegacyPhoneServices) throw unavailable();
     this.checkOpen(); if (!this.verified(userId)) throw new ServiceError('phone-verification-required', 'Verify your own phone before discovery');
     if (!hashes.length) return [];
     this.expire(); this.reserve([{ scope: 'discovery-requests', key: userId, limit: 120 }, { scope: 'discovery-hashes', key: userId, limit: 10_000, amount: hashes.length }]);
@@ -167,17 +174,31 @@ export class DirectoryServices {
       for (const sender of new Set(ids)) if (sender !== recipient) this.db.prepare('INSERT INTO push_consent(recipient_id,sender_id) VALUES (?,?)').run(recipient, sender);
     });
   }
-  async wake(sender: string, recipient: string) {
+  async wake(sender: string, recipient: string, intent?: WakeIntent) {
     this.checkOpen(); if (!this.options.pushProvider) throw unavailable();
+    const now = this.now();
+    if (intent && intent.expiresAt <= now) throw new ServiceError('wake-expired', 'Notification intent expired');
+    const bounded = intent ? { ...intent, expiresAt: Math.min(intent.expiresAt, now + (intent.kind === 'call' ? 30_000 : 60_000)) } : undefined;
+    this.expire();
     if (!this.db.prepare('SELECT 1 FROM push_consent WHERE recipient_id = ? AND sender_id = ?').get(recipient, sender)) throw new ServiceError('wake-not-allowed', 'Recipient has not authorized wake notifications from this contact');
     const row = this.db.prepare('SELECT token FROM push_tokens WHERE user_id = ?').get(recipient) as { token: string } | undefined;
     if (!row) return; // No false push-success or delivery receipt frame is returned.
-    const last = this.db.prepare('SELECT attempted_at FROM wake_last_attempt WHERE recipient_id = ?').get(recipient) as { attempted_at: number } | undefined;
-    if (last && this.now() < last.attempted_at + 30_000) return; // Collapse duplicate intents across all senders.
+    const key = bounded ? `${sender}:${recipient}:${bounded.intentId}` : undefined;
+    if (key && this.wakeIntents.has(key)) return;
+    // Static identifiers chosen by the validated enum, never caller-supplied SQL.
+    const table = bounded?.kind === 'call' ? 'wake_call_last_attempt' : 'wake_last_attempt';
+    const last = this.db.prepare(`SELECT attempted_at FROM ${table} WHERE recipient_id = ?`).get(recipient) as { attempted_at: number } | undefined;
+    if (last && now < last.attempted_at + 30_000) return; // Collapse across senders in this class.
+    if (key && this.wakeIntents.size >= 4096) throw new ServiceError('service-busy', 'Notification service is busy');
     if (this.activePush >= 8) throw new ServiceError('service-busy', 'Notification service is busy');
     this.reserve([{ scope: 'wake-global', key: 'all', limit: 1000 }, { scope: 'wake-sender', key: sender, limit: 120 }]);
-    this.db.prepare('INSERT INTO wake_last_attempt(recipient_id,attempted_at) VALUES (?,?) ON CONFLICT(recipient_id) DO UPDATE SET attempted_at=excluded.attempted_at').run(recipient, this.now());
-    try { await this.provider('push', () => this.options.pushProvider!.sendWake(row.token)); }
+    this.db.prepare(`INSERT INTO ${table}(recipient_id,attempted_at) VALUES (?,?) ON CONFLICT(recipient_id) DO UPDATE SET attempted_at=excluded.attempted_at`).run(recipient, now);
+    if (key) this.wakeIntents.set(key, bounded!.expiresAt); // Consume before async work, including failure.
+    try { await this.provider('push', () => {
+      this.checkOpen();
+      if (bounded && bounded.expiresAt <= this.now()) throw new ServiceError('wake-expired', 'Notification intent expired');
+      return this.options.pushProvider!.sendWake(row.token, bounded);
+    }); }
     catch (error) {
       if (error instanceof InvalidPushToken && !this.closed) this.db.prepare('DELETE FROM push_tokens WHERE user_id = ? AND token = ?').run(recipient, row.token);
       throw error instanceof ServiceError ? error : new ServiceError('provider-failed', 'Push provider did not accept notification');
@@ -190,6 +211,7 @@ export class DirectoryServices {
   }
   async close() {
     if (this.closed) return; this.closed = true;
+    this.wakeIntents.clear();
     for (const id of this.challenges.keys()) this.removeChallenge(id);
     this.secret?.fill(0); this.starting.clear();
     let timer: ReturnType<typeof setTimeout> | undefined;

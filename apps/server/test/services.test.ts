@@ -5,9 +5,10 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WebSocket } from 'ws';
-import { createDeviceIdentity, directoryServerFrameSchema, MessengerClient, phoneLookupHash, signAuthentication, type DeviceIdentity, type DirectoryServerFrame } from '@messenger/core';
+import { createDeviceIdentity, directoryServerFrameSchema, MessengerClient, phoneLookupHash, signAuthentication, type DeviceIdentity, type DirectoryServerFrame, type WakeIntent } from '@messenger/core';
 import { createSignalingServer, optionsFromEnv, type ServerOptions } from '../src/server.js';
-import { createFcmPushProvider, createSmsRuProvider, type PushProvider, type SMSProvider } from '../src/providers.js';
+import { DirectoryServices } from '../src/services.js';
+import { buildFcmWakeMessage, createFcmPushProvider, createSmsRuProvider, type PushProvider, type SMSProvider } from '../src/providers.js';
 
 const servers: ReturnType<typeof createSignalingServer>[] = [], sockets: WebSocket[] = [], managers: MessengerClient[] = [];
 const dirs: string[] = [];
@@ -21,7 +22,7 @@ function providers() {
   const codes = new Map<string, string>(), pushes: string[] = [];
   const smsProvider: SMSProvider = { async sendCode(phone, code) { codes.set(phone, code); } };
   const pushProvider: PushProvider = { async sendWake(token) { pushes.push(token); } };
-  return { codes, pushes, smsProvider, pushProvider, phoneVerificationSecret: secret };
+  return { codes, pushes, smsProvider, pushProvider, phoneVerificationSecret: secret, enableLegacyPhoneServices: true };
 }
 class Client {
   ws: WebSocket; frames: DirectoryServerFrame[] = []; private queue: DirectoryServerFrame[] = [];
@@ -45,7 +46,7 @@ describe('private-injected phone/push service contract over real WebSockets', ()
     expect(await client.rpc('services')).toMatchObject({ capabilities: { phoneVerification: false, push: false, relay: false, phoneVerified: false } });
     expect(await client.rpc('phone-start', { phone: phoneA })).toMatchObject({ type: 'error', code: 'service-unavailable' });
     expect(await client.rpc('push-register', { token: 'private-test-token' })).toMatchObject({ code: 'service-unavailable' });
-    expect(await client.rpc('phone-discover', { hashes: [phoneLookupHash(phoneA)] })).toMatchObject({ code: 'phone-verification-required' });
+    expect(await client.rpc('phone-discover', { hashes: [phoneLookupHash(phoneA)] })).toMatchObject({ code: 'service-unavailable' });
     expect(client.frames.filter(frame => frame.type === 'ready')).toHaveLength(1);
     expect(optionsFromEnv({ SMSRU_API_ID: 'test-not-used', PHONE_VERIFICATION_SECRET: 'short' }).smsProvider).toBeUndefined();
     expect(createFcmPushProvider('/not/a/credential/file')).toBeUndefined();
@@ -127,7 +128,7 @@ describe('private-injected phone/push service contract over real WebSockets', ()
     const unauth = new Client(url); await unauth.next(frame => frame.type === 'challenge'); unauth.send({ type: 'ice', requestId: requestId() }); expect(await unauth.next(frame => frame.type === 'error')).toMatchObject({ code: 'not-authenticated' });
   });
   it('bounds abandoned provider work and closes safely without unhandled rejection', async () => {
-    const { url, server } = await start({ phoneVerificationSecret: secret, smsProvider: { async sendCode() { return new Promise(() => {}); }, async dispose() { return new Promise(() => {}); } }, providerTimeoutMs: 25 });
+    const { url, server } = await start({ enableLegacyPhoneServices: true, phoneVerificationSecret: secret, smsProvider: { async sendCode() { return new Promise(() => {}); }, async dispose() { return new Promise(() => {}); } }, providerTimeoutMs: 25 });
     const a = await user(url, 'alice'); expect(await a.client.rpc('phone-start', { phone: phoneA })).toMatchObject({ code: 'provider-failed' });
     const before = Date.now(); await server.close(); expect(Date.now() - before).toBeLessThan(500);
   });
@@ -176,7 +177,89 @@ it('integrates real MessengerClient service APIs, verified discovery, offline wa
   await b.getServices(); // Round-trip barrier after watch persisted consent.
   b.disconnect(); await expect.poll(() => a.getSnapshot().contacts.find(user => user.username === 'manager_bob')?.online).toBe(false);
   await a.sendText(conversation, 'synthetic pending integration message');
-  await expect.poll(() => fake.pushes.length).toBe(1);
+  await expect.poll(() => fake.pushes.length, { timeout: 5000 }).toBe(1);
   expect(fake.pushes[0] === 'manager-recipient-token').toBe(true);
   expect(a.getSnapshot().conversations.find(c => c.id === conversation)?.messages.at(-1)?.status).toBe('pending');
+});
+
+it('retires public phone features even with legacy secrets/provider injection and existing verified metadata', async () => {
+  const fake = providers(); const path = mkdtempSync(join(tmpdir(), 'lastcall-retired-phone-')); dirs.push(path); const directoryDbPath = join(path, 'directory.sqlite');
+  const legacy = await start({ ...fake, directoryDbPath }); const owner = await user(legacy.url, 'existing');
+  await verify(owner.client, phoneA, fake); await legacy.server.close(); fake.codes.clear();
+  // The explicit private test switch is absent on a normal/public factory.
+  const publicServer = await start({ ...fake, enableLegacyPhoneServices: false, directoryDbPath });
+  const current = await user(publicServer.url, 'existing', owner.identity);
+  expect(await current.client.rpc('services')).toMatchObject({ capabilities: { phoneVerification: false, phoneVerified: false, push: true } });
+  expect(await current.client.rpc('phone-start', { phone: phoneB })).toMatchObject({ code: 'service-unavailable' });
+  expect(await current.client.rpc('phone-verify', { challengeId: '1'.repeat(32), code: '123456' })).toMatchObject({ code: 'service-unavailable' });
+  expect(await current.client.rpc('phone-discover', { hashes: [phoneLookupHash(phoneA)] })).toMatchObject({ code: 'service-unavailable' });
+  expect(fake.codes.size).toBe(0);
+  const configured = optionsFromEnv({ SMSRU_API_ID: 'legacy-ignored', PHONE_VERIFICATION_SECRET: secret, SMS_MAX_PER_HOUR: 'invalid-ignored', ENABLE_LEGACY_PHONE_SERVICES: '1' });
+  expect(configured.smsProvider).toBeUndefined(); expect(configured.phoneVerificationSecret).toBeUndefined(); expect(configured.enableLegacyPhoneServices).toBeUndefined();
+  const db = new DatabaseSync(directoryDbPath); try { expect(db.prepare('SELECT COUNT(*) AS count FROM verified_phones').get()).toEqual({ count: 1 }); } finally { db.close(); }
+});
+
+describe('short-lived typed wake metadata', () => {
+  it('keeps consent and legacy compatibility, bounds deadlines, deduplicates IDs and gives calls a separate cooldown', async () => {
+    let now = Date.now(); const pushes: Array<{ token: string; intent?: WakeIntent }> = [];
+    const { url } = await start({ serviceNow: () => now, pushProvider: { async sendWake(token, intent) { pushes.push({ token, intent }); } } });
+    const sender = await user(url, 'sender'), recipient = await user(url, 'recipient');
+    await recipient.client.rpc('push-register', { token: 'private-typed-token' });
+    const typed = (kind: WakeIntent['kind'], intentId = requestId(), expiresAt = now + 600_000) => ({ type: 'wake', to: recipient.identity.userId, kind, intentId, expiresAt });
+    sender.client.send(typed('call')); expect(await sender.client.next(frame => frame.type === 'error')).toMatchObject({ code: 'wake-not-allowed' });
+    recipient.client.send({ type: 'watch', userIds: [sender.identity.userId] }); await recipient.client.next(frame => frame.type === 'presence');
+    const message = typed('message'); sender.client.send(message); await expect.poll(() => pushes.length).toBe(1);
+    expect(pushes[0]).toEqual({ token: 'private-typed-token', intent: { kind: 'message', intentId: message.intentId, expiresAt: now + 60_000 } });
+    const call = typed('call'); sender.client.send(call); await expect.poll(() => pushes.length).toBe(2);
+    expect(pushes[1]?.intent).toEqual({ kind: 'call', intentId: call.intentId, expiresAt: now + 30_000 });
+    sender.client.send(typed('file')); sender.client.send(typed('call')); await sender.client.rpc('services'); expect(pushes).toHaveLength(2);
+    now += 30_001;
+    sender.client.send(message); await sender.client.rpc('services'); expect(pushes).toHaveLength(2); // ID still consumed after cooldown.
+    sender.client.send(typed('file')); await expect.poll(() => pushes.length).toBe(3); expect(pushes[2]?.intent?.expiresAt).toBe(now + 60_000);
+    sender.client.send(typed('call', requestId(), now)); expect(await sender.client.next(frame => frame.type === 'error')).toMatchObject({ code: 'wake-expired' });
+    now += 30_001; sender.client.send({ type: 'wake', to: recipient.identity.userId }); await expect.poll(() => pushes.length).toBe(4); expect(pushes[3]?.intent).toBeUndefined();
+    expect(sender.client.frames.some(frame => frame.type === 'ready' && Object.keys(frame).length !== 2)).toBe(false);
+  });
+
+  it('rejects partial metadata and extra content over real authenticated WebSockets', async () => {
+    const { url } = await start();
+    const invalid = [ { kind: 'call' }, { kind: 'message', intentId: requestId() }, { kind: 'file', intentId: requestId(), expiresAt: 1, filename: 'forbidden' }, { kind: 'call', intentId: requestId(), expiresAt: Number.MAX_SAFE_INTEGER + 1 } ];
+    for (let i = 0; i < invalid.length; i++) {
+      const sender = await user(url, `invalid_${i}`);
+      sender.client.send({ type: 'wake', to: '1'.repeat(64), ...invalid[i] });
+      expect(await sender.client.next(frame => frame.type === 'error')).toMatchObject({ code: 'invalid-frame' });
+    }
+  });
+
+  it('consumes typed IDs before asynchronous provider failure and rechecks deadline before provider invocation', async () => {
+    const db = new DatabaseSync(':memory:'); db.exec("CREATE TABLE directory_users(user_id TEXT PRIMARY KEY); INSERT INTO directory_users VALUES ('sender'), ('recipient')");
+    const clock = vi.fn(() => 100_000); const sendWake = vi.fn(async () => { throw new Error('private provider detail'); });
+    const services = new DirectoryServices(db, { serviceNow: clock, pushProvider: { sendWake } }, () => undefined, () => []);
+    try {
+      services.registerPush('recipient', 'private-token'); services.replaceWatchConsent('recipient', ['sender']);
+      const intent: WakeIntent = { kind: 'message', intentId: requestId(), expiresAt: 160_000 };
+      await expect(services.wake('sender', 'recipient', intent)).rejects.toThrow('Push provider did not accept notification');
+      clock.mockImplementation(() => 131_000);
+      await services.wake('sender', 'recipient', intent); expect(sendWake).toHaveBeenCalledTimes(1);
+      // Time advances after initial validation/reservation but before the async SDK operation.
+      clock.mockImplementationOnce(() => 131_000).mockImplementationOnce(() => 131_000).mockImplementationOnce(() => 131_000).mockImplementation(() => 161_001);
+      await expect(services.wake('sender', 'recipient', { kind: 'call', intentId: requestId(), expiresAt: 150_000 })).rejects.toThrow('Notification intent expired');
+      expect(sendWake).toHaveBeenCalledTimes(1);
+    } finally { await services.close(); db.close(); }
+  });
+
+  it('constructs only generic FCM metadata with remaining TTL and never sends expired notifications', () => {
+    const now = 100_000, intentId = requestId();
+    for (const kind of ['message', 'file', 'call'] as const) {
+      const message = buildFcmWakeMessage('private-device-token', { kind, intentId, expiresAt: now + 900_000 }, now)!;
+      const ttl = kind === 'call' ? 30_000 : 60_000;
+      expect(message.data).toEqual({ kind: 'lastcall-wake', intentKind: kind, intentId, expiresAt: String(now + ttl) });
+      expect(message.android?.ttl).toBe(ttl); expect(message.android?.collapseKey).toBe(kind === 'call' ? 'lastcall-call' : 'lastcall-wake');
+      expect(message.notification?.body).toContain(kind === 'call' ? 'Ожидается звонок' : kind === 'file' ? 'Ожидается отправка файла' : 'Ожидается отправка сообщения');
+      expect(Object.keys(message).sort()).toEqual(['android', 'data', 'notification', 'token']);
+      expect(buildFcmWakeMessage('private-device-token', { kind, intentId, expiresAt: now }, now)).toBeUndefined();
+    }
+    expect(buildFcmWakeMessage('legacy-token', undefined, now)?.data).toEqual({ kind: 'lastcall-wake' });
+    expect(buildFcmWakeMessage('token', { kind: 'call', intentId, expiresAt: now + 1234 }, now)?.android?.ttl).toBe(1234);
+  });
 });

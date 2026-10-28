@@ -1,15 +1,18 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
-import { createDeviceIdentity, directoryServerFrameSchema, signAuthentication, type DeviceIdentity, type DirectoryServerFrame } from '@messenger/core';
+import { createDeviceIdentity, directoryServerFrameSchema, signAuthentication, signProfileResolve, resolveDeviceProfile, MessengerClient, type DeviceIdentity, type DirectoryServerFrame } from '@messenger/core';
 import { createSignalingServer, optionsFromEnv, type ServerOptions } from '../src/server.js';
 
 const servers: ReturnType<typeof createSignalingServer>[] = [];
 const sockets: WebSocket[] = [];
 const tempDirs: string[] = [];
+const managers: MessengerClient[] = [];
 afterEach(async () => {
+  for (const manager of managers.splice(0)) manager.disconnect();
   for (const ws of sockets.splice(0)) ws.terminate();
   await Promise.all(servers.splice(0).map((server) => server.close()));
   for (const path of tempDirs.splice(0)) rmSync(path, { recursive: true, force: true });
@@ -143,7 +146,11 @@ async function authenticated(url: string, username: string, identity = createDev
     if (result.type !== 'results') throw new Error('results missing');
     expect(result.users[0]!.lastSeen).toBeGreaterThan(Date.now() - 5000);
     const updated = new Client(second.url);
-    expect(await updated.auth(a.identity, 'alice_new', 'Alice renamed')).toMatchObject({ self: { username: 'alice_new', displayName: 'Alice renamed', online: true } });
+    expect(await updated.auth(a.identity, 'alice_new', 'Alice renamed')).toMatchObject({ code: 'device-already-registered' });
+    const canonical = new Client(second.url);
+    expect(await canonical.auth(a.identity, 'alice', 'Stale cached name')).toMatchObject({ self: { username: 'alice', displayName: 'alice', online: true } });
+    const occupied = new Client(second.url);
+    expect(await occupied.auth(createDeviceIdentity(), 'alice')).toMatchObject({ code: 'username-taken' });
   });
   it('rejects chat/media/spoofed sender payloads and enforces watch/lookup/rate bounds', async () => {
     const { url } = await start({ frameLimit: 3 });
@@ -162,5 +169,97 @@ async function authenticated(url: string, username: string, identity = createDev
     expect(optionsFromEnv({ MAX_CONNECTIONS: '256', MAX_CONNECTIONS_PER_IP: '256', DIRECTORY_DB_PATH: '/data/directory.sqlite', MAX_ROOMS: '256' }))
       .toMatchObject({ maxConnections: 256, maxConnectionsPerIp: 256, directoryDbPath: '/data/directory.sqlite', maxRooms: 256 });
     expect(() => optionsFromEnv({ MAX_CONNECTIONS: 'infinite' })).toThrow('Invalid MAX_CONNECTIONS');
+  });
+});
+
+describe('immutable installation registration and directory synchronization', () => {
+  it('lets exactly one concurrent identity claim a username and keeps its original binding', async () => {
+    const { url } = await start(); const one = createDeviceIdentity(), two = createDeviceIdentity();
+    const a = new Client(url), b = new Client(url);
+    const result = await Promise.all([a.auth(one, 'same_login', 'First'), b.auth(two, 'same_login', 'Second')]);
+    expect(result.map(frame => frame.type).sort()).toEqual(['error', 'ready']);
+    expect(result.find(frame => frame.type === 'error')).toMatchObject({ code: 'username-taken' });
+    const winner = result[0]!.type === 'ready' ? one : two;
+    const rename = new Client(url); expect(await rename.auth(winner, 'different_login')).toMatchObject({ code: 'device-already-registered' });
+    const free = new Client(url); expect(await free.auth(createDeviceIdentity(), 'different_login')).toMatchObject({ type: 'ready' });
+    const occupied = new Client(url); expect(await occupied.auth(createDeviceIdentity(), 'same_login')).toMatchObject({ code: 'username-taken' });
+  });
+
+  it('resolves only a valid purpose-separated one-use challenge without registering or changing presence', async () => {
+    const { url } = await start(); const owner = await authenticated(url, 'owner'); const watcher = await authenticated(url, 'watcher');
+    watcher.client.send({ type: 'watch', userIds: [owner.identity.userId] }); await watcher.client.next('presence');
+    const before = await resolveDeviceProfile(url, owner.identity);
+    expect(before).toMatchObject({ username: 'owner', online: true });
+    const unknown = createDeviceIdentity(); expect(await resolveDeviceProfile(url, unknown)).toBeNull();
+    watcher.client.send({ type: 'list-users', requestId: requestId() });
+    const page = await watcher.client.next('users-page'); expect(page.type === 'users-page' && page.users).toHaveLength(2);
+    expect(watcher.client.frames.filter(frame => frame.type === 'presence')).toHaveLength(1);
+    expect(await resolveDeviceProfile(url, owner.identity)).toEqual(before);
+    // Resolution did not replace the owner's authenticated directory socket.
+    owner.client.send({ type: 'list-users', requestId: requestId() }); expect(await owner.client.next('users-page')).toMatchObject({ users: expect.any(Array) });
+    const resolver = new Client(url); const challenge = await resolver.next('challenge');
+    if (challenge.type !== 'challenge') throw new Error('Missing challenge');
+    const signed = { type: 'resolve-profile', publicKey: owner.identity.publicKey, signature: signProfileResolve(owner.identity, challenge.challenge) };
+    resolver.send(signed); expect(await resolver.next('profile')).toMatchObject({ user: { username: 'owner' } });
+    const replay = new Client(url); await replay.next('challenge'); replay.send(signed); expect(await replay.next('error')).toMatchObject({ code: 'auth-failed' });
+    const crossPurpose = new Client(url); const c = await crossPurpose.next('challenge');
+    if (c.type !== 'challenge') throw new Error('Missing challenge');
+    crossPurpose.send({ ...signed, signature: signAuthentication(owner.identity, c.challenge, 'owner', 'owner') });
+    expect(await crossPurpose.next('error')).toMatchObject({ code: 'auth-failed' });
+    const reverse = new Client(url); const d = await reverse.next('challenge');
+    if (d.type !== 'challenge') throw new Error('Missing challenge');
+    reverse.send({ type: 'authenticate', publicKey: unknown.publicKey, username: 'unknown', displayName: 'Unknown', signature: signProfileResolve(unknown, d.challenge) });
+    expect(await reverse.next('error')).toMatchObject({ code: 'auth-failed' });
+  });
+
+  it('expires profile-resolution challenges and denies unauthenticated catalog reads', async () => {
+    const { url } = await start({ directoryChallengeTtlMs: 20 });
+    const client = new Client(url); const c = await client.next('challenge'); const identity = createDeviceIdentity();
+    if (c.type !== 'challenge') throw new Error('Missing challenge');
+    await new Promise(resolve => setTimeout(resolve, 25));
+    client.send({ type: 'resolve-profile', publicKey: identity.publicKey, signature: signProfileResolve(identity, c.challenge) });
+    expect(await client.next('error')).toMatchObject({ code: 'auth-expired' });
+    const unauth = new Client(url); await unauth.next('challenge'); unauth.send({ type: 'list-users', requestId: requestId() });
+    expect(await unauth.next('error')).toMatchObject({ code: 'not-authenticated' });
+  });
+
+  it('pages 100 canonical public profiles by keyset through real MessengerClient and preserves offline profiles', async () => {
+    const path = mkdtempSync(join(tmpdir(), 'lastcall-catalog-')); tempDirs.push(path); const directoryDbPath = join(path, 'directory.sqlite');
+    const { url } = await start({ directoryDbPath });
+    // Fixture a larger catalog without making the test depend on connection/rate limits.
+    const db = new DatabaseSync(directoryDbPath);
+    try {
+      const insert = db.prepare('INSERT INTO directory_users VALUES (?, ?, ?, ?, ?)');
+      for (let i = 0; i < 103; i++) { const identity = createDeviceIdentity(); insert.run(identity.userId, identity.publicKey, `user_${String(i).padStart(3, '0')}`, 'Existing profile', 123); }
+      expect(() => db.prepare("UPDATE directory_users SET username='renamed' WHERE username='user_000'").run()).toThrow('Immutable username');
+    } finally { db.close(); }
+    const identity = createDeviceIdentity();
+    expect(await resolveDeviceProfile(url, identity)).toBeNull();
+    const manager = new MessengerClient({ serverUrl: url, identity, username: 'reader', displayName: 'Canonical Reader' }); managers.push(manager);
+    await manager.connect();
+    const first = await manager.listUsers(); expect(first.users).toHaveLength(100); expect(first.nextCursor).toBe(first.users.at(-1)!.username);
+    const second = await manager.listUsers(first.nextCursor); expect(second.users).toHaveLength(4); expect(second.nextCursor).toBeUndefined();
+    const names = [...first.users, ...second.users].map(user => user.username);
+    expect(names).toEqual([...names].sort()); expect(new Set(names).size).toBe(104);
+    expect(first.users.find(user => user.username === 'user_000')).toMatchObject({ online: false, lastSeen: 123 });
+    manager.disconnect();
+    const stale = new MessengerClient({ serverUrl: url, identity, username: 'reader', displayName: 'Stale local name' }); managers.push(stale);
+    await stale.connect(); expect(stale.getSnapshot().self?.displayName).toBe('Canonical Reader');
+    expect(await resolveDeviceProfile(url, identity)).toMatchObject({ username: 'reader', displayName: 'Canonical Reader' });
+    const rename = new MessengerClient({ serverUrl: url, identity, username: 'reader_renamed', displayName: 'Renamed' }); managers.push(rename);
+    await expect(rename.connect()).rejects.toThrow('device-already-registered');
+    expect((await stale.listUsers()).users.find(user => user.userId === identity.userId)?.username).toBe('reader');
+  });
+
+  it('folds Russian and compatibility names while keeping SQL wildcards literal and 48-character queries valid', async () => {
+    const { url } = await start();
+    const reader = await authenticated(url, 'reader'); const name = new Client(url);
+    expect(await name.auth(createDeviceIdentity(), 'ivan', 'ИвАн Петров Ａ %_\\')).toMatchObject({ type: 'ready' });
+    const query = async (value: string) => { reader.client.send({ type: 'search', query: value, requestId: requestId() }); const f = await reader.client.next('results'); if (f.type !== 'results') throw new Error('Missing results'); return f.users.map(user => user.username); };
+    expect(await query('ИВАН пЕтРоВ a')).toEqual(['ivan']);
+    expect(await query('%_\\')).toEqual(['ivan']);
+    expect(await query('_')).toEqual(['ivan']);
+    expect(await query('a'.repeat(48))).toEqual([]);
+    expect(await query("%' OR 1=1 --")).toEqual([]);
   });
 });

@@ -8,10 +8,11 @@ reproduced negative DNS cache on some resolvers; it uses normal DNS and TLS.
 
 - `infra/compose.public.yaml`: isolated Node24 signaling/directory service on the
   existing external `proxy` Docker network, no published host ports.
-- Named `directory` volume: SQLite public profiles plus verified phone hashes,
-  push tokens, recipient watch consent and service quotas after configuration.
+- Named `directory` volume: SQLite public profiles, push tokens, recipient watch
+  consent and service quotas after configuration. Legacy phone tables may remain
+  from 0.3, but phone verification/discovery is no longer enabled in production.
   Device keys, OTP values, chat, group definitions, files and media never enter
-  this database. Phone hashes and push metadata are personal data.
+  this database. Push metadata and any legacy phone hashes are personal data.
 - `messenger-apex.caddy.inc`: narrow /messenger route fragment in the existing
   apex Caddy site. Preserve all other routes. Strip prefix before upstream.
 - `p2p.lienad.ru.caddy`: legacy hostname routing, including /directory.
@@ -60,10 +61,10 @@ Presence is ephemeral and restricted to explicit authenticated subscriptions.
 Content is direct WebRTC; pending text is queued locally on the sender. One live
 directory connection per device identity. iOS/Android background delivery requires
 future push/system-call work. No audited ratchet, key transparency or multi-device
-identity yet. Server updates briefly disconnect preview sessions. In 0.3, Android
-FCM and SMS.ru code is deployed with both providers disabled; account setup,
-client-configured APK and real delivery checks are still required. The published
-APK's absence-of-services states were checked separately from provider delivery.
+identity yet. Server updates briefly disconnect preview sessions. In 0.4,
+registration uses a unique username bound to the installation key and a persistent
+server profile. No SMS account is required. Android FCM remains disabled until
+Firebase/client configuration and real delivery checks are completed independently.
 
 ## Rollback
 
@@ -76,6 +77,6 @@ apex/share/api routes, Docker networks and existing applications.
 The idempotent `create-dns.py` helper is retained for the exact p2p CNAME only.
 Credentials stay local; it never invokes the host DDNS notification helper.
 
-Optional SMS.ru, FCM and authenticated ICE configuration is documented in
+Optional FCM and authenticated ICE configuration is documented in
 [SERVICES.md](SERVICES.md). Providers remain disabled until explicitly configured;
 public `GET /ice` cannot issue TURN credentials when `REQUIRE_ICE_AUTH=1`.

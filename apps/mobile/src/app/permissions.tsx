@@ -1,15 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { AppState, Linking, Platform, ScrollView, Text, View } from 'react-native';
+import { AppState, Linking, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Icon, IconButton, type IconName } from '../components/ui';
 import { PERMISSION_ORDER, UNKNOWN_ACCESS, hasAccess, inSequence, type Access, type PermissionKind } from '../permission-model';
-import { completeSetup, expandContactAccess, readPermission, requestPermission } from '../permissions';
-import { pushUnavailable } from '../notifications';
+import { completeSetup, readPermission, requestInitialPermissions, requestPermission } from '../permissions';
+import { pushConfigured, pushUnavailable } from '../notifications';
 import { errorText } from '../runtime';
 import { colors, styles } from '../styles';
 const details: Record<PermissionKind, { title: string; purpose: string; icon: IconName }> = {
-  contacts: { title: 'Контакты', purpose: 'Читать контакты телефона. Автопоиск по хешам номеров включается отдельно и только с вашего согласия.', icon: 'people-outline' },
   camera: { title: 'Камера', purpose: 'Показывать вас собеседнику в видеозвонках.', icon: 'videocam-outline' },
   microphone: { title: 'Микрофон', purpose: 'Передавать ваш голос во время звонка.', icon: 'mic-outline' },
   notifications: { title: 'Уведомления', purpose: 'Показывать уведомление о новом сообщении и открывать приложение для доставки. Android может задерживать уведомления; отправитель должен оставаться доступным.', icon: 'notifications-outline' },
@@ -21,9 +20,10 @@ async function currentAccess() {
   return Object.fromEntries(results) as Record<PermissionKind, Access>;
 }
 export default function PermissionScreen() {
-  const { setup } = useLocalSearchParams<{ setup?: string }>();
-  const [values, setValues] = useState<Record<PermissionKind, Access>>({ contacts: UNKNOWN_ACCESS, camera: UNKNOWN_ACCESS, microphone: UNKNOWN_ACCESS, photos: UNKNOWN_ACCESS, notifications: UNKNOWN_ACCESS });
-  const [busy, setBusy] = useState<PermissionKind | 'all' | 'done' | null>(null);
+  const { setup, auto } = useLocalSearchParams<{ setup?: string; auto?: string }>();
+  const automaticStarted = useRef(false);
+  const [values, setValues] = useState<Record<PermissionKind, Access>>({ camera: UNKNOWN_ACCESS, microphone: UNKNOWN_ACCESS, photos: UNKNOWN_ACCESS, notifications: UNKNOWN_ACCESS });
+  const [busy, setBusy] = useState<PermissionKind | 'all' | 'done' | null>(auto === '1' ? 'all' : null);
   const [error, setError] = useState('');
   async function refresh() {
     setValues(await currentAccess());
@@ -33,6 +33,26 @@ export default function PermissionScreen() {
     const listener = AppState.addEventListener('change', state => { if (state === 'active') void refresh().catch(cause => setError(errorText(cause))); });
     return () => listener.remove();
   }, []);
+  useEffect(() => {
+    if (auto !== '1') return;
+    let active = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const schedule = () => {
+      if (automaticStarted.current || AppState.currentState !== 'active') return;
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (!active || automaticStarted.current || AppState.currentState !== 'active') return;
+        automaticStarted.current = true; setBusy('all'); setError('');
+        void requestInitialPermissions((kind, access) => { if (active) setValues(current => ({ ...current, [kind]: access })); })
+          .then(results => { if (active && results.some(item => item.error)) setError('Некоторые доступы не удалось запросить. Их можно включить отдельно в настройках.'); })
+          .catch(cause => { if (active) setError(errorText(cause)); })
+          .finally(() => { if (active) setBusy(null); });
+      }, 250);
+    };
+    schedule();
+    const listener = AppState.addEventListener('change', value => { if (value === 'active') schedule(); });
+    return () => { active = false; clearTimeout(timer); listener.remove(); };
+  }, [auto]);
   async function request(kind: PermissionKind) {
     setBusy(kind); setError('');
     try { const access = await requestPermission(kind); setValues(current => ({ ...current, [kind]: access })); }
@@ -54,11 +74,6 @@ export default function PermissionScreen() {
   async function settings() {
     try { await Linking.openSettings(); } catch (cause) { setError(errorText(cause)); }
   }
-  async function selectContacts() {
-    setBusy('contacts');
-    try { await expandContactAccess(); await refresh(); } catch (cause) { setError(errorText(cause)); }
-    finally { setBusy(null); }
-  }
   return <SafeAreaView style={styles.screen}>
     <View style={styles.header}>{!setup && <IconButton name="chevron-back" label="Назад" onPress={() => router.back()} />}<View style={styles.flex}><Text style={[styles.title, { fontSize: 25 }]}>Доступы LastCall</Text><Text style={styles.subtitle}>Вы решаете, что разрешить</Text></View></View>
     <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
@@ -66,15 +81,14 @@ export default function PermissionScreen() {
       {PERMISSION_ORDER.map(kind => { const item = details[kind]; const access = values[kind]; return <View key={kind} style={[styles.section, { marginTop: 12, padding: 17, gap: 12 }]}>
         <View style={styles.row}><Icon name={item.icon} /><Text style={[styles.rowName, styles.flex]}>{item.title}</Text><Text style={[styles.info, hasAccess(access) && { color: colors.accent }]}>{labels[access.status]}</Text></View>
         <Text style={styles.body}>{item.purpose}</Text>
-        {access.status === 'limited' && kind === 'contacts' && Platform.OS === 'ios' && <Button title="Выбрать ещё контакты" secondary disabled={!!busy} onPress={() => void selectContacts()} />}
         {!hasAccess(access) && access.status !== 'unknown' && access.status !== 'unavailable' && (access.canAskAgain
           ? <Button title="Разрешить" secondary busy={busy === kind} disabled={!!busy && busy !== kind} onPress={() => void request(kind)} />
           : <Button title="Открыть настройки телефона" secondary disabled={!!busy} onPress={() => void settings()} />)}
-        {access.status === 'unavailable' && <Text style={styles.info}>{pushUnavailable}</Text>}
+        {kind === 'notifications' && !pushConfigured && <Text style={styles.info}>Разрешение телефона не включает push само по себе. {pushUnavailable}</Text>}
         {access.status === 'denied' && access.canAskAgain && <Text style={styles.info}>Если системное окно больше не появляется, включите доступ в настройках телефона.</Text>}
       </View>; })}
       {!!error && <Text style={[styles.error, { margin: 16 }]}>{error}</Text>}
-      <View style={styles.content}><Button title="Разрешить нужное" busy={busy === 'all'} disabled={!!busy && busy !== 'all'} onPress={() => void requestAll()} /><Button title={setup ? 'Продолжить' : 'Готово'} secondary busy={busy === 'done'} disabled={!!busy && busy !== 'done'} onPress={() => void finish()} />
+      <View style={styles.content}>{auto !== '1' && <Button title="Разрешить нужное" busy={busy === 'all'} disabled={!!busy && busy !== 'all'} onPress={() => void requestAll()} />}<Button title={setup ? 'Продолжить' : 'Готово'} secondary busy={busy === 'done'} disabled={!!busy && busy !== 'done'} onPress={() => void finish()} />
         {setup && <Button title="Позже" secondary disabled={!!busy} onPress={() => void finish()} />}
         <Button title="Настройки телефона" secondary disabled={!!busy} onPress={() => void settings()} />
       </View>

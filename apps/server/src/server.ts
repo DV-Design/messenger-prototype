@@ -3,7 +3,7 @@ import { createServer, type IncomingMessage } from 'node:http';
 import { WebSocket, WebSocketServer } from 'ws';
 import { clientFrameSchema } from '@messenger/core';
 import { Directory } from './directory.js';
-import { createFcmPushProvider, createSmsRuProvider } from './providers.js';
+import { createFcmPushProvider } from './providers.js';
 import type { ServiceOptions } from './services.js';
 
 export interface ServerOptions extends ServiceOptions {
@@ -256,12 +256,8 @@ export function optionsFromEnv(env: NodeJS.ProcessEnv = process.env): ServerOpti
     ...(env.ALLOWED_ORIGINS !== undefined ? { allowedOrigins: list('ALLOWED_ORIGINS') } : {}),
     turnSharedSecret: env.TURN_SHARED_SECRET, turnUrls, stunUrls,
     requireIceAuth: env.REQUIRE_ICE_AUTH === '1',
-    phoneVerificationSecret: env.PHONE_VERIFICATION_SECRET,
-    smsProvider: env.SMSRU_API_ID && env.PHONE_VERIFICATION_SECRET && Buffer.byteLength(env.PHONE_VERIFICATION_SECRET) >= 32 ? createSmsRuProvider(env.SMSRU_API_ID) : undefined,
+    // Phone registration was retired. Legacy SMS environment values are ignored.
     pushProvider: env.GOOGLE_APPLICATION_CREDENTIALS ? createFcmPushProvider(env.GOOGLE_APPLICATION_CREDENTIALS) : undefined,
-    smsMaxPerHour: numberEnv(env, 'SMS_MAX_PER_HOUR', 60, 1, 10_000),
-    smsIdentityMaxPerHour: numberEnv(env, 'SMS_IDENTITY_MAX_PER_HOUR', 5, 1, 100),
-    smsPhoneMaxPerHour: numberEnv(env, 'SMS_PHONE_MAX_PER_HOUR', 3, 1, 100),
     turnTtlSeconds: numberEnv(env, 'TURN_TTL_SECONDS', 600, 60, 3600),
     directoryDbPath: env.DIRECTORY_DB_PATH || ':memory:',
     directoryMaxUsers: numberEnv(env, 'DIRECTORY_MAX_USERS', 10_000, 1, 1_000_000),

@@ -1,8 +1,9 @@
 # Agent instructions
 
-Read `docs/IMPLEMENTATION-CONTRACT.md`, `README.md`, and `tasks.md` before changes.
+Read `docs/USERNAME-CONTRACT.md`, `docs/WAKE-CONTRACT.md`, `README.md`, and `tasks.md` before changes.
 This is a technical Android/iOS P2P messenger prototype for Russian networks.
-The product has no final name. Bots, channels, and backups are excluded.
+The product is LastCall. Registration uses server-confirmed usernames, not phones.
+Bots, channels, and backups are excluded. Earlier V1/V2/services contracts are historical.
 
 ## Tracking and collaboration
 

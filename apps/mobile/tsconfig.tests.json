@@ -1,5 +1,5 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": { "types": ["node"] },
-  "include": ["tests/**/*.ts", "src/permission-model.ts", "src/phonebook-model.ts", "src/transport-notice.ts"]
+  "include": ["tests/**/*.ts", "src/permission-model.ts", "src/transport-notice.ts"]
 }

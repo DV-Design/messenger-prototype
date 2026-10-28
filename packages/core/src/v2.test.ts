@@ -133,7 +133,7 @@ describe('group recipient file readiness',()=>{
     const internal=client as unknown as {status:string;contacts:Map<string,DirectoryUser>;pairs:Map<string,any>;receiveApplication:(peer:string,payload:unknown)=>void;ensurePair:(peer:string,notify:boolean)=>Promise<any>};
     const id='group:'+'ac'.repeat(16);internal.receiveApplication(alice.userId,{kind:'group-definition',id,title:'Three',creatorId:alice.userId,members:[user(alice,'alice'),user(bob,'bob'),user(charlie,'charlie')]});
     expect(client.getSnapshot().conversations.some(c=>c.id===directConversationId(bob.userId,charlie.userId))).toBe(false);
-    internal.status='online';for(const [id,c] of internal.contacts)internal.contacts.set(id,{...c,online:true});
+    (internal as any).stopped=false;internal.status='online';for(const [id,c] of internal.contacts)internal.contacts.set(id,{...c,online:true});
     const sends:string[]=[];const created:string[]=[];
     internal.ensurePair=async peerId=>{created.push(peerId);const pair={session:{getSnapshot:()=>({status:'connected'}),sendFile:async(_file:unknown,meta:{conversationId:string})=>{expect(meta.conversationId).toBe(id);sends.push(peerId);},disconnect:()=>{}}};internal.pairs.set(peerId,pair);return pair;};
     await client.sendFile(id,{name:'group.txt',mime:'text/plain',data:new Uint8Array([1,2,3])});

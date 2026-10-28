@@ -25,12 +25,7 @@ services:
       TURN_URLS: ${TURN_URLS:-}
       TURN_SHARED_SECRET: ${TURN_SHARED_SECRET:-}
       TURN_TTL_SECONDS: ${TURN_TTL_SECONDS:-600}
-      # Empty values genuinely disable providers. Use the explicit services env file to opt in.
-      SMSRU_API_ID: ${SMSRU_API_ID:-}
-      PHONE_VERIFICATION_SECRET: ${PHONE_VERIFICATION_SECRET:-}
-      SMS_MAX_PER_HOUR: ${SMS_MAX_PER_HOUR:-60}
-      SMS_IDENTITY_MAX_PER_HOUR: ${SMS_IDENTITY_MAX_PER_HOUR:-5}
-      SMS_PHONE_MAX_PER_HOUR: ${SMS_PHONE_MAX_PER_HOUR:-3}
+      # Registration uses an immutable username and device key; SMS is not used.
       # Only the optional Firebase override sets this and mounts a private external file.
       GOOGLE_APPLICATION_CREDENTIALS: ''
     networks:

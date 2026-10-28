@@ -163,3 +163,29 @@ intents, so normal pending P2P texts do not acquire a false service-unavailable
 error. Reconnect refreshes capabilities; a failed optional lookup retries at most
 every 30 seconds while pending text remains. An enabled provider still cannot
 mark a message delivered: only the actual peer ACK does that.
+
+## Username registration and server catalog in 0.4
+
+Phone helpers/RPC methods remain legacy compatibility APIs; they are not required
+for registration. The installation Ed25519 key owns its server-confirmed immutable
+username. The server returns its canonical persisted profile in the unchanged ready
+frame. `device-already-registered` is terminal, so stale registration input cannot
+cause an endless automatic reconnect loop or rename a bound installation.
+
+`resolveDeviceProfile(serverUrl, identity)` uses a separate short-lived directory
+socket and the exact `lastcall/profile-resolve/v1` signature domain. It preserves
+gateway prefixes, handles one server challenge, validates the returned public key
+and user ID, limits frames to 16 KiB and the connection to 15 seconds, and closes
+on success, error or timeout. It never authenticates/registers a new profile, changes
+presence, sends identity in a URL, or turns a network failure into an unregistered
+result. A `null` result requires an actual profile response after the signed
+challenge. The server consumes the challenge once; pure signature verification
+helpers themselves do not maintain a replay database. Resolving still requires
+possession of the installation seed, not knowledge of a public username.
+
+`listUsers(cursor?)` uses the existing bounded correlated request pool and returns
+at most 100 public profiles plus an optional username cursor. It does not add catalog
+entries to contacts or start P2P sessions. Search accepts at most 48 characters after
+NFKC normalization, whitespace/@ cleanup and Unicode lowercasing. Server pagination,
+uniqueness, literal SQL matching and immutable registration enforcement are validated
+by backend tests separately from these client protocol/lifecycle regressions.

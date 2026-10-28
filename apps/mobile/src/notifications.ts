@@ -8,10 +8,10 @@ export const pushUnavailable = Platform.OS === 'ios'
   ? 'Push на iOS пока не настроен: нужны подпись приложения и APNs.'
   : 'Push не настроен в этой сборке: отсутствует клиентская конфигурация Firebase.';
 export async function prepareNotificationChannel() {
-  if (pushConfigured) await Notifications.setNotificationChannelAsync('lastcall-messages', { name: 'Сообщения LastCall', importance: AndroidImportance.HIGH });
+  if (Platform.OS === 'android') await Notifications.setNotificationChannelAsync('lastcall-messages', { name: 'Сообщения LastCall', importance: AndroidImportance.HIGH });
 }
 export async function notificationPermission(request = false): Promise<Access> {
-  if (!pushConfigured) return { status: 'unavailable', canAskAgain: false };
+  if (Platform.OS !== 'android' && Platform.OS !== 'ios') return { status: 'unavailable', canAskAgain: false };
   await prepareNotificationChannel();
   return normalizeAccess(await (request ? Notifications.requestPermissionsAsync() : Notifications.getPermissionsAsync()));
 }

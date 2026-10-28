@@ -89,8 +89,8 @@ describe('bounded content-free pending wake intents',()=>{
   try{
    // Treat online presence as distinct from a responding P2P transport.
    const id=await f.client.addContact({...other,online:false});(f.client as any).contacts.set(other.userId,{...other,online:true});(f.client as any).ensurePair=async()=>({session:{getSnapshot:()=>({status:'waiting'})}});
-   expect(f.sent.filter(x=>x.type==='wake')).toHaveLength(0);await f.client.sendText(id,'private content stays local');await vi.advanceTimersByTimeAsync(0);
-   expect(f.sent.filter(x=>x.type==='wake')).toEqual([{type:'wake',to:other.userId}]);expect(JSON.stringify(f.sent.filter(x=>x.type==='wake'))).not.toContain('private');
+   expect(f.sent.filter(x=>x.type==='wake')).toHaveLength(0);await f.client.sendText(id,'private content stays local');await vi.advanceTimersByTimeAsync(2499);expect(f.sent.filter(x=>x.type==='wake')).toHaveLength(0);await vi.advanceTimersByTimeAsync(1);
+   expect(f.sent.filter(x=>x.type==='wake')[0]).toMatchObject({type:'wake',to:other.userId,kind:'message'});expect(JSON.stringify(f.sent.filter(x=>x.type==='wake'))).not.toContain('private');
    await f.client.sendText(id,'second private text');await vi.advanceTimersByTimeAsync(29999);expect(f.sent.filter(x=>x.type==='wake')).toHaveLength(1);
    await vi.advanceTimersByTimeAsync(1);expect(f.sent.filter(x=>x.type==='wake')).toHaveLength(2);expect(f.client.getSnapshot().conversations[0]?.messages.every(x=>x.status==='pending')).toBe(true);
    for(const message of f.client.getSnapshot().conversations[0]!.messages)(f.client as any).receiveMessage(other.userId,{id:message.id,text:message.text,from:'self',timestamp:message.timestamp,status:'delivered',conversationId:id});
@@ -110,5 +110,22 @@ describe('disabled push capability',()=>{
   const f=await fixture();const send=f.socket.send.bind(f.socket);
   f.socket.send=(raw:string)=>{send(raw);const frame=JSON.parse(raw);if(frame.type==='services')f.socket.push({type:'services',requestId:frame.requestId,capabilities:{phoneVerification:false,push:false,relay:false,phoneVerified:false}});if(frame.type==='wake')f.socket.push({type:'error',code:'service-unavailable',message:'Push service unavailable'});};
   try{const id=await f.client.addContact({...other,online:false});await f.client.sendText(id,'ordinary pending text');await Promise.resolve();await Promise.resolve();expect(f.sent.filter(frame=>frame.type==='wake')).toHaveLength(0);expect(f.client.getSnapshot().error).toBeUndefined();expect(f.client.getSnapshot().conversations[0]?.messages[0]?.status).toBe('pending');}finally{f.close();}
+ });
+});
+
+
+describe('optional wake provider failures',()=>{
+ it('preserves direct delivery and pending state for uncorrelated wake failures while keeping RPC and transport errors visible',async()=>{
+  const f=await fixture(true);vi.useFakeTimers();
+  try{
+   const id=await f.client.addContact({...other,online:false});await f.client.sendText(id,'private pending text');await vi.advanceTimersByTimeAsync(2500);
+   expect(f.sent.filter(frame=>frame.type==='wake')[0]).toMatchObject({type:'wake',kind:'message',to:other.userId});
+   for(const code of ['wake-expired','wake-not-allowed','provider-failed','service-rate-limit','service-busy','service-unavailable'])f.socket.push({type:'error',code,message:'Optional wake unavailable'});
+   expect(f.client.getSnapshot().error).toBeUndefined();expect(f.client.getSnapshot().status).toBe('online');expect(f.socket.readyState).toBe(1);
+   expect(f.client.getSnapshot().conversations[0]!.messages[0]!.status).toBe('pending');
+   const registration=f.client.registerPushToken('device-token');const rejected=expect(registration).rejects.toThrow('Explicit request failed');
+   f.socket.push({type:'error',requestId:f.sent.at(-1).requestId,code:'service-unavailable',message:'Explicit request failed'});await rejected;
+   f.socket.push({type:'error',code:'transport-failed',message:'Transport failure remains visible'});expect(f.client.getSnapshot().error).toBe('Transport failure remains visible');
+  }finally{f.close();vi.useRealTimers();}
  });
 });

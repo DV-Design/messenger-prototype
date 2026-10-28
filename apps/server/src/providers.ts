@@ -1,11 +1,26 @@
 import { readFileSync, statSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { cert, deleteApp, initializeApp } from 'firebase-admin/app';
-import { getMessaging } from 'firebase-admin/messaging';
+import { getMessaging, type Message } from 'firebase-admin/messaging';
+import type { WakeIntent } from '@messenger/core';
 
 export interface SMSProvider { sendCode(phone: string, code: string): Promise<void>; dispose?(): Promise<void> }
-export interface PushProvider { sendWake(token: string): Promise<void>; dispose?(): Promise<void> }
+export interface PushProvider { sendWake(token: string, intent?: WakeIntent): Promise<void>; dispose?(): Promise<void> }
 export class InvalidPushToken extends Error { constructor() { super('Push token is no longer valid'); } }
+
+/** Generic metadata only. An expired intent is dropped before contacting FCM. */
+export function buildFcmWakeMessage(token: string, intent?: WakeIntent, now = Date.now()): Message | undefined {
+  const expiresAt = intent ? Math.min(intent.expiresAt, now + (intent.kind === 'call' ? 30_000 : 60_000)) : now + 60_000;
+  if (expiresAt <= now) return undefined;
+  const body = intent?.kind === 'call' ? 'Ожидается звонок. Откройте LastCall.' : intent?.kind === 'file' ? 'Ожидается отправка файла. Откройте LastCall.' : 'Ожидается отправка сообщения. Откройте LastCall.';
+  // Calls use their own collapse class; no sender/conversation identifier is exposed.
+  const collapse = intent?.kind === 'call' ? 'lastcall-call' : 'lastcall-wake';
+  return {
+    token, notification: { title: 'LastCall', body },
+    data: { kind: 'lastcall-wake', ...(intent ? { intentKind: intent.kind, intentId: intent.intentId, expiresAt: String(expiresAt) } : {}) },
+    android: { priority: 'high', ttl: expiresAt - now, collapseKey: collapse, restrictedPackageName: 'dev.messenger.prototype', notification: { channelId: 'lastcall-messages', tag: collapse } },
+  };
+}
 
 /** TLS POST only. No query credentials, body logging, fixed codes or SMS.ru test flag. */
 export function createSmsRuProvider(apiId: string, fetcher: typeof fetch = fetch): SMSProvider {
@@ -45,13 +60,10 @@ export function createFcmPushProvider(credentialsPath: string): PushProvider | u
     const app = initializeApp({ credential: cert({ projectId: account.project_id, clientEmail: account.client_email, privateKey: account.private_key }), projectId: account.project_id }, `lastcall-${randomBytes(8).toString('hex')}`);
     const messaging = getMessaging(app);
     return {
-      async sendWake(token) {
+      async sendWake(token, intent) {
         try {
-          await messaging.send({
-            token, notification: { title: 'LastCall', body: 'Есть новое сообщение. Откройте LastCall.' },
-            data: { kind: 'lastcall-wake' },
-            android: { priority: 'high', ttl: 60_000, collapseKey: 'lastcall-wake', restrictedPackageName: 'dev.messenger.prototype', notification: { channelId: 'lastcall-messages', tag: 'lastcall-wake' } },
-          });
+          const message = buildFcmWakeMessage(token, intent);
+          if (message) await messaging.send(message);
         } catch (error) {
           const code = typeof error === 'object' && error ? (error as { code?: unknown }).code : undefined;
           if (code === 'messaging/registration-token-not-registered' || code === 'messaging/invalid-registration-token') throw new InvalidPushToken();
