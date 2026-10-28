@@ -76,6 +76,19 @@ passed UDP/TCP/TLS text/file/inbound-audio checks through the public hostname.
 Bad-password authentication returned401, private-loopback permission403, and a
 TLS1.1 client received an explicit server protocol-version rejection.
 
+Final [job40783143258](https://github.com/DV-Design/messenger-prototype/actions/runs/40783143258)
+on revision947f7dc repeated the full external check using only actual credentials
+obtained through production directory authentication (600s validity), after the
+DNS-based external-origin fix. Azure egress was `52.161.201.81`; UDP/TCP/TLS all
+passed, including inbound audio increases654/346,622/343,671/340 bytes respectively.
+Its temporary encrypted repository secret was also deleted; secret inventory is
+empty. This verifies both the public relay path and production credential wiring.
+
+Published index, testing tasks and architecture notes match repository sources
+byte for byte through both HTTPS gateways. The unchanged0.5 APK remains available
+with its previous46,380,521-byte length. Provisioning issue msg-bcw is closed;
+physical operator feedback is still pending and tracked separately.
+
 Native APK/app sources did not change; no rebuild is claimed.
 Certificate/public-IP automation remains msg-0aa and physical Russian operator
 validation remains msg-9rr; push setup remains independent msg-3z9.
