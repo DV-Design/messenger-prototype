@@ -86,6 +86,10 @@ the sender-local pending message.
 
 ## TURN
 
+Current-server preparation and exact router mappings are in [TURN.md](TURN.md).
+The isolated relay is started, but its external UDP/data path remains unverified;
+it has not been advertised to clients. The user is applying router mappings.
+
 `TURN_URLS` and `TURN_SHARED_SECRET` must be set together only after a reachable
 relay is provisioned and tested across the intended networks. TURN TTL defaults
 to 600 seconds. This optional env file does not publish relay ports, install TLS

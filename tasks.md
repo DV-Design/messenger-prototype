@@ -85,6 +85,18 @@ await approval and actual validation. It is needed only for notifications;
 username registration and server-directory sync do not need it.
 SMS.ru is no longer required. Closed-app delivery and public TURN remain pending.
 
+# TURN preparation on the current server (msg-bcw)
+
+- [X] Isolated authenticated relay configuration, private TLS copy and scoped certificate refresh
+  → Artifacts: [deployment](infra/public/compose.turn.yaml), [runbook](infra/public/TURN.md), [refresh](infra/public/refresh-turn-cert.sh)
+- [X] Independent configuration, TLS and LAN TCP allocation checks
+  → Artifacts: [review and evidence](docs/reports/code-reviews/2026-10/CR-2026-10-28-turn-preparation.md)
+- [ ] User-applied router forwarding, diagnose Docker Desktop UDP publishing, then external forced-relay bytes/audio and physical mobile networks (msg-bcw)
+- [ ] Automate certificate/public-IP maintenance before sustained deployment (msg-0aa)
+
+The relay is running separately, but signaling still advertises STUN only until
+the external path is verified. No new APK or successful mobile fix is claimed.
+
 # LastCall 0.4: server usernames (msg-5oa)
 
 - [X] Immutable unique username per installation key, canonical profile recovery

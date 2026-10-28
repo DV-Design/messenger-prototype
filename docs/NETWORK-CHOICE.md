@@ -30,6 +30,15 @@ content custody are separate design decisions.
 
 Primary transport reference: https://webrtc.org/getting-started/turn-server
 
+2026-10-28 preparation: the user selected the current Mac and will apply router
+forwarding personally. An isolated authenticated coturn instance now runs with
+LastCall-only TLS files outside Git; see [deployment/ports](../infra/public/TURN.md).
+LAN TCP authenticated allocation and TLS trust succeeded. Native host/LAN UDP
+requests timed out, while bridge-internal authenticated UDP allocation succeeded;
+the Docker Desktop UDP publication path remains under investigation. Router WAN
+forwarding and external forced-relay content/audio are not verified. Signaling
+continues to advertise STUN only; this checkpoint does not resolve msg-bcw.
+
 Coturn behind NAT needs an external relay address and identical external/internal
 UDP relay port mappings, in addition to the TLS listener. The existing host is
 Docker Desktop behind a router; TCP 443 is already shared by other services. A
