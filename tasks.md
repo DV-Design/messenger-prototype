@@ -78,6 +78,11 @@ Its former mobile paths were removed; implementation history remains in commit 9
   → Artifacts: [review](docs/reports/code-reviews/2026-10/CR-2026-10-28-lastcall-05.md), [native evidence](docs/reports/debugging/2026-10/native-050.md), [release](artifacts/README.md), [APK](https://lienad.ru/messenger/download/LastCall-0.5.0.apk)
 
 - [ ] Configure Firebase and validate actual Android closed-app notifications; iOS/APNs/system calls (msg-3z9)
+  → Artifacts: [push/wake audit and acceptance plan](docs/reports/debugging/2026-10/push-wake-2026-10-29.md), [provider setup](infra/public/SERVICES.md)
+- [X] Audit missing push/wake: server credential absent, existing 0.5 tray/tap behavior and proposed bounded headless path
+  → Artifacts: [read-only audit](docs/reports/debugging/2026-10/push-wake-2026-10-29.md)
+- [ ] Implement and validate bounded background P2P wake separately from enabling server FCM; native update required (msg-27d)
+  → Artifacts: [recommended change boundary and acceptance steps](docs/reports/debugging/2026-10/push-wake-2026-10-29.md)
 - [X] Retire phone registration/discovery requirement by user direction (msg-p7x)
 - [X] Provision and validate reachable authenticated P2P relay fallback (msg-bcw)
   → Artifacts: [network choice](docs/NETWORK-CHOICE.md), [native deployment](infra/native-turn/README.md), [external evidence](docs/reports/code-reviews/2026-10/CR-2026-10-28-native-turn.md)
