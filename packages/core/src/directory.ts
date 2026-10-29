@@ -70,7 +70,7 @@ export const directoryClientFrameSchema=z.discriminatedUnion('type',[
   z.object({type:z.literal('phone-start'),phone:e164PhoneSchema,requestId:peerIdSchema}).strict(),
   z.object({type:z.literal('phone-verify'),challengeId:peerIdSchema,code:z.string().regex(/^[0-9]{6}$/),requestId:peerIdSchema}).strict(),
   z.object({type:z.literal('phone-discover'),hashes:z.array(roomIdSchema).max(100),requestId:peerIdSchema}).strict(),
-  z.object({type:z.literal('push-register'),token:z.string().min(1).max(4096),requestId:peerIdSchema}).strict(),
+  z.object({type:z.literal('push-register'),token:z.string().min(1).max(4096),backgroundSync:z.boolean().optional(),requestId:peerIdSchema}).strict(),
   z.object({type:z.literal('wake'),to:roomIdSchema,kind:wakeIntentSchema.shape.kind.optional(),intentId:peerIdSchema.optional(),expiresAt:wakeIntentSchema.shape.expiresAt.optional()}).strict().refine(frame=>[frame.kind,frame.intentId,frame.expiresAt].filter(value=>value!==undefined).length%3===0,{message:'Wake metadata must be supplied together'}),
   z.object({type:z.literal('authenticate'),publicKey:roomIdSchema,username:usernameSchema,displayName:displayNameSchema,signature:z.string().regex(/^[0-9a-f]{128}$/)}).strict(),
   z.object({type:z.literal('search'),query:z.string().max(48),requestId:peerIdSchema}).strict(),

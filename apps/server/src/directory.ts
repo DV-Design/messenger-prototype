@@ -134,7 +134,7 @@ export class Directory {
         const matches = this.services.discover(connection.userId, frame.hashes);
         this.options.send(ws, { type: 'phone-matches', requestId: frame.requestId, matches });
       } else if (frame.type === 'push-register') {
-        this.services.registerPush(connection.userId, frame.token);
+        this.services.registerPush(connection.userId, frame.token, frame.backgroundSync);
         this.options.send(ws, { type: 'push-registered', requestId: frame.requestId });
       } else if (frame.type === 'wake') {
         await this.services.wake(connection.userId, frame.to, frame.kind === undefined ? undefined : wakeIntentSchema.parse({ kind: frame.kind, intentId: frame.intentId, expiresAt: frame.expiresAt }));

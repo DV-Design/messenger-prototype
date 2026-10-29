@@ -3,6 +3,7 @@ import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { AndroidImportance } from 'expo-notifications';
 import { normalizeAccess, type Access } from './permission-model';
+import { parseWakeNotice } from './wake-model';
 export const pushConfigured = Platform.OS === 'android' && Constants.expoConfig?.extra?.nativeFcmConfigured === true;
 export const pushUnavailable = Platform.OS === 'ios'
   ? 'Push на iOS пока не настроен: нужны подпись приложения и APNs.'
@@ -18,13 +19,14 @@ export async function notificationPermission(request = false): Promise<Access> {
 /** No token API is called without a native Firebase client configuration. */
 export function listenForWake(onOpen: () => void, onToken: (token: string) => void) {
   if (!pushConfigured) return () => {};
-  Notifications.setNotificationHandler({ handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: false, shouldSetBadge: false }) });
-  const response = Notifications.addNotificationResponseReceivedListener(() => onOpen());
+  Notifications.setNotificationHandler({ handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: false }) });
+  const received = Notifications.addNotificationReceivedListener(notification => { if (parseWakeNotice(notification)) onOpen(); });
+  const response = Notifications.addNotificationResponseReceivedListener(notification => { if (parseWakeNotice(notification)) onOpen(); });
   const rotation = Notifications.addPushTokenListener(token => { if (token.type === 'android' && typeof token.data === 'string') onToken(token.data); });
   const last = Notifications.getLastNotificationResponse();
-  if (last) { Notifications.clearLastNotificationResponse(); onOpen(); }
+  if (last) { Notifications.clearLastNotificationResponse(); if (parseWakeNotice(last)) onOpen(); }
   const resume = AppState.addEventListener('change', value => { if (value === 'active') onOpen(); });
-  return () => { response.remove(); rotation.remove(); resume.remove(); };
+  return () => { received.remove(); response.remove(); rotation.remove(); resume.remove(); };
 }
 export async function nativePushToken(): Promise<string | null> {
   if (!pushConfigured || !(await Notifications.getPermissionsAsync()).granted) return null;

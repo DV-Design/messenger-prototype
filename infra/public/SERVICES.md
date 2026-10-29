@@ -1,27 +1,31 @@
 # Optional FCM and authenticated ICE configuration
 
-## LastCall 0.5 setup checkpoint (2026-10-28)
+## LastCall 0.5.1/code7 checkpoint (2026-10-29)
 
-Created Firebase project `lastcall-f8b4c` (LastCall), Spark/no-cost plan, without
-Google Analytics. Registered Android package `dev.messenger.prototype`, nickname
-LastCall Android. Downloaded and validated its client file, stored outside Git at
-`/Users/daniel/.config/lastcall/google-services.json` (0600 in a 0700 directory).
-The 0.5 native prebuild and JS/native release build use
-`MESSENGER_GOOGLE_SERVICES_FILE` with this path. No Admin key enters the APK.
+Firebase Cloud Messaging is now configured in production. The dedicated LastCall
+sender account has only `roles/firebasecloudmessaging.admin`, rather than
+Owner/Editor or the broader default Firebase Admin account. The private server
+JSON is stored outside Git/APK/static files with owner-only access and mounted
+read-only. The Android client configuration is a separate build input. Neither
+private keys, token values nor private account details belong in public reports.
+[Official role permissions](https://docs.cloud.google.com/iam/docs/roles-permissions/firebasecloudmessaging).
 
-Prepared (not submitted) the dedicated service account `lastcall-push`. Issuing
-its persistent JSON key and granting the FCM API role await the user's explicit
-confirmation required by browser controls. The server remains genuinely disabled
-until this is approved, provisioned, mounted and checked with an actual device.
-The broader default Firebase Admin SDK service-account key has not been issued.
+Authenticated signaling reports push=true and relay=true. On Android 0.5.0/code6,
+an actual generic FCM notification arrived after Home followed by ordinary
+process termination, and tapping opened LastCall; the sender's waiting text then
+received a real durable recipient ACK over a direct peer connection. This was
+not force-stop and does not establish automatic headless synchronization.
 
-After confirmation use only `roles/firebasecloudmessaging.admin` on this project,
-not Owner/Editor. It grants FCM send/topic resources, not app chat content:
-[official role permissions](https://docs.cloud.google.com/iam/docs/roles-permissions/firebasecloudmessaging).
-Store the downloaded JSON outside Git/static assets/APK, then use the explicit
-override below. Validate actual content-free notification arrival in background,
-tap/resume, recipient reconnection and real durable message ACK independently.
-Do not equate valid credential parsing or provider acceptance with delivery.
+Android 0.5.1/code7 implements bounded background peer synchronization. On the
+project's Android emulator, the final APK process was absent after ordinary process
+termination; real FCM cold-started synchronization without tapping or opening the
+app UI. Text and a 35-byte file obtained durable recipient ACK at 5728ms in one
+measured direct-route run. This is not force-stop, physical-phone/locked-screen
+or Russian-carrier acceptance. Only tokens with a successfully registered
+background task opt into data-only FCM; older tokens retain notification+data.
+Separate native foreground takeover completed both ACKs at 6786ms with recovery
+from one transient session error. An offline manual relaunch after force-stop
+retained the profile and saved text/file entries; this was not push after force-stop.
 APNs/PushKit/CallKit and iOS signing remain unconfigured.
 
 Registration in 0.4 uses a unique username and a device installation key. No phone
@@ -29,7 +33,7 @@ number, SMS.ru account or Firebase configuration is needed to register and searc
 the server directory. Production ignores legacy SMS environment settings; old
 phone endpoints remain unavailable for older clients.
 
-The public preview currently has authenticated TURN enabled and FCM disabled.
+The public preview currently has authenticated TURN and FCM enabled.
 The base compose file without the private TURN env still disables both; merely
 building an SDK into the image does not configure a provider. Existing directory
 data remains in its named volume. Keep the active env selection on recreation.
@@ -49,12 +53,14 @@ docker compose -p messenger-public -f infra/compose.public.yaml config --quiet
 docker build -f infra/Dockerfile.server -t messenger-signaling:preview .
 ```
 
-The user authorized publication. The current deployment explicitly selects the
-existing ignored TURN env and recreates only the LastCall signaling service:
+The user authorized publication and the dedicated FCM account/key. The current
+deployment selects both private environment files and the Firebase override,
+recreating only the LastCall signaling service. Keep TURN env **last**, because
+blank TURN values in the services example must not disable the working relay:
 
 ```sh
-docker compose --env-file infra/.env.public-turn -p messenger-public -f infra/compose.public.yaml config --quiet
-docker compose --env-file infra/.env.public-turn -p messenger-public -f infra/compose.public.yaml up -d --no-deps signaling
+docker compose --env-file infra/.env.public-services --env-file infra/.env.public-turn -p messenger-public -f infra/compose.public.yaml -f infra/public/compose.firebase.example.yaml config --quiet
+docker compose --env-file infra/.env.public-services --env-file infra/.env.public-turn -p messenger-public -f infra/compose.public.yaml -f infra/public/compose.firebase.example.yaml up -d --no-deps signaling
 ```
 
 Do not print resolved Compose configuration: it contains the shared TURN secret.
@@ -78,10 +84,9 @@ optional override; the unconfigured default never references a missing file:
 docker compose --env-file infra/.env.public-services --env-file infra/.env.public-turn -p messenger-public -f infra/compose.public.yaml -f infra/public/compose.firebase.example.yaml config --quiet
 ```
 
-This is a future FCM recipe, not the current deployment. Keep the TURN env
-**last**: the services example contains blank TURN values and must not overwrite
-the active relay settings. Use the identical file order for the later authorized
-`up -d --no-deps signaling` command after FCM credentials are approved.
+This override is active. Keep the TURN env **last**, and use the identical env/file
+order when recreating the signaling container. Base-only recreation disables the
+optional providers even when the SDK is installed.
 
 The override bind-mounts the file read-only at `/run/secrets/firebase-admin.json`;
 `create_host_path: false` prevents accidentally creating a directory for a mistyped
@@ -90,6 +95,20 @@ Never copy the admin JSON into the image, static download folder or Android app.
 The mobile Firebase client configuration is a separate artifact managed by the
 mobile build. Invalid/missing/unreadable account JSON leaves push capability
 false; valid credentials still require an external provider/device delivery check.
+
+For a successfully opted-in background token, the 0.5.1 provider path uses high-
+priority data-only FCM with generic presentation fields and a short intent TTL.
+Legacy tokens keep notification+data. The task receives a bounded transport
+window, then drains encrypted storage before cleanup; no microphone, auto-answer,
+new identity or server-side content queue is introduced. The final APK passed
+the specific cold-wake text/small-file emulator check above; physical devices,
+locked screen, larger transfers and cellular operators still require testing.
+
+FCM carries no chat payload, filename, SDP, identity key or sender display name.
+The coordination directory does retain profiles, display names, public device
+keys, push tokens, consent and quotas. Signaling forwards opaque encrypted
+SDP/candidate envelopes; the private installation seed stays on the device.
+TURN forwards encrypted traffic without storing a chat archive.
 
 A wake intent contains no chat payload. The target must have watched the sender;
 server consent and quotas apply. Provider acceptance is not recipient ACK and does
@@ -115,18 +134,20 @@ Actual production-issued 600-second credentials passed another 3/3 verification.
 These checks do not guarantee all Russian operators or DPI evasion.
 
 `TURN_URLS` and `TURN_SHARED_SECRET` are set together in `infra/.env.public-turn`.
-TTL is 600 seconds; authenticated services report relay=true, push=false and
+TTL is 600 seconds; authenticated services report relay=true, push=true and
 phone features=false. Anonymous GET `/ice` remains STUN-only. Catalog/push never
 receive chat content; TURN forwards encrypted packets without a chat archive,
 with real server bandwidth and traffic metadata costs. Restart both 0.5 clients
-to refresh ICE; the APK itself is unchanged. Certificate/public-IP automation
+to refresh ICE. This TURN configuration is compatible with 0.5.0; the new
+background-sync path requires 0.5.1 on both peers. Certificate/public-IP automation
 (`msg-0aa`) and physical Russian-operator tests (`msg-9rr`) remain open.
 
 ## Deployment and rollback
 
 For a configured deployment, use the same explicit `--env-file` and `-f` selection
 on the authorized `up -d` command; otherwise optional services stay disabled.
-The active deployment uses the base compose file plus `infra/.env.public-turn`.
+The active deployment uses the base compose file plus the Firebase override,
+services env and TURN env last, as shown above.
 Reverting to only the base compose file and blank provider env deliberately
 disables adapters on next preview-container recreation. Keep the named directory volume for stable users
 and verification metadata. Active sockets and in-memory OTP challenges end when

@@ -32,6 +32,16 @@ const MAX_RECEIVE_BYTES=12*1024*1024;
 const BUFFER_HIGH=256*1024;
 const BUFFER_LOW=64*1024;
 const REQUEST_TIMEOUT=120000;
+// Experimental, authenticated application capability; never passed to the native SDP engine.
+const DATA_READY_ATTRIBUTE='a=x-lastcall-data-ready:1';
+const DATA_READY_TIMEOUT=5000;
+const DATA_READY_RETRY=250;
+function readySdp(sdp:string):string{
+  const lines=sdp.split(/\r?\n/).filter(line=>line!==DATA_READY_ATTRIBUTE);
+  const media=lines.findIndex(line=>line.startsWith('m='));
+  lines.splice(media<0?Math.max(0,lines.length-1):media,0,DATA_READY_ATTRIBUTE);
+  return lines.join('\r\n');
+}
 export class PeerSession {
   private state=initialSnapshot();
   private options:PeerSessionOptions;
@@ -42,11 +52,20 @@ export class PeerSession {
   private socket?:WebSocket;
   private pc?:RTCPeerConnection;
   private channel?:RTCDataChannel;
+  private remoteDataReady=false;
+  private localDataReady=false;
+  private dataReady=false;
+  private readyNonce?:string;
+  private readyRetry?:ReturnType<typeof setInterval>;
+  private readyDeadline?:ReturnType<typeof setTimeout>;
+  private readyWindow=0;
+  private readyFrames=0;
   private role:'initiator'|'responder'='initiator';
   private remoteId?:string;
   private generation=0;
   private queue:Promise<void>=Promise.resolve();
   private receiveQueue:Promise<void>=Promise.resolve();
+  private receiving=new Set<Promise<void>>();
   private receiveGeneration=0;
   private receiveFrames=0;
   private receiveBytes=0;
@@ -94,8 +113,10 @@ export class PeerSession {
   private wsSend(frame:ClientFrame){if(this.socket?.readyState!==1)throw new Error('Signaling connection is unavailable');this.socket.send(JSON.stringify(frame));}
   private signal(body:SignalBody){
     if(!this.remoteId)throw new Error('Remote peer identity unavailable');
+    if(body.kind==='description')body={...body,description:{...body.description,sdp:readySdp(body.description.sdp)}};
     if(this.state.recovering&&(!this.socketJoined||this.socket?.readyState!==1)){if(this.signalBacklog.length>=128)throw new Error('Signaling recovery queue capacity exceeded');this.signalBacklog.push(body);return;}
     this.wsSend({type:'signal',payload:this.cipher.seal(body,this.remoteId)});
+    if(body.kind==='description'){this.localDataReady=true;if(this.channel?.readyState==='open')this.channelOpened(this.channel);}
   }
   async connect():Promise<void> {
     if(['connecting','waiting','connected'].includes(this.state.status))return;
@@ -150,7 +171,9 @@ export class PeerSession {
             this.cleanupPeer();this.remoteId=undefined;this.makePeer(this.activeIceServers);this.change({status:'waiting'});if(this.options.expectPeer)this.armTransportDeadline('peer room join');
           }else if(frame.type==='signal'){
             if(this.remoteId&&frame.from!==this.remoteId)throw new Error('Unexpected peer identity');
-            const body=this.cipher.open(frame.from,frame.payload);if(!this.remoteId)this.armTransportDeadline('SDP negotiation');this.remoteId=frame.from;void this.serial(()=>this.handleSignal(body)).catch(()=>{});
+            const body=this.cipher.open(frame.from,frame.payload);if(!this.remoteId)this.armTransportDeadline('SDP negotiation');this.remoteId=frame.from;
+            // A cold peer can replace its PC while earlier authenticated signaling waits in the queue.
+            const pc=this.pc;const from=frame.from;void this.serial(async()=>{if(this.pc===pc&&this.remoteId===from)await this.handleSignal(body);}).catch(()=>{});
           }
         }catch(error){if(!joined)fail(error instanceof Error?error:new Error('Invalid signaling'));else this.report(new Error('Rejected invalid or unauthenticated signaling'));}
       };
@@ -167,7 +190,7 @@ export class PeerSession {
   private beginRecovery(){
     if(!this.pc)return;
     if(!this.recoveryTimer){this.recoveryTimer=setTimeout(()=>{this.recoveryTimer=undefined;
-      if(this.pc&&this.channel?.readyState==='open'&&['connected','completed'].includes(this.pc.iceConnectionState)){this.change({status:'connected',recovering:false,error:this.socket?.readyState===1?undefined:'Signaling is temporarily unavailable'});return;}
+      if(this.pc&&this.channelReady()&&['connected','completed'].includes(this.pc.iceConnectionState)){this.change({status:'connected',recovering:false,error:this.socket?.readyState===1?undefined:'Signaling is temporarily unavailable'});return;}
       this.failTransport('Network recovery timed out after 10 seconds');
     },10000);}
     clearTimeout(this.transportTimer);this.transportTimer=undefined;this.restartPending=true;this.change({status:'connecting',recovering:true,error:undefined});
@@ -184,7 +207,7 @@ export class PeerSession {
     },delay);
   }
   private recovered(){
-    if(!this.pc||this.channel?.readyState!=='open'||!['connected','completed'].includes(this.pc.iceConnectionState))return;
+    if(!this.pc||!this.channelReady()||!['connected','completed'].includes(this.pc.iceConnectionState))return;
     clearTimeout(this.recoveryTimer);this.recoveryTimer=undefined;this.change({status:'connected',recovering:false,error:undefined});
   }
   private makePeer(iceServers:RTCIceServer[]){
@@ -206,10 +229,38 @@ export class PeerSession {
   }
   private attachChannel(channel:RTCDataChannel){
     if(this.channel&&this.channel!==channel){channel.close();return;}this.channel=channel;channel.bufferedAmountLowThreshold=BUFFER_LOW;
-    channel.onopen=()=>{if(this.channel===channel){this.hadConnected=true;clearTimeout(this.transportTimer);this.change({status:'connected',error:undefined});this.recovered();}};
-    channel.onclose=()=>{if(this.channel===channel){this.resetReceiveQueue();this.failTransfers();if(this.hadConnected)this.beginRecovery();else{this.stopCall();this.change({status:'disconnected'});}}};
+    // RN can expose an already-open channel. Install its message listener before
+    // announcing readiness; native transport-open does not prove remote JS is listening.
+    channel.onmessage=event=>{if(this.channel!==channel)return;try{if(typeof event.data!=='string'||event.data.length>MAX_DATA_FRAME)throw new Error('Oversized data frame');const frame=dataFrameSchema.parse(JSON.parse(event.data));if(frame.kind==='ready'||frame.kind==='ready-ack')this.handleReady(frame,channel);else this.enqueueData(frame,event.data.length,channel);}catch(e){this.report(e);}};
+    channel.onopen=()=>this.channelOpened(channel);
+    channel.onclose=()=>{if(this.channel===channel){this.resetReady();this.resetReceiveQueue();this.failTransfers();if(this.hadConnected)this.beginRecovery();else{this.stopCall();this.change({status:'disconnected'});}}};
     channel.onerror=()=>this.report(new Error('Data channel error'));
-    channel.onmessage=event=>{if(this.channel!==channel)return;try{if(typeof event.data!=='string'||event.data.length>MAX_DATA_FRAME)throw new Error('Oversized data frame');this.enqueueData(dataFrameSchema.parse(JSON.parse(event.data)),event.data.length,channel);}catch(e){this.report(e);}};
+    if(channel.readyState==='open')this.channelOpened(channel);
+  }
+  private channelReady(){return this.channel?.readyState==='open'&&(!this.remoteDataReady||this.dataReady);}
+  private resetReady(){clearInterval(this.readyRetry);clearTimeout(this.readyDeadline);this.readyRetry=undefined;this.readyDeadline=undefined;this.readyNonce=undefined;this.dataReady=false;this.readyFrames=0;this.readyWindow=0;}
+  private channelOpened(channel:RTCDataChannel){
+    if(this.channel!==channel||channel.readyState!=='open')return;
+    if(this.remoteDataReady&&!this.dataReady){
+      if(!this.localDataReady)return;
+      if(this.readyNonce)return;
+      const nonce=this.id();this.readyNonce=nonce;
+      this.readyRetry=setInterval(()=>{if(this.channel===channel&&channel.readyState==='open'&&!this.dataReady)try{this.dataSend({kind:'ready',nonce});}catch{this.failTransport('application readiness failed');}},DATA_READY_RETRY);
+      this.readyDeadline=setTimeout(()=>{if(this.channel===channel&&!this.dataReady)this.failTransport('application readiness timed out');},DATA_READY_TIMEOUT);
+      this.dataSend({kind:'ready',nonce});return;
+    }
+    if(this.hadConnected){this.recovered();return;}
+    this.hadConnected=true;clearTimeout(this.transportTimer);this.transportTimer=undefined;this.change({status:'connected',error:undefined});this.recovered();
+  }
+  private handleReady(frame:Extract<DataFrame,{kind:'ready'|'ready-ack'}>,channel:RTCDataChannel){
+    if(!this.remoteDataReady||channel.readyState!=='open')throw new Error('Unnegotiated application readiness');
+    const now=Date.now();if(now-this.readyWindow>=DATA_READY_TIMEOUT){this.readyWindow=now;this.readyFrames=0;}
+    if(++this.readyFrames>64){this.failTransport('application readiness rate exceeded');return;}
+    if(frame.kind==='ready'){
+      this.dataSend({kind:'ready-ack',nonce:frame.nonce});this.channelOpened(channel);
+    }else if(frame.nonce===this.readyNonce&&!this.dataReady){
+      this.dataReady=true;clearInterval(this.readyRetry);clearTimeout(this.readyDeadline);this.readyRetry=undefined;this.readyDeadline=undefined;this.channelOpened(channel);
+    }
   }
   private async negotiate(){
     if(this.state.callState==='outgoing'||this.state.callState==='incoming')return;
@@ -227,7 +278,11 @@ export class PeerSession {
     if(body.kind==='description'){
       if(body.description.type==='offer'&&this.role!=='responder')throw new Error('Unexpected SDP offer');
       if(body.description.type==='answer'&&pc.signalingState!=='have-local-offer')throw new Error('Unexpected SDP answer');
-      await pc.setRemoteDescription(body.description);if(this.pc!==pc)return;
+      const lines=body.description.sdp.split(/\r?\n/);const media=lines.findIndex(line=>line.startsWith('m='));
+      const capability=lines.slice(0,media<0?undefined:media).includes(DATA_READY_ATTRIBUTE);
+      // Parse before awaiting native SDP: it may emit datachannel/open during the await.
+      if(!pc.remoteDescription)this.remoteDataReady=capability;
+      await pc.setRemoteDescription({...body.description,sdp:lines.filter(line=>line!==DATA_READY_ATTRIBUTE).join('\r\n')});if(this.pc!==pc)return;
       for(const candidate of this.pendingCandidates.splice(0))await pc.addIceCandidate(candidate);
       if(body.description.type==='offer'){const answer=await pc.createAnswer();if(this.pc!==pc)return;await pc.setLocalDescription(answer);if(this.pc!==pc)return;this.signal({kind:'description',description:{type:'answer',sdp:pc.localDescription?.sdp??answer.sdp??''}});}
       else if(this.offerAgain)await this.offer();
@@ -289,7 +344,7 @@ export class PeerSession {
     this.change({callState:'idle',muted:false,localStream:undefined,remoteStream:undefined});
   }
   setMuted(muted:boolean):void{this.state.localStream?.getAudioTracks().forEach(track=>{track.enabled=!muted;});this.change({muted});}
-  private dataSend(frame:DataFrame){const channel=this.channel;if(channel?.readyState!=='open')throw new Error('Peer data channel is not connected');const text=JSON.stringify(frame);if(text.length>MAX_DATA_FRAME)throw new Error('Data frame exceeds limit');channel.send(text);}
+  private dataSend(frame:DataFrame){const channel=this.channel;if(channel?.readyState!=='open'||(!this.channelReady()&&!['ready','ready-ack','text-ack','file-ack'].includes(frame.kind)))throw new Error('Peer data channel is not connected or application-ready');const text=JSON.stringify(frame);if(text.length>MAX_DATA_FRAME)throw new Error('Data frame exceeds limit');channel.send(text);}
   async sendText(text:string,metadata:{messageId?:string;conversationId?:string;metadata?:string;timestamp?:number}={}):Promise<void>{
     if(!text.trim()||text.length>MAX_TEXT_CHARS)throw new Error(`Text must contain 1–${MAX_TEXT_CHARS} characters`);
     if((this.channel?.bufferedAmount??0)>BUFFER_HIGH)throw new Error('Data channel busy; retry after transfer');
@@ -316,7 +371,7 @@ export class PeerSession {
     if(!(file.data instanceof Uint8Array)||file.data.length>MAX_FILE_BYTES)throw new Error('File exceeds 5 MiB limit');
     if(this.outgoing)throw new Error('One outgoing file at a time');
     const id=metadata.messageId??this.id();const start=dataFrameSchema.parse({kind:'file-start',id,conversationId:metadata.conversationId,metadata:metadata.metadata,name:file.name,mime:file.mime,size:file.data.length});
-    if(this.channel?.readyState!=='open')throw new Error('Peer data channel is not connected');
+    if(!this.channelReady())throw new Error('Peer data channel is not connected or application-ready');
     this.reserveFile({id,name:file.name,mime:file.mime,size:file.data.length,from:'self',status:'sending',receivedBytes:0,conversationId:metadata.conversationId,metadata:metadata.metadata});
     let ackResolve!:()=>void;let ackReject!:(e:Error)=>void;
     const acknowledged=new Promise<void>((resolve,reject)=>{ackResolve=resolve;ackReject=reject;});
@@ -348,9 +403,10 @@ export class PeerSession {
     const generation=this.receiveGeneration;
     const current=()=>generation===this.receiveGeneration&&this.channel===channel&&channel.readyState==='open';
     ++this.receiveFrames;this.receiveBytes+=size;
-    this.receiveQueue=this.receiveQueue.then(async()=>{if(current())await this.handleData(frame,current);})
+    const work=this.receiveQueue.then(async()=>{if(current())await this.handleData(frame,current);})
       .catch(error=>{if(current())this.report(error);})
       .finally(()=>{if(generation===this.receiveGeneration){--this.receiveFrames;this.receiveBytes-=size;}});
+    this.receiveQueue=work;this.receiving.add(work);void work.then(()=>this.receiving.delete(work),()=>this.receiving.delete(work));
   }
   private async handleData(frame:DataFrame,current:()=>boolean=()=>true){
     if(frame.kind==='application'){
@@ -428,12 +484,18 @@ export class PeerSession {
     }catch{/* Stats are optional and must not break the call. */}finally{this.statsBusy=false;}
   }
   private cleanupPeer(){
+    this.resetReady();this.remoteDataReady=false;this.localDataReady=false;
     clearTimeout(this.recoveryTimer);this.recoveryTimer=undefined;clearTimeout(this.resumeTimer);this.resumeTimer=undefined;this.hadConnected=false;this.restartPending=false;this.signalBacklog=[];this.state.recovering=false;
     this.resetReceiveQueue();
     clearTimeout(this.transportTimer);this.transportTimer=undefined;clearInterval(this.statsTimer);this.statsTimer=undefined;this.stopCall();this.failTransfers();
     const channel=this.channel;this.channel=undefined;if(channel){channel.onopen=null;channel.onclose=null;channel.onmessage=null;channel.onerror=null;try{channel.close();}catch{}}
     const pc=this.pc;this.pc=undefined;if(pc){pc.onicecandidate=null;pc.onnegotiationneeded=null;pc.ondatachannel=null;pc.ontrack=null;pc.onconnectionstatechange=null;pc.oniceconnectionstatechange=null;try{pc.close();}catch{}}
     this.pendingCandidates=[];this.offerAgain=false;this.previousAudio=undefined;this.previousLoss=undefined;this.change({route:'unknown',stats:{}});
+  }
+  /** Stop transport input immediately, then await callbacks already running. */
+  async disconnectAndFlush():Promise<void>{
+    const receive=[...this.receiving,this.receiveQueue];const signaling=this.queue;this.disconnect();
+    await Promise.allSettled([...receive,signaling]);
   }
   disconnect():void{
     ++this.generation;this.openReject?.(new Error('Connection cancelled'));this.openReject=undefined;

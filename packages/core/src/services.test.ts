@@ -129,3 +129,13 @@ describe('optional wake provider failures',()=>{
   }finally{f.close();vi.useRealTimers();}
  });
 });
+
+describe('background token capability negotiation',()=>{
+ it('advertises explicit opt-in only and rejects non-boolean mode before sending',async()=>{
+  const f=await fixture();try{
+   const first=f.client.registerPushToken('new-token',true);expect(f.sent.at(-1)).toMatchObject({type:'push-register',token:'new-token',backgroundSync:true});f.socket.push({type:'push-registered',requestId:f.sent.at(-1).requestId});await first;
+   const legacy=f.client.registerPushToken('new-token');expect(f.sent.at(-1)).not.toHaveProperty('backgroundSync');f.socket.push({type:'push-registered',requestId:f.sent.at(-1).requestId});await legacy;
+   const count=f.sent.length;await expect(f.client.registerPushToken('new-token','true' as unknown as boolean)).rejects.toThrow(/mode/);expect(f.sent).toHaveLength(count);
+  }finally{f.close();}
+ });
+});

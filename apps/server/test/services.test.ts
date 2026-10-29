@@ -263,3 +263,12 @@ describe('short-lived typed wake metadata', () => {
     expect(buildFcmWakeMessage('token', { kind: 'call', intentId, expiresAt: now + 1234 }, now)?.android?.ttl).toBe(1234);
   });
 });
+
+describe('opt-in background token routing over real WebSockets',()=>{
+ it('forwards only the authenticated registered token capability and supports legacy reset',async()=>{
+  const modes:boolean[]=[];let now=Date.now();const {url}=await start({serviceNow:()=>now,pushProvider:{async sendWake(_token,_intent,backgroundSync){modes.push(backgroundSync===true);}}});
+  const a=await user(url,'background_sender'),b=await user(url,'background_recipient');expect(await b.client.rpc('push-register',{token:'background-token',backgroundSync:true})).toMatchObject({type:'push-registered'});b.client.send({type:'watch',userIds:[a.identity.userId]});await b.client.next(f=>f.type==='presence');
+  a.client.send({type:'wake',to:b.identity.userId,kind:'message',intentId:requestId(),expiresAt:now+60000});await expect.poll(()=>modes).toEqual([true]);expect(await b.client.rpc('push-register',{token:'background-token'})).toMatchObject({type:'push-registered'});now+=30001;
+  a.client.send({type:'wake',to:b.identity.userId,kind:'message',intentId:requestId(),expiresAt:now+60000});await expect.poll(()=>modes).toEqual([true,false]);
+ });
+});

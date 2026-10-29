@@ -4,14 +4,15 @@ import * as Network from 'expo-network';
 import { MessengerClient, resolveDeviceProfile, type DeviceIdentity, type DirectoryUser, type MessengerSnapshot } from '@messenger/core';
 import { nativeRtc, validateServerUrl } from './native';
 import { CanonicalProfileStore, profileSignature, registrationCandidate } from './registration-model';
-import { DEFAULT_SERVER, loadIdentity, loadProfile, saveProfile, sealedStateAdapter, type LocalProfile } from './storage';
+import { DEFAULT_SERVER, loadIdentity, loadExistingIdentity, loadProfile, saveProfile, sealedStateAdapter, type LocalProfile } from './storage';
 import { monitorNetworkRecovery } from './network-recovery';
+import { SharedWakeRuntime, type WakeLease } from './wake-model';
 
 const empty: MessengerSnapshot = { status: 'idle', contacts: [], conversations: [] };
 type Runtime = { ready: boolean; busy: boolean; registration: 'checking' | 'unregistered' | 'unavailable' | 'bound'; profile: LocalProfile | null; identity?: DeviceIdentity; snapshot: MessengerSnapshot; error?: string };
 let state: Runtime = { ready: false, busy: false, registration: 'checking', profile: null, snapshot: empty };
 const listeners = new Set<() => void>();
-let manager: MessengerClient | null = null;
+const managers = new SharedWakeRuntime<MessengerClient>();
 let bootPromise: Promise<void> | null = null;
 let generation = 0;
 let profiles = new CanonicalProfileStore(saveProfile);
@@ -31,11 +32,11 @@ function acceptCanonical(serverUrl: string, user: DirectoryUser) {
   }
   return profile;
 }
-async function installManager(profile: LocalProfile): Promise<MessengerClient> {
+async function buildManager(profile: LocalProfile, signal?: AbortSignal): Promise<MessengerClient> {
   if (!state.identity) throw new Error('Ключ устройства ещё не загружен.');
   const persistence = await sealedStateAdapter(state.identity, profile.serverUrl);
+  if (signal?.aborted) throw new Error('Wake expired');
   const current = ++generation;
-  manager?.disconnect();
   const next = new MessengerClient({ ...profile, identity: state.identity, ...nativeRtc, ...persistence,
     onChange: snapshot => {
       if (current !== generation) return;
@@ -43,9 +44,21 @@ async function installManager(profile: LocalProfile): Promise<MessengerClient> {
       if (snapshot.status === 'online' && snapshot.self) acceptCanonical(profile.serverUrl, snapshot.self);
     },
   });
-  manager = next;
   publish({ snapshot: next.getSnapshot() });
   return next;
+}
+function installManager(profile: LocalProfile): Promise<MessengerClient> {
+  return managers.replace(() => buildManager(profile));
+}
+export function acquireBackgroundManager(signal: AbortSignal): Promise<WakeLease | null> {
+  return managers.acquire(async () => {
+    const [identity, saved] = await Promise.all([loadExistingIdentity(), loadProfile()]);
+    if (signal.aborted || !identity || !saved) return null;
+    const profile = { ...saved, serverUrl: validateServerUrl(saved.serverUrl) };
+    profiles = new CanonicalProfileStore(saveProfile, profile);
+    publish({ identity, profile, registration: 'bound' });
+    return buildManager(profile, signal);
+  }, signal);
 }
 async function connectResolved(serverUrl: string, user: DirectoryUser) {
   const profile = canonicalProfile(serverUrl, user);
@@ -78,16 +91,30 @@ export async function checkRegistration(): Promise<void> {
   finally { publish({ ready: true, busy: false }); }
 }
 export function boot(): Promise<void> {
+  managers.claimForeground();
   if (bootPromise) return bootPromise;
   bootPromise = (async () => {
     try {
-      const identity = await loadIdentity();
-      publish({ identity });
-      const cached = await loadProfile();
-      profiles = new CanonicalProfileStore(saveProfile, cached ?? undefined);
-      publish({ identity, profile: cached, registration: cached ? 'bound' : 'checking', ready: !cached });
-      if (cached) await connectCanonical({ ...cached, serverUrl: validateServerUrl(cached.serverUrl) });
-      else await checkRegistration();
+      // Foreground and headless initialization serialize through the same owner.
+      // If a cold task already owns a manager, UI adopts it without a second adapter.
+      const existing = await managers.ensure(async () => {
+        const identity = await loadIdentity();
+        publish({ identity });
+        const cached = await loadProfile();
+        profiles = new CanonicalProfileStore(saveProfile, cached ?? undefined);
+        publish({ identity, profile: cached, registration: cached ? 'bound' : 'checking', ready: !cached });
+        return cached ? buildManager({ ...cached, serverUrl: validateServerUrl(cached.serverUrl) }) : null;
+      });
+      if (existing) {
+        publish({ ready: true });
+        try { await existing.connect(); }
+        catch (error) {
+          if (!/device-already-registered/.test(errorText(error)) || !state.identity || !state.profile) throw error;
+          const bound = await resolveDeviceProfile(state.profile.serverUrl, state.identity);
+          if (!bound) throw error;
+          await connectResolved(state.profile.serverUrl, bound);
+        }
+      } else await checkRegistration();
     } catch (error) { publish({ ready: true, registration: state.profile ? 'bound' : 'unavailable', error: errorText(error) }); }
   })();
   // One app-scoped subscription survives navigation; never tear down peers merely
@@ -98,7 +125,7 @@ export function boot(): Promise<void> {
     read: Network.getNetworkStateAsync,
     listen: Network.addNetworkStateListener,
     onReachable: async () => {
-      const current = manager;
+      const current = managers.peek();
       if (current) await current.networkChanged();
     },
   });
@@ -113,6 +140,7 @@ export function useMessenger() {
   return current;
 }
 export function client(): MessengerClient {
+  const manager = managers.peek();
   if (!manager) throw new Error('Сначала подтвердите регистрацию на сервере.');
   return manager;
 }
@@ -160,7 +188,7 @@ export async function changeServer(server: string): Promise<void> {
 export async function reconnect(): Promise<void> {
   publish({ error: undefined });
   try {
-    const current = manager ?? (state.profile ? await installManager(state.profile) : client());
+    const current = managers.peek() ?? (state.profile ? await installManager(state.profile) : client());
     await current.connect();
     if (state.profile) await profiles.remember(state.profile);
   } catch (error) { publish({ error: errorText(error) }); }

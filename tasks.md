@@ -66,7 +66,7 @@ Its former mobile paths were removed; implementation history remains in commit 9
 
 ## Active 0.5 delivery work
 
-- [X] Firebase LastCall project and Android client configuration; server key approval/actual push remain open (msg-3z9)
+- [X] Firebase LastCall project and Android client configuration (server activation completed in0.5.1 below)
   → Artifacts: [setup checkpoint](infra/public/SERVICES.md)
 - [X] Durable seven-day sender outbox for text and files, recipient persistence before ACK (msg-c0z, msg-row)
   → Artifacts: [manager](packages/core/src/messenger.ts), [regressions](packages/core/src/outbox.test.ts)
@@ -77,20 +77,27 @@ Its former mobile paths were removed; implementation history remains in commit 9
 - [X] Independent review, quality gates, Android artifact and publication
   → Artifacts: [review](docs/reports/code-reviews/2026-10/CR-2026-10-28-lastcall-05.md), [native evidence](docs/reports/debugging/2026-10/native-050.md), [release](artifacts/README.md), [APK](https://lienad.ru/messenger/download/LastCall-0.5.0.apk)
 
-- [ ] Configure Firebase and validate actual Android closed-app notifications; iOS/APNs/system calls (msg-3z9)
+- [ ] Validate physical Android and iOS/APNs/system incoming calls (msg-3z9)
   → Artifacts: [push/wake audit and acceptance plan](docs/reports/debugging/2026-10/push-wake-2026-10-29.md), [provider setup](infra/public/SERVICES.md)
 - [X] Audit missing push/wake: server credential absent, existing 0.5 tray/tap behavior and proposed bounded headless path
   → Artifacts: [read-only audit](docs/reports/debugging/2026-10/push-wake-2026-10-29.md)
-- [ ] Implement and validate bounded background P2P wake separately from enabling server FCM; native update required (msg-27d)
-  → Artifacts: [recommended change boundary and acceptance steps](docs/reports/debugging/2026-10/push-wake-2026-10-29.md)
+- [X] Configure approved dedicated FCM-only account, external read-only credential and actual Android push
+  → Artifacts: [configuration](infra/public/SERVICES.md), [native evidence](docs/reports/debugging/2026-10/native-051-push.md)
+- [X] Implement bounded Android background P2P wake and durable no-tap text/small-file acceptance (msg-27d)
+  → Artifacts: [task](apps/mobile/src/background-notifications.ts), [ownership](apps/mobile/src/wake-model.ts), [native evidence](docs/reports/debugging/2026-10/native-051-push.md)
+- [X] Prevent initial native channel data loss with bilateral application readiness (msg-h3g)
+  → Artifacts: [transport](packages/core/src/session.ts), [regressions](packages/core/src/data-ready.test.ts)
+- [X] Review, final gates and same-certificate Android0.5.1/code7 release
+  → Artifacts: [review](docs/reports/code-reviews/2026-10/CR-2026-10-29-background-push.md), [release](artifacts/README.md), [phone tasks](docs/TESTING-RU.md)
 - [X] Retire phone registration/discovery requirement by user direction (msg-p7x)
 - [X] Provision and validate reachable authenticated P2P relay fallback (msg-bcw)
   → Artifacts: [network choice](docs/NETWORK-CHOICE.md), [native deployment](infra/native-turn/README.md), [external evidence](docs/reports/code-reviews/2026-10/CR-2026-10-28-native-turn.md)
 - [ ] Validate physical Russian operators, poor links and call handover (msg-9rr)
 
-Firebase project/client configuration exists in0.5; server FCM identity/key still
-await approval and actual validation. It is needed only for notifications;
-username registration and server-directory sync do not need it.
+Firebase server FCM is configured and real Android emulator no-tap background
+text/small-file delivery is verified in0.5.1. Physical Android acceptance,
+iOS/APNs/system incoming calls remain tracked by msg-3z9. Firebase is needed for
+notifications; username registration and server-directory sync do not need it.
 SMS.ru is no longer required. Closed-app delivery remains pending; public TURN
 is active and independently verified over UDP/TCP/TLS. Restart both 0.5 apps to
 refresh ICE; the APK/version did not change for this server configuration.

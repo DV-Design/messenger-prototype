@@ -5,20 +5,20 @@ import { getMessaging, type Message } from 'firebase-admin/messaging';
 import type { WakeIntent } from '@messenger/core';
 
 export interface SMSProvider { sendCode(phone: string, code: string): Promise<void>; dispose?(): Promise<void> }
-export interface PushProvider { sendWake(token: string, intent?: WakeIntent): Promise<void>; dispose?(): Promise<void> }
+export interface PushProvider { sendWake(token: string, intent?: WakeIntent, backgroundSync?: boolean): Promise<void>; dispose?(): Promise<void> }
 export class InvalidPushToken extends Error { constructor() { super('Push token is no longer valid'); } }
 
 /** Generic metadata only. An expired intent is dropped before contacting FCM. */
-export function buildFcmWakeMessage(token: string, intent?: WakeIntent, now = Date.now()): Message | undefined {
+export function buildFcmWakeMessage(token: string, intent?: WakeIntent, now = Date.now(), backgroundSync = false): Message | undefined {
   const expiresAt = intent ? Math.min(intent.expiresAt, now + (intent.kind === 'call' ? 30_000 : 60_000)) : now + 60_000;
   if (expiresAt <= now) return undefined;
   const body = intent?.kind === 'call' ? 'Ожидается звонок. Откройте LastCall.' : intent?.kind === 'file' ? 'Ожидается отправка файла. Откройте LastCall.' : 'Ожидается отправка сообщения. Откройте LastCall.';
   // Calls use their own collapse class; no sender/conversation identifier is exposed.
   const collapse = intent?.kind === 'call' ? 'lastcall-call' : 'lastcall-wake';
   return {
-    token, notification: { title: 'LastCall', body },
-    data: { kind: 'lastcall-wake', ...(intent ? { intentKind: intent.kind, intentId: intent.intentId, expiresAt: String(expiresAt) } : {}) },
-    android: { priority: 'high', ttl: expiresAt - now, collapseKey: collapse, restrictedPackageName: 'dev.messenger.prototype', notification: { channelId: 'lastcall-messages', tag: collapse } },
+    token, ...(!backgroundSync?{notification: { title: 'LastCall', body }}:{}),
+    data: { kind: 'lastcall-wake', ...(backgroundSync?{title:'LastCall',message:body,channelId:'lastcall-messages',tag:collapse}:{}), ...(intent ? { intentKind: intent.kind, intentId: intent.intentId, expiresAt: String(expiresAt) } : {}) },
+    android: { priority: 'high', ttl: expiresAt - now, collapseKey: collapse, restrictedPackageName: 'dev.messenger.prototype', ...(!backgroundSync?{notification: { channelId: 'lastcall-messages', tag: collapse }}:{}) },
   };
 }
 
@@ -60,9 +60,9 @@ export function createFcmPushProvider(credentialsPath: string): PushProvider | u
     const app = initializeApp({ credential: cert({ projectId: account.project_id, clientEmail: account.client_email, privateKey: account.private_key }), projectId: account.project_id }, `lastcall-${randomBytes(8).toString('hex')}`);
     const messaging = getMessaging(app);
     return {
-      async sendWake(token, intent) {
+      async sendWake(token, intent, backgroundSync = false) {
         try {
-          const message = buildFcmWakeMessage(token, intent);
+          const message = buildFcmWakeMessage(token, intent, Date.now(), backgroundSync);
           if (message) await messaging.send(message);
         } catch (error) {
           const code = typeof error === 'object' && error ? (error as { code?: unknown }).code : undefined;

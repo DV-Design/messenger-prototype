@@ -1,4 +1,42 @@
-# LastCall Android preview 0.5.0
+# LastCall Android preview 0.5.1
+
+- Download: https://lienad.ru/messenger/download/LastCall-0.5.1.apk
+- Alternate: https://p2p.lienad.ru/download/LastCall-0.5.1.apk
+- Local: `artifacts/LastCall-0.5.1.apk` (ignored binary)
+- Package `dev.messenger.prototype`, versionCode7; upgrade both peers in place.
+- Size **46,427,337 bytes**; ARM64, minimum API24, target API36.
+- SHA256: `c454eeb8f057b8ab74dccfa6dbfe6b93358b6a9739001a9f5cb8e5999973dec7`
+- Same internal test signing certificate SHA256:
+  `fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c`.
+
+Firebase FCM is connected using a dedicated FCM-only server account; credential
+is external and read-only, never included in Git/APK/static downloads. Android
+advertises background support only after task registration succeeds; old peers
+retain the notification/tap path. New bounded9s background transport restores
+an existing identity and drains persistence before disposal. Shared UI ownership
+avoids competing storage instances. Bilateral application-ready negotiation
+prevents payload loss before native JS channel listeners are installed.
+
+Real FCM, own preserved Android emulator: Home + ordinary process death, text
+and35-byte file both durable-ACKed without notification tap at5.728s; Launcher
+remained foreground. Saved text/file present after manual offline process
+restart. Cold wake/foreground takeover completed at6.786s. Tray notification
+also observed. Identity/history preserved on upgrade.
+
+Final root check PASS:195tests (20mobile,50server,125core), lint/types,
+Android/iOS JS exports/server build. Chrome9PASS/1explicit TURN skip. Final
+Android release/R8 build820tasks/29s. APK metadata/signature verified; temporary
+native diagnostic instrumentation removed. Public signaling rebuilt from final
+sources; existing profiles, TURN and unrelated services preserved.
+
+The seven-day sender queue and peer group sync remain. Files larger than the
+wake budget retry later as whole files. Force-stop needs manual opening;
+physical Russian operators/battery policies, iOS/APNs and native system calls
+remain unvalidated/unconfigured. No server content queue or universal instant
+delivery claim. Detailed [native evidence](../docs/reports/debugging/2026-10/native-051-push.md)
+and [review](../docs/reports/code-reviews/2026-10/CR-2026-10-29-background-push.md).
+
+# Historical Android preview 0.5.0
 
 - Download: https://lienad.ru/messenger/download/LastCall-0.5.0.apk
 - Alternate: https://p2p.lienad.ru/download/LastCall-0.5.0.apk

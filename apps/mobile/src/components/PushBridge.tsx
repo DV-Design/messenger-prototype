@@ -1,6 +1,7 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { client, reconnect, useMessenger } from '../runtime';
 import { listenForWake, nativePushToken, onPushRefresh, pushConfigured, pushUnavailable } from '../notifications';
+import { ensureBackgroundNotifications } from '../background-notifications';
 let status = pushConfigured ? 'Ожидаем подключения к серверу' : pushUnavailable;
 const listeners = new Set<() => void>();
 const publish = (value: string) => { status = value; listeners.forEach(listener => listener()); };
@@ -25,7 +26,9 @@ export function PushBridge() {
         const token = rotatedToken ?? await nativePushToken();
         if (!active || current !== client()) return;
         if (!token) { publish('Разрешите уведомления в доступах приложения'); return; }
-        await current.registerPushToken(token); success = true;
+        const backgroundSync = await ensureBackgroundNotifications();
+        if (!active || current !== client()) return;
+        await current.registerPushToken(token, backgroundSync); success = true;
         if (active) { if (rotatedToken === token) rotatedToken = undefined; publish('FCM зарегистрирован. Реальная доставка зависит от сети и Android.'); }
       } catch { if (active) publish('Не удалось зарегистрировать FCM. Проверьте сеть, Firebase и Google Play Services.'); }
       finally { running = false; if (active && success && rotatedToken) { const retryToken = rotatedToken; rotatedToken = undefined; queueMicrotask(() => { rotatedToken = retryToken; void register(); }); } }

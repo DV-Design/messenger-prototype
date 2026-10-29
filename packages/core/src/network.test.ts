@@ -1,5 +1,6 @@
 import {afterEach,describe,expect,it,vi} from 'vitest';
 import {PeerSession} from './session.js';
+import {SignalingCipher} from './crypto.js';
 const sessions:PeerSession[]=[];
 afterEach(()=>{for(const s of sessions.splice(0))s.disconnect();vi.useRealTimers();vi.unstubAllGlobals();});
 async function harness(){
@@ -44,4 +45,28 @@ describe('bounded network handover with existing call media',()=>{
  it('explicit disconnect cancels recovery and prevents late timers reopening signaling',async()=>{
   const h=await harness();h.session.networkChanged();h.session.disconnect();await vi.advanceTimersByTimeAsync(12000);expect(h.sockets).toHaveLength(1);expect(h.stops()).toBe(1);expect(h.session.getSnapshot().callState).toBe('idle');
  });
+});
+
+describe('replacement peer signaling isolation',()=>{
+ it('does not apply a queued old-peer ICE candidate after a new peer identity replaces its PC',async()=>{
+  const h=await harness();let resume!:()=>void;h.internal.queue=new Promise<void>(yes=>{resume=yes;});
+  const oldId=h.internal.remoteId;const cipher=new SignalingCipher('ab'.repeat(32),oldId,n=>new Uint8Array(n).fill(17));
+  const payload=cipher.seal({kind:'candidate',candidate:{candidate:'old-peer-candidate'}},h.internal.peerId);
+  h.sockets[0].onmessage({data:JSON.stringify({type:'signal',from:oldId,payload})});
+  h.sockets[0].onmessage({data:JSON.stringify({type:'peer-joined',peerId:'dd'.repeat(16)})});
+  resume();await h.internal.queue;expect(h.internal.remoteId).toBe('dd'.repeat(16));expect(h.internal.pendingCandidates).toEqual([]);
+ });
+ it('also discards old queued signaling after explicit leave and rejoin with the same peer identity',async()=>{
+  const h=await harness();let resume!:()=>void;h.internal.queue=new Promise<void>(yes=>{resume=yes;});const oldId=h.internal.remoteId;
+  const cipher=new SignalingCipher('ab'.repeat(32),oldId,n=>new Uint8Array(n).fill(18));const payload=cipher.seal({kind:'candidate',candidate:{candidate:'old-pc-candidate'}},h.internal.peerId);
+  h.sockets[0].onmessage({data:JSON.stringify({type:'signal',from:oldId,payload})});h.internal.options.rtcFactory=()=>({...h.pc,remoteDescription:null});
+  h.sockets[0].onmessage({data:JSON.stringify({type:'peer-left',peerId:oldId,reason:'left'})});h.sockets[0].onmessage({data:JSON.stringify({type:'peer-joined',peerId:oldId})});
+  expect(h.internal.pc).not.toBe(h.pc);resume();await h.internal.queue;expect(h.internal.pendingCandidates).toEqual([]);
+ });
+ it('keeps queued authenticated signaling for the unchanged PC and peer',async()=>{
+  const h=await harness();let resume!:()=>void;h.internal.queue=new Promise<void>(yes=>{resume=yes;});const oldId=h.internal.remoteId;
+  const cipher=new SignalingCipher('ab'.repeat(32),oldId,n=>new Uint8Array(n).fill(19));const payload=cipher.seal({kind:'candidate',candidate:{candidate:'current-pc-candidate'}},h.internal.peerId);
+  h.sockets[0].onmessage({data:JSON.stringify({type:'signal',from:oldId,payload})});resume();await h.internal.queue;expect(h.internal.pendingCandidates).toEqual([{candidate:'current-pc-candidate'}]);
+ });
+
 });

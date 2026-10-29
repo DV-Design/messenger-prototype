@@ -49,6 +49,9 @@ export class DirectoryServices {
       CREATE TABLE IF NOT EXISTS wake_last_attempt (recipient_id TEXT PRIMARY KEY, attempted_at INTEGER NOT NULL) STRICT;
       CREATE TABLE IF NOT EXISTS wake_call_last_attempt (recipient_id TEXT PRIMARY KEY, attempted_at INTEGER NOT NULL) STRICT;
     `);
+    // Existing 0.3-0.5 token rows default to the original visible notification path.
+    const columns=this.db.prepare('PRAGMA table_info(push_tokens)').all() as Array<{name:string}>;
+    if(!columns.some(column=>column.name==='background_sync'))this.db.exec('ALTER TABLE push_tokens ADD COLUMN background_sync INTEGER NOT NULL DEFAULT 0 CHECK(background_sync IN (0,1))');
   }
   capabilities(userId: string): ServiceCapabilities {
     return { phoneVerification: Boolean(this.options.smsProvider && this.secret), push: Boolean(this.options.pushProvider), relay: this.ice().some(server => (Array.isArray(server.urls) ? server.urls : [server.urls]).some(url => /^turns?:/.test(url))), phoneVerified: Boolean(this.options.enableLegacyPhoneServices && this.verified(userId)) };
@@ -161,12 +164,13 @@ export class DirectoryServices {
     }
     return matches;
   }
-  registerPush(userId: string, token: string) {
+  registerPush(userId: string, token: string, backgroundSync = false) {
+    if(typeof backgroundSync!=='boolean')throw new ServiceError('invalid-frame', 'Invalid background sync mode');
     this.checkOpen(); if (!this.options.pushProvider) throw unavailable();
     const owner = this.db.prepare('SELECT user_id FROM push_tokens WHERE token = ?').get(token) as { user_id: string } | undefined;
     if (owner && owner.user_id !== userId) throw new ServiceError('push-token-in-use', 'This token belongs to another identity');
     this.reserve([{ scope: 'push-register', key: userId, limit: 30 }]);
-    this.db.prepare('INSERT INTO push_tokens(user_id,token,updated_at) VALUES (?,?,?) ON CONFLICT(user_id) DO UPDATE SET token=excluded.token,updated_at=excluded.updated_at').run(userId, token, this.now());
+    this.db.prepare('INSERT INTO push_tokens(user_id,token,updated_at,background_sync) VALUES (?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET token=excluded.token,updated_at=excluded.updated_at,background_sync=excluded.background_sync').run(userId, token, this.now(), backgroundSync?1:0);
   }
   replaceWatchConsent(recipient: string, ids: string[]) {
     this.transaction(() => {
@@ -181,7 +185,7 @@ export class DirectoryServices {
     const bounded = intent ? { ...intent, expiresAt: Math.min(intent.expiresAt, now + (intent.kind === 'call' ? 30_000 : 60_000)) } : undefined;
     this.expire();
     if (!this.db.prepare('SELECT 1 FROM push_consent WHERE recipient_id = ? AND sender_id = ?').get(recipient, sender)) throw new ServiceError('wake-not-allowed', 'Recipient has not authorized wake notifications from this contact');
-    const row = this.db.prepare('SELECT token FROM push_tokens WHERE user_id = ?').get(recipient) as { token: string } | undefined;
+    const row = this.db.prepare('SELECT token,background_sync FROM push_tokens WHERE user_id = ?').get(recipient) as { token: string; background_sync:number } | undefined;
     if (!row) return; // No false push-success or delivery receipt frame is returned.
     const key = bounded ? `${sender}:${recipient}:${bounded.intentId}` : undefined;
     if (key && this.wakeIntents.has(key)) return;
@@ -197,7 +201,7 @@ export class DirectoryServices {
     try { await this.provider('push', () => {
       this.checkOpen();
       if (bounded && bounded.expiresAt <= this.now()) throw new ServiceError('wake-expired', 'Notification intent expired');
-      return this.options.pushProvider!.sendWake(row.token, bounded);
+      return this.options.pushProvider!.sendWake(row.token, bounded, row.background_sync===1);
     }); }
     catch (error) {
       if (error instanceof InvalidPushToken && !this.closed) this.db.prepare('DELETE FROM push_tokens WHERE user_id = ? AND token = ?').run(recipient, row.token);

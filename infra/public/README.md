@@ -1,14 +1,25 @@
 # LastCall public preview
 
-0.5: sender-held encrypted text/file queue survives restart up to seven days;
-signed group records synchronize between devices, with final per-member receipts.
-Network handover retains active PC/tracks during a bounded10s recovery and resumes
-signaling roles using ephemeral tokens. Server content storage has not been added.
-Image rollback tag `messenger-signaling:rollback-0.4.0` preserves the prior runtime.
-Firebase project/Android client exist; server FCM key awaits approval, push remains
-disabled. Public authenticated TURN is active and independently verified over
-UDP/TCP/TLS; physical mobile-operator compatibility is not claimed. The unchanged
-0.5.0/code6 APK needs a restart on both devices to refresh cached ICE.
+0.5.1/code7 adds bounded Android FCM background synchronization and bilateral
+application-readiness protection before the first peer data. Both Android apps
+must update in place. The sender-held encrypted text/file queue still waits up
+to seven days; signed group copies synchronize between member devices. No server
+content mailbox was added. Network recovery retains active PC/tracks within a
+bounded 10s window, without guaranteeing uninterrupted audio.
+
+FCM is active through a dedicated sender account with only the FCM administration
+role; its private key remains outside Git/APK/static assets and is mounted read-only.
+Authenticated signaling reports push=true and relay=true. On the project's Android
+emulator, real FCM cold-started the final APK after ordinary process death without
+tapping or opening its UI: text and a 35-byte file received durable ACK at 5728ms
+in one direct-route run. Separate foreground takeover passed at 6786ms after one
+transient session error recovered. An offline manual relaunch after force-stop
+retained the profile and saved text/file entries; push after force-stop is not
+claimed. Physical phones, locked screen and Russian operators remain unverified;
+APNs and system incoming-call integration remain separate.
+
+Public authenticated TURN is active and independently verified over UDP/TCP/TLS.
+Keep the prior signaling image and versioned APK available for rollback.
 
 Primary gateway: **https://lienad.ru/messenger**. The legacy
 `https://p2p.lienad.ru` endpoint remains compatible. The apex gateway avoids the
@@ -25,12 +36,13 @@ reproduced negative DNS cache on some resolvers; it uses normal DNS and TLS.
 - Named `directory` volume: SQLite public profiles, push tokens, recipient watch
   consent and service quotas after configuration. Legacy phone tables may remain
   from 0.3, but phone verification/discovery is no longer enabled in production.
-  Device keys, OTP values, chat, group definitions, files and media never enter
-  this database. Push metadata and any legacy phone hashes are personal data.
+  Public device keys and display names are profile data. Private identity seeds,
+  OTP values, chat, group definitions, files and media never enter this database. Push metadata and any legacy phone hashes are personal data.
 - `messenger-apex.caddy.inc`: narrow /messenger route fragment in the existing
   apex Caddy site. Preserve all other routes. Strip prefix before upstream.
 - `p2p.lienad.ru.caddy`: legacy hostname routing, including /directory.
-- Static root: `/Users/daniel/server/proxy/sites/messenger-public`.
+- Static files live in the dedicated LastCall public directory managed by the
+  existing proxy; private credentials must never be copied there.
 - Versioned Android APKs in `download/`; diagnostic probe in `diagnostics/`;
   index.html and tasks.txt at root. Build probe with relative asset paths.
 
@@ -40,9 +52,9 @@ before a graceful reload; do not restart shared services. Keep the previous APK
 for rollback. Publish APKs atomically after signature/metadata verification.
 
 ```sh
-docker compose --env-file infra/.env.public-turn -p messenger-public -f infra/compose.public.yaml config --quiet
+docker compose --env-file infra/.env.public-services --env-file infra/.env.public-turn -p messenger-public -f infra/compose.public.yaml -f infra/public/compose.firebase.example.yaml config --quiet
 docker build -f infra/Dockerfile.server -t messenger-signaling:preview .
-docker compose --env-file infra/.env.public-turn -p messenger-public -f infra/compose.public.yaml up -d --no-deps signaling
+docker compose --env-file infra/.env.public-services --env-file infra/.env.public-turn -p messenger-public -f infra/compose.public.yaml -f infra/public/compose.firebase.example.yaml up -d --no-deps signaling
 docker exec caddy caddy validate --config /etc/caddy/Caddyfile
 docker exec caddy caddy reload --config /etc/caddy/Caddyfile
 curl --fail-with-body https://lienad.ru/messenger/health
@@ -78,12 +90,13 @@ Presence is ephemeral and restricted to explicit authenticated subscriptions.
 Content uses direct WebRTC where possible; TURN forwards encrypted packets on
 the fallback route, with bandwidth/traffic metadata cost and no chat archive.
 Pending text and files stay in the sender-local encrypted queue. One live
-directory connection per device identity. iOS/Android background delivery requires
-future push/system-call work. No audited ratchet, key transparency or multi-device
+directory connection per device identity. Android 0.5.1 has the bounded background
+FCM path above; iOS/APNs and system incoming-call integration are not configured. No audited ratchet, key transparency or multi-device
 identity yet. Server updates briefly disconnect preview sessions. In 0.4,
 registration uses a unique username bound to the installation key and a persistent
-server profile. No SMS account is required. Android FCM remains disabled until
-server-key provisioning and real delivery checks are completed independently.
+server profile. No SMS account is required. FCM carries no chat content, filename,
+SDP, identity key or sender display name. Signaling forwards opaque encrypted
+SDP/candidate envelopes; private installation seeds stay on their devices.
 
 ## Rollback
 
@@ -98,8 +111,10 @@ Credentials stay local; it never invokes the host DDNS notification helper.
 
 Optional FCM and authenticated ICE configuration is documented in
 [SERVICES.md](SERVICES.md). The base compose file alone disables providers; the
-active deployment explicitly includes `infra/.env.public-turn`. Preserve that
-selection on recreation. FCM is still disabled. Public `GET /ice` cannot issue
+active deployment explicitly selects the Firebase override and both env files
+as shown above. Keep services env first and TURN env last; the blank TURN fields
+in the services example must not disable the active relay. Preserve this exact
+selection on recreation and never print resolved Compose configuration. Public `GET /ice` cannot issue
 TURN credentials when `REQUIRE_ICE_AUTH=1`.
 
 External evidence: [GitHub Actions run 40782070981](https://github.com/DV-Design/messenger-prototype/actions/runs/40782070981)

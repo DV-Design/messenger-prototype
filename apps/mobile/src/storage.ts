@@ -12,6 +12,14 @@ const hex = /^[0-9a-f]{64}$/;
 const MAX_SEALED_BYTES = MAX_LOCAL_STATE_BYTES * 2 + 1024;
 
 export async function loadIdentity(): Promise<DeviceIdentity> {
+  const saved = await loadExistingIdentity();
+  if (saved) return saved;
+  const identity = createDeviceIdentity(length => Crypto.getRandomBytes(length));
+  await SecureStore.setItemAsync(IDENTITY_KEY, JSON.stringify(identity), secretOptions);
+  return identity;
+}
+/** Background wake may read a bound key, but never creates/registers a new user. */
+export async function loadExistingIdentity(): Promise<DeviceIdentity | null> {
   const saved = await SecureStore.getItemAsync(IDENTITY_KEY);
   if (saved) {
     const identity = JSON.parse(saved) as DeviceIdentity;
@@ -26,9 +34,7 @@ export async function loadIdentity(): Promise<DeviceIdentity> {
     }
     return verified;
   }
-  const identity = createDeviceIdentity(length => Crypto.getRandomBytes(length));
-  await SecureStore.setItemAsync(IDENTITY_KEY, JSON.stringify(identity), secretOptions);
-  return identity;
+  return null;
 }
 export async function loadProfile(): Promise<LocalProfile | null> {
   const raw = await SecureStore.getItemAsync(PROFILE_KEY);

@@ -37,6 +37,8 @@ export const signalBodySchema = z.discriminatedUnion('kind',[
 ]);
 export type SignalBody = z.infer<typeof signalBodySchema>;
 export const dataFrameSchema = z.discriminatedUnion('kind',[
+  z.object({kind:z.literal('ready'),nonce:id}).strict(),
+  z.object({kind:z.literal('ready-ack'),nonce:id}).strict(),
   z.object({kind:z.literal('text-ack'),id,conversationId}).strict(),
   z.object({kind:z.literal('application'),id,body:z.string().max(16000)}).strict(),
   z.object({kind:z.literal('text'),id,conversationId,text:z.string().min(1).max(MAX_TEXT_CHARS),metadata,timestamp:z.number().finite().nonnegative()}).strict(),
