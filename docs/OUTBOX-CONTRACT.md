@@ -1,12 +1,18 @@
-# Sender-held delivery, read receipts and peer group sync (0.7.0 candidate)
+# Sender-held delivery, read receipts and peer group sync (0.7.0)
 
 User direction: persist text and files on sender devices until recipient acknowledgement,
 with a seven-day deadline. The coordination server has no chat-content mailbox.
 
-0.7.0/code10 is a candidate, pending final build/native acceptance. It separates
+0.7.0/code10 is published with verified APK/signature/public-download hashes. It separates
 durable delivery from actual foreground-chat read state; the existing queue,
 encrypted local storage and server-content boundaries remain authoritative.
-Historical 0.6.0 native results do not verify this candidate's new receipt/UI path.
+Claude [cycle3/6](reports/testing/2026-10/claude-qa-cycle-3.md) passed292 unit
+tests and10 browser cases/1 authenticated-TURNskip, including text/file receipt
+replay after both managers restart while the author was offline. This is bounded
+automated evidence, not native foreground/notification acceptance on every phone.
+The separate [0.7.0 native report](reports/debugging/2026-10/native-070.md) establishes
+own locked call UI/answer/RTP and cold process wake on API36; physical networks,
+heard voice quality, native video, API24 fallback and denied-FSI remain open.
 
 0.6.0 changes the earlier content-free-push requirement by explicit user direction:
 a short message or file-name preview may transit the server/FCM as an authenticated encrypted
@@ -44,7 +50,7 @@ playback alone does not acknowledge unsaved bytes. Only a verified, signed read
 receipt generated after complete durable content may also establish delivery as
 described below. Legacy clients may display media as ordinary files. Native
 codec/playback/cancel/permission-denial and offline enqueue/restart/retry acceptance
-must be reported for the exact candidate APK; historical 0.6.0 evidence does not
+must be reported for the exact APK; historical 0.6.0 evidence does not
 establish the 0.7.0 result.
 
 Implementation ownership: session/protocol durable-receipt boundary; manager outbox and

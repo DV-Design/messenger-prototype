@@ -9,6 +9,8 @@
 
 # LastCall 0.7.0: background calls, read receipts and video
 
+- [X] Refresh root/mobile README and linked wake/outbox status for published0.7.0, actual acceptance limits and current delivery/read behavior (msg-8vd)
+  → Artifacts: [overview](README.md), [mobile guide](apps/mobile/README.md), [wake contract](docs/WAKE-CONTRACT.md), [outbox contract](docs/OUTBOX-CONTRACT.md)
 - [X] Implement LastCall-owned incoming calls, automatic self-managed account and bounded call-specific background setup (msg-d1e)
   → Artifacts: [controller](apps/mobile/src/system-calls.ts), [native incoming UI](apps/mobile/plugins/calls/LastCallCallActivity.java), [native services](apps/mobile/plugins/calls/), [wake contract](docs/WAKE-CONTRACT.md)
 - [X] Add durable signed P2P read receipts and clock/one-check/two-check indicators, including group and attachment progress (msg-3jo)

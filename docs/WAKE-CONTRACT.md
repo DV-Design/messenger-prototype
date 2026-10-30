@@ -1,13 +1,18 @@
 # Direct-first wake and bounded Android background sync
 
-## Status: 0.7.0/code10 candidate, 2026-10-30
+## Status: published 0.7.0/code10, 2026-10-30
 
-The 0.7.0 candidate changes Android calls to LastCall-owned incoming UI, extends
+Published 0.7.0 changes Android calls to LastCall-owned incoming UI, extends
 the typed-call setup window and wakes a suspended recipient even when its RTC
 connection still appears connected. It also adds actual foreground-chat read
-receipts; see [the outbox contract](OUTBOX-CONTRACT.md). These candidate changes
-still require final APK/native acceptance. Unit tests and source review alone
-do not establish background ringing on real phones.
+receipts; see [the outbox contract](OUTBOX-CONTRACT.md). The final APK and public
+download hashes were verified. Its own API36 emulator acceptance established
+LastCall's incoming activity above PIN, explicit own-button answer with sustained
+bidirectional RTP after the setup window, native expiry and FCM cold-start after
+confirmed ordinary process death (incoming UI at12.95s in one sample). The AVD
+had no audio output; no heard-quality or instant-ringing guarantee follows.
+Physical phones/OEM/carriers, API24/25, denied FSI, native video quality and
+iOS/APNs/CallKit remain unverified. See [the exact 0.7.0 evidence](reports/debugging/2026-10/native-070.md).
 
 Historical 0.6.0 added encrypted text/file-name previews, authenticated notification
 routes, managed Android lockscreen calls, voice notes and video circles. That
@@ -37,7 +42,8 @@ force-stop was a persistence test, not successful push delivery in that state.
 Do not infer broader success from provider acceptance,
 a token registration, source implementation or unit tests. APNs/PushKit/CallKit
 remain separate; the old managed Android path has 0.6.0 emulator evidence only;
-physical phones and the 0.7.0 replacement remain unverified.
+the replacement has separate 0.7.0 emulator evidence above, while physical phones
+remain unverified.
 
 ## Content and delivery boundary
 
@@ -182,14 +188,14 @@ Only the actual focused foreground chat may request a read receipt after full
 content persistence; Home, the lockscreen and preview display cannot do so. Test both
 text/file and direct/group cold/warm paths separately from P2P delivery.
 
-## Android lockscreen and LastCall-owned incoming calls (0.7.0 candidate)
+## Android lockscreen and LastCall-owned incoming calls (0.7.0)
 
 Native message notifications must set `VISIBILITY_PUBLIC` themselves; setting an
 Expo notification channel alone does not prove secure-lockscreen visibility.
 Android notification/channel/privacy settings can hide all or some content. This
 is a user-requested plaintext display on their device, not plaintext FCM transport.
-Historical native adapter secure-lockscreen audio acceptance is recorded in the
-0.6.0 report; the replacement below requires its own acceptance.
+Historical managed-call acceptance is recorded in the 0.6.0 report; the
+replacement's API36 own-screen/answer/RTP scope is recorded in the 0.7.0 report.
 
 On API26+ CallKeep/ConnectionService uses a self-managed, automatically registered
 LastCall account, while LastCall owns the incoming screen and high-priority native
@@ -198,7 +204,8 @@ require manual phone-account enablement, `READ_PHONE_NUMBERS`, `CALL_PHONE`,
 `READ_CALL_LOG`, contacts access or a default-dialer replacement. Account migration
 may replace only LastCall's own prior managed account; no other account is touched.
 API24/25 cannot use self-managed ConnectionService: the app-owned notification/
-activity fallback is a candidate requirement still pending final native verification.
+activity fallback is implemented without self-managed ConnectionService, but has
+not been emulated and still requires native device acceptance.
 
 A dedicated call-only activity may show over the lockscreen and turn on the
 screen; the main chat activity must not bypass PIN or expose history. On Android
@@ -209,8 +216,9 @@ required to ring; push alone must not create a ringing call. Reject forged,
 expired or cancelled invites. Native actions bind the current UUID, expiry and
 nonce; immutable private PendingIntents and stale-action checks prevent a previous
 answer/reject from affecting a later call. Ringing deadlines must expire natively
-even if JavaScript stops progressing. These are acceptance requirements, not a
-claim of final APK verification.
+even if JavaScript stops progressing. Final API36 evidence covers own locked
+answer and expiry; this does not claim that every native action, denied-FSI path
+or supported Android version has been accepted.
 
 Call setup has a separate, bounded `phoneCall`-only foreground service and visible
 setup notification; it never acquires microphone or camera. Ringing likewise uses
@@ -227,10 +235,13 @@ service. Live calls need manager pinning and a native
 ReactHost lease. The SDK58 app-loader delegate is wrapped through the generated
 manifest provider: queue host invalidation only while a real call lease is held,
 then delegate cleanup after release. No edits to installed node_modules are used.
-For 0.7.0 separately verify Home, secure lock, ordinary process death, cold setup,
-ringing beyond the data window, explicit answer with sustained real media,
-reject/cancel/timeout/second-call and complete service/host cleanup. The old 0.6.0
-managed-call result, source review or unit tests do not establish that pass.
+The final 0.7.0 API36 APK demonstrated secure-lock own UI, explicit answer and RTP
+beyond the wake window with only the active-audio service retained; native expiry
+removed incoming UI/service. Confirmed ordinary process death followed by FCM
+started a new process and incoming UI at12.95s. See the report for sample timing
+and limits. Repeat on real phones; explicit decline/caller-cancel/second-call,
+denied-FSI/API24 fallback and all OEM cleanup paths still need targeted acceptance.
+The old 0.6.0 result, source review or unit tests do not establish those paths.
 
 Primary references: [FCM data/encryption/4KB](https://firebase.google.com/docs/cloud-messaging/customize-messages/set-message-type),
 [FCM TTL](https://firebase.google.com/docs/cloud-messaging/customize-messages/setting-message-lifespan),
