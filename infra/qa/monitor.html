@@ -1,0 +1,711 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>LastCall — локальный QA-монитор</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f3f5f8;
+    --card: #ffffff;
+    --text: #151922;
+    --muted: #596273;
+    --border: #d7dde7;
+    --accent: #2457d6;
+    --accent-soft: #e6edff;
+    --pass: #17663a;
+    --pass-soft: #e2f4e9;
+    --fail: #a62016;
+    --fail-soft: #fdebe9;
+    --blocked: #7d3600;
+    --blocked-soft: #fff0df;
+    --paused: #6a4d00;
+    --paused-soft: #fff7d5;
+    --unknown: #596273;
+    --unknown-soft: #edf0f5;
+    --current: #2457d6;
+    --current-soft: #e6edff;
+    --neutral-soft: #f1f3f7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1117;
+      --card: #171b23;
+      --text: #e9edf4;
+      --muted: #9aa6b8;
+      --border: #2a3140;
+      --accent: #8fb0ff;
+      --accent-soft: #1d2a4d;
+      --pass: #7bdba3;
+      --pass-soft: #123023;
+      --fail: #ff9188;
+      --fail-soft: #3a1714;
+      --blocked: #ffb36b;
+      --blocked-soft: #3a2510;
+      --paused: #ffd166;
+      --paused-soft: #342b0b;
+      --unknown: #9aa6b8;
+      --unknown-soft: #222834;
+      --current: #8fb0ff;
+      --current-soft: #1d2a4d;
+      --neutral-soft: #1e2430;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--bg); }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.45;
+  }
+  .wrap {
+    width: 100%;
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 20px 16px 40px;
+  }
+  header.top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+  h1 {
+    margin: 0 0 2px;
+    font-size: 1.25rem;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+  }
+  .agent {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.82rem;
+    word-break: break-word;
+  }
+  .conn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    background: var(--card);
+    white-space: nowrap;
+  }
+  .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: currentColor;
+    flex: 0 0 auto;
+  }
+  .conn-live { color: var(--pass); }
+  .conn-stale { color: var(--paused); }
+  .conn-error, .conn-unavailable { color: var(--fail); }
+  .conn-unknown, .conn-unavailable { color: var(--unknown); }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+  h2 {
+    margin: 0 0 10px;
+    font-size: 0.95rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+  }
+  .current { border-width: 2px; border-color: var(--accent); }
+  .current-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .badge {
+    display: inline-block;
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    background: var(--unknown-soft);
+    color: var(--unknown);
+    border: 1px solid transparent;
+  }
+  .badge.subtle {
+    background: var(--neutral-soft);
+    color: var(--muted);
+    font-weight: 600;
+  }
+  .status-running, .status-developing { background: var(--current-soft); color: var(--current); }
+  .status-passed { background: var(--pass-soft); color: var(--pass); }
+  .status-failed { background: var(--fail-soft); color: var(--fail); }
+  .status-blocked { background: var(--blocked-soft); color: var(--blocked); }
+  .status-paused { background: var(--paused-soft); color: var(--paused); }
+  .status-unknown { background: var(--unknown-soft); color: var(--unknown); }
+  .action {
+    margin: 0 0 8px;
+    font-size: clamp(1.45rem, 4.5vw, 2.15rem);
+    line-height: 1.15;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    overflow-wrap: anywhere;
+  }
+  .stale {
+    margin: 0 0 8px;
+    font-weight: 700;
+    color: var(--paused);
+  }
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+    color: var(--muted);
+    font-size: 0.84rem;
+  }
+  .meta time { font-variant-numeric: tabular-nums; }
+  .pipeline {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+  }
+  .pipeline li {
+    flex: 1 1 150px;
+    min-width: 130px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 9px 10px;
+    background: var(--neutral-soft);
+  }
+  .pipe-name { display: block; font-weight: 700; font-size: 0.9rem; }
+  .pipe-status { display: block; margin-top: 2px; font-size: 0.78rem; color: var(--muted); }
+  .pipe-pass { background: var(--pass-soft); border-color: var(--pass); }
+  .pipe-pass .pipe-status { color: var(--pass); }
+  .pipe-current { background: var(--current-soft); border-color: var(--current); }
+  .pipe-current .pipe-status { color: var(--current); font-weight: 700; }
+  .pipe-failed { background: var(--fail-soft); border-color: var(--fail); }
+  .pipe-failed .pipe-status { color: var(--fail); }
+  .pipe-unknown { background: var(--unknown-soft); }
+  .cycles {
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+  }
+  .cycle-marker {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px;
+    background: var(--neutral-soft);
+    text-align: center;
+    min-width: 0;
+  }
+  .cycle-num { display: block; font-weight: 800; font-size: 0.85rem; }
+  .cycle-label { display: block; font-size: 0.72rem; color: var(--muted); overflow-wrap: anywhere; }
+  .cycle-pass { background: var(--pass-soft); border-color: var(--pass); }
+  .cycle-pass .cycle-label { color: var(--pass); }
+  .cycle-current { background: var(--current-soft); border-color: var(--current); }
+  .cycle-current .cycle-label { color: var(--current); font-weight: 700; }
+  .cycle-blocked { background: var(--blocked-soft); border-color: var(--blocked); }
+  .cycle-blocked .cycle-label { color: var(--blocked); }
+  .cycle-failed { background: var(--fail-soft); border-color: var(--fail); }
+  .cycle-failed .cycle-label { color: var(--fail); }
+  .cycle-paused { background: var(--paused-soft); border-color: var(--paused); }
+  .cycle-paused .cycle-label { color: var(--paused); }
+  .cycle-unknown { background: var(--unknown-soft); }
+  .results + .results { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+  .results-title { margin: 0 0 8px; font-weight: 800; font-size: 1rem; }
+  .results-note { margin: 0; color: var(--muted); }
+  .counts { display: flex; flex-wrap: wrap; gap: 8px; }
+  .count {
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 0.85rem;
+    background: var(--neutral-soft);
+    font-variant-numeric: tabular-nums;
+  }
+  .count-pass { background: var(--pass-soft); color: var(--pass); border-color: var(--pass); }
+  .count-fail { background: var(--fail-soft); color: var(--fail); border-color: var(--fail); }
+  .count-skip { background: var(--paused-soft); color: var(--paused); border-color: var(--paused); }
+  .skip-note { margin: 8px 0 0; color: var(--paused); font-size: 0.84rem; font-weight: 600; }
+  .limits-text { margin: 0 0 10px; }
+  .skills { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+  .skills li {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 0.82rem;
+    background: var(--neutral-soft);
+  }
+  .skill-name { font-weight: 700; }
+  .skill-state { color: var(--muted); }
+  .skill-READ_FALLBACK { color: var(--pass); }
+  .skill-PRELOADED { color: var(--pass); }
+  .stop { margin: 12px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--paused-soft); color: var(--paused); font-weight: 600; }
+  details.history { padding: 0; overflow: hidden; }
+  details.history > summary {
+    cursor: pointer;
+    padding: 14px 16px;
+    font-weight: 800;
+    user-select: none;
+  }
+  details.history[open] > summary { border-bottom: 1px solid var(--border); }
+  .history-body { padding: 14px 16px 16px; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  footer { margin-top: 18px; }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 16px;
+    margin-bottom: 10px;
+  }
+  button {
+    font: inherit;
+    font-weight: 700;
+    padding: 8px 14px;
+    border-radius: 9px;
+    border: 1px solid var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent);
+    cursor: pointer;
+  }
+  button:hover { filter: brightness(0.97); }
+  button:focus-visible, input:focus-visible, summary:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+  }
+  label { display: inline-flex; align-items: center; gap: 8px; font-size: 0.9rem; }
+  input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); }
+  .problem { margin: 0 0 8px; padding: 10px 12px; border-radius: 10px; background: var(--fail-soft); color: var(--fail); font-weight: 600; }
+  .footnote { margin: 0; color: var(--muted); font-size: 0.8rem; }
+  .muted { color: var(--muted); }
+  @media (max-width: 640px) {
+    .wrap { padding: 14px 12px 32px; }
+    .cycles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .pipeline li { flex-basis: calc(50% - 8px); min-width: 0; }
+  }
+  @media (max-width: 380px) {
+    .pipeline li { flex-basis: 100%; }
+    .cycles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>LastCall · QA-прогресс</h1>
+      <p class="agent">Тестировщик: lastcall-release-tester · разработка: codex-claude-worker</p>
+    </div>
+    <div id="connection" class="conn conn-unknown" role="status" aria-live="polite">
+      <span class="dot" aria-hidden="true"></span>
+      <span id="connectionText">Подключение…</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="card current" aria-labelledby="currentTitle">
+      <div class="current-head">
+        <span id="statusBadge" class="badge status-unknown">Состояние неизвестно</span>
+        <span id="cycleBadge" class="badge subtle">Цикл — / 6</span>
+      </div>
+      <h2 id="currentTitle">Текущее действие</h2>
+      <p id="currentAction" class="action" aria-live="polite">Ожидание данных…</p>
+      <p id="staleNote" class="stale" hidden></p>
+      <div class="meta">
+        <span>Данные получены: <time id="sampleTime">—</time></span>
+        <span>Активность источника: <time id="activityTime">—</time></span>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="pipelineTitle">
+      <h2 id="pipelineTitle">Этапы проверки</h2>
+      <ol id="pipeline" class="pipeline"></ol>
+    </section>
+
+    <section class="card" aria-labelledby="cyclesTitle">
+      <h2 id="cyclesTitle">Шесть циклов</h2>
+      <ol id="cycles" class="cycles"></ol>
+    </section>
+
+    <section class="card" aria-labelledby="resultsTitle">
+      <h2 id="resultsTitle">Результаты</h2>
+      <div id="currentResults" class="results"></div>
+      <div id="previousResults" class="results"></div>
+    </section>
+
+    <section class="card" aria-labelledby="limitsTitle">
+      <h2 id="limitsTitle">Ограничения и навыки</h2>
+      <p id="limits" class="limits-text"></p>
+      <ul id="skills" class="skills"></ul>
+      <p id="stopReason" class="stop" hidden></p>
+    </section>
+
+    <details id="history" class="card history">
+      <summary>История циклов</summary>
+      <div id="historyBody" class="history-body"></div>
+    </details>
+  </main>
+
+  <footer>
+    <div class="controls">
+      <button id="refresh" type="button">Обновить сейчас</button>
+      <label for="auto"><input id="auto" type="checkbox" checked> Автообновление каждые 2 с</label>
+    </div>
+    <p id="problem" class="problem" hidden></p>
+    <p class="footnote">Только просмотр. Запуск, повтор и обход лимита шести циклов здесь недоступны.</p>
+  </footer>
+</div>
+
+<script>
+  'use strict';
+
+  const POLL_MS = 2000;
+  const TIMEOUT_MS = 1800;
+  const AUTO_OFFLINE = 'Локальный монитор недоступен.';
+
+  const STATUS_CLASS = {
+    developing: 'developing',
+    running: 'running',
+    passed: 'passed',
+    failed: 'failed',
+    blocked: 'blocked',
+    paused: 'paused',
+    unknown: 'unknown'
+  };
+  const CYCLE_CLASS = {
+    passed: 'pass',
+    current: 'current',
+    blocked: 'blocked',
+    failed: 'failed',
+    paused: 'paused',
+    not_started: 'not_started',
+    unknown: 'unknown'
+  };
+  const PIPE_CLASS = {
+    passed: 'pass',
+    current: 'current',
+    failed: 'failed',
+    not_started: 'not_started',
+    unknown: 'unknown'
+  };
+  const PIPE_STATUS = {
+    passed: 'Пройден',
+    current: 'Сейчас',
+    failed: 'Ошибка',
+    not_started: 'Не начат',
+    unknown: 'Нет данных'
+  };
+  const PROBLEM_TEXT = {
+    state_unavailable: 'Файл состояния QA недоступен.',
+    state_invalid: 'Файл состояния QA повреждён или не соответствует формату.',
+    results_unavailable: 'Нет подтверждённых результатов для завершённого цикла.',
+    results_inconsistent: 'Данные результатов противоречивы; успех не подтверждён.',
+    internal: 'Внутренняя ошибка чтения состояния.'
+  };
+  const SKILL_CLASS = {
+    PRELOADED: 'PRELOADED',
+    READ_FALLBACK: 'READ_FALLBACK',
+    unknown: 'unknown'
+  };
+
+  const byId = id => document.getElementById(id);
+
+  function element(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = String(text);
+    return node;
+  }
+
+  function clear(node) {
+    while (node.firstChild) node.removeChild(node.firstChild);
+  }
+
+  function formatTime(value) {
+    if (typeof value !== 'string' || value.length === 0) return '—';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '—';
+    try {
+      return new Intl.DateTimeFormat('ru-RU', { dateStyle: 'short', timeStyle: 'medium' }).format(date);
+    } catch {
+      return date.toISOString();
+    }
+  }
+
+  function setConnection(kind, text) {
+    const connection = byId('connection');
+    connection.className = 'conn conn-' + kind;
+    byId('connectionText').textContent = text;
+  }
+
+  function countChip(label, value, kind) {
+    return element('span', 'count' + (kind ? ' count-' + kind : ''), label + ': ' + value);
+  }
+
+  function totalsBlock(title, totals) {
+    const block = element('div', 'totals-block');
+    block.append(element('p', 'results-title', title));
+    if (!totals || totals.available !== true) {
+      block.append(element('p', 'results-note', 'Результатов пока нет.'));
+      return block;
+    }
+    const row = element('div', 'counts');
+    row.append(countChip('Сдано', totals.passed, 'pass'));
+    row.append(countChip('Ошибки', totals.failed, totals.failed > 0 ? 'fail' : ''));
+    row.append(countChip('Пропущено', totals.skipped || 0, 'skip'));
+    block.append(row);
+    if ((totals.skipped || 0) > 0) {
+      block.append(element('p', 'skip-note', 'Пропуск не засчитывается как успех.'));
+    }
+    return block;
+  }
+
+  function renderPipeline(items) {
+    const list = byId('pipeline');
+    clear(list);
+    for (const item of items) {
+      const status = PIPE_CLASS[item.status] ? item.status : 'unknown';
+      const li = element('li', 'pipe-' + status);
+      li.append(element('span', 'pipe-name', item.label));
+      li.append(element('span', 'pipe-status', PIPE_STATUS[item.status] || PIPE_STATUS.unknown));
+      if (item.status === 'current') li.setAttribute('aria-current', 'step');
+      list.append(li);
+    }
+  }
+
+  function renderCycles(items) {
+    const list = byId('cycles');
+    clear(list);
+    for (const item of items) {
+      const status = CYCLE_CLASS[item.status] ? item.status : 'unknown';
+      const li = element('li', 'cycle-marker cycle-' + status);
+      li.append(element('span', 'cycle-num', 'Цикл ' + item.cycle));
+      li.append(element('span', 'cycle-label', item.label));
+      if (item.status === 'current') li.setAttribute('aria-current', 'step');
+      list.append(li);
+    }
+  }
+
+  function renderResults(data) {
+    const current = byId('currentResults');
+    clear(current);
+    const cycle = data.current && data.current.cycle ? data.current.cycle : '—';
+    const currentUnit = data.current && data.current.unit;
+    const currentBrowser = data.current && data.current.browser;
+    if (currentUnit && currentUnit.available === true) {
+      current.append(totalsBlock('Текущий цикл ' + cycle + ' · модульные тесты', currentUnit));
+    }
+    if (currentBrowser && currentBrowser.available === true) {
+      current.append(totalsBlock('Текущий цикл ' + cycle + ' · интеграционные тесты', currentBrowser));
+    }
+    if ((!currentUnit || currentUnit.available !== true) && (!currentBrowser || currentBrowser.available !== true)) {
+      current.append(element('p', 'results-note', 'Результатов текущего цикла пока нет. Текущие проверки ещё не подтверждены.'));
+    }
+
+    const previous = byId('previousResults');
+    clear(previous);
+    const full = data.previousFullCheck;
+    if (!full) {
+      previous.append(element('p', 'results-title', 'Предыдущая полная проверка'));
+      previous.append(element('p', 'results-note', 'Полных результатов предыдущего цикла нет.'));
+      return;
+    }
+    previous.append(element('p', 'results-title', full.label));
+    previous.append(totalsBlock('Модульные тесты', full.unit));
+    previous.append(totalsBlock('Интеграционные тесты', full.browser));
+  }
+
+  function renderSkills(items) {
+    const list = byId('skills');
+    clear(list);
+    for (const skill of items) {
+      const li = element('li');
+      li.append(element('span', 'skill-name', skill.name));
+      li.append(element('span', 'skill-state skill-' + (SKILL_CLASS[skill.status] || 'unknown'), skill.label));
+      list.append(li);
+    }
+  }
+
+  function totalsText(totals) {
+    if (!totals || totals.available !== true) return 'нет данных';
+    return totals.passed + ' сдано, ' + totals.failed + ' ошибок, ' + (totals.skipped || 0) + ' пропущено';
+  }
+
+  function renderHistory(items) {
+    const body = byId('historyBody');
+    clear(body);
+    if (!Array.isArray(items) || items.length === 0) {
+      body.append(element('p', 'results-note', 'История пока пуста.'));
+      return;
+    }
+    const table = element('table');
+    const head = element('thead');
+    const headRow = element('tr');
+    for (const label of ['Цикл', 'Статус', 'Модульные', 'Интеграционные']) {
+      headRow.append(element('th', '', label));
+    }
+    head.append(headRow);
+    table.append(head);
+    const tbody = element('tbody');
+    for (const item of items) {
+      const row = element('tr');
+      row.append(element('td', 'num', String(item.cycle)));
+      row.append(element('td', '', item.label));
+      row.append(element('td', 'num', totalsText(item.unit)));
+      row.append(element('td', 'num', totalsText(item.browser)));
+      tbody.append(row);
+    }
+    table.append(tbody);
+    body.append(table);
+  }
+
+  function renderProblem(problem) {
+    const node = byId('problem');
+    const text = typeof problem === 'string' ? PROBLEM_TEXT[problem] : '';
+    if (text) {
+      node.textContent = text;
+      node.hidden = false;
+    } else {
+      node.textContent = '';
+      node.hidden = true;
+    }
+  }
+
+  function render(data) {
+    if (!data || typeof data !== 'object' || !data.stage || !Array.isArray(data.cycles)) {
+      throw new Error('invalid payload');
+    }
+
+    const status = STATUS_CLASS[data.status] ? data.status : 'unknown';
+    const badge = byId('statusBadge');
+    badge.className = 'badge status-' + status;
+    badge.textContent = data.statusLabel || 'Состояние неизвестно';
+    byId('cycleBadge').textContent = 'Цикл ' + (data.activeCycle || '—') + ' / ' + (data.maxCycles || 6);
+    byId('currentAction').textContent = data.stage.label || 'Нет подтверждённых данных';
+
+    const staleNote = byId('staleNote');
+    if (data.staleLabel) {
+      staleNote.textContent = data.staleLabel;
+      staleNote.hidden = false;
+    } else {
+      staleNote.textContent = '';
+      staleNote.hidden = true;
+    }
+    byId('sampleTime').textContent = formatTime(data.readAt);
+    byId('activityTime').textContent = data.activityAt ? formatTime(data.activityAt) : 'нет данных';
+
+    if (data.status === 'unknown') {
+      setConnection('unavailable', 'Данные недоступны');
+    } else if (data.stale) {
+      setConnection('stale', 'Нет новых событий');
+    } else {
+      setConnection('live', 'На связи');
+    }
+
+    renderPipeline(Array.isArray(data.pipeline) ? data.pipeline : []);
+    renderCycles(data.cycles);
+    renderResults(data);
+    renderSkills(Array.isArray(data.skills) ? data.skills : []);
+    renderHistory(data.history);
+    byId('limits').textContent = 'Лимит: ' + (data.limits && data.limits.maxCycles ? data.limits.maxCycles : 6)
+      + ' циклов. Режим: только просмотр.';
+    const stop = byId('stopReason');
+    if (data.stopReason) {
+      stop.textContent = data.stopReason;
+      stop.hidden = false;
+    } else {
+      stop.textContent = '';
+      stop.hidden = true;
+    }
+    renderProblem(data.problem);
+  }
+
+  function renderDisconnected() {
+    setConnection('error', 'Нет соединения');
+    const badge = byId('statusBadge');
+    badge.className = 'badge status-unknown';
+    badge.textContent = 'Нет соединения';
+    byId('cycleBadge').textContent = 'Цикл — / 6';
+    byId('currentAction').textContent = AUTO_OFFLINE;
+    const staleNote = byId('staleNote');
+    staleNote.textContent = 'Данные не обновляются.';
+    staleNote.hidden = false;
+    const problem = byId('problem');
+    problem.textContent = 'Соединение с локальным монитором потеряно. Показанные ниже данные могут быть устаревшими.';
+    problem.hidden = false;
+  }
+
+  let auto = true;
+  let inFlight = false;
+  let controller = null;
+
+  async function refresh() {
+    if (inFlight) return;
+    inFlight = true;
+    controller = new AbortController();
+    const timeout = setTimeout(() => controller && controller.abort(), TIMEOUT_MS);
+    try {
+      const response = await fetch('/api/status', {
+        signal: controller.signal,
+        cache: 'no-store',
+        headers: { Accept: 'application/json' }
+      });
+      if (!response.ok) throw new Error('http ' + response.status);
+      const data = await response.json();
+      render(data);
+    } catch {
+      renderDisconnected();
+    } finally {
+      clearTimeout(timeout);
+      inFlight = false;
+      controller = null;
+    }
+  }
+
+  const timer = setInterval(() => {
+    if (auto && document.visibilityState === 'visible') refresh();
+  }, POLL_MS);
+
+  byId('auto').addEventListener('change', event => {
+    auto = event.target.checked;
+    if (auto) refresh();
+  });
+  byId('refresh').addEventListener('click', () => refresh());
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && auto) refresh();
+  });
+  window.addEventListener('pagehide', () => {
+    clearInterval(timer);
+    if (controller) controller.abort();
+  });
+
+  refresh();
+</script>
+</body>
+</html>

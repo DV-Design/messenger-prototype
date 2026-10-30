@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseWakeNotice, runWakeTask, WakeTaskRegistry, SharedWakeRuntime, WakeSyncCoordinator, type WakeLease } from '../src/wake-model';
+import { parseWakeNotice, runWakeTask, wakeSyncBudget, WakeTaskRegistry, SharedWakeRuntime, WakeSyncCoordinator, type WakeLease } from '../src/wake-model';
 
 const now = 1_800_000_000_000;
 const raw = { kind: 'lastcall-wake', intentKind: 'message', intentId: 'ab'.repeat(16), expiresAt: String(now + 60_000) };
@@ -35,6 +35,30 @@ test('duplicate wake callbacks share one bounded window and await durable drain'
   assert.equal(releases, 1); assert.equal(done, false);
   drained.resolve(); await first; assert.equal(done, true);
   await coordinator.run(notice()); assert.equal(acquisitions, 1);
+});
+
+test('typed calls get a 25s budget bounded by intent expiry while data stays at 9s', async () => {
+  const rawCall = { legacy: false as const, kind: 'call' as const, id: 'dd'.repeat(16), expiresAt: now + 60_000 };
+  assert.equal(wakeSyncBudget(rawCall, now), 25_000);
+  assert.equal(wakeSyncBudget({ legacy: false, kind: 'message', id: raw.intentId, expiresAt: now + 60_000 }, now), 9_000);
+  assert.equal(wakeSyncBudget({ ...rawCall, expiresAt: now + 4_000 }, now), 4_000);
+  const clock = timers(); let releases = 0;
+  const coordinator = new WakeSyncCoordinator(async () => ({ connect: async () => {}, release: async () => { releases++; } }), () => now, clock);
+  const first = coordinator.run(rawCall); const duplicate = coordinator.run(rawCall); await tick();
+  assert.equal(first, duplicate); assert.equal(clock.duration(), 25_000);
+  clock.fire(); await first; assert.equal(releases, 1);
+});
+
+test('a call arriving during a data window is queued for its own full call lease', async () => {
+  const clock = timers(); let acquisitions = 0; let releases = 0;
+  const coordinator = new WakeSyncCoordinator(async () => { acquisitions++; return { connect: async () => {}, release: async () => { releases++; } }; }, () => now, clock);
+  const call = { legacy: false as const, kind: 'call' as const, id: 'ee'.repeat(16), expiresAt: now + 60_000 };
+  const data = coordinator.run(notice()); await tick();
+  const ringing = coordinator.run(call); await tick();
+  assert.equal(acquisitions, 1); assert.equal(clock.duration(), 9000);
+  clock.fire(); await data; await tick();
+  assert.equal(acquisitions, 2); assert.equal(clock.duration(), 25_000);
+  clock.fire(); await ringing; assert.equal(releases, 2);
 });
 
 test('short intent deadlines and late initialization do not start a late transport', async () => {

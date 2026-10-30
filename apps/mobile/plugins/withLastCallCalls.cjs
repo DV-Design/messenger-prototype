@@ -5,21 +5,27 @@ module.exports = function withLastCallCalls(config) {
   config = withAndroidManifest(config, mod => {
     const manifest = mod.modResults.manifest;
     manifest['uses-permission'] ??= [];
-    for (const name of ['FOREGROUND_SERVICE', 'FOREGROUND_SERVICE_PHONE_CALL', 'FOREGROUND_SERVICE_MICROPHONE', 'FOREGROUND_SERVICE_CAMERA', 'MANAGE_OWN_CALLS', 'READ_PHONE_NUMBERS', 'CALL_PHONE']) {
+    for (const name of ['FOREGROUND_SERVICE', 'FOREGROUND_SERVICE_PHONE_CALL', 'FOREGROUND_SERVICE_MICROPHONE', 'FOREGROUND_SERVICE_CAMERA', 'MANAGE_OWN_CALLS', 'USE_FULL_SCREEN_INTENT']) {
       const permission = `android.permission.${name}`;
       if (!manifest['uses-permission'].some(item => item.$['android:name'] === permission)) manifest['uses-permission'].push({ $: { 'android:name': permission } });
     }
-    const app = manifest.application[0]; app.service ??= [];
+    const app = manifest.application[0]; app.service ??= []; app.activity ??= [];
     manifest.$['xmlns:tools'] = 'http://schemas.android.com/tools'; app['meta-data'] ??= [];
     const metadata = { $: { 'android:name': 'org.unimodules.core.AppLoader#react-native-headless', 'android:value': 'dev.messenger.prototype.calls.LastCallHeadlessAppLoader', 'tools:replace': 'android:value' } };
     const loaderIndex = app['meta-data'].findIndex(item => item.$['android:name'] === metadata.$['android:name']);
     if (loaderIndex < 0) app['meta-data'].push(metadata); else app['meta-data'][loaderIndex] = metadata;
-    const entries = [
-      { $: { 'android:name': 'io.wazo.callkeep.VoiceConnectionService', 'android:label': 'LastCall', 'android:permission': 'android.permission.BIND_TELECOM_CONNECTION_SERVICE', 'android:exported': 'true', 'android:foregroundServiceType': 'phoneCall|microphone' }, 'intent-filter': [{ action: [{ $: { 'android:name': 'android.telecom.ConnectionService' } }] }] },
+    const services = [
+      { $: { 'android:name': 'io.wazo.callkeep.VoiceConnectionService', 'android:label': 'LastCall', 'android:permission': 'android.permission.BIND_TELECOM_CONNECTION_SERVICE', 'android:exported': 'true', 'android:foregroundServiceType': 'phoneCall' }, 'intent-filter': [{ action: [{ $: { 'android:name': 'android.telecom.ConnectionService' } }] }] },
       { $: { 'android:name': 'io.wazo.callkeep.RNCallKeepBackgroundMessagingService', 'android:exported': 'false' } },
       { $: { 'android:name': 'dev.messenger.prototype.calls.LastCallAudioService', 'android:exported': 'false', 'android:foregroundServiceType': 'phoneCall|microphone|camera' } },
+      { $: { 'android:name': 'dev.messenger.prototype.calls.LastCallCallSetupService', 'android:exported': 'false', 'android:foregroundServiceType': 'phoneCall' } },
+      { $: { 'android:name': 'dev.messenger.prototype.calls.LastCallCallUiService', 'android:exported': 'false', 'android:foregroundServiceType': 'phoneCall' } },
     ];
-    for (const entry of entries) { const index = app.service.findIndex(item => item.$['android:name'] === entry.$['android:name']); if (index < 0) app.service.push(entry); else app.service[index] = entry; }
+    for (const entry of services) { const index = app.service.findIndex(item => item.$['android:name'] === entry.$['android:name']); if (index < 0) app.service.push(entry); else app.service[index] = entry; }
+    const activities = [
+      { $: { 'android:name': 'dev.messenger.prototype.calls.LastCallCallActivity', 'android:exported': 'false', 'android:excludeFromRecents': 'true', 'android:launchMode': 'singleTask', 'android:taskAffinity': '' } },
+    ];
+    for (const entry of activities) { const index = app.activity.findIndex(item => item.$['android:name'] === entry.$['android:name']); if (index < 0) app.activity.push(entry); else app.activity[index] = entry; }
     return mod;
   });
   config = withMainApplication(config, mod => {
@@ -34,7 +40,7 @@ module.exports = function withLastCallCalls(config) {
   return withDangerousMod(config, ['android', async mod => {
     const target = path.join(mod.modRequest.platformProjectRoot, 'app/src/main/java/dev/messenger/prototype/calls');
     await fs.mkdir(target, { recursive: true });
-    for (const file of ['LastCallAudioService.java', 'LastCallAudioModule.java', 'LastCallAudioPackage.java', 'LastCallHeadlessAppLoader.java', 'LastCallHostLease.java', 'LastCallWakeLease.java']) await fs.copyFile(path.join(__dirname, 'calls', file), path.join(target, file));
+    for (const file of ['LastCallAudioService.java', 'LastCallAudioModule.java', 'LastCallAudioPackage.java', 'LastCallHeadlessAppLoader.java', 'LastCallHostLease.java', 'LastCallWakeLease.java', 'LastCallCallUiService.java', 'LastCallCallActivity.java', 'LastCallCallSetupService.java']) await fs.copyFile(path.join(__dirname, 'calls', file), path.join(target, file));
     return mod;
   }]);
 };

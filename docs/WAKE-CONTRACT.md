@@ -1,13 +1,21 @@
 # Direct-first wake and bounded Android background sync
 
-## Status: 0.6.0/code9, 2026-10-30
+## Status: 0.7.0/code10 candidate, 2026-10-30
 
-0.6.0 adds encrypted text/file-name previews, authenticated notification routes,
-managed Android lockscreen calls, voice notes and video circles. This supersedes
-the earlier generic-only FCM requirement. Own AndroidAPI36 emulator evidence is
-recorded in [native acceptance](reports/debugging/2026-10/native-060.md): secure
+The 0.7.0 candidate changes Android calls to LastCall-owned incoming UI, extends
+the typed-call setup window and wakes a suspended recipient even when its RTC
+connection still appears connected. It also adds actual foreground-chat read
+receipts; see [the outbox contract](OUTBOX-CONTRACT.md). These candidate changes
+still require final APK/native acceptance. Unit tests and source review alone
+do not establish background ringing on real phones.
+
+Historical 0.6.0 added encrypted text/file-name previews, authenticated notification
+routes, managed Android lockscreen calls, voice notes and video circles. That
+superseded the earlier generic-only FCM requirement. Its own AndroidAPI36 emulator
+evidence is recorded in [native acceptance](reports/debugging/2026-10/native-060.md): secure
 lock text preview, actual text/file tap routes and explicit locked audio answer
-with >18s bidirectional RTP. Physical devices/OEM/carriers and iOS remain separate.
+with >18s bidirectional RTP. This does not verify the new 0.7.0 call UI or wake path.
+Physical devices/OEM/carriers and iOS remain separate.
 
 ## Prior 0.5.1 native evidence
 
@@ -28,7 +36,8 @@ launch, saved text/file entries remained visible and the profile was preserved;
 force-stop was a persistence test, not successful push delivery in that state.
 Do not infer broader success from provider acceptance,
 a token registration, source implementation or unit tests. APNs/PushKit/CallKit
-remain separate; managed Android calls have emulator acceptance; physical phones remain unverified.
+remain separate; the old managed Android path has 0.6.0 emulator evidence only;
+physical phones and the 0.7.0 replacement remain unverified.
 
 ## Content and delivery boundary
 
@@ -57,6 +66,19 @@ after 2500ms without ACK the manager may request wake. Generic wake keeps its
 bounded retry, and calls/preview use independent dedup/quota checks so an earlier
 data notice does not hide a new call/message. Actual ACK, expiry or sender
 disconnect stops unnecessary wake; wall-clock rollback does not strand retry.
+
+For calls, RTC `connected` is not evidence that a suspended JavaScript recipient
+has handled the encrypted call invitation. The 0.7.0 sender therefore arms a
+separate 2500ms post-invite wake while the same authenticated local `callId`
+remains outgoing. This wake is permitted even with an established RTC connection;
+it is tied to the original 30s operation deadline, not a new call lifetime. The
+existing cold `waitForPeer` wake and cooldown remain in place. Before requesting
+services and again after asynchronous service resolution, recheck the current
+call ID, cancellation, answer/state transition and deadline. Cancellation, answer,
+replacement or expiry clears the post-invite timer; a late service response
+must not send wake for an obsolete call. The `callId` is a local association,
+not a new plaintext server wake field. Push remains a bounded setup hint, never
+authorization to ring, auto-answer or capture media.
 
 Each intent lasts at most 60s for message/file, 30s for call; expiry is checked
 again before provider invocation. Expiry-cleaned dedup is bounded to 4096 sender+
@@ -154,39 +176,61 @@ or trusted local-notification context, server/identity scope, pinned sender and
 existing conversation membership; reject forged/stale cross-account targets.
 Never open a payload URL or create a conversation from untrusted identifiers.
 A generic legacy notification may open the app without an exact chat target.
-Routing is not receipt: do not insert preview content, create a content ACK or
-claim file bytes are present merely because its name was displayed. Test both
+Routing is not receipt: do not insert preview content, create a content ACK/read
+receipt or claim file bytes are present merely because its name was displayed.
+Only the actual focused foreground chat may request a read receipt after full
+content persistence; Home, the lockscreen and preview display cannot do so. Test both
 text/file and direct/group cold/warm paths separately from P2P delivery.
 
-## Android lockscreen and managed incoming calls
+## Android lockscreen and LastCall-owned incoming calls (0.7.0 candidate)
 
 Native message notifications must set `VISIBILITY_PUBLIC` themselves; setting an
 Expo notification channel alone does not prove secure-lockscreen visibility.
 Android notification/channel/privacy settings can hide all or some content. This
 is a user-requested plaintext display on their device, not plaintext FCM transport.
-Native adapter secure-lockscreen audio acceptance is recorded in the linked report.
+Historical native adapter secure-lockscreen audio acceptance is recorded in the
+0.6.0 report; the replacement below requires its own acceptance.
 
-CallKeep 4.6.1 supplies managed Telecom/ConnectionService UI, not media/signaling.
-The user must enable the LastCall phone account once through the foreground
-Settings button, grant `READ_PHONE_NUMBERS`/`CALL_PHONE` and pregrant microphone
-access. Do not request `READ_CONTACTS` or `READ_CALL_LOG`, change username
-registration or demand a default-dialer replacement. A live authenticated incoming
-session callId is required to ring; push alone must not create a ringing call.
-Reject forged/expired/cancelled invites and stale native actions; a second call
-must not reuse the previous answer/end event.
+On API26+ CallKeep/ConnectionService uses a self-managed, automatically registered
+LastCall account, while LastCall owns the incoming screen and high-priority native
+CallStyle notification. It does not use the Phone application's incoming UI or
+require manual phone-account enablement, `READ_PHONE_NUMBERS`, `CALL_PHONE`,
+`READ_CALL_LOG`, contacts access or a default-dialer replacement. Account migration
+may replace only LastCall's own prior managed account; no other account is touched.
+API24/25 cannot use self-managed ConnectionService: the app-owned notification/
+activity fallback is a candidate requirement still pending final native verification.
 
-Ringing service uses `phoneCall` type 4 without microphone capture. Only an explicit
+A dedicated call-only activity may show over the lockscreen and turn on the
+screen; the main chat activity must not bypass PIN or expose history. On Android
+14+, check full-screen-intent permission and explain the app's notification/FSI
+settings. Without FSI, retain the incoming notification/actions instead of claiming
+a full-screen presentation. A live authenticated incoming session `callId` is
+required to ring; push alone must not create a ringing call. Reject forged,
+expired or cancelled invites. Native actions bind the current UUID, expiry and
+nonce; immutable private PendingIntents and stale-action checks prevent a previous
+answer/reject from affecting a later call. Ringing deadlines must expire natively
+even if JavaScript stops progressing. These are acceptance requirements, not a
+claim of final APK verification.
+
+Call setup has a separate, bounded `phoneCall`-only foreground service and visible
+setup notification; it never acquires microphone or camera. Ringing likewise uses
+`phoneCall` type 4 without microphone capture. Only an explicit
 answer with `RECORD_AUDIO` already granted can start audio service with
 `phoneCall|microphone` type 132 and then call accept/WebRTC microphone acquisition.
 Cancellation, reject, end, timeout and failed answer must stop services, remove
 native calls and release runtime ownership. The ordinary cold 9s sync window is
-not a call-lifetime guarantee: live calls need manager pinning and a native
+not a call-lifetime guarantee: typed-call setup uses a separate JS window of at
+most 25s and native timer ownership of at most 28s, both capped by intent expiry.
+Data sync retains its 9s JS/12s native bounds. Duplicate intents must not renew
+either window. Setup expiry must not stop a separately accepted active-audio
+service. Live calls need manager pinning and a native
 ReactHost lease. The SDK58 app-loader delegate is wrapped through the generated
 manifest provider: queue host invalidation only while a real call lease is held,
 then delegate cleanup after release. No edits to installed node_modules are used.
-API 36 locked ringing beyond 12s, answer with real audio RTP beyond 15s,
-reject/cancel/second-call and complete service/host cleanup still need final
-0.6.0 APK acceptance; source or a 0.5.2 candidate does not establish that pass.
+For 0.7.0 separately verify Home, secure lock, ordinary process death, cold setup,
+ringing beyond the data window, explicit answer with sustained real media,
+reject/cancel/timeout/second-call and complete service/host cleanup. The old 0.6.0
+managed-call result, source review or unit tests do not establish that pass.
 
 Primary references: [FCM data/encryption/4KB](https://firebase.google.com/docs/cloud-messaging/customize-messages/set-message-type),
 [FCM TTL](https://firebase.google.com/docs/cloud-messaging/customize-messages/setting-message-lifespan),
@@ -209,12 +253,15 @@ show permission prompts, open a microphone or auto-answer. Keep one runtime owne
 and transfer ownership safely when foreground opens; avoid concurrent storage
 writers, replacing a live UI manager or tearing down UI-owned transports.
 
-The target transport window is at most 9s, bounded further by intent expiry;
+For message/file data the target transport window is at most 9s, bounded further by intent expiry;
 then await encrypted storage drain before task-owned cleanup within the short
 OS execution budget (target total 15s). Timeout is not delivery. Large/slow files
 may need later attempts from the seven-day sender queue; no continuous headless
 WebRTC process or whole-file completion within one wake is promised. Existing
 SecureStore accessibility and user identity must not be weakened or regenerated.
+Typed calls instead use the separate 25s JS/28s native setup ownership described
+above; a live authenticated call retains its own host ownership through ringing
+and acceptance. Neither window is a guarantee that the OS will grant execution.
 
 Force-stop needs a manual launch; no network, a powered-off device, OS battery
 policy or unavailable sender may prevent delivery. Physical phones, locked state,
@@ -227,7 +274,8 @@ strict schemas and no-plaintext/no-mailbox provider tests. Add encrypted preview
 AEAD/size/Unicode/escaping/expiry/header/capability/membership/dedup checks with no
 preview-driven ACK, bounded file-name preview, scoped cold/warm chat routing and
 voice/circle attachment queue semantics. Native acceptance must separately cover PUBLIC text/file names on secure
-lockscreen, no-tap cold preview versus full ACK, phone-account enable, locked
+lockscreen, no-tap cold preview versus full ACK/read, automatic owned-account
+registration, app-owned incoming UI, FSI-denied notification fallback, locked
 answer/reject/end/second-call/caller-cancel and service/runtime cleanup. New focused tests cover successful/
 failed task opt-in, malformed/expired/deduplicated intent, bounded work/storage
 drain, existing-identity-only startup and foreground takeover. Native testing

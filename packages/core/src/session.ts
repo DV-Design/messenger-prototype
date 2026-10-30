@@ -13,7 +13,7 @@ export interface SessionSnapshot {
   messages:ChatMessage[];callState:'idle'|'outgoing'|'incoming'|'active';muted:boolean;
   localStream?:MediaStream;remoteStream?:MediaStream;route:'unknown'|'direct'|'relay';
   recovering?:boolean;
-  stats:{rttMs?:number;audioBitrateKbps?:number;packetsLost?:number;jitterMs?:number};files:SharedFile[];
+  stats:{rttMs?:number;audioBitrateKbps?:number;packetsLost?:number;jitterMs?:number;videoBitrateKbps?:number;videoFramesPerSecond?:number;videoWidth?:number;videoHeight?:number;videoEncodeMs?:number;videoQualityLimitation?:'none'|'cpu'|'bandwidth'|'other'};files:SharedFile[];
 }
 export interface PeerSessionOptions {
   serverUrl:string;invite:string;relayOnly?:boolean;iceServers?:RTCIceServer[];expectPeer?:boolean;getIceServers?:()=>Promise<RTCIceServer[]>;
@@ -79,6 +79,7 @@ export class PeerSession {
   private previousLoss?:{lost:number;received:number};
   private previousVideoLoss?:{id:string;lost:number;sent:number};
   private previousVideoPackets?:{id:string;sent:number};
+  private previousVideoEncoding?:{id:string;bytes:number;frames:number;encodeTime:number;time:number};
   private videoPolicy=new AdaptiveVideoPolicy();
   private videoBasicOnly=new WeakSet<RTCRtpSender>();
   private unsupportedEncoders=new WeakSet<RTCRtpSender>();
@@ -333,7 +334,7 @@ export class PeerSession {
     if(this.pc!==pc||generation!==this.generation||!callId||this.callId!==callId){stream.getTracks().forEach(track=>track.stop());throw new Error('Call cancelled');}
     try{await this.serial(async()=>{
       if(this.pc!==pc||this.callId!==callId)throw new Error('Call cancelled');
-      this.videoPolicy=new AdaptiveVideoPolicy();this.previousVideoLoss=undefined;this.previousVideoPackets=undefined;
+      this.videoPolicy=new AdaptiveVideoPolicy();this.previousVideoLoss=undefined;this.previousVideoPackets=undefined;this.previousVideoEncoding=undefined;
       for(const track of stream.getTracks()){
         const sender=pc.addTrack(track,stream);
         if(track.kind==='video')await this.applyEncoderTarget(pc,sender,track,callId,this.videoPolicy.current());
@@ -359,7 +360,7 @@ export class PeerSession {
   }
   private stopCall(){
     clearTimeout(this.callTimer);this.callTimer=undefined;this.callId=undefined;
-    this.videoPolicy=new AdaptiveVideoPolicy();this.previousVideoLoss=undefined;this.previousVideoPackets=undefined;
+    this.videoPolicy=new AdaptiveVideoPolicy();this.previousVideoLoss=undefined;this.previousVideoPackets=undefined;this.previousVideoEncoding=undefined;
     this.state.localStream?.getTracks().forEach(track=>track.stop());
     // Receiver tracks belong to the reusable peer connection. Stopping them here
     // would permanently end a transceiver reused by the next call. Hide the stream;
@@ -540,7 +541,23 @@ export class PeerSession {
       }
       const videoRtt=Number.isFinite(videoFeedback?.roundTripTime)?videoFeedback.roundTripTime*1000:undefined;
       const videoTarget=this.videoPolicy.update({availableOutgoingBitrate:pair?.availableOutgoingBitrate,rttMs:rttMs===undefined?videoRtt:Math.max(rttMs,videoRtt??0),lossRatio:lossRatio===undefined?videoLoss:Math.max(lossRatio,videoLoss??0)},performance.now());
-      this.change({route,stats:{rttMs,audioBitrateKbps,packetsLost:inbound?.packetsLost,jitterMs:inbound?.jitter!==undefined?inbound.jitter*1000:undefined}});
+      const finite=(value:unknown):value is number=>typeof value==='number'&&Number.isFinite(value)&&value>=0;
+      let videoBitrateKbps:number|undefined,videoFramesPerSecond:number|undefined,videoEncodeMs:number|undefined;
+      const previous=this.previousVideoEncoding;
+      if(outboundVideo){
+        if(finite(outboundVideo.framesPerSecond))videoFramesPerSecond=outboundVideo.framesPerSecond;
+        if(previous&&previous.id===outboundVideo.id&&finite(outboundVideo.timestamp)&&outboundVideo.timestamp>previous.time){
+          const elapsed=outboundVideo.timestamp-previous.time,frames=outboundVideo.framesEncoded-previous.frames;
+          if(finite(outboundVideo.bytesSent)&&outboundVideo.bytesSent>=previous.bytes)videoBitrateKbps=(outboundVideo.bytesSent-previous.bytes)*8/elapsed;
+          if(finite(frames)){
+            videoFramesPerSecond??=frames*1000/elapsed;
+            if(frames>0&&finite(outboundVideo.totalEncodeTime)&&outboundVideo.totalEncodeTime>=previous.encodeTime)videoEncodeMs=(outboundVideo.totalEncodeTime-previous.encodeTime)*1000/frames;
+          }
+        }
+        this.previousVideoEncoding={id:outboundVideo.id,bytes:outboundVideo.bytesSent,frames:outboundVideo.framesEncoded,encodeTime:outboundVideo.totalEncodeTime,time:outboundVideo.timestamp};
+      }else this.previousVideoEncoding=undefined;
+      const videoQualityLimitation=['none','cpu','bandwidth','other'].includes(outboundVideo?.qualityLimitationReason)?outboundVideo.qualityLimitationReason as 'none'|'cpu'|'bandwidth'|'other':undefined;
+      this.change({route,stats:{rttMs,audioBitrateKbps,packetsLost:inbound?.packetsLost,jitterMs:inbound?.jitter!==undefined?inbound.jitter*1000:undefined,videoBitrateKbps,videoFramesPerSecond,videoWidth:finite(outboundVideo?.frameWidth)?outboundVideo.frameWidth:undefined,videoHeight:finite(outboundVideo?.frameHeight)?outboundVideo.frameHeight:undefined,videoEncodeMs,videoQualityLimitation}});
       for(const sender of pc.getSenders()){
         const track=sender.track;const callId=statsCall;if(!track||!['audio','video'].includes(track.kind))continue;
         const target=track.kind==='audio'?audioPolicy({rttMs,lossRatio}).maxBitrate:{...videoTarget,maxBitrate:videoTarget.maxBitrate/Math.max(1,pc.getSenders().filter(value=>value.track?.kind==='video').length)};

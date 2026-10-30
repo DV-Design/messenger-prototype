@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { Redirect, router, useIsFocused, useLocalSearchParams } from 'expo-router';
-import { FlatList, KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from 'react-native';
+import { AppState, FlatList, KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { MessengerMessage } from '@messenger/core';
 import { pickDocument, pickMedia, shareFile } from '../../attachments';
@@ -9,7 +9,7 @@ import { Avatar, Empty, Icon, IconButton, lastSeen, time } from '../../component
 import { client, errorText, useMessenger } from '../../runtime';
 import { colors, styles } from '../../styles';
 import { transportNotice } from '../../transport-notice';
-import { deliveryLabel, waitingForDelivery } from '../../delivery-model';
+import { canMarkRead, deliveryIcon, deliveryLabel, deliveryStage, readContentVersion, waitingForDelivery } from '../../delivery-model';
 import { MediaComposer } from '../../components/MediaComposer';
 import type { MediaKind } from '../../media-model';
 
@@ -26,9 +26,20 @@ export default function Chat() {
   const list = useRef<ComponentRef<typeof FlatList<MessengerMessage>>>(null);
   const unread = conversation?.unread ?? 0;
   const focused = useIsFocused();
+  const [foreground, setForeground] = useState(AppState.currentState === 'active');
+  const [interacting, setInteracting] = useState(true);
   useEffect(() => {
-    if (focused && id && unread) client().markRead(id);
-  }, [focused, id, unread]);
+    const change = AppState.addEventListener('change', state => setForeground(state === 'active'));
+    const blur = AppState.addEventListener('blur', () => setInteracting(false));
+    const focus = AppState.addEventListener('focus', () => setInteracting(true));
+    return () => { change.remove(); blur.remove(); focus.remove(); };
+  }, []);
+  const contentVersion = readContentVersion(conversation?.messages ?? [], conversation?.files ?? []);
+  useEffect(() => {
+    if (id && canMarkRead(focused, foreground ? 'active' : 'background', interacting)) {
+      void client().markRead(id).catch(cause => setError(errorText(cause)));
+    }
+  }, [focused, foreground, interacting, id, unread, contentVersion]);
   if (!profile) return <Redirect href="/onboarding" />;
   if (!conversation) return <SafeAreaView style={styles.whiteScreen}><View style={styles.chatHeader}><IconButton name="chevron-back" label="Назад" onPress={() => router.back()} /></View><Empty icon="chatbubble-outline" title="Чат не найден" text="Он может относиться к другому серверу. Вернитесь к списку чатов." /></SafeAreaView>;
   const peer = snapshot.contacts.find(item => conversation.memberIds.includes(item.userId) && item.userId !== identity?.userId);
@@ -56,14 +67,13 @@ export default function Chat() {
   function renderMessage(item: MessengerMessage) {
     const own = item.from === identity?.userId;
     const sender = snapshot.contacts.find(contact => contact.userId === item.from)?.displayName ?? 'Участник';
-    const pending = waitingForDelivery(item);
-    const delivered = item.status === 'delivered';
+    const read = deliveryStage(item) === 'read';
     const expired = item.status === 'expired';
     const label = deliveryLabel(item, group);
     return <View style={[styles.bubble, own && styles.bubbleSelf]}>
       {group && !own && <Text style={styles.senderName}>{sender}</Text>}<Text selectable style={styles.message}>{item.text}</Text>
       {own && (group || expired) && <Text style={[styles.fileMeta, expired && { color: '#A33535' }]}>{label}</Text>}
-      <View style={styles.messageMeta}><Text style={styles.messageTime}>{time(item.timestamp)}</Text>{own && <View accessibilityLabel={label}><Icon name={expired ? 'alert-circle-outline' : pending ? 'time-outline' : delivered ? 'checkmark-done' : 'checkmark'} size={15} color={expired ? '#A33535' : delivered ? colors.accent : '#70877D'} /></View>}</View>
+      <View style={styles.messageMeta}><Text style={styles.messageTime}>{time(item.timestamp)}</Text>{own && <View accessibilityLabel={label}><Icon name={deliveryIcon(item)} size={15} color={expired ? '#A33535' : read ? colors.accent : '#70877D'} /></View>}</View>
     </View>;
   }
   return <SafeAreaView style={styles.whiteScreen} edges={['top', 'bottom']}>

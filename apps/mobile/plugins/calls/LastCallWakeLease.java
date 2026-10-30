@@ -4,7 +4,7 @@ import com.facebook.react.bridge.*;
 import com.facebook.react.jstasks.*;
 import java.util.*;
 
-/** Bounded data-task timer ownership; duplicate intent IDs never renew the deadline. */
+/** Bounded data/call-task timer ownership; duplicate intent IDs never renew the deadline. */
 final class LastCallWakeLease {
   private static final Handler handler = new Handler(Looper.getMainLooper());
   private static final Map<String, Lease> held = new HashMap<>();
@@ -14,17 +14,20 @@ final class LastCallWakeLease {
     Lease(ReactApplicationContext value, int taskId, Runnable timeout) { context = value; task = taskId; expiry = timeout; }
   }
   static boolean isHeld() { return anyHeld; }
-  static void hold(ReactApplicationContext context, String id, Promise result) {
+  static void hold(ReactApplicationContext context, String id, double durationMs, Promise result) {
     UiThreadUtil.runOnUiThread(() -> {
       if (id == null || !id.matches("[a-f0-9]{32}")) { result.reject("WAKE_INVALID", "Invalid bounded intent"); return; }
+      if (!(durationMs > 0) || durationMs > 30000) { result.reject("WAKE_INVALID", "Invalid bounded wake duration"); return; }
       if (held.containsKey(id)) { result.resolve(true); return; }
       if (held.size() >= 32) { result.reject("WAKE_BUSY", "Too many background windows"); return; }
+      int duration = (int) Math.ceil(durationMs);
       try {
         LastCallHeadlessAppLoader.setContext(context);
         WritableNativeMap data = new WritableNativeMap(); data.putString("intentId", id);
-        int task = HeadlessJsTaskContext.getInstance(context).startTask(new HeadlessJsTaskConfig("lastcall-wake-runtime", data, 12000, true));
-        Runnable expiry = () -> release(id); held.put(id, new Lease(context, task, expiry)); anyHeld = true;
-        handler.postDelayed(expiry, 12000); result.resolve(true);
+        int task = HeadlessJsTaskContext.getInstance(context).startTask(new HeadlessJsTaskConfig("lastcall-wake-runtime", data, duration, true));
+        Runnable expiry = () -> { LastCallCallSetupService.end(context, id); release(id); };
+        held.put(id, new Lease(context, task, expiry)); anyHeld = true;
+        handler.postDelayed(expiry, duration); result.resolve(true);
       } catch (Exception error) { result.reject("WAKE_UNAVAILABLE", "Background timer ownership unavailable"); }
     });
   }

@@ -1,5 +1,10 @@
 export const WAKE_SYNC_BUDGET_MS = 9_000;
+/** A cold P2P call needs longer than the data sync window for encrypted setup. */
+export const WAKE_CALL_SYNC_BUDGET_MS = 25_000;
 export type WakeNotice = { legacy: true } | { legacy: false; kind: 'message' | 'file' | 'call'; id: string; expiresAt: number };
+export function wakeSyncBudget(notice: Extract<WakeNotice, { legacy: false }>, now = Date.now()): number {
+  return Math.max(0, Math.min(notice.kind === 'call' ? WAKE_CALL_SYNC_BUDGET_MS : WAKE_SYNC_BUDGET_MS, notice.expiresAt - now));
+}
 const object = (value: unknown): Record<string, unknown> | undefined => typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
 
 /** Accept Expo task, received-notification and response shapes, never payload URLs. */
@@ -90,6 +95,8 @@ export class WakeSyncCoordinator {
     for (const [id, expiry] of this.seen) if (expiry <= this.now()) this.seen.delete(id);
     if (this.seen.has(notice.id)) return this.running ?? Promise.resolve();
     if (this.running) {
+      // A new call is not merged into a short data window: it waits for its own bounded lease.
+      if (notice.kind === 'call') return this.running.then(() => this.run(notice, beforeConnect));
       if (!this.enqueuePreview) return this.running.then(() => this.run(notice, beforeConnect));
       if (this.seen.size >= 256) return this.running;
       this.seen.set(notice.id, notice.expiresAt);
@@ -108,7 +115,7 @@ export class WakeSyncCoordinator {
     const initialPreview = beforeConnect ? this.enqueuePreview(beforeConnect) : undefined;
     let finish!: () => void;
     const deadline = new Promise<null>(resolve => { finish = () => { controller.abort(); resolve(null); }; });
-    const timer = this.scheduler.set(finish, Math.min(WAKE_SYNC_BUDGET_MS, notice.expiresAt - this.now()));
+    const timer = this.scheduler.set(finish, wakeSyncBudget(notice, this.now()));
     const operation = (async () => {
       const acquisition = Promise.resolve().then(() => this.acquire(controller.signal));
       let lease: WakeLease | null = null;
@@ -148,9 +155,9 @@ export class WakeTaskRegistry {
 }
 
 /** Acquire native timer ownership before creating any JS deadline; invalid intents pin nothing. */
-export async function runWakeTask(notice: WakeNotice | null, acquire: (id: string) => Promise<() => void>, work: (notice: Extract<WakeNotice, { legacy: false }>) => Promise<void>, now = Date.now): Promise<void> {
+export async function runWakeTask(notice: WakeNotice | null, acquire: (notice: Extract<WakeNotice, { legacy: false }>) => Promise<() => void>, work: (notice: Extract<WakeNotice, { legacy: false }>) => Promise<void>, now = Date.now): Promise<void> {
   if (!notice || notice.legacy || notice.expiresAt <= now()) return;
   let release: (() => void) | undefined;
-  try { release = await acquire(notice.id); if (notice.expiresAt > now()) await work(notice); }
+  try { release = await acquire(notice); if (notice.expiresAt > now()) await work(notice); }
   finally { release?.(); }
 }

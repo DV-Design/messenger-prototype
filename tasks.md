@@ -1,11 +1,30 @@
 # Claude QA configuration (msg-tan)
 
-- [X] Dedicated risk-based tester, three preloaded skills and documented six-cycle protocol
+- [X] Dedicated risk-based tester, three required skills and documented six-cycle protocol
   → Artifacts: [prompt](docs/qa/lastcall-release-tester.md), [protocol](docs/qa/CLAUDE-TESTER.md)
-- [ ] Run authenticated baseline; paused after cycle1/6 returned Not logged in
-  → Artifacts: [counter](docs/qa/claude-qa-state.json), [report](docs/reports/testing/2026-10/claude-qa-cycle-1.md)
+- [X] Verify authenticated tester/settings: cycle2/6 PASS,264unit tests and9browser scenarios;1TURNskip
+  → Artifacts: [counter](docs/qa/claude-qa-state.json), [cycle1 auth blocker](docs/reports/testing/2026-10/claude-qa-cycle-1.md), [cycle2 verified results](docs/reports/testing/2026-10/claude-qa-cycle-2.md)
+- [X] Show actual local agent stages, six-cycle history and stale/disconnected evidence without raw traces (msg-mio)
+  → Artifacts: [monitor](infra/qa/monitor.mjs), [panel](infra/qa/monitor.html), [focused checks](infra/qa/monitor.test.mjs), [verification](docs/reports/testing/2026-10/live-monitor.md), [run instructions](docs/qa/CLAUDE-TESTER.md#local-progress-panel)
 
-# LastCall 0.6.0: notifications, system calls and media
+# LastCall 0.7.0: background calls, read receipts and video
+
+- [X] Implement LastCall-owned incoming calls, automatic self-managed account and bounded call-specific background setup (msg-d1e)
+  → Artifacts: [controller](apps/mobile/src/system-calls.ts), [native incoming UI](apps/mobile/plugins/calls/LastCallCallActivity.java), [native services](apps/mobile/plugins/calls/), [wake contract](docs/WAKE-CONTRACT.md)
+- [X] Add durable signed P2P read receipts and clock/one-check/two-check indicators, including group and attachment progress (msg-3jo)
+  → Artifacts: [signed receipts](packages/core/src/read-receipt.ts), [manager](packages/core/src/messenger.ts), [display model](apps/mobile/src/delivery-model.ts), [contract](docs/OUTBOX-CONTRACT.md)
+- [X] Remove the permanent low-quality cap from missing bandwidth/high base RTT; preserve congestion adaptation and expose video measurements (msg-si6 implementation)
+  → Artifacts: [policy](packages/core/src/video.ts), [transport](packages/core/src/session.ts), [policy regressions](packages/core/src/video.test.ts)
+- [X] Claude QA cycle3/6:292unit tests, Chrome10PASS/1authenticated-TURNskip, lint/types/Android+iOS JS exports; same-certificate Android release build with forced bundle regeneration
+  → Artifacts: [QA report](docs/reports/testing/2026-10/claude-qa-cycle-3.md), [persistent counter](docs/qa/claude-qa-state.json), [APK metadata](artifacts/README.md)
+- [X] Focused emulator in-place upgrade preserves identity; own incoming activity above PIN, no pre-answer audio service, native expiry/reject cleanup
+  → Artifacts: [native call sources](apps/mobile/plugins/calls/), [exact native evidence](docs/reports/debugging/2026-10/native-070.md)
+- [X] API36 own-button locked answer with sustained bidirectional RTP beyond wake window; confirmed process-death/FCM cold-start own UI; publish0.7.0 and verify primary/alternate/preview exact bytes/hash
+  → Artifacts: [native evidence and limits](docs/reports/debugging/2026-10/native-070.md), [release](artifacts/README.md), [phone tasks](docs/TESTING-RU.md)
+- [ ] Physical phone UI/voice/video quality, Russian carriers/handover, OEM battery behavior and iOS/APNs/CallKit acceptance (msg-3z9, msg-9rr; msg-si6 physical acceptance)
+  → Artifacts: [phone tasks](docs/TESTING-RU.md)
+
+# LastCall 0.6.0: notifications, system calls and media (historical)
 
 - [X] Pair-encrypted bounded text/file-name FCM previews with explicit capability and durable ACK separation (msg-l6n)
   → Artifacts: [crypto](packages/core/src/push-preview.ts), [provider](apps/server/src/providers.ts), [native evidence](docs/reports/debugging/2026-10/native-060.md)

@@ -1,7 +1,12 @@
-# Sender-held delivery and peer group sync (0.6.0)
+# Sender-held delivery, read receipts and peer group sync (0.7.0 candidate)
 
 User direction: persist text and files on sender devices until recipient acknowledgement,
 with a seven-day deadline. The coordination server has no chat-content mailbox.
+
+0.7.0/code10 is a candidate, pending final build/native acceptance. It separates
+durable delivery from actual foreground-chat read state; the existing queue,
+encrypted local storage and server-content boundaries remain authoritative.
+Historical 0.6.0 native results do not verify this candidate's new receipt/UI path.
 
 0.6.0 changes the earlier content-free-push requirement by explicit user direction:
 a short message or file-name preview may transit the server/FCM as an authenticated encrypted
@@ -14,7 +19,8 @@ mailbox are introduced. Existing contact pins and conversation membership must
 validate before displaying the decrypted preview. Preview receipt/display never
 creates a durable chat record or sends content ACK; full P2P persistence and
 seven-day/per-recipient queue semantics below remain authoritative. See the
-[0.6.0 wake contract](WAKE-CONTRACT.md). See the native acceptance report for exact verified scope.
+[wake contract](WAKE-CONTRACT.md). See the linked historical native acceptance
+report for its exact verified scope.
 Phone uninstall, OS suspension, or an unavailable network do not imply guaranteed delivery.
 
 ## Voice notes and video circles (0.6.0)
@@ -33,14 +39,79 @@ including delivered media, count against 16 stored blobs / 40 MiB total. Quota
 failure preserves prior waiting content. Before send, a local draft must be
 discardable; cancel, capture failure and leaving the recorder must release
 camera/microphone/player resources and remove temporary capture/preview copies.
-Inline voice playback and circular video presentation are client UI; no read or
-playback event substitutes for a delivery ACK. Legacy clients may display the
-media as ordinary files. Native codec/playback/cancel/permission-denial and
-offline enqueue/restart/retry acceptance remains pending on the final 0.6.0 APK.
+Inline voice playback and circular video presentation are client UI; starting
+playback alone does not acknowledge unsaved bytes. Only a verified, signed read
+receipt generated after complete durable content may also establish delivery as
+described below. Legacy clients may display media as ordinary files. Native
+codec/playback/cancel/permission-denial and offline enqueue/restart/retry acceptance
+must be reported for the exact candidate APK; historical 0.6.0 evidence does not
+establish the 0.7.0 result.
 
 Implementation ownership: session/protocol durable-receipt boundary; manager outbox and
 authenticated group synchronization; mobile encrypted attachment adapter and queue UI.
 All changes preserve installation identity, 0.4 encrypted state, and existing calls.
+
+## Three user-visible stages
+
+- **Sending (clock):** no final recipient durability acknowledgement yet.
+  A transport send, encrypted preview or notification display is not delivery.
+- **Delivered (one check):** authenticated acknowledgement proves that each
+  intended recipient saved the complete message or file bytes. The recipient
+  need not have opened the conversation.
+- **Read (two checks):** each intended recipient generated an authenticated read
+  receipt for the complete retained record after opening the actual conversation
+  in the focused, active foreground app. An attachment's read stage means the
+  received item was presented in that chat; it does not assert complete audio/
+  video playback. Background routes, another chat, lockscreen previews and push
+  taps before content is available must not count as read.
+
+The core retains existing pending/sent/delivered/received/expired delivery fields;
+`readBy` adds read progress rather than reinterpreting a network send as delivery.
+Groups expose delivered/read N-of-M counts for the immutable intended recipient
+set. One/two checks require all intended recipients, with partial progress kept
+in those counts. A relay cannot acknowledge on behalf of another member.
+
+## Authenticated P2P read receipts (0.7.0)
+
+The existing encrypted application channel carries strict `kind:'read-receipt'`
+objects. Ed25519 signatures use the existing noble implementation and a distinct
+`lastcall/read-receipt/v1` domain. Sign the conversation ID, original author,
+item ID, item type (`message`/`file`), reader and content hash. The file hash also
+binds its retained bytes/name/MIME through the existing content-hash helper.
+Verify the reader's pinned public key/identity, actual conversation membership,
+original author/item and expected content hash. Reject forged, mismatched,
+cross-conversation and unknown-item receipts; duplicates are idempotent.
+
+`markRead` snapshots complete incoming records when reading begins and waits for
+durable encrypted history/blob storage before generating receipts. A later
+arrival must not ride an earlier persistence checkpoint into a false read. A
+failed write must not send read state or clear the unread state as if it were
+saved. The mobile caller must require a focused chat and active foreground app;
+preview display/navigation alone never invokes this content-read boundary.
+
+Signed receipts and `readBy` are persisted in encrypted local state. Reader-held
+receipts are replayed directly to the original author after reconnection, so an
+author that was offline when the chat was read may receive the result later,
+including after reader restart. There is no server read-receipt mailbox or
+receipt delivery guarantee while no direct/relay session can run. Retained
+receipt sets are bounded (schema maximum 1312 per conversation) and pruned with
+their corresponding retained history records. Replays do not create new content
+or extend the original seven-day sender queue.
+
+A verified read receipt may arrive before a separate text/file delivery ACK.
+Because it is generated only for full durable content, the author may reconcile
+that reader's delivery progress from it, persisting the change before clearing
+the corresponding outbox recipient. An unverified receipt or mere read UI event
+must never release pending bytes.
+
+Encrypted stored state remains format version 3, adding optional `readBy` and
+signed `readReceipts` fields. Existing records without them remain valid for the
+new client. Both endpoints should update for the new receipt exchange; older
+strict schemas may reject new application payloads or saved fields, so downgrade
+compatibility with old clients is not promised. Preserve installation keys and
+history while upgrading; do not remove the app to update.
+
+## Durable content delivery and retained groups
 
 Receipt means the receiving manager successfully saved encrypted history and attachment
 bytes. Promise-capable `onMessage`, `onApplication`, and new `onFile` are awaited on a
@@ -85,3 +156,9 @@ recipient returns before seven days, exact TTL boundary, partial group ACK, orig
 offline peer sync, tampered signatures/hash rejection, file bytes across restart, duplicate
 transfer/retry, bounded capacity, no plaintext or persistent chat mailbox on server/push,
 strict preview opt-in/bounds/AEAD binding/expiry and no preview-generated ACK. Run check/e2e/native build.
+Read-receipt checks must additionally cover pinned signature/hash/conversation
+binding, duplicate/stale records, failed persistence, read-before-delivery-ACK
+ordering, author offline/reader restart replay, group partial/full progress and
+foreground-only mobile read state. Real phone lock/background behavior and
+notification timing require separate final-APK acceptance; unit/browser tests
+do not prove it.

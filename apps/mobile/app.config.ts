@@ -7,7 +7,7 @@ const config: ExpoConfig = {
   name: 'LastCall',
   slug: 'messenger-prototype',
   icon: './assets/lastcall-icon.png',
-  version: '0.6.0',
+  version: '0.7.0',
   scheme: 'messenger-preview',
   orientation: 'default',
   userInterfaceStyle: 'light',
@@ -15,7 +15,7 @@ const config: ExpoConfig = {
   ios: {
     supportsTablet: true,
     bundleIdentifier: 'dev.messenger.prototype',
-    buildNumber: '9',
+    buildNumber: '10',
     infoPlist: {
       // Local-network HTTP is only for an explicitly configured development server.
       NSAppTransportSecurity: process.env.MESSENGER_ALLOW_LOCAL_HTTP === '1'
@@ -26,12 +26,13 @@ const config: ExpoConfig = {
   },
   android: {
     package: 'dev.messenger.prototype',
-    versionCode: 9,
+    versionCode: 10,
     allowBackup: false,
     adaptiveIcon: { foregroundImage: './assets/lastcall-icon.png', backgroundColor: '#FFFFFF' },
     ...(googleServicesFile ? { googleServicesFile } : {}),
-    permissions: ['INTERNET', 'ACCESS_NETWORK_STATE', 'RECORD_AUDIO', 'CAMERA', 'MODIFY_AUDIO_SETTINGS'],
-    blockedPermissions: ['android.permission.READ_CONTACTS', 'android.permission.WRITE_CONTACTS', 'android.permission.READ_CALL_LOG', 'android.permission.WRITE_CALL_LOG'],
+    permissions: ['INTERNET', 'ACCESS_NETWORK_STATE', 'RECORD_AUDIO', 'CAMERA', 'MODIFY_AUDIO_SETTINGS', 'USE_FULL_SCREEN_INTENT'],
+    // Self-managed calls need no phone-number/phone-state access or Phone-app account setup.
+    blockedPermissions: ['android.permission.READ_CONTACTS', 'android.permission.WRITE_CONTACTS', 'android.permission.READ_CALL_LOG', 'android.permission.WRITE_CALL_LOG', 'android.permission.READ_PHONE_NUMBERS', 'android.permission.CALL_PHONE', 'android.permission.READ_PHONE_STATE'],
     // Only development builds permit local HTTP; release servers must use HTTPS.
   },
   extra: { nativeFcmConfigured: !!googleServicesFile },

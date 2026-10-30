@@ -12,7 +12,7 @@ let registration: Promise<boolean> | undefined;
 if (!TaskManager.isTaskDefined(TASK)) {
   TaskManager.defineTask<Notifications.NotificationTaskPayload>(TASK, async ({ data, error }) => {
     if (!pushConfigured || error) return;
-    try { await runWakeTask(parseWakeNotice(data), retainWakeRuntime,
+    try { await runWakeTask(parseWakeNotice(data), notice => retainWakeRuntime(notice),
       notice => coordinator.run(notice, signal => processMessagePreview(data, client(), signal))); }
     catch { /* A failed durable drain must not crash the notification entry point. */ }
   });

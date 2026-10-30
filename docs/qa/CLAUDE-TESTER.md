@@ -5,9 +5,13 @@ continue the same returned session with `claude_resume`. The generic
 `codex-claude-worker` and MCP server/config are unchanged.
 Its installed definition is `~/.claude/agents/integrations/workers/lastcall-release-tester.md`;
 the portable prompt copy is [lastcall-release-tester.md](lastcall-release-tester.md).
-Skills already present in `~/.claude/skills` are preloaded with YAML `skills`:
-systematic-debugging, run-quality-gate, webapp-testing. Do not silently claim a
-missing skill loaded. No model override: use the configured Claude CLI default.
+Skills present in `~/.claude/skills` are attached with YAML `skills`:
+systematic-debugging, run-quality-gate, webapp-testing. Cycle2 showed this CLI
+main-agent path did not inject the full skill bodies automatically. The worker
+successfully read all three files instead. Its instructions now require these
+explicit reads BEFORE testing whenever bodies are absent; a missing/denied skill
+blocks testing. Report PRELOADED vs READ_FALLBACK truthfully. No model override:
+use the configured Claude CLI default.
 
 ## Limits controlled by Codex
 
@@ -39,6 +43,16 @@ reproduction/evidence, attempted fixes, what remains unverified, saved artifacts
 and the exact input needed to continue. User must explicitly resume a paused
 run. A fresh quota is not inferred from a generic "continue".
 
+## Authentication checkpoint
+
+Cycle1 was blocked before tests because provider authentication was absent from
+the MCP process. The bridge maintainer added private provider-environment loading;
+a subsequent `/tmp` hello probe and authenticated cycle2 succeeded. That standalone
+hello check was connectivity-only, not a LastCall build/test cycle. Verify
+registration/enabled status and auth-file mode without reading credential values.
+Do not infer that an interactive /login is always needed from that generic error;
+use the maintainer's bridge runbook for provider-environment setup.
+
 ## Baseline and scope
 
 LastCall0.6.0/code9, source4d38b90, published APK SHA256
@@ -69,3 +83,37 @@ observable evidence and separation between evaluation and implementation from
 The preload mechanism follows
 [Claude Code's subagent skills documentation](https://code.claude.com/docs/en/sub-agents#preload-skills-into-subagents).
 No generic copied prompt can establish LastCall's native/carrier guarantees.
+
+## Local progress panel
+
+From the repository root, run `node infra/qa/monitor.mjs`, then open
+<http://127.0.0.1:18946>. The process must remain running while the panel is in
+use; stop it with Ctrl+C. It binds only to the local computer and does not publish
+the panel or its API. No additional packages or credentials are required.
+
+The page refreshes every two seconds while visible. It reads the durable counter
+and only `.tmp/current/claude-qa/cycle-N-check.log` and `cycle-N-e2e.log` for the
+current allocation. A previous full pass is labelled with its own cycle number;
+its totals are never presented as current results. Skips remain separate from
+passes. The panel cannot launch work, retry checks or change the six-cycle limit.
+
+Codex may record a real task transition in the optional state field
+`activity: { cycle, stage, updated_at }`. Use the current allocation number and an
+actual ISO timestamp. Allowed stages are `development`, `development_calls`,
+`development_receipts`, `development_video`, `allocated`, `skills`, `lint`,
+`typecheck`, `unit`, `build`, `browser` and `review`. Update this field only when
+that action actually starts or new evidence establishes the transition. Never
+write periodic timestamps merely to animate the panel. Test log headings may
+also establish the current gate; logged test totals remain provisional until
+the pass and its report are complete.
+
+“Давно нет новых событий” means the activity/log evidence is over 60 seconds old,
+not that the worker has necessarily stopped. “Данные получены”/the sample time means
+the monitor read the local files, not that an agent emitted a heartbeat. The
+panel does not inspect a worker's internal reasoning or prove that its process
+is alive. Missing, malformed or inconsistent state is shown as unknown; loss of
+the local server is shown as disconnected with an explicit stale-data warning.
+
+The API exposes a fixed allowlist of stage/status labels and aggregate results.
+It does not expose raw logs, command text, session IDs, file paths or credential
+values. See [the focused review and checks](../reports/testing/2026-10/live-monitor.md).

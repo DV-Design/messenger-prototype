@@ -1,4 +1,66 @@
-# LastCall Android preview 0.6.0
+# LastCall Android preview 0.7.0
+
+- Download: https://lienad.ru/messenger/download/LastCall-0.7.0.apk
+- Alternate: https://p2p.lienad.ru/download/LastCall-0.7.0.apk
+- Local: `artifacts/LastCall-0.7.0.apk` (ignored binary)
+- Package `dev.messenger.prototype`, versionCode10, label LastCall
+- ARM64, Android API24 minimum / target36; same existing internal test certificate
+- Size:54,909,341 bytes
+- SHA256:`ad39f92a0542ea5b90e05a3678a5475c1a8cddab2342f961a0f280da5757582f`
+- Signing certificate SHA256:`fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c`
+
+The native release APK is published. Actual downloads from the primary URL,
+alternate URL and current-preview alias all matched the exact54,909,341bytes and
+SHA256 above. Update both peers in place without
+deleting their installation identity or history; old strict receipt schemas are
+not a downgrade-compatibility promise.
+
+Calls use LastCall's own incoming UI and notification, with automatic self-managed
+account registration on Android8+ rather than manual Phone-app setup. Android14+
+full-screen notification permission still controls full-screen presentation. A
+separate bounded call wake handles cold/suspended setup; an outgoing invitation
+also requests wake after2.5s without a response even when RTC appears connected.
+Push alone does not authorize ringing or microphone/camera capture.
+
+Message/file indicators now separate clock (awaiting durable delivery), one check
+(full recipient persistence) and two checks (actual foreground-chat read). Signed
+P2P read receipts persist locally and replay to an offline author after reconnect;
+groups show partial counts and require every intended recipient for full checks.
+Preview display never constitutes delivery/read. Text, retained files and receipts
+remain on participant devices; no server-content mailbox is introduced.
+
+Video starts with a720p/30fps capture request and a1.8Mbit/s encoder ceiling,
+leaving actual sending to WebRTC congestion control. Missing bandwidth estimates
+and high base RTT no longer force the old low-resolution cap. This is a policy
+change, not proof of perceived quality on physical phones. Voice/circle file
+limits remain; a circle's hidden rectangular edges remain in the stored video.
+
+Claude tester allocation3/6 PASS on Node24:63mobile+59server+170core=292unit
+tests, Chrome10PASS/1explicit authenticated-TURNskip; lint0errors/one existing
+VoiceNote warning, types and Android+iOS JavaScript exports PASS. See the
+[cycle3 report](../docs/reports/testing/2026-10/claude-qa-cycle-3.md).
+Native release assembly passed after an explicitly forced JS bundle regeneration.
+An in-place0.6→0.7 API36 emulator installation preserved identity. LastCall's own
+incoming activity appeared above PIN lock, without an active-audio service before
+answer. Its own answer button activated the call/audio foreground service; RTP
+counters increased in both directions from22in/22out to2629in/2626out after the
+wake window. Incoming/setup services were no longer active while the audio service
+remained active. Native timeout/reject cleanup was verified. After ordinary
+process death (`am kill --user 0`), the old PID3514 was confirmed absent; FCM
+cold-started PID4717 and the same owned incoming UI appeared above PIN at12.95s.
+Warm/background samples were10.75–10.97s. These measured samples do not establish
+instant delivery or physical-phone timing. The AVD ran with `-no-audio`: RTP proves
+transport, not heard speech quality. API24/25 own-UI fallback is implemented but
+was not emulated. See [exact native evidence](../docs/reports/debugging/2026-10/native-070.md).
+Physical Android,
+Russian carriers, OEM battery behavior, perceived video/voice quality and
+iOS/APNs/CallKit remain separate acceptance work. No universal instant-delivery
+or DPI-invisibility claim. See [phone tasks](../docs/TESTING-RU.md),
+[wake contract](../docs/WAKE-CONTRACT.md) and [outbox contract](../docs/OUTBOX-CONTRACT.md).
+
+---
+
+# Historical LastCall Android preview 0.6.0
 
 - Download: https://lienad.ru/messenger/download/LastCall-0.6.0.apk
 - Alternate: https://p2p.lienad.ru/download/LastCall-0.6.0.apk

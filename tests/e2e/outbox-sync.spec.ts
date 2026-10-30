@@ -34,6 +34,41 @@ test('sender restarts with encrypted text and attachment outbox before an offlin
  }finally{await Promise.all([a,b].map(p=>stop(p).catch(()=>{})));await Promise.all(contexts.map(c=>c.close()));}
 });
 
+test('durable text and file delivery stays unread until chat reading, then signed reads survive both manager restarts',async({browser})=>{
+ const contexts=await Promise.all([0,1].map(()=>browser.newContext()));const [a,b]=await Promise.all(contexts.map(c=>c.newPage())) as [Page,Page];
+ try{
+  const [ua,ub]=await Promise.all([boot(a,7),boot(b,8)]);const id=await a.evaluate(u=>(window as unknown as ClientWindow).__messenger.addContact(u),ub);
+  const text='Доставка ещё не означает прочтение',name='read-receipt.bin';const bytes=Array.from({length:2049},(_,i)=>(i*37+11)%256);
+  await sendText(a,id,text);await sendFile(a,id,name,bytes);
+  await expect.poll(async()=>(await snapshot(a)).conversations.find(c=>c.id===id)?.messages[0]?.status).toBe('delivered');
+  await expect.poll(async()=>(await snapshot(a)).conversations.find(c=>c.id===id)?.files[0]?.deliveryStatus).toBe('delivered');
+  expect(await readFile(b,id,name)).toEqual(bytes);const delivered=(await snapshot(a)).conversations.find(c=>c.id===id)!;
+  expect(delivered.messages[0]?.readBy??[]).toEqual([]);expect(delivered.files[0]?.readBy??[]).toEqual([]);
+  const received=(await snapshot(b)).conversations.find(c=>c.id===id)!;
+  expect(received.messages[0]).toMatchObject({id:delivered.messages[0]!.id,text,from:ua.userId,status:'received'});
+  expect(received.files[0]).toMatchObject({id:delivered.files[0]!.id,senderId:ua.userId,status:'complete',deliveryStatus:'received'});
+
+  // Stop the author before the explicit chat action. Receipt generation must be
+  // durable locally, rather than relying on an online author's transport ACK.
+  await a.evaluate(()=>(window as unknown as ClientWindow).__messenger.disconnectAndFlush());
+  await expect.poll(async()=>(await snapshot(b)).contacts.find(c=>c.userId===ua.userId)?.online).toBe(false);
+  await b.evaluate(id=>(window as unknown as ClientWindow).__messenger.markRead(id),id);
+  expect((await snapshot(b)).conversations.find(c=>c.id===id)?.unread).toBe(0);
+  await b.evaluate(()=>(window as unknown as ClientWindow).__messenger.disconnectAndFlush());await restart(b);
+  expect(await readFile(b,id,name)).toEqual(bytes);
+  expect((await snapshot(a)).conversations.find(c=>c.id===id)?.messages[0]?.readBy??[]).toEqual([]);
+
+  // Only a real authenticated WebRTC application receipt can update this newly
+  // restored author: the test never injects a receipt or edits persisted state.
+  await restart(a);
+  await expect.poll(async()=>(await snapshot(a)).conversations.find(c=>c.id===id)?.messages[0]?.readBy??[]).toEqual([ub.userId]);
+  await expect.poll(async()=>(await snapshot(a)).conversations.find(c=>c.id===id)?.files[0]?.readBy??[]).toEqual([ub.userId]);
+  const read=(await snapshot(a)).conversations.find(c=>c.id===id)!;
+  expect(read.messages[0]).toMatchObject({id:delivered.messages[0]!.id,status:'delivered',deliveredTo:[ub.userId],readBy:[ub.userId]});
+  expect(read.files[0]).toMatchObject({id:delivered.files[0]!.id,deliveryStatus:'delivered',deliveredTo:[ub.userId],readBy:[ub.userId]});
+ }finally{await Promise.all([a,b].map(p=>stop(p).catch(()=>{})));await Promise.all(contexts.map(c=>c.close()));}
+});
+
 test('a restarted group member supplies signed text and exact file bytes while the author is offline',async({browser})=>{
  const contexts=await Promise.all([0,1,2].map(()=>browser.newContext()));const [a,b,c]=await Promise.all(contexts.map(c=>c.newPage())) as [Page,Page,Page];
  try{
