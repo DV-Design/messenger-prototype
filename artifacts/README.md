@@ -1,3 +1,35 @@
+# LastCall Android preview 0.6.0
+
+- Download: https://lienad.ru/messenger/download/LastCall-0.6.0.apk
+- Alternate: https://p2p.lienad.ru/download/LastCall-0.6.0.apk
+- Local: `artifacts/LastCall-0.6.0.apk` (ignored binary)
+- Package `dev.messenger.prototype`, versionCode9, label LastCall
+- ARM64, Android API24 minimum / target36; same existing internal test certificate
+- Size:54887217bytes
+- SHA256:`43f0f5f50bc1f09f785c10e795724e1ed45608a1cf9ada67ed9afd3aa1ed1a0f`
+- Signing certificate SHA256:`fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c`
+
+Encrypted text/file-name push previews, authenticated notification tap routes,
+Android Telecom lockscreen calls, P2P voice/circle files and fullscreen adaptive
+video. Update both phones in place without deleting identity/history; enable
+LastCall phone account once in Settings and grant notifications/mic/camera.
+Circle UI crops the full rectangular stored video; hidden edges remain in the file.
+
+Final root check:54mobile+59server+151core=264tests, lint/typecheck/build and
+Android+iOS JavaScript exports PASS. Chrome9PASS/1explicit TURNskip. Final native
+release/R8 build PASS; workspace-core bundle explicitly regenerated before assembly, signature,
+package/version/ARM64 and server-key/temporary-trace scan PASS. Native/data/public
+acceptance details: [report](../docs/reports/debugging/2026-10/native-060.md).
+[Review](../docs/reports/code-reviews/2026-10/CR-2026-10-30-lastcall-060.md) and
+[phone tasks](../docs/TESTING-RU.md). Physical carrier/OEM/voice quality and iOS/APNs
+remain separate; no instant-delivery/DPI or production-crypto guarantee.
+
+Both normal-DNS/TLS public versioned downloads match the exact local bytes/hash;
+landing/tasks/research match source. Previous versioned installers retained for rollback. No Firebase Admin credential
+is embedded. Android client Firebase resources are required and are public config.
+
+---
+
 # LastCall Android preview 0.5.1
 
 - Download: https://lienad.ru/messenger/download/LastCall-0.5.1.apk

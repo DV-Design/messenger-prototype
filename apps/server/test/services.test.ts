@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WebSocket } from 'ws';
-import { createDeviceIdentity, directoryServerFrameSchema, MessengerClient, phoneLookupHash, signAuthentication, type DeviceIdentity, type DirectoryServerFrame, type WakeIntent } from '@messenger/core';
+import { createDeviceIdentity,directConversationId,encryptPushPreview,decryptPushPreview, directoryServerFrameSchema, MessengerClient, phoneLookupHash, signAuthentication, type DeviceIdentity, type DirectoryServerFrame, type WakeIntent } from '@messenger/core';
 import { createSignalingServer, optionsFromEnv, type ServerOptions } from '../src/server.js';
 import { DirectoryServices } from '../src/services.js';
 import { buildFcmWakeMessage, createFcmPushProvider, createSmsRuProvider, type PushProvider, type SMSProvider } from '../src/providers.js';
@@ -39,6 +39,18 @@ class Client {
 async function user(url: string, username: string, identity = createDeviceIdentity()) { const client = new Client(url); await client.auth(identity, username); return { client, identity }; }
 async function begin(client: Client, phone: string) { const frame = await client.rpc('phone-start', { phone }); expect(frame.type).toBe('phone-challenge'); if (frame.type !== 'phone-challenge') throw new Error('No phone challenge'); return frame.challenge; }
 async function verify(client: Client, phone: string, fake: ReturnType<typeof providers>) { const c = await begin(client, phone); expect(await client.rpc('phone-verify', { challengeId: c.challengeId, code: fake.codes.get(phone) })).toMatchObject({ type: 'phone-verified' }); }
+
+it('forwards opaque encrypted previews over authenticated directory frames only to separately opted-in tokens',async()=>{
+ const pushes:Array<{intent?:WakeIntent;preview?:string}>=[];const {url}=await start({pushProvider:{async sendWake(_token,wake,_backgroundSync,preview){pushes.push({intent:wake,preview});}}});
+ const sender=await user(url,'preview_sender'),recipient=await user(url,'preview_recipient');
+ expect(await recipient.client.rpc('push-register',{token:'encrypted-preview-token',backgroundSync:true,messagePreview:true})).toMatchObject({type:'push-registered'});
+ recipient.client.send({type:'watch',userIds:[sender.identity.userId]});await recipient.client.rpc('services');
+ for(const text of ['First private notification','Second private notification']){
+  const wake:WakeIntent={kind:'message',intentId:requestId(),expiresAt:Date.now()+60000};const preview=encryptPushPreview(sender.identity,recipient.identity.publicKey,wake,{conversationId:directConversationId(sender.identity.userId,recipient.identity.userId),messageId:requestId(),text});sender.client.send({type:'wake',to:recipient.identity.userId,...wake,preview});
+ }
+ await expect.poll(()=>pushes.length).toBe(2);expect(pushes.map(push=>decryptPushPreview(recipient.identity,sender.identity.publicKey,push.preview!,push.intent!).text)).toEqual(['First private notification','Second private notification']);
+ expect(JSON.stringify(pushes)).not.toContain('private notification');expect(sender.client.frames.some(frame=>frame.type==='error')).toBe(false);
+});
 
 describe('private-injected phone/push service contract over real WebSockets', () => {
   it('keeps absent services honestly disabled, correlates errors and never changes legacy ready', async () => {
@@ -200,7 +212,7 @@ it('retires public phone features even with legacy secrets/provider injection an
 });
 
 describe('short-lived typed wake metadata', () => {
-  it('keeps consent and legacy compatibility, bounds deadlines, deduplicates IDs and gives calls a separate cooldown', async () => {
+  it('keeps consent and legacy compatibility, bounds deadlines and deduplicates distinct call intents without data cooldown', async () => {
     let now = Date.now(); const pushes: Array<{ token: string; intent?: WakeIntent }> = [];
     const { url } = await start({ serviceNow: () => now, pushProvider: { async sendWake(token, intent) { pushes.push({ token, intent }); } } });
     const sender = await user(url, 'sender'), recipient = await user(url, 'recipient');
@@ -212,12 +224,12 @@ describe('short-lived typed wake metadata', () => {
     expect(pushes[0]).toEqual({ token: 'private-typed-token', intent: { kind: 'message', intentId: message.intentId, expiresAt: now + 60_000 } });
     const call = typed('call'); sender.client.send(call); await expect.poll(() => pushes.length).toBe(2);
     expect(pushes[1]?.intent).toEqual({ kind: 'call', intentId: call.intentId, expiresAt: now + 30_000 });
-    sender.client.send(typed('file')); sender.client.send(typed('call')); await sender.client.rpc('services'); expect(pushes).toHaveLength(2);
+    sender.client.send(typed('file')); sender.client.send(typed('call'));sender.client.send(call); await sender.client.rpc('services'); expect(pushes).toHaveLength(3);
     now += 30_001;
-    sender.client.send(message); await sender.client.rpc('services'); expect(pushes).toHaveLength(2); // ID still consumed after cooldown.
-    sender.client.send(typed('file')); await expect.poll(() => pushes.length).toBe(3); expect(pushes[2]?.intent?.expiresAt).toBe(now + 60_000);
+    sender.client.send(message); await sender.client.rpc('services'); expect(pushes).toHaveLength(3); // ID still consumed after cooldown.
+    sender.client.send(typed('file')); await expect.poll(() => pushes.length).toBe(4); expect(pushes[3]?.intent?.expiresAt).toBe(now + 60_000);
     sender.client.send(typed('call', requestId(), now)); expect(await sender.client.next(frame => frame.type === 'error')).toMatchObject({ code: 'wake-expired' });
-    now += 30_001; sender.client.send({ type: 'wake', to: recipient.identity.userId }); await expect.poll(() => pushes.length).toBe(4); expect(pushes[3]?.intent).toBeUndefined();
+    now += 30_001; sender.client.send({ type: 'wake', to: recipient.identity.userId }); await expect.poll(() => pushes.length).toBe(5); expect(pushes[4]?.intent).toBeUndefined();
     expect(sender.client.frames.some(frame => frame.type === 'ready' && Object.keys(frame).length !== 2)).toBe(false);
   });
 

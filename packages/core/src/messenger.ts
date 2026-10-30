@@ -1,7 +1,8 @@
 import { normalizePhone, iceServersSchema, type ServiceCapabilities, type PhoneChallenge } from './services.js';
 import { z } from 'zod';
 import { bytesToHex, randomChecked, secureRandomBytes, type RandomBytes } from './crypto.js';
-import { directoryClientFrameSchema, directoryServerFrameSchema, directoryUserSchema, directConversationId, conversationInvite, endpointUrl, signAuthentication, usernameSchema, displayNameSchema, validateDeviceIdentity, type DeviceIdentity, type DirectoryUser, type DirectoryClientFrame, type DirectoryServerFrame, type PhoneMatch, type DirectoryPage, type WakeKind } from './directory.js';
+import { directoryClientFrameSchema, directoryServerFrameSchema, directoryUserSchema, directConversationId, conversationInvite, endpointUrl, signAuthentication, usernameSchema, displayNameSchema, validateDeviceIdentity, pushPreviewSchema,pushPreviewEnvelopeSchema, type DeviceIdentity, type DirectoryUser, type DirectoryClientFrame, type DirectoryServerFrame, type PhoneMatch, type DirectoryPage, type WakeKind,type WakeIntent } from './directory.js';
+import {encryptPushPreview,decryptPushPreview,type OpenedPushPreview} from './push-preview.js';
 import { conversationIdSchema, MAX_FILE_BYTES, MAX_TEXT_CHARS, peerIdSchema, roomIdSchema } from './protocol.js';
 import { openAttachment, sealAttachment, openLocalState, sealLocalState } from './persistence.js';
 import { PeerSession, type PeerSessionOptions, type SessionSnapshot, type SharedFile, type ChatMessage } from './session.js';
@@ -152,7 +153,19 @@ export class MessengerClient {
   async startPhoneVerification(phone:string):Promise<PhoneChallenge>{return (await this.requestFrame({type:'phone-start',phone:normalizePhone(phone,'RU')},'phone-challenge')).challenge;}
   async verifyPhone(challengeId:string,code:string):Promise<void>{await this.requestFrame({type:'phone-verify',challengeId,code},'phone-verified');if(this.services)this.services={...this.services,phoneVerified:true};}
   async discoverPhones(hashes:string[]):Promise<PhoneMatch[]>{return (await this.requestFrame({type:'phone-discover',hashes},'phone-matches')).matches;}
-  async registerPushToken(token:string,backgroundSync=false):Promise<void>{if(typeof backgroundSync!=='boolean')throw new Error('Invalid background sync mode');await this.requestFrame({type:'push-register',token,...(backgroundSync?{backgroundSync:true}:{})},'push-registered');}
+  async registerPushToken(token:string,backgroundSync=false,messagePreview=false):Promise<void>{if(typeof backgroundSync!=='boolean'||typeof messagePreview!=='boolean')throw new Error('Invalid push capability mode');await this.requestFrame({type:'push-register',token,...(backgroundSync?{backgroundSync:true}:{}),...(messagePreview?{messagePreview:true}:{})},'push-registered');}
+  /** Decrypt notification copy without inserting chat history or acknowledging delivery. */
+  openPushPreview(envelope:string,intent:WakeIntent):Promise<OpenedPushPreview>{this.assertActive();return this.track(this.openPushPreviewWork(envelope,intent));}
+  private async openPushPreviewWork(envelope:string,intent:WakeIntent):Promise<OpenedPushPreview>{
+    await this.restore();this.assertActive();const header=pushPreviewEnvelopeSchema.parse(JSON.parse(pushPreviewSchema.parse(envelope)));
+    const contact=this.contacts.get(header.senderId);if(!contact)throw new Error('Unknown push preview sender');
+    const preview=decryptPushPreview(this.options.identity,contact.publicKey,envelope,intent);
+    const c=this.conversations.get(preview.conversationId);if(!c||!c.memberIds.includes(preview.senderId)||!c.memberIds.includes(this.options.identity.userId))throw new Error('Unknown push preview conversation or membership');
+    return {...preview,displayName:contact.displayName};
+  }
+  /** Await encrypted state writes without shutting down an active transport. */
+  flushState():Promise<void>{this.assertActive();return this.track(this.flushStateWork());}
+  private async flushStateWork():Promise<void>{await this.restore();await this.persist();await this.saveQueue;}
   async getIceServers():Promise<RTCIceServer[]>{
     if(!this.iceRequest){const request=this.requestFrame({type:'ice'},'ice').then(frame=>iceServersSchema.parse(frame.iceServers));this.iceRequest=request;
       void request.finally(()=>{if(this.iceRequest===request)this.iceRequest=undefined;}).catch(()=>{});
@@ -160,31 +173,42 @@ export class MessengerClient {
     const servers=await this.iceRequest;return servers.map(server=>({...server,urls:Array.isArray(server.urls)?[...server.urls]:server.urls}));
   }
   private now(){return performance.now();}
-  private async sendWake(peerId:string,kind:WakeKind,remaining:number,valid:()=>boolean):Promise<void>{
+  private wakeKey(peerId:string,kind:WakeKind,pending?:PendingMessage){return pending?`preview:${peerId}:${this.pendingKey(pending)}`:(kind==='call'?'call:':'data:')+peerId;}
+  private async sendWake(peerId:string,kind:WakeKind,remaining:number,valid:()=>boolean,pending?:PendingMessage):Promise<void>{
     if(this.stopped||this.status!=='online'||remaining<=0)return;
     const began=this.now();
     try{
       const socket=this.socket;const capabilities=await this.getServices();
       remaining-=this.now()-began;
       if(this.socket!==socket||this.stopped||this.status!=='online'||!capabilities.push||remaining<=0||!valid())return;
-      const key=(kind==='call'?'call:':'data:')+peerId;const now=this.now();const previous=this.lastWake.get(key);
+      const key=this.wakeKey(peerId,kind,pending);const now=this.now();const previous=this.lastWake.get(key);
       if(previous!==undefined&&now-previous<30000)return;
-      this.directorySend({type:'wake',to:peerId,kind,intentId:this.id(),expiresAt:Date.now()+Math.max(1,Math.ceil(Math.min(kind==='call'?30000:60000,remaining)))});
+      const intent:WakeIntent={kind,intentId:this.id(),expiresAt:Date.now()+Math.max(1,Math.ceil(Math.min(kind==='call'?30000:60000,remaining)))};
+      let preview:string|undefined;
+      if(pending&&(kind==='message'||kind==='file')&&(pending.author??this.options.identity.userId)===this.options.identity.userId){
+        const c=this.conversations.get(pending.conversationId);const message=c?.messages.find(m=>m.id===pending.messageId&&m.from===this.options.identity.userId);const contact=this.contacts.get(peerId);
+        const file=kind==='file'?c?.files.find(f=>f.id===pending.messageId&&f.senderId===this.options.identity.userId):undefined;
+        const record=kind==='message'?message:file;
+        if(record&&contact&&c?.memberIds.includes(peerId))preview=encryptPushPreview(this.options.identity,contact.publicKey,intent,{conversationId:c.id,messageId:record.id,text:kind==='file'?'Файл: '+file!.name:message!.text},this.random);
+      }
+      this.directorySend({type:'wake',to:peerId,...intent,...(preview?{preview}:{})});
       this.lastWake.set(key,now);
     }catch{/* Optional wake failures never mark content delivered or fail direct delivery. */}
   }
   private wakePending():void {
     clearTimeout(this.wakeTimer);this.wakeTimer=undefined;
-    const peers=new Set(this.pending.filter(p=>this.committed.has(this.pendingKey(p))&&Date.now()<(p.expiresAt??Infinity)).flatMap(message=>message.remaining));
-    for(const peerId of this.wakeStarted.keys())if(!peers.has(peerId))this.wakeStarted.delete(peerId);
-    const now=this.now();for(const peerId of peers)if(!this.wakeStarted.has(peerId))this.wakeStarted.set(peerId,now);
-    if(this.stopped||this.status!=='online'||!peers.size)return;
+    const entries=this.pending.filter(p=>this.committed.has(this.pendingKey(p))&&Date.now()<(p.expiresAt??Infinity)).flatMap(p=>p.remaining.map(peerId=>({p,peerId,kind:(p.type==='file'?'file':'message') as WakeKind,key:this.wakeKey(peerId,p.type==='file'?'file':'message',p)})));
+    const keys=new Set(entries.map(entry=>entry.key));
+    for(const key of this.wakeStarted.keys())if(!keys.has(key))this.wakeStarted.delete(key);
+    for(const key of this.lastWake.keys())if(key.startsWith('preview:')&&!keys.has(key))this.lastWake.delete(key);
+    const now=this.now();for(const key of keys)if(!this.wakeStarted.has(key))this.wakeStarted.set(key,now);
+    if(this.stopped||this.status!=='online'||!entries.length)return;
     let delay=30000;
-    for(const peerId of peers){
-      const grace=2500-(now-this.wakeStarted.get(peerId)!);
-      const previous=this.lastWake.get('data:'+peerId);const cooldown=previous===undefined?0:30000-(now-previous);
+    for(const {p,peerId,kind,key} of entries){
+      const grace=2500-(now-this.wakeStarted.get(key)!);
+      const previous=this.lastWake.get(key);const cooldown=previous===undefined?0:30000-(now-previous);
       const due=Math.max(grace,cooldown);
-      if(due<=0)void this.sendWake(peerId,this.pending.some(p=>p.type==='file'&&p.remaining.includes(peerId))?'file':'message',60000,()=>this.pending.some(message=>message.remaining.includes(peerId)&&Date.now()<(message.expiresAt??Infinity)));
+      if(due<=0)void this.sendWake(peerId,kind,Math.min(60000,(p.expiresAt??Date.now()+60000)-Date.now()),()=>this.pending.includes(p)&&p.remaining.includes(peerId)&&Date.now()<(p.expiresAt??Infinity),p);
       else delay=Math.min(delay,Math.max(500,due));
     }
     this.wakeTimer=setTimeout(()=>this.wakePending(),delay);
@@ -387,11 +411,11 @@ export class MessengerClient {
       let abort!:()=>void;
       const cancelled=new Promise<never>((_resolve,reject)=>{abort=()=>{pair.session.endCall();reject(operation.controller.signal.reason??new Error('Call cancelled'));};operation.controller.signal.addEventListener('abort',abort,{once:true});});
       try{await Promise.race([pair.session.startCall(video),cancelled]);}finally{operation.controller.signal.removeEventListener('abort',abort);}
-    }finally{clearTimeout(operation.timer);if(this.pendingCall===operation)this.pendingCall=undefined;this.emit();}
+    }finally{clearTimeout(operation.timer);if(this.pendingCall===operation){this.pendingCall=undefined;this.lastWake.delete('call:'+peerId);}this.emit();}
   }
   async acceptCall():Promise<void>{const active=this.getSnapshot().activeCall;if(!active||active.session.callState!=='incoming')throw new Error('No incoming call');await this.pairs.get(active.peerId)!.session.acceptCall();}
   rejectCall():void{const active=this.getSnapshot().activeCall;if(active)this.pairs.get(active.peerId)?.session.rejectCall();}
-  endCall():void{const pending=this.pendingCall;this.pendingCall=undefined;if(pending){clearTimeout(pending.timer);pending.controller.abort(new Error('Call cancelled'));}const active=this.getSnapshot().activeCall;if(active)this.pairs.get(active.peerId)?.session.endCall();else if(pending)this.pairs.get(pending.peerId!)?.session.endCall();this.emit();}
+  endCall():void{const pending=this.pendingCall;this.pendingCall=undefined;if(pending){this.lastWake.delete('call:'+pending.peerId);clearTimeout(pending.timer);pending.controller.abort(new Error('Call cancelled'));}const active=this.getSnapshot().activeCall;if(active)this.pairs.get(active.peerId)?.session.endCall();else if(pending)this.pairs.get(pending.peerId!)?.session.endCall();this.emit();}
   setMuted(muted:boolean):void{const active=this.getSnapshot().activeCall;if(active)this.pairs.get(active.peerId)?.session.setMuted(muted);}
   markRead(conversationId:string):void{if(this.closing)return;const c=this.conversations.get(conversationId);if(c){c.unread=0;this.changed();}}
   private trimHistory(){

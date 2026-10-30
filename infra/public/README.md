@@ -1,5 +1,26 @@
 # LastCall public preview
 
+0.6.0/code9 adds encrypted text/file-name previews, authenticated notification
+routing, managed Android lockscreen calls, voice/circles and fullscreen adaptive
+video. Exact emulator evidence and limits are in the
+[native report](../../docs/reports/debugging/2026-10/native-060.md). Physical
+phones/carriers and iOS remain separate. Short preview
+ciphertext may transit server/FCM with TTL<=60s by explicit user direction, without
+plaintext or server DB chat storage. This changes the earlier generic-only push
+boundary. `messagePreview` is a separate opt-in capability with default 0; old
+receivers keep generic notifications. Native notification PUBLIC visibility and
+cold-call lifetime/Telecom evidence are scoped to the emulator report. See
+[SERVICES.md](SERVICES.md) and [wake contract](../../docs/WAKE-CONTRACT.md).
+
+Voice/circles require a fresh native prebuild/APK for Expo audio/camera/video;
+a JS-only export does not install those native modules. Explicit foreground capture
+produces AAC/M4A voice <=120s or video <=30s targeting 480p/600 kbit/s, each <=5 MiB.
+Media uses the existing encrypted seven-day sender file queue, including 16 retained
+blobs / 40 MiB capacity. No server recorder, media endpoint or chat mailbox is added.
+Test locked cold ringing >12s, explicit answer with inbound RTP >15s, cleanup/next
+call, text/file notification tap routing and record/preview/cancel/retry on the final
+0.6.0/code9 APK before publishing. Physical devices/APNs remain separate.
+
 0.5.1/code7 adds bounded Android FCM background synchronization and bilateral
 application-readiness protection before the first peer data. Both Android apps
 must update in place. The sender-held encrypted text/file queue still waits up
@@ -16,7 +37,7 @@ in one direct-route run. Separate foreground takeover passed at 6786ms after one
 transient session error recovered. An offline manual relaunch after force-stop
 retained the profile and saved text/file entries; push after force-stop is not
 claimed. Physical phones, locked screen and Russian operators remain unverified;
-APNs and system incoming-call integration remain separate.
+APNs remains unconfigured; Android managed calls have scoped emulator acceptance.
 
 Public authenticated TURN is active and independently verified over UDP/TCP/TLS.
 Keep the prior signaling image and versioned APK available for rollback.
@@ -30,7 +51,7 @@ reproduced negative DNS cache on some resolvers; it uses normal DNS and TLS.
 - `infra/compose.public.yaml`: isolated Node24 signaling/directory service on the
   existing external `proxy` Docker network, no published host ports.
 - Native Homebrew coturn 4.18.0 is managed only by user LaunchAgent
-  `dev.lastcall.turn`; Docker `lastcall-coturn` is stopped. Router forwards
+  `dev.lastcall.turn`; The retired Docker `lastcall-coturn` container was removed on 2026-10-30. Router forwards
   3478 UDP/TCP, 5349 TCP and 49160–49200 UDP to the same ports on `192.168.1.26`.
   See the [native runbook](../native-turn/README.md); run exactly one relay backend.
 - Named `directory` volume: SQLite public profiles, push tokens, recipient watch
@@ -91,11 +112,13 @@ Content uses direct WebRTC where possible; TURN forwards encrypted packets on
 the fallback route, with bandwidth/traffic metadata cost and no chat archive.
 Pending text and files stay in the sender-local encrypted queue. One live
 directory connection per device identity. Android 0.5.1 has the bounded background
-FCM path above; iOS/APNs and system incoming-call integration are not configured. No audited ratchet, key transparency or multi-device
+FCM path above; iOS/APNs remains unconfigured, while managed Android calls
+have scoped emulator acceptance in 0.6.0. No audited ratchet, key transparency or multi-device
 identity yet. Server updates briefly disconnect preview sessions. In 0.4,
 registration uses a unique username bound to the installation key and a persistent
-server profile. No SMS account is required. FCM carries no chat content, filename,
-SDP, identity key or sender display name. Signaling forwards opaque encrypted
+server profile. No SMS account is required. FCM carries no plaintext chat, filename, SDP or private identity key. The 0.6.0
+preview path may transiently carry authenticated ciphertext and visible identity/
+intent headers; the published 0.5.1 path remains generic. Signaling forwards opaque encrypted
 SDP/candidate envelopes; private installation seeds stay on their devices.
 
 ## Rollback

@@ -12,6 +12,8 @@ const empty: MessengerSnapshot = { status: 'idle', contacts: [], conversations: 
 type Runtime = { ready: boolean; busy: boolean; registration: 'checking' | 'unregistered' | 'unavailable' | 'bound'; profile: LocalProfile | null; identity?: DeviceIdentity; snapshot: MessengerSnapshot; error?: string };
 let state: Runtime = { ready: false, busy: false, registration: 'checking', profile: null, snapshot: empty };
 const listeners = new Set<() => void>();
+const previewScopes = new WeakMap<MessengerClient, string>();
+const observers = new Set<(snapshot: MessengerSnapshot, manager: MessengerClient) => void>();
 const managers = new SharedWakeRuntime<MessengerClient>();
 let bootPromise: Promise<void> | null = null;
 let generation = 0;
@@ -41,14 +43,28 @@ async function buildManager(profile: LocalProfile, signal?: AbortSignal): Promis
     onChange: snapshot => {
       if (current !== generation) return;
       publish({ snapshot });
+      for (const observer of observers) { try { observer(snapshot, next); } catch { /* An optional native presenter cannot break delivery. */ } }
       if (snapshot.status === 'online' && snapshot.self) acceptCanonical(profile.serverUrl, snapshot.self);
     },
   });
+  previewScopes.set(next, `${profile.serverUrl}:${state.identity.userId}`);
   publish({ snapshot: next.getSnapshot() });
   return next;
 }
 function installManager(profile: LocalProfile): Promise<MessengerClient> {
   return managers.replace(() => buildManager(profile));
+}
+export const messagePreviewScope = (manager: MessengerClient): string | null => previewScopes.get(manager) ?? null;
+export function registerMessengerObserver(observer: (snapshot: MessengerSnapshot, manager: MessengerClient) => void): () => void {
+  observers.add(observer); const current = managers.peek(); if (current) observer(current.getSnapshot(), current);
+  return () => { observers.delete(observer); };
+}
+export const retainMessenger = (manager: MessengerClient) => managers.retain(manager);
+export async function withMessagePreviewClient(operation: (manager: MessengerClient) => Promise<void>): Promise<void> {
+  const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 15_000);
+  let lease: WakeLease | null = null;
+  try { lease = await acquireBackgroundManager(controller.signal); const current = managers.peek(); if (lease && current && !controller.signal.aborted) await operation(current); }
+  finally { clearTimeout(timer); controller.abort(); await lease?.release(); }
 }
 export function acquireBackgroundManager(signal: AbortSignal): Promise<WakeLease | null> {
   return managers.acquire(async () => {

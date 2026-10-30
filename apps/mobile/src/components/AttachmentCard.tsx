@@ -7,8 +7,10 @@ import { colors, styles } from '../styles';
 import { Icon, fileSize } from './ui';
 import { client } from '../runtime';
 import { deliveryLabel } from '../delivery-model';
+import { mediaKind } from '../media-model';
+import { MediaAttachment } from './MediaAttachment';
 
-export function AttachmentCard({ file, self, group = false, sender, onOpen }: { file: MessengerFile; self: boolean; group?: boolean; sender?: string; onOpen: () => void }) {
+export function AttachmentCard({ file, self, group = false, sender, onOpen, mediaDisabled = false }: { file: MessengerFile; self: boolean; group?: boolean; sender?: string; onOpen: () => void; mediaDisabled?: boolean }) {
   const [preview, setPreview] = useState<{ key: string; uri: string }>();
   const { id, senderId, conversationId, data, mime, blobKey, deliveryStatus } = file;
   const previewKey = `${conversationId}:${senderId}:${id}:${blobKey ?? ''}`;
@@ -28,6 +30,12 @@ export function AttachmentCard({ file, self, group = false, sender, onOpen }: { 
   }, [id, senderId, conversationId, data, mime, blobKey, deliveryStatus, previewKey]);
   const available = !!(file.data || file.blobKey) && file.deliveryStatus !== 'expired';
   const label = self ? deliveryLabel(file, group) : file.status === 'receiving' ? 'Получение…' : file.status === 'error' ? 'Не удалось получить' : 'Получено';
+  const note = mediaKind(file.name, file.mime);
+  if (note && available) return <View style={[styles.bubble, self && styles.bubbleSelf]}>
+    {!!sender && !self && <Text style={styles.senderName}>{sender}</Text>}
+    <MediaAttachment file={file} kind={note} disabled={mediaDisabled} />
+    <View style={[styles.row, { justifyContent: 'space-between', marginTop: 7 }]}><Text style={styles.fileMeta}>{fileSize(file.size)} · {label}</Text><Pressable accessibilityRole="button" accessibilityLabel="Сохранить запись" onPress={onOpen} hitSlop={10}><Icon name="share-outline" size={20} /></Pressable></View>
+  </View>;
   return <Pressable accessibilityRole="button" accessibilityLabel={`Файл ${file.name}. ${label}`} disabled={!available} onPress={onOpen} style={[styles.bubble, self && styles.bubbleSelf]}>
     {!!sender && !self && <Text style={styles.senderName}>{sender}</Text>}
     {available && preview?.key === previewKey && <Image source={{ uri: preview.uri }} style={styles.previewImage} resizeMode="cover" />}

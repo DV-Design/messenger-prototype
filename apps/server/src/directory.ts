@@ -134,10 +134,10 @@ export class Directory {
         const matches = this.services.discover(connection.userId, frame.hashes);
         this.options.send(ws, { type: 'phone-matches', requestId: frame.requestId, matches });
       } else if (frame.type === 'push-register') {
-        this.services.registerPush(connection.userId, frame.token, frame.backgroundSync);
+        this.services.registerPush(connection.userId, frame.token, frame.backgroundSync,frame.messagePreview);
         this.options.send(ws, { type: 'push-registered', requestId: frame.requestId });
       } else if (frame.type === 'wake') {
-        await this.services.wake(connection.userId, frame.to, frame.kind === undefined ? undefined : wakeIntentSchema.parse({ kind: frame.kind, intentId: frame.intentId, expiresAt: frame.expiresAt }));
+        await this.services.wake(connection.userId, frame.to, frame.kind === undefined ? undefined : wakeIntentSchema.parse({ kind: frame.kind, intentId: frame.intentId, expiresAt: frame.expiresAt }),frame.preview);
       } else if (frame.type === 'search') {
         // Escape SQL LIKE wildcards; the query is always a bound parameter.
         const escaped = frame.query.normalize('NFKC').toLowerCase().replace(/[\\%_]/g, (value) => `\\${value}`);

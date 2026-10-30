@@ -1,5 +1,30 @@
 # Optional FCM and authenticated ICE configuration
 
+## 0.6.0/code9
+
+Android0.6 adds encrypted previews, authenticated notification routes, managed
+Telecom calls, voice/circles and fullscreen adaptive video. See the
+[native acceptance report](../../docs/reports/debugging/2026-10/native-060.md)
+for exact emulator evidence and remaining physical-phone/iOS requirements.
+User direction now permits an opaque authenticated encrypted preview through server/FCM. Plaintext is
+never exposed; FCM may transiently retain ciphertext for TTL<=60s, so this is not
+the old content-free transport claim. Full chat data remains sender-held/P2P with
+recipient persistence before ACK; no server DB mailbox is introduced.
+
+The separate `messagePreview` token capability defaults to 0 and requires updated
+native preparation plus background-task support. Old 0.5.1 tokens keep generic
+notifications. Encrypted text is bounded 800 UTF-8 bytes (earlier for escaping),
+envelope 3000 bytes, full FCM data 4096 bytes. Visible headers bind sender/recipient,
+intent/type and expiry; never log envelopes or decrypted previews. Existing
+contact pins/membership validate client decryption. No preview produces chat ACK.
+
+The private Firebase sender key/role and Compose selection below do not change.
+Managed Android calls require a user-enabled LastCall phone account and the
+requested native permissions; ringing follows a live authenticated call invite,
+not FCM alone. Native PUBLIC notification presentation, cold call runtime lifetime,
+answer/reject and API36 emulator evidence are recorded in the report; physical
+phones, OEM battery behavior and locked video-camera eligibility remain separate.
+
 ## LastCall 0.5.1/code7 checkpoint (2026-10-29)
 
 Firebase Cloud Messaging is now configured in production. The dedicated LastCall
@@ -104,13 +129,16 @@ new identity or server-side content queue is introduced. The final APK passed
 the specific cold-wake text/small-file emulator check above; physical devices,
 locked screen, larger transfers and cellular operators still require testing.
 
-FCM carries no chat payload, filename, SDP, identity key or sender display name.
+FCM carries no plaintext chat, filename, SDP or private identity key. In 0.6.0 it
+may transiently carry a bounded encrypted text preview with visible identity/intent
+headers, plus bounded encrypted file-name preview; in published 0.5.1 the payload remains generic.
 The coordination directory does retain profiles, display names, public device
 keys, push tokens, consent and quotas. Signaling forwards opaque encrypted
 SDP/candidate envelopes; the private installation seed stays on the device.
 TURN forwards encrypted traffic without storing a chat archive.
 
-A wake intent contains no chat payload. The target must have watched the sender;
+A generic wake contains no chat payload; an opted-in preview adds only bounded
+authenticated ciphertext, with no media/file bytes. The target must have watched the sender;
 server consent and quotas apply. Provider acceptance is not recipient ACK and does
 not guarantee that the OS opens a suspended app. After reopening, both peers still
 need an available direct or authenticated encrypted relay connection to transfer
@@ -119,7 +147,7 @@ the sender-local pending message.
 ## TURN
 
 Public TURN is active through native Homebrew coturn 4.18.0 and user LaunchAgent
-`dev.lastcall.turn`; Docker `lastcall-coturn` is stopped. The user forwarded
+`dev.lastcall.turn`; The retired Docker `lastcall-coturn` container was removed on 2026-10-30. The user forwarded
 3478 UDP/TCP, 5349 TCP and 49160–49200 UDP to the same ports on `192.168.1.26`.
 Use the [native runbook](../native-turn/README.md); exactly one backend may own
 those ports. The host-to-Docker UDP path failed locally; native mode removes
@@ -135,8 +163,9 @@ These checks do not guarantee all Russian operators or DPI evasion.
 
 `TURN_URLS` and `TURN_SHARED_SECRET` are set together in `infra/.env.public-turn`.
 TTL is 600 seconds; authenticated services report relay=true, push=true and
-phone features=false. Anonymous GET `/ice` remains STUN-only. Catalog/push never
-receive chat content; TURN forwards encrypted packets without a chat archive,
+phone features=false. Anonymous GET `/ice` remains STUN-only. The catalog retains
+no chat mailbox; preview ciphertext may transiently cross server/FCM as described
+above. TURN forwards encrypted packets without a chat archive,
 with real server bandwidth and traffic metadata costs. Restart both 0.5 clients
 to refresh ICE. This TURN configuration is compatible with 0.5.0; the new
 background-sync path requires 0.5.1 on both peers. Certificate/public-IP automation

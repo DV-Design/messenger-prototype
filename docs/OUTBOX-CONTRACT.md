@@ -1,8 +1,42 @@
-# Sender-held delivery and peer group sync (0.5)
+# Sender-held delivery and peer group sync (0.6.0)
 
 User direction: persist text and files on sender devices until recipient acknowledgement,
-with a seven-day deadline. Coordination server and FCM never receive chat content.
+with a seven-day deadline. The coordination server has no chat-content mailbox.
+
+0.6.0 changes the earlier content-free-push requirement by explicit user direction:
+a short message or file-name preview may transit the server/FCM as an authenticated encrypted
+opaque envelope, with provider TTL<=60s. Plaintext is never exposed to them; this
+is transient encrypted-content handling, not “no content ever reaches FCM”.
+The encrypted text is capped at 800 UTF-8 bytes (possibly earlier JSON-escape
+truncation), envelope 3000 bytes and total FCM data 4096 bytes. Sender/recipient IDs,
+intent/type/expiry headers remain visible. No file/media bytes or full-history
+mailbox are introduced. Existing contact pins and conversation membership must
+validate before displaying the decrypted preview. Preview receipt/display never
+creates a durable chat record or sends content ACK; full P2P persistence and
+seven-day/per-recipient queue semantics below remain authoritative. See the
+[0.6.0 wake contract](WAKE-CONTRACT.md). See the native acceptance report for exact verified scope.
 Phone uninstall, OS suspension, or an unavailable network do not imply guaranteed delivery.
+
+## Voice notes and video circles (0.6.0)
+
+Voice notes and circles use the same encrypted `sendFile` path and durable ACK;
+there is no server media storage or separate queue. Voice is AAC/M4A, maximum
+120 seconds. Circles are maximum 30 seconds, targeting 480p/600 kbit/s. Both must
+pass the actual 5 MiB byte check before enqueue. Encoder targets do not guarantee
+file size on every phone. Capture starts explicitly in a foreground chat, then
+stop/preview/send/cancel; no push-triggered or background recording.
+
+After send, sender-local encrypted bytes persist for up to seven days from the
+original enqueue, with retry under the same ID and full-file retransmission.
+Group peers may supply verified retained media like other files. All records,
+including delivered media, count against 16 stored blobs / 40 MiB total. Quota
+failure preserves prior waiting content. Before send, a local draft must be
+discardable; cancel, capture failure and leaving the recorder must release
+camera/microphone/player resources and remove temporary capture/preview copies.
+Inline voice playback and circular video presentation are client UI; no read or
+playback event substitutes for a delivery ACK. Legacy clients may display the
+media as ordinary files. Native codec/playback/cancel/permission-denial and
+offline enqueue/restart/retry acceptance remains pending on the final 0.6.0 APK.
 
 Implementation ownership: session/protocol durable-receipt boundary; manager outbox and
 authenticated group synchronization; mobile encrypted attachment adapter and queue UI.
@@ -49,4 +83,5 @@ rotation are outside this immutable-group version. Retained history limits remai
 Tests: restart sender/receiver, durable write failure blocks ACK even on replay, offline
 recipient returns before seven days, exact TTL boundary, partial group ACK, original sender
 offline peer sync, tampered signatures/hash rejection, file bytes across restart, duplicate
-transfer/retry, bounded capacity, no content in server/push. Run check/e2e/native build.
+transfer/retry, bounded capacity, no plaintext or persistent chat mailbox on server/push,
+strict preview opt-in/bounds/AEAD binding/expiry and no preview-generated ACK. Run check/e2e/native build.

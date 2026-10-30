@@ -62,6 +62,13 @@ export type PhoneMatch=z.infer<typeof phoneMatchSchema>;
 export const wakeIntentSchema=z.object({kind:z.enum(['message','file','call']),intentId:peerIdSchema,expiresAt:z.number().int().positive().max(Number.MAX_SAFE_INTEGER)}).strict();
 export type WakeIntent=z.infer<typeof wakeIntentSchema>;
 export type WakeKind=WakeIntent['kind'];
+export const MAX_PUSH_PREVIEW_BYTES=3000;
+export const pushPreviewEnvelopeSchema=z.object({version:z.literal(1),senderId:roomIdSchema,recipientId:roomIdSchema,kind:z.enum(['message','file']),intentId:peerIdSchema,expiresAt:wakeIntentSchema.shape.expiresAt,nonce:z.string().regex(/^[0-9a-f]{48}$/),ciphertext:z.string().min(32).max(2232).regex(/^(?:[0-9a-f]{2})+$/)}).strict();
+/** Opaque authenticated content; bounds apply before parsing and after canonical serialization. */
+export const pushPreviewSchema=z.string().min(1).max(MAX_PUSH_PREVIEW_BYTES).superRefine((value,ctx)=>{
+  try{if(new TextEncoder().encode(value).length>MAX_PUSH_PREVIEW_BYTES||!pushPreviewEnvelopeSchema.safeParse(JSON.parse(value)).success)throw new Error();}
+  catch{ctx.addIssue({code:'custom',message:'Invalid encrypted push preview'});}
+}).transform(value=>JSON.stringify(pushPreviewEnvelopeSchema.parse(JSON.parse(value))));
 export const directoryClientFrameSchema=z.discriminatedUnion('type',[
   z.object({type:z.literal('resolve-profile'),publicKey:roomIdSchema,signature:z.string().regex(/^[0-9a-f]{128}$/)}).strict(),
   z.object({type:z.literal('list-users'),requestId:peerIdSchema,cursor:usernameSchema.optional()}).strict(),
@@ -70,8 +77,8 @@ export const directoryClientFrameSchema=z.discriminatedUnion('type',[
   z.object({type:z.literal('phone-start'),phone:e164PhoneSchema,requestId:peerIdSchema}).strict(),
   z.object({type:z.literal('phone-verify'),challengeId:peerIdSchema,code:z.string().regex(/^[0-9]{6}$/),requestId:peerIdSchema}).strict(),
   z.object({type:z.literal('phone-discover'),hashes:z.array(roomIdSchema).max(100),requestId:peerIdSchema}).strict(),
-  z.object({type:z.literal('push-register'),token:z.string().min(1).max(4096),backgroundSync:z.boolean().optional(),requestId:peerIdSchema}).strict(),
-  z.object({type:z.literal('wake'),to:roomIdSchema,kind:wakeIntentSchema.shape.kind.optional(),intentId:peerIdSchema.optional(),expiresAt:wakeIntentSchema.shape.expiresAt.optional()}).strict().refine(frame=>[frame.kind,frame.intentId,frame.expiresAt].filter(value=>value!==undefined).length%3===0,{message:'Wake metadata must be supplied together'}),
+  z.object({type:z.literal('push-register'),token:z.string().min(1).max(4096),backgroundSync:z.boolean().optional(),messagePreview:z.boolean().optional(),requestId:peerIdSchema}).strict(),
+  z.object({type:z.literal('wake'),to:roomIdSchema,kind:wakeIntentSchema.shape.kind.optional(),intentId:peerIdSchema.optional(),expiresAt:wakeIntentSchema.shape.expiresAt.optional(),preview:pushPreviewSchema.optional()}).strict().refine(frame=>[frame.kind,frame.intentId,frame.expiresAt].filter(value=>value!==undefined).length%3===0&&(frame.preview===undefined||((frame.kind==='message'||frame.kind==='file')&&pushPreviewSchema.safeParse(frame.preview).success&&JSON.parse(frame.preview).kind===frame.kind)),{message:'Wake metadata must be supplied together; previews require matching message/file intent'}),
   z.object({type:z.literal('authenticate'),publicKey:roomIdSchema,username:usernameSchema,displayName:displayNameSchema,signature:z.string().regex(/^[0-9a-f]{128}$/)}).strict(),
   z.object({type:z.literal('search'),query:z.string().max(48),requestId:peerIdSchema}).strict(),
   z.object({type:z.literal('lookup'),userIds:z.array(roomIdSchema).max(200),requestId:peerIdSchema}).strict(),

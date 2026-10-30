@@ -5,6 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { PushBridge } from '../components/PushBridge';
 import { CallOverlay } from '../components/CallOverlay';
 import { PermissionSetupGate } from '../components/PermissionSetupGate';
+import { NotificationNavigationBridge } from '../components/NotificationNavigationBridge';
 import { useMessenger } from '../runtime';
 import { colors, styles } from '../styles';
 
@@ -16,7 +17,7 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" /><Stack.Screen name="onboarding" /><Stack.Screen name="chat/[id]" />
         <Stack.Screen name="new-group" options={{ presentation: 'modal' }} />
         <Stack.Screen name="permissions" options={{ presentation: 'modal' }} />
-      </Stack><PermissionSetupGate /><PushBridge /><CallOverlay />
+      </Stack><PermissionSetupGate /><PushBridge /><NotificationNavigationBridge /><CallOverlay />
     </>}
   </SafeAreaProvider>;
 }

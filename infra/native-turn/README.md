@@ -10,6 +10,10 @@ Docker's public TURN-over-TCP test subsequently carried exact file bytes and
 chat/call traffic after router forwarding. That does not prove every UDP path
 fails. Native TURN removes the Docker NAT hop; verify it independently.
 
+The retired stopped Docker container was removed on 2026-10-30 after verifying
+that native coturn owned the production listeners. The optional Docker compose
+configuration remains for an explicit rollback; do not start both backends.
+
 ## Inputs and validation
 
 The existing ignored `infra/.env.public-turn` remains the only configuration

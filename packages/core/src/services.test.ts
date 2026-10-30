@@ -83,18 +83,20 @@ describe('authenticated correlated service requests',()=>{
   try{await expect(peer.connect()).rejects.toThrow('Authenticated ICE unavailable');expect(fetch).not.toHaveBeenCalled();expect(factory).not.toHaveBeenCalled();}finally{peer.disconnect();vi.unstubAllGlobals();}
  });
 });
-describe('bounded content-free pending wake intents',()=>{
- it('wakes offline or directory-online suspended recipients only while awaiting real ACK, at most once per30s',async()=>{
+describe('bounded encrypted pending wake intents',()=>{
+ it('wakes each new pending text after direct grace and retries each message at most once per30s until real ACK',async()=>{
   const f=await fixture(true);vi.useFakeTimers();vi.setSystemTime(new Date('2026-10-28T08:00:00Z'));
   try{
    // Treat online presence as distinct from a responding P2P transport.
    const id=await f.client.addContact({...other,online:false});(f.client as any).contacts.set(other.userId,{...other,online:true});(f.client as any).ensurePair=async()=>({session:{getSnapshot:()=>({status:'waiting'})}});
    expect(f.sent.filter(x=>x.type==='wake')).toHaveLength(0);await f.client.sendText(id,'private content stays local');await vi.advanceTimersByTimeAsync(2499);expect(f.sent.filter(x=>x.type==='wake')).toHaveLength(0);await vi.advanceTimersByTimeAsync(1);
    expect(f.sent.filter(x=>x.type==='wake')[0]).toMatchObject({type:'wake',to:other.userId,kind:'message'});expect(JSON.stringify(f.sent.filter(x=>x.type==='wake'))).not.toContain('private');
-   await f.client.sendText(id,'second private text');await vi.advanceTimersByTimeAsync(29999);expect(f.sent.filter(x=>x.type==='wake')).toHaveLength(1);
-   await vi.advanceTimersByTimeAsync(1);expect(f.sent.filter(x=>x.type==='wake')).toHaveLength(2);expect(f.client.getSnapshot().conversations[0]?.messages.every(x=>x.status==='pending')).toBe(true);
+   await f.client.sendText(id,'second private text');await vi.advanceTimersByTimeAsync(2499);expect(f.sent.filter(x=>x.type==='wake')).toHaveLength(1);
+   await vi.advanceTimersByTimeAsync(1);expect(f.sent.filter(x=>x.type==='wake')).toHaveLength(2);expect(f.sent.filter(x=>x.type==='wake').every(frame=>typeof frame.preview==='string')).toBe(true);
+   await vi.advanceTimersByTimeAsync(27499);expect(f.sent.filter(x=>x.type==='wake')).toHaveLength(2);
+   await vi.advanceTimersByTimeAsync(1);expect(f.sent.filter(x=>x.type==='wake')).toHaveLength(3);expect(f.client.getSnapshot().conversations[0]?.messages.every(x=>x.status==='pending')).toBe(true);
    for(const message of f.client.getSnapshot().conversations[0]!.messages)(f.client as any).receiveMessage(other.userId,{id:message.id,text:message.text,from:'self',timestamp:message.timestamp,status:'delivered',conversationId:id});
-   expect(f.client.getSnapshot().conversations[0]?.messages.every(x=>x.status==='delivered')).toBe(true);await vi.advanceTimersByTimeAsync(60000);expect(f.sent.filter(x=>x.type==='wake')).toHaveLength(2);
+   expect(f.client.getSnapshot().conversations[0]?.messages.every(x=>x.status==='delivered')).toBe(true);await vi.advanceTimersByTimeAsync(60000);expect(f.sent.filter(x=>x.type==='wake')).toHaveLength(3);
   }finally{f.close();vi.useRealTimers();}
  });
 });

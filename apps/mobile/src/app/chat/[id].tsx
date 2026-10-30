@@ -10,6 +10,8 @@ import { client, errorText, useMessenger } from '../../runtime';
 import { colors, styles } from '../../styles';
 import { transportNotice } from '../../transport-notice';
 import { deliveryLabel, waitingForDelivery } from '../../delivery-model';
+import { MediaComposer } from '../../components/MediaComposer';
+import type { MediaKind } from '../../media-model';
 
 export default function Chat() {
   const params = useLocalSearchParams<{ id: string }>();
@@ -20,6 +22,7 @@ export default function Chat() {
   const [attachments, setAttachments] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [recording, setRecording] = useState<MediaKind>();
   const list = useRef<ComponentRef<typeof FlatList<MessengerMessage>>>(null);
   const unread = conversation?.unread ?? 0;
   const focused = useIsFocused();
@@ -30,7 +33,7 @@ export default function Chat() {
   if (!conversation) return <SafeAreaView style={styles.whiteScreen}><View style={styles.chatHeader}><IconButton name="chevron-back" label="Назад" onPress={() => router.back()} /></View><Empty icon="chatbubble-outline" title="Чат не найден" text="Он может относиться к другому серверу. Вернитесь к списку чатов." /></SafeAreaView>;
   const peer = snapshot.contacts.find(item => conversation.memberIds.includes(item.userId) && item.userId !== identity?.userId);
   const group = conversation.kind === 'group';
-  const canCall = !group && !snapshot.activeCall && (snapshot.status === 'online' || conversation.session?.status === 'connected');
+  const canCall = !group && !snapshot.activeCall && !recording && (snapshot.status === 'online' || conversation.session?.status === 'connected');
   const notice = transportNotice({ directory: snapshot.status, group, peerOnline: peer?.online, session: conversation.session,
     pending: conversation.messages.filter(item => item.from === identity?.userId && waitingForDelivery(item)).length
       + conversation.files.filter(item => item.senderId === identity?.userId && waitingForDelivery(item)).length });
@@ -49,6 +52,7 @@ export default function Chat() {
     setAttachments(false);
     void action(() => kind === 'media' ? pickMedia(conversation!.id) : pickDocument(conversation!.id));
   }
+  function record(kind: MediaKind) { if (busy || snapshot.activeCall) return; setAttachments(false); setRecording(kind); }
   function renderMessage(item: MessengerMessage) {
     const own = item.from === identity?.userId;
     const sender = snapshot.contacts.find(contact => contact.userId === item.from)?.displayName ?? 'Участник';
@@ -75,17 +79,22 @@ export default function Chat() {
         <FlatList ref={list} data={conversation.messages} keyExtractor={item => item.id + item.from} contentContainerStyle={styles.messages} keyboardShouldPersistTaps="handled" onContentSizeChange={() => list.current?.scrollToEnd({ animated: true })}
           renderItem={({ item }) => renderMessage(item)}
           ListEmptyComponent={conversation.files.length === 0 ? <Empty icon="chatbubble-ellipses-outline" title="Начните разговор" text={group ? 'Данные синхронизируются между телефонами участников.' : 'Отправьте первое сообщение. Если друга нет в сети, оно подождёт на вашем устройстве до 7 дней.'} /> : undefined}
-          ListFooterComponent={<>{conversation.files.map(file => <View key={`${file.id}-${file.senderId}`} style={{ marginTop: 9 }}><AttachmentCard file={file} self={file.senderId === identity?.userId} group={group} sender={group ? snapshot.contacts.find(contact => contact.userId === file.senderId)?.displayName : undefined} onOpen={() => void action(() => shareFile(file))} /></View>)}</>} />
+          ListFooterComponent={<>{conversation.files.map(file => <View key={`${file.id}-${file.senderId}`} style={{ marginTop: 9 }}><AttachmentCard file={file} self={file.senderId === identity?.userId} group={group} sender={group ? snapshot.contacts.find(contact => contact.userId === file.senderId)?.displayName : undefined} mediaDisabled={!focused || !!snapshot.activeCall || !!recording} onOpen={() => void action(() => shareFile(file))} /></View>)}</>} />
       </View>
       {!!error && <Pressable accessibilityRole="button" accessibilityLabel="Скрыть ошибку" onPress={() => setError('')}><Text style={[styles.error, { borderRadius: 0 }]}>{error}</Text></Pressable>}
       {attachments && <View><View style={styles.attachmentMenu}>
         <Pressable style={styles.attachment} accessibilityRole="button" onPress={() => attach('media')}><Icon name="images-outline" size={27} /><Text style={styles.rowText}>Фото и видео</Text></Pressable>
         <Pressable style={styles.attachment} accessibilityRole="button" onPress={() => attach('document')}><Icon name="document-outline" size={27} /><Text style={styles.rowText}>Файл до 5 МиБ</Text></Pressable>
+      </View><View style={styles.attachmentMenu}>
+        <Pressable style={[styles.attachment, !!snapshot.activeCall && styles.disabled]} disabled={busy || !!snapshot.activeCall} accessibilityRole="button" onPress={() => record('voice')}><Icon name="mic-outline" size={27} /><Text style={styles.rowText}>Голосовое</Text></Pressable>
+        <Pressable style={[styles.attachment, !!snapshot.activeCall && styles.disabled]} disabled={busy || !!snapshot.activeCall} accessibilityRole="button" onPress={() => record('circle')}><Icon name="videocam-outline" size={27} /><Text style={styles.rowText}>Видеокружок</Text></Pressable>
       </View></View>}
       <View style={styles.composer}><IconButton name={attachments ? 'close' : 'attach'} label="Прикрепить файл" disabled={busy} onPress={() => setAttachments(!attachments)} />
         <TextInput style={styles.composerInput} value={draft} onChangeText={setDraft} multiline maxLength={4000} placeholder="Сообщение" placeholderTextColor={colors.secondary} accessibilityLabel="Текст сообщения" />
-        <Pressable style={[styles.send, (!draft.trim() || busy) && styles.disabled]} accessibilityRole="button" accessibilityLabel="Отправить сообщение" disabled={!draft.trim() || busy} onPress={send}><Icon name="arrow-up" color={colors.white} size={25} /></Pressable>
+        {!draft.trim() && <IconButton name="mic-outline" label="Записать голосовое сообщение" disabled={busy || !!snapshot.activeCall} onPress={() => record('voice')} />}
+        {!!draft.trim() && <Pressable style={[styles.send, busy && styles.disabled]} accessibilityRole="button" accessibilityLabel="Отправить сообщение" disabled={busy} onPress={send}><Icon name="arrow-up" color={colors.white} size={25} /></Pressable>}
       </View>
     </KeyboardAvoidingView>
+    {!!recording && focused && <MediaComposer key={`${id}:${recording}`} kind={recording} conversationId={conversation.id} blocked={!!snapshot.activeCall} onClose={() => setRecording(undefined)} />}
   </SafeAreaView>;
 }

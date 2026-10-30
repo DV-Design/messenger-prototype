@@ -2,16 +2,23 @@ import { readFileSync, statSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { cert, deleteApp, initializeApp } from 'firebase-admin/app';
 import { getMessaging, type Message } from 'firebase-admin/messaging';
-import type { WakeIntent } from '@messenger/core';
+import {pushPreviewSchema,pushPreviewEnvelopeSchema,type WakeIntent} from '@messenger/core';
 
 export interface SMSProvider { sendCode(phone: string, code: string): Promise<void>; dispose?(): Promise<void> }
-export interface PushProvider { sendWake(token: string, intent?: WakeIntent, backgroundSync?: boolean): Promise<void>; dispose?(): Promise<void> }
+export interface PushProvider { sendWake(token: string, intent?: WakeIntent, backgroundSync?: boolean,preview?:string): Promise<void>; dispose?(): Promise<void> }
 export class InvalidPushToken extends Error { constructor() { super('Push token is no longer valid'); } }
 
-/** Generic metadata only. An expired intent is dropped before contacting FCM. */
-export function buildFcmWakeMessage(token: string, intent?: WakeIntent, now = Date.now(), backgroundSync = false): Message | undefined {
+/** Generic metadata or an opted-in opaque encrypted preview; expired intents never reach FCM. */
+export function buildFcmWakeMessage(token: string, intent?: WakeIntent, now = Date.now(), backgroundSync = false,preview?:string): Message | undefined {
   const expiresAt = intent ? Math.min(intent.expiresAt, now + (intent.kind === 'call' ? 30_000 : 60_000)) : now + 60_000;
   if (expiresAt <= now) return undefined;
+  if(preview!==undefined){
+    preview=pushPreviewSchema.parse(preview);const header=pushPreviewEnvelopeSchema.parse(JSON.parse(preview));
+    if(!backgroundSync||!intent||(intent.kind!=='message'&&intent.kind!=='file')||header.kind!==intent.kind||header.intentId!==intent.intentId||header.expiresAt!==intent.expiresAt||intent.expiresAt>now+65000)throw new Error('Invalid encrypted preview delivery mode');
+    const data={kind:'lastcall-wake',intentKind:intent.kind,intentId:intent.intentId,expiresAt:String(intent.expiresAt),preview};
+    if(Buffer.byteLength(JSON.stringify(data),'utf8')>4096)throw new Error('Push data exceeds FCM payload limit');
+    return {token,data,android:{priority:'high',ttl:expiresAt-now,restrictedPackageName:'dev.messenger.prototype'}};
+  }
   const body = intent?.kind === 'call' ? 'Ожидается звонок. Откройте LastCall.' : intent?.kind === 'file' ? 'Ожидается отправка файла. Откройте LastCall.' : 'Ожидается отправка сообщения. Откройте LastCall.';
   // Calls use their own collapse class; no sender/conversation identifier is exposed.
   const collapse = intent?.kind === 'call' ? 'lastcall-call' : 'lastcall-wake';
@@ -60,9 +67,9 @@ export function createFcmPushProvider(credentialsPath: string): PushProvider | u
     const app = initializeApp({ credential: cert({ projectId: account.project_id, clientEmail: account.client_email, privateKey: account.private_key }), projectId: account.project_id }, `lastcall-${randomBytes(8).toString('hex')}`);
     const messaging = getMessaging(app);
     return {
-      async sendWake(token, intent, backgroundSync = false) {
+      async sendWake(token, intent, backgroundSync = false,preview) {
         try {
-          const message = buildFcmWakeMessage(token, intent, Date.now(), backgroundSync);
+          const message = buildFcmWakeMessage(token, intent, Date.now(), backgroundSync,preview);
           if (message) await messaging.send(message);
         } catch (error) {
           const code = typeof error === 'object' && error ? (error as { code?: unknown }).code : undefined;

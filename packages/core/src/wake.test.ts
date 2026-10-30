@@ -1,6 +1,7 @@
 import {afterEach,describe,expect,it,vi} from 'vitest';
 import {createDeviceIdentity,directoryClientFrameSchema,wakeIntentSchema,type DirectoryUser} from './directory.js';
 import {MessengerClient} from './messenger.js';
+import {decryptPushPreview} from './push-preview.js';
 const alice=createDeviceIdentity(n=>new Uint8Array(n).fill(91));
 const bob=createDeviceIdentity(n=>new Uint8Array(n).fill(92));
 const contact:DirectoryUser={userId:bob.userId,publicKey:bob.publicKey,username:'bob',displayName:'Bob',online:false,lastSeen:1};
@@ -47,6 +48,12 @@ describe('direct first message grace',()=>{
  });
 });
 describe('bounded sender-local calls and files',()=>{
+ it('gives a new call its own wake after a prior pending call ends within30s',async()=>{
+  const f=await fixture();try{
+   const first=f.client.startCall(f.id);const firstResult=expect(first).rejects.toThrow(/cancelled/);await vi.advanceTimersByTimeAsync(2500);expect(f.sent.filter(frame=>frame.type==='wake'&&frame.kind==='call')).toHaveLength(1);f.client.endCall();await firstResult;
+   const second=f.client.startCall(f.id);const secondResult=expect(second).rejects.toThrow(/cancelled/);await vi.advanceTimersByTimeAsync(2499);expect(f.sent.filter(frame=>frame.type==='wake'&&frame.kind==='call')).toHaveLength(1);await vi.advanceTimersByTimeAsync(1);const wakes=f.sent.filter(frame=>frame.type==='wake'&&frame.kind==='call');expect(wakes).toHaveLength(2);expect(wakes[0].intentId).not.toBe(wakes[1].intentId);f.client.endCall();await secondResult;
+  }finally{f.client.disconnect();}
+ });
  it('shows local outgoing immediately, cancels before transport, and cannot start later',async()=>{
   const f=await fixture();try{
    const pending=f.client.startCall(f.id,true);const result=expect(pending).rejects.toThrow(/cancelled/);
@@ -79,6 +86,18 @@ describe('bounded sender-local calls and files',()=>{
    await expect(f.client.sendFile(f.id,{...file,data:new Uint8Array(5*1024*1024+1)})).rejects.toThrow(/5 MiB/);
    await f.client.sendFile(f.id,file);await vi.advanceTimersByTimeAsync(2500);expect(f.sent.find(x=>x.type==='wake').kind).toBe('file');
    await vi.advanceTimersByTimeAsync(60000);expect(f.client.getSnapshot().conversations[0]!.files[0]!.deliveryStatus).toBe('pending');expect(f.session.sendFile).not.toHaveBeenCalled();
+  }finally{f.client.disconnect();}
+ });
+ it('sends each pending file origin as its own encrypted filename preview',async()=>{
+  const f=await fixture();try{
+   await f.client.sendFile(f.id,{name:'private-one.jpg',mime:'image/jpeg',data:new Uint8Array([73,74,75])});
+   await f.client.sendFile(f.id,{name:'private-two.jpg',mime:'image/jpeg',data:new Uint8Array([76,77,78])});
+   await vi.advanceTimersByTimeAsync(2500);const wakes=f.sent.filter(frame=>frame.type==='wake');expect(wakes).toHaveLength(2);
+   const opened=wakes.map(frame=>decryptPushPreview(bob,alice.publicKey,frame.preview,{kind:frame.kind,intentId:frame.intentId,expiresAt:frame.expiresAt}));
+   expect(opened.map(value=>value.text).sort()).toEqual(['Файл: private-one.jpg','Файл: private-two.jpg']);
+   expect(new Set(opened.map(value=>value.messageId)).size).toBe(2);expect(opened.every(value=>value.kind==='file'&&value.conversationId===f.id)).toBe(true);
+   expect(JSON.stringify(wakes)).not.toContain('private-');expect(JSON.stringify(wakes)).not.toContain('data');
+   for(const frame of wakes)expect(directoryClientFrameSchema.safeParse(frame).success).toBe(true);
   }finally{f.client.disconnect();}
  });
  it('starts only after direct connection and disconnect cancels pending work',async()=>{

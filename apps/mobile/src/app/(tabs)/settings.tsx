@@ -3,6 +3,8 @@ import { router } from 'expo-router';
 import { Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
+import Constants from 'expo-constants';
+import { enableSystemCalls, useSystemCallStatus } from '../../system-calls';
 import { Avatar, Button, Icon, ScreenHeader, connectionLabel } from '../../components/ui';
 import { changeServer, errorText, reconnect, useMessenger } from '../../runtime';
 import { sanitizeDiagnostic } from '../../diagnostics';
@@ -12,6 +14,7 @@ const metric = (value: number | undefined, suffix: string) => value === undefine
 export default function Settings() {
   const { profile, identity, snapshot, error, busy } = useMessenger();
   const pushStatus = usePushStatus();
+  const callStatus = useSystemCallStatus();
   const [showServer, setShowServer] = useState(false);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [server, setServer] = useState(profile?.serverUrl ?? '');
@@ -28,7 +31,7 @@ export default function Settings() {
       ...snapshot.conversations.flatMap(item => [item.title, ...item.messages.map(message => message.text)])];
     const sanitize = (value?: string) => sanitizeDiagnostic(value, privateValues);
     const peers = snapshot.conversations.filter(item => item.kind === 'direct');
-    const report = ['LastCall 0.5.0', `Платформа: ${Platform.OS} ${Platform.Version}`, `Сервер: ${sanitize(profile?.serverUrl)}`, `Directory: ${snapshot.status}`, `Личных соединений: ${peers.length}`, `Ошибка приложения: ${sanitize(snapshot.error)}`,
+    const report = [`LastCall ${Constants.expoConfig?.version ?? ''}`, `Платформа: ${Platform.OS} ${Platform.Version}`, `Сервер: ${sanitize(profile?.serverUrl)}`, `Directory: ${snapshot.status}`, `Личных соединений: ${peers.length}`, `Ошибка приложения: ${sanitize(snapshot.error)}`,
       ...peers.map((item, index) => `Контакт ${index + 1}: ${item.session?.status ?? 'idle'} / ${item.session?.route ?? 'unknown'} / ${sanitize(item.session?.error)}`)].join('\n');
     try { await Clipboard.setStringAsync(report); setReportCopied(true); }
     catch (cause) { setLocalError(errorText(cause)); }
@@ -49,11 +52,12 @@ export default function Settings() {
       </View>
       {!!(localError || error || snapshot.error) && <Text style={[styles.error, { marginHorizontal: 16, marginTop: 16 }]}>{localError || error || snapshot.error}</Text>}
       <Text style={styles.sectionTitle}>УВЕДОМЛЕНИЯ</Text><View style={[styles.section, styles.content]}><Text style={styles.body}>{pushStatus}</Text><Button title="Настроить доступы" secondary onPress={() => router.push('/permissions')} /></View>
+      {Platform.OS === 'android' && <><Text style={styles.sectionTitle}>СИСТЕМНЫЕ ЗВОНКИ</Text><View style={[styles.section, styles.content]}><Text style={styles.body}>{callStatus}</Text><Text style={styles.info}>Включите телефонный аккаунт LastCall в Android и заранее разрешите микрофон в «Доступах». Экран входящего появляется после соединения с отправителем. Push сам по себе не начинает звонок. На заблокированном устройстве работу ограничивают сеть и настройки Android.</Text><Button title="Настроить системные звонки" secondary onPress={() => void enableSystemCalls().catch(cause => setLocalError(errorText(cause)))} /></View></>}
       <Text style={styles.sectionTitle}>О ПРИЛОЖЕНИИ</Text>
-      <View style={[styles.section, { marginTop: 0, padding: 18, gap: 13 }]}><Text style={styles.rowName}>LastCall · 0.5.0</Text>
+      <View style={[styles.section, { marginTop: 0, padding: 18, gap: 13 }]}><Text style={styles.rowName}>LastCall · {Constants.expoConfig?.version}</Text>
         <Text style={styles.body}>Сервер хранит профиль и помогает находить собеседников. Текст, файлы и звонки идут по защищённому соединению между участниками; при необходимости WebRTC использует TURN.</Text>
         <Text style={styles.body}>Контакты, переписка и файлы зашифрованы на устройстве. Очередь ждёт подтверждения получателя до 7 дней и сохраняется после перезапуска. В группе данные синхронизируются между участниками. Лимиты: 5 МиБ на файл, 16 сохранённых файлов / 40 МиБ суммарно. При смене сети приложение пытается сохранить сеанс в течение 10 секунд.</Text>
-        <Text style={styles.body}>Android-уведомления работают, только если Firebase настроен в сборке и на сервере и вы дали разрешение. Уведомление предлагает открыть LastCall; доставка текста требует доступности отправителя. После принудительной остановки приложения Android push не работает до ручного открытия. iOS push, фоновые входящие звонки, голосовые заметки и групповые звонки пока недоступны.</Text>
+        <Text style={styles.body}>Android-уведомления работают, только если Firebase настроен в сборке и на сервере и вы дали разрешение. Доставка текста требует доступности отправителя. После принудительной остановки приложения Android push не работает до ручного открытия. Системные входящие звонки Android требуют включённого телефонного аккаунта LastCall. iOS push/CallKit и групповые звонки пока недоступны.</Text>
         <Text style={styles.info}>Прямое соединение раскрывает IP собеседнику. Эта предварительная версия не прошла независимый аудит, не использует Double Ratchet и не обещает невидимость для DPI. При удалении приложения ключ и локальная история могут быть утрачены.</Text>
       </View>
       <View style={styles.section}><Pressable style={styles.listRow} accessibilityRole="button" onPress={() => setShowDiagnostics(!showDiagnostics)}><Icon name="pulse-outline" /><Text style={[styles.rowName, styles.flex]}>Диагностика</Text><Icon name={showDiagnostics ? 'chevron-up' : 'chevron-forward'} size={18} color={colors.secondary} /></Pressable>

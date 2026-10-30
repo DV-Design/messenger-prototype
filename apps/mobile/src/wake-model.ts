@@ -31,6 +31,8 @@ interface ManagedWakeClient { connect(): Promise<void>; disconnectAndFlush(): Pr
 export class SharedWakeRuntime<T extends ManagedWakeClient> {
   private current: T | null = null;
   private foreground = false;
+  private leases = 0;
+  private retained = new Map<T, number>();
   private queue: Promise<unknown> = Promise.resolve();
   peek(): T | null { return this.current; }
   claimForeground(): void { this.foreground = true; }
@@ -47,6 +49,17 @@ export class SharedWakeRuntime<T extends ManagedWakeClient> {
       this.current = await create(); return this.current;
     });
   }
+  retain(value: T): () => Promise<void> {
+    this.retained.set(value, (this.retained.get(value) ?? 0) + 1); let released = false;
+    return () => { if (released) return Promise.resolve(); released = true; const count = (this.retained.get(value) ?? 1) - 1;
+      if (count) this.retained.set(value, count); else this.retained.delete(value);
+      return this.serial(() => this.closeIfUnused(value)).catch(() => {});
+    };
+  }
+  private async closeIfUnused(value: T) {
+    if (this.current !== value || this.foreground || this.leases || this.retained.has(value)) return;
+    this.current = null; await value.disconnectAndFlush();
+  }
   async acquire(create: () => Promise<T | null>, signal: AbortSignal): Promise<WakeLease | null> {
     const value = await this.ensure(async () => {
       if (signal.aborted) return null;
@@ -55,12 +68,12 @@ export class SharedWakeRuntime<T extends ManagedWakeClient> {
       return created;
     });
     if (!value) return null;
+    this.leases++; let released = false;
     return {
       connect: () => value.connect(),
       release: () => this.serial(async () => {
-        if (this.current !== value || this.foreground) return;
-        this.current = null;
-        await value.disconnectAndFlush();
+        if (released) return; released = true; this.leases--;
+        await this.closeIfUnused(value);
       }),
     };
   }
@@ -69,19 +82,30 @@ export class SharedWakeRuntime<T extends ManagedWakeClient> {
 export class WakeSyncCoordinator {
   private running?: Promise<void>;
   private seen = new Map<string, number>();
+  private enqueuePreview?: (prepare: (signal: AbortSignal) => Promise<void>) => Promise<void>;
   constructor(private readonly acquire: (signal: AbortSignal) => Promise<WakeLease | null>, private readonly now = Date.now,
     private readonly scheduler = { set: (callback: () => void, delay: number): unknown => setTimeout(callback, delay), clear: (handle: unknown) => clearTimeout(handle as ReturnType<typeof setTimeout>) }) {}
-  run(notice: WakeNotice | null): Promise<void> {
+  run(notice: WakeNotice | null, beforeConnect?: (signal: AbortSignal) => Promise<void>): Promise<void> {
     if (!notice || notice.legacy || notice.expiresAt <= this.now()) return Promise.resolve();
     for (const [id, expiry] of this.seen) if (expiry <= this.now()) this.seen.delete(id);
+    if (this.seen.has(notice.id)) return this.running ?? Promise.resolve();
     if (this.running) {
-      if (this.seen.size >= 256) this.seen.delete(this.seen.keys().next().value!);
-      this.seen.set(notice.id, notice.expiresAt); return this.running;
+      if (!this.enqueuePreview) return this.running.then(() => this.run(notice, beforeConnect));
+      if (this.seen.size >= 256) return this.running;
+      this.seen.set(notice.id, notice.expiresAt);
+      if (beforeConnect) void this.enqueuePreview?.(beforeConnect);
+      return this.running;
     }
-    if (this.seen.has(notice.id)) return Promise.resolve();
     if (this.seen.size >= 256) this.seen.delete(this.seen.keys().next().value!);
     this.seen.set(notice.id, notice.expiresAt);
     const controller = new AbortController();
+    let markReady!: () => void; const acquired = new Promise<void>(resolve => { markReady = resolve; });
+    let previews = Promise.resolve();
+    this.enqueuePreview = prepare => {
+      const next = previews.then(async () => { await acquired; if (!controller.signal.aborted) await prepare(controller.signal); });
+      previews = next.catch(() => {}); return previews;
+    };
+    const initialPreview = beforeConnect ? this.enqueuePreview(beforeConnect) : undefined;
     let finish!: () => void;
     const deadline = new Promise<null>(resolve => { finish = () => { controller.abort(); resolve(null); }; });
     const timer = this.scheduler.set(finish, Math.min(WAKE_SYNC_BUDGET_MS, notice.expiresAt - this.now()));
@@ -95,12 +119,38 @@ export class WakeSyncCoordinator {
           void acquisition.then(late => late?.release()).catch(() => {});
           return;
         }
+        markReady();
+        if (!controller.signal.aborted && initialPreview) await Promise.race([initialPreview, deadline]);
         if (!controller.signal.aborted) await Promise.race([lease.connect(), deadline]);
         if (!controller.signal.aborted) await deadline;
       } catch { /* Durable sender queue retries when network/OS permits. */ }
-      finally { this.scheduler.clear(timer); finish(); if (lease) await lease.release(); }
+      finally { this.scheduler.clear(timer); finish(); markReady(); this.enqueuePreview = undefined; await Promise.race([previews, deadline]); if (lease) await lease.release(); }
     })();
     this.running = operation.finally(() => { this.running = undefined; });
     return this.running;
   }
+}
+
+/** Per-intent reference counting: callback duplication cannot finish another owner's task. */
+export class WakeTaskRegistry {
+  private held = new Map<string, { owners: number; promise: Promise<void>; resolve: () => void }>();
+  acquire(id: string): () => boolean {
+    let value = this.held.get(id);
+    if (!value) {
+      if (this.held.size >= 32) throw new Error('Background runtime capacity exceeded');
+      let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done; });
+      value = { owners: 0, promise, resolve }; this.held.set(id, value);
+    }
+    value.owners++; let released = false;
+    return () => { if (released) return false; released = true; if (--value.owners) return false; this.held.delete(id); value.resolve(); return true; };
+  }
+  run(id: string): Promise<void> { return this.held.get(id)?.promise ?? Promise.resolve(); }
+}
+
+/** Acquire native timer ownership before creating any JS deadline; invalid intents pin nothing. */
+export async function runWakeTask(notice: WakeNotice | null, acquire: (id: string) => Promise<() => void>, work: (notice: Extract<WakeNotice, { legacy: false }>) => Promise<void>, now = Date.now): Promise<void> {
+  if (!notice || notice.legacy || notice.expiresAt <= now()) return;
+  let release: (() => void) | undefined;
+  try { release = await acquire(notice.id); if (notice.expiresAt > now()) await work(notice); }
+  finally { release?.(); }
 }

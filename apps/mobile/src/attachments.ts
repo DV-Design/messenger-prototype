@@ -1,9 +1,10 @@
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import * as Sharing from 'expo-sharing';
-import { File, Paths } from 'expo-file-system';
+import { Directory, File, Paths } from 'expo-file-system';
 import type { MessengerClient, MessengerFile } from '@messenger/core';
 import { client } from './runtime';
+import { readMediaForSend, type createMediaScope } from './media-model';
 const MAX_FILE = 5 * 1024 * 1024;
 async function transmit(current: MessengerClient, conversationId: string, uri: string, name: string, mime: string, reportedSize?: number) {
   const file = new File(uri);
@@ -38,6 +39,28 @@ export async function loadFileData(item: MessengerFile): Promise<Uint8Array | nu
   const data = item.data ?? await current.getFileData(item.conversationId, item.id, item.senderId);
   if (client() !== current) throw new Error('Сервер изменён. Откройте чат ещё раз.');
   return data;
+}
+export function deleteMediaCache(uri?: string | null) {
+  if (!uri || !uri.startsWith(`${Paths.cache.uri.replace(/\/$/, '')}/`)) return;
+  try { const file = new File(uri); if (file.exists) file.delete(); } catch { /* Cache cleanup is best effort, never delete outside cache. */ }
+}
+export function pruneMediaCache() {
+  // Remove abandoned LastCall copies after a killed process. Native camera cache
+  // is used only by this composer; never touch documents or encrypted blobs.
+  for (const directory of [new Directory(Paths.cache), new Directory(Paths.cache, 'Audio'), new Directory(Paths.cache, 'ExpoAudio'), new Directory(Paths.cache, 'Camera')]) {
+    try {
+      if (!directory.exists) continue;
+      for (const item of directory.list()) if (item instanceof File && (/^lastcall-(?:voice-|circle-|media-play-)/.test(item.name) || directory.name === 'Camera' && /\.(?:mp4|mov)$/i.test(item.name))) deleteMediaCache(item.uri);
+    } catch { /* Cache may be concurrently evicted by the OS. */ }
+  }
+}
+export async function sendRecordedMedia(current: MessengerClient, conversationId: string, draft: { uri: string; name: string; mime: string }, scope: ReturnType<typeof createMediaScope>) {
+  const file = new File(draft.uri);
+  const data = await readMediaForSend(draft, file.exists ? file.size : 0, () => file.bytes(), scope);
+  if (client() !== current) throw new Error('Сервер изменён. Откройте чат ещё раз.');
+  // sendFile seals the local durable outbox before resolving. Cancellation before
+  // this boundary never submits; an accepted message stays in the outbox.
+  await current.sendFile(conversationId, { name: draft.name, mime: draft.mime, data });
 }
 export async function shareFile(item: MessengerFile) {
   const data = await loadFileData(item);

@@ -1,8 +1,9 @@
 import * as TaskManager from 'expo-task-manager';
 import * as Notifications from 'expo-notifications';
-import { pushConfigured } from './notifications';
-import { parseWakeNotice, WakeSyncCoordinator } from './wake-model';
-import { acquireBackgroundManager } from './runtime';
+import { processMessagePreview, pushConfigured } from './notifications';
+import { parseWakeNotice, runWakeTask, WakeSyncCoordinator } from './wake-model';
+import { acquireBackgroundManager, client } from './runtime';
+import { retainWakeRuntime } from './system-calls';
 
 const TASK = 'lastcall-p2p-wake-v1';
 const coordinator = new WakeSyncCoordinator(acquireBackgroundManager);
@@ -11,7 +12,8 @@ let registration: Promise<boolean> | undefined;
 if (!TaskManager.isTaskDefined(TASK)) {
   TaskManager.defineTask<Notifications.NotificationTaskPayload>(TASK, async ({ data, error }) => {
     if (!pushConfigured || error) return;
-    try { await coordinator.run(parseWakeNotice(data)); }
+    try { await runWakeTask(parseWakeNotice(data), retainWakeRuntime,
+      notice => coordinator.run(notice, signal => processMessagePreview(data, client(), signal))); }
     catch { /* A failed durable drain must not crash the notification entry point. */ }
   });
 }

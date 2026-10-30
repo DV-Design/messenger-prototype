@@ -135,11 +135,13 @@ describe('cancelled permission request',()=>{
     const session=new PeerSession({invite,serverUrl:'http://127.0.0.1:8787',randomBytes:random(),getUserMedia:()=>new Promise(resolve=>{grant=resolve;})});
     const internal=session as unknown as {state:ReturnType<PeerSession['getSnapshot']>;callId:string;pc:RTCPeerConnection};
     internal.pc={getSenders:()=>[]} as unknown as RTCPeerConnection;internal.state.status='connected';
+    expect(session.getSnapshot().callId).toBeUndefined();
     const outgoing=session.startCall();
+    const liveId=session.getSnapshot().callId;expect(liveId).toMatch(/^[a-f0-9]{32}$/);expect(session.getSnapshot().callId).toBe(liveId);
     // A cancellation and fresh invitation arrive while the OS permission sheet is open.
     internal.callId='ef'.repeat(16);internal.state.callState='incoming';
     grant({getTracks:()=>[{stop:()=>{stopped++;}}]} as unknown as MediaStream);
     await expect(outgoing).rejects.toThrow(/cancelled/i);
-    expect(stopped).toBe(1);expect(session.getSnapshot().callState).toBe('incoming');
+    expect(stopped).toBe(1);expect(session.getSnapshot().callState).toBe('incoming');expect(session.getSnapshot().callId).toBe('ef'.repeat(16));session.endCall();expect(session.getSnapshot().callId).toBeUndefined();
   });
 });

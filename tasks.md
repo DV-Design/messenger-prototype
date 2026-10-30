@@ -1,3 +1,23 @@
+# LastCall 0.6.0: notifications, system calls and media
+
+- [X] Pair-encrypted bounded text/file-name FCM previews with explicit capability and durable ACK separation (msg-l6n)
+  → Artifacts: [crypto](packages/core/src/push-preview.ts), [provider](apps/server/src/providers.ts), [native evidence](docs/reports/debugging/2026-10/native-060.md)
+- [X] Authenticated message/file notification tap opens the saved DM/group after restore (msg-05d)
+  → Artifacts: [native routes](apps/mobile/plugins/notifications/LastCallNotificationsModule.java), [navigation](apps/mobile/src/components/NotificationNavigationBridge.tsx), [tests](apps/mobile/tests/notification-navigation.test.ts)
+- [X] Android Telecom secure-lockscreen audio answer and independent live-call/headless timer ownership (msg-9sx)
+  → Artifacts: [controller](apps/mobile/src/system-calls.ts), [native ownership](apps/mobile/plugins/calls/), [evidence](docs/reports/debugging/2026-10/native-060.md)
+- [X] Foreground voice record/preview/send/delete and encrypted P2P file playback (msg-2kk)
+  → Artifacts: [composer](apps/mobile/src/components/MediaComposer.tsx), [voice](apps/mobile/src/components/VoiceNote.tsx), [permission/cancel regressions](apps/mobile/tests/media.test.ts)
+- [ ] User phone UI acceptance for circle finalize/playback and fullscreen/adaptive video (msg-46e, msg-si6)
+  → Artifacts: [circle](apps/mobile/src/components/VideoNote.tsx), [fullscreen call](apps/mobile/src/components/CallOverlay.tsx), [adaptive policy](packages/core/src/video.ts), [regressions](packages/core/src/video.test.ts)
+- [X] Remove retired stopped Docker TURN container after validating active native relay (msg-qa1)
+  → Artifacts: [native runbook](infra/native-turn/README.md), [deployment](infra/public/README.md)
+- [X] Independent review and final quality gates:264tests, Chrome9PASS/1TURNskip, Android release/R8 and iOS JS export
+  → Artifacts: [review](docs/reports/code-reviews/2026-10/CR-2026-10-30-lastcall-060.md), [release](artifacts/README.md), [phone tasks](docs/TESTING-RU.md)
+- [X] Publish same-certificate0.6.0/code9 and verify both public download hashes; UI acceptance handed to user by explicit request
+  → Artifacts: [APK](https://lienad.ru/messenger/download/LastCall-0.6.0.apk), [phone tasks](https://lienad.ru/messenger/tasks.txt)
+- [ ] Physical Android/Russian carriers, locked video-camera/OEM battery behavior and iOS/APNs/CallKit acceptance (msg-3z9, msg-9rr)
+
 # Initial technical prototype (historical)
 
 - [X] Shared authenticated signaling and WebRTC core (verified: 15 tests)

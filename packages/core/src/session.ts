@@ -1,6 +1,7 @@
 import { iceServersSchema } from './services.js';
 import { endpointUrl } from './directory.js';
 import { audioPolicy } from './audio.js';
+import { AdaptiveVideoPolicy, type VideoTarget } from './video.js';
 import { bytesToHex, hexToBytes, randomChecked, secureRandomBytes, SignalingCipher, type RandomBytes } from './crypto.js';
 import { dataFrameSchema, FILE_CHUNK_BYTES, MAX_FILE_BYTES, MAX_FILES, MAX_TEXT_CHARS, MAX_WIRE_BYTES, serverFrameSchema, type ClientFrame, type DataFrame, type SignalBody } from './protocol.js';
 
@@ -8,6 +9,7 @@ export interface ChatMessage {id:string;text:string;from:'self'|'peer';timestamp
 export interface SharedFile {id:string;name:string;mime:string;size:number;from:'self'|'peer';status:'sending'|'receiving'|'complete'|'error';receivedBytes:number;data?:Uint8Array;conversationId?:string;metadata?:string;}
 export interface SessionSnapshot {
   status:'idle'|'connecting'|'waiting'|'connected'|'disconnected'|'error';error?:string;
+  callId?:string;callVideo?:boolean;
   messages:ChatMessage[];callState:'idle'|'outgoing'|'incoming'|'active';muted:boolean;
   localStream?:MediaStream;remoteStream?:MediaStream;route:'unknown'|'direct'|'relay';
   recovering?:boolean;
@@ -75,6 +77,11 @@ export class PeerSession {
   private statsBusy=false;
   private previousAudio?:{bytes:number;time:number};
   private previousLoss?:{lost:number;received:number};
+  private previousVideoLoss?:{id:string;lost:number;sent:number};
+  private previousVideoPackets?:{id:string;sent:number};
+  private videoPolicy=new AdaptiveVideoPolicy();
+  private videoBasicOnly=new WeakSet<RTCRtpSender>();
+  private unsupportedEncoders=new WeakSet<RTCRtpSender>();
   private callId?:string;
   private callVideo=false;
   private mediaPending=false;
@@ -100,7 +107,7 @@ export class PeerSession {
   }
   private id(){return bytesToHex(randomChecked(this.random,16));}
   getSnapshot():SessionSnapshot {
-    return {...this.state,messages:this.state.messages.map(x=>({...x})),files:this.state.files.map(x=>({...x})),stats:{...this.state.stats}};
+    return {...this.state,callId:this.callId,callVideo:this.callVideo,messages:this.state.messages.map(x=>({...x})),files:this.state.files.map(x=>({...x})),stats:{...this.state.stats}};
   }
   private emit(){this.options.onChange?.(this.getSnapshot());}
   private change(update:Partial<SessionSnapshot>){this.state={...this.state,...update};this.emit();}
@@ -314,9 +321,26 @@ export class PeerSession {
     const generation=this.generation;const callId=this.callId;
     if(this.mediaPending)throw new Error('Media permission request is already pending');
     this.mediaPending=true;let stream:MediaStream;
-    try{stream=await media({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video});}finally{this.mediaPending=false;}
+    const audio={echoCancellation:true,noiseSuppression:true,autoGainControl:true};
+    try{
+      try{stream=await media({audio,video:video?{width:{ideal:1280,max:1280},height:{ideal:720,max:720},frameRate:{ideal:30,max:30}}:false});}
+      catch(error){
+        const name=error&&typeof error==='object'&&'name' in error?error.name:undefined;
+        if(!video||!['OverconstrainedError','ConstraintNotSatisfiedError','TypeError'].includes(String(name))||this.pc!==pc||this.callId!==callId||generation!==this.generation)throw error;
+        stream=await media({audio,video:true});
+      }
+    }finally{this.mediaPending=false;}
     if(this.pc!==pc||generation!==this.generation||!callId||this.callId!==callId){stream.getTracks().forEach(track=>track.stop());throw new Error('Call cancelled');}
-    try{await this.serial(async()=>{if(this.pc!==pc||this.callId!==callId)throw new Error('Call cancelled');for(const track of stream.getTracks())pc.addTrack(track,stream);this.change({localStream:stream,muted:false});});}catch(error){stream.getTracks().forEach(track=>track.stop());throw error;}
+    try{await this.serial(async()=>{
+      if(this.pc!==pc||this.callId!==callId)throw new Error('Call cancelled');
+      this.videoPolicy=new AdaptiveVideoPolicy();this.previousVideoLoss=undefined;this.previousVideoPackets=undefined;
+      for(const track of stream.getTracks()){
+        const sender=pc.addTrack(track,stream);
+        if(track.kind==='video')await this.applyEncoderTarget(pc,sender,track,callId,this.videoPolicy.current());
+      }
+      if(this.pc!==pc||this.callId!==callId)throw new Error('Call cancelled');
+      this.change({localStream:stream,muted:false});
+    });}catch(error){stream.getTracks().forEach(track=>track.stop());throw error;}
   }
   async startCall(video=false):Promise<void>{
     if(this.state.status!=='connected'||this.state.callState!=='idle')throw new Error('A connected, idle session is required');
@@ -335,6 +359,7 @@ export class PeerSession {
   }
   private stopCall(){
     clearTimeout(this.callTimer);this.callTimer=undefined;this.callId=undefined;
+    this.videoPolicy=new AdaptiveVideoPolicy();this.previousVideoLoss=undefined;this.previousVideoPackets=undefined;
     this.state.localStream?.getTracks().forEach(track=>track.stop());
     // Receiver tracks belong to the reusable peer connection. Stopping them here
     // would permanently end a transceiver reused by the next call. Hide the stream;
@@ -448,17 +473,44 @@ export class PeerSession {
   private failOutgoing(error:Error){const outgoing=this.outgoing;if(!outgoing)return;clearTimeout(outgoing.timer);this.outgoing=undefined;const file=this.state.files.find(x=>x.id===outgoing.id);if(file)file.status='error';outgoing.reject(error);this.emit();}
   private failIncoming(){if(!this.incoming)return;clearTimeout(this.incoming.timer);const file=this.state.files.find(x=>x.id===this.incoming!.id);if(file)file.status='error';this.incoming=undefined;this.emit();}
   private failTransfers(){this.failIncoming();this.failOutgoing(new Error('Transfer disconnected'));}
+  /** Called only within the SDP/sender queue, with fresh transaction IDs and no live-cache mutations. */
+  private async applyEncoderTarget(pc:RTCPeerConnection,sender:RTCRtpSender,track:MediaStreamTrack,callId:string|undefined,target:number|VideoTarget){
+    const valid=()=>this.pc===pc&&this.callId===callId&&sender.track===track&&track.readyState!=='ended'&&pc.getSenders().includes(sender);
+    if(!valid()||this.unsupportedEncoders.has(sender)||typeof sender.getParameters!=='function'||typeof sender.setParameters!=='function')return;
+    const video=typeof target!=='number';
+    const attempt=async(advanced:boolean,force=false)=>{
+      if(!valid())return;
+      // RN155 returns a cached class instance; JSON cloning also preserves its toJSON conversion.
+      const parameters=JSON.parse(JSON.stringify(sender.getParameters())) as RTCRtpSendParameters;
+      if(!parameters.encodings?.length)return;
+      const bitrate=Math.max(1,Math.floor((video?target.maxBitrate:target)/parameters.encodings.length));
+      const changed=parameters.encodings.some(encoding=>encoding.maxBitrate!==bitrate||(video&&(encoding.active!==target.active||(advanced&&(encoding.maxFramerate!==target.maxFramerate||encoding.scaleResolutionDownBy!==target.scaleResolutionDownBy)))));
+      if(!changed&&!force)return;
+      for(const encoding of parameters.encodings){encoding.maxBitrate=bitrate;if(video){encoding.active=target.active;if(advanced){encoding.maxFramerate=target.maxFramerate;encoding.scaleResolutionDownBy=target.scaleResolutionDownBy;}}}
+      await sender.setParameters(parameters);
+    };
+    try{await attempt(video&&!this.videoBasicOnly.has(sender));}
+    catch{
+      if(video&&!this.videoBasicOnly.has(sender)&&valid()){
+        this.videoBasicOnly.add(sender);
+        try{await attempt(false,true);return;}catch{}
+      }
+      // Optional native API failure must never terminate media or displace GCC.
+      this.unsupportedEncoders.add(sender);
+    }
+  }
   private async readStats(){
-    const pc=this.pc;if(!pc||this.statsBusy)return;this.statsBusy=true;
+    const pc=this.pc;const statsCall=this.callId;if(!pc||this.statsBusy)return;this.statsBusy=true;
     try{
-      const report=await pc.getStats();if(this.pc!==pc)return;
-      let pair:any;let outbound:any;let inbound:any;let remoteInbound:any;const remoteReports:any[]=[];
+      const report=await pc.getStats();if(this.pc!==pc||this.callId!==statsCall)return;
+      let pair:any;let outbound:any;let outboundVideo:any;let inbound:any;let remoteInbound:any;const remoteReports:any[]=[];
       report.forEach((value:any)=>{
         if(value.type==='transport'&&value.selectedCandidatePairId)pair=report.get(value.selectedCandidatePairId);
         if(!pair&&value.type==='candidate-pair'&&value.state==='succeeded'&&(value.nominated||value.selected))pair=value;
         if(value.type==='outbound-rtp'&&(value.kind??value.mediaType)==='audio'&&!value.isRemote)outbound=value;
+        if(value.type==='outbound-rtp'&&(value.kind??value.mediaType)==='video'&&!value.isRemote)outboundVideo=value;
         if(value.type==='inbound-rtp'&&(value.kind??value.mediaType)==='audio'&&!value.isRemote)inbound=value;
-        if(value.type==='remote-inbound-rtp'&&(value.kind??value.mediaType)==='audio')remoteReports.push(value);
+        if(value.type==='remote-inbound-rtp')remoteReports.push(value);
       });
       remoteInbound=remoteReports.find(value=>value.localId===outbound?.id);
       const local=pair?report.get(pair.localCandidateId):undefined;const remote=pair?report.get(pair.remoteCandidateId):undefined;
@@ -472,14 +524,27 @@ export class PeerSession {
         if(this.previousLoss){const dl=Math.max(0,lost-this.previousLoss.lost);const dr=Math.max(0,received-this.previousLoss.received);if(lossRatio===undefined&&dr>0)lossRatio=Math.min(1,dl/dr);}
         this.previousLoss={lost,received};
       }
+      const previousPackets=this.previousVideoPackets;
+      const videoAdvanced=outboundVideo&&Number.isFinite(outboundVideo.packetsSent)&&(!previousPackets||previousPackets.id!==outboundVideo.id||outboundVideo.packetsSent>previousPackets.sent);
+      if(outboundVideo&&Number.isFinite(outboundVideo.packetsSent))this.previousVideoPackets={id:outboundVideo.id,sent:outboundVideo.packetsSent};
+      // Paused video retains old RTCP loss/RTT indefinitely. Only new sent packets make it usable.
+      const videoFeedback=videoAdvanced?remoteReports.find(value=>value.localId===outboundVideo.id):undefined;
+      let videoLoss:number|undefined;
+      if(videoFeedback){
+        if(Number.isFinite(videoFeedback.fractionLost))videoLoss=Math.max(0,Math.min(1,videoFeedback.fractionLost));
+        const lost=videoFeedback.packetsLost,sent=outboundVideo.packetsSent,previous=this.previousVideoLoss;
+        if(Number.isFinite(lost)&&Number.isFinite(sent)){
+          if(videoLoss===undefined&&previous&&previous.id===outboundVideo.id&&sent>previous.sent&&lost>=previous.lost)videoLoss=Math.min(1,(lost-previous.lost)/(sent-previous.sent));
+          this.previousVideoLoss={id:outboundVideo.id,lost,sent};
+        }
+      }
+      const videoRtt=Number.isFinite(videoFeedback?.roundTripTime)?videoFeedback.roundTripTime*1000:undefined;
+      const videoTarget=this.videoPolicy.update({availableOutgoingBitrate:pair?.availableOutgoingBitrate,rttMs:rttMs===undefined?videoRtt:Math.max(rttMs,videoRtt??0),lossRatio:lossRatio===undefined?videoLoss:Math.max(lossRatio,videoLoss??0)},performance.now());
       this.change({route,stats:{rttMs,audioBitrateKbps,packetsLost:inbound?.packetsLost,jitterMs:inbound?.jitter!==undefined?inbound.jitter*1000:undefined}});
       for(const sender of pc.getSenders()){
-        if(sender.track?.kind!=='audio'||typeof sender.setParameters!=='function')continue;
-        const parameters=sender.getParameters();if(!parameters.encodings?.length)continue;
-        const target=audioPolicy({rttMs,lossRatio}).maxBitrate;
-        if(parameters.encodings.every(encoding=>encoding.maxBitrate===target))continue;
-        parameters.encodings.forEach(encoding=>{encoding.maxBitrate=target;});
-        try{await this.serial(async()=>{if(this.pc===pc&&sender.track?.readyState!=='ended')await sender.setParameters(parameters);});}catch{/* Optional API unsupported on some RN/OS stacks; preserve native controller. */}
+        const track=sender.track;const callId=statsCall;if(!track||!['audio','video'].includes(track.kind))continue;
+        const target=track.kind==='audio'?audioPolicy({rttMs,lossRatio}).maxBitrate:{...videoTarget,maxBitrate:videoTarget.maxBitrate/Math.max(1,pc.getSenders().filter(value=>value.track?.kind==='video').length)};
+        try{await this.serial(()=>this.applyEncoderTarget(pc,sender,track,callId,target));}catch{/* Session may have ended while diagnostics were queued. */}
       }
     }catch{/* Stats are optional and must not break the call. */}finally{this.statsBusy=false;}
   }

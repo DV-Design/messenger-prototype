@@ -1,6 +1,6 @@
 import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
-import { normalizePhone, phoneLookupHash, type DirectoryUser, type PhoneChallenge, type PhoneMatch, type ServiceCapabilities, type WakeIntent } from '@messenger/core';
+import { normalizePhone, phoneLookupHash,pushPreviewSchema,pushPreviewEnvelopeSchema, type DirectoryUser, type PhoneChallenge, type PhoneMatch, type ServiceCapabilities, type WakeIntent } from '@messenger/core';
 import { InvalidPushToken, type PushProvider, type SMSProvider } from './providers.js';
 
 export class ServiceError extends Error {
@@ -52,6 +52,7 @@ export class DirectoryServices {
     // Existing 0.3-0.5 token rows default to the original visible notification path.
     const columns=this.db.prepare('PRAGMA table_info(push_tokens)').all() as Array<{name:string}>;
     if(!columns.some(column=>column.name==='background_sync'))this.db.exec('ALTER TABLE push_tokens ADD COLUMN background_sync INTEGER NOT NULL DEFAULT 0 CHECK(background_sync IN (0,1))');
+    if(!columns.some(column=>column.name==='message_preview'))this.db.exec('ALTER TABLE push_tokens ADD COLUMN message_preview INTEGER NOT NULL DEFAULT 0 CHECK(message_preview IN (0,1))');
   }
   capabilities(userId: string): ServiceCapabilities {
     return { phoneVerification: Boolean(this.options.smsProvider && this.secret), push: Boolean(this.options.pushProvider), relay: this.ice().some(server => (Array.isArray(server.urls) ? server.urls : [server.urls]).some(url => /^turns?:/.test(url))), phoneVerified: Boolean(this.options.enableLegacyPhoneServices && this.verified(userId)) };
@@ -164,13 +165,13 @@ export class DirectoryServices {
     }
     return matches;
   }
-  registerPush(userId: string, token: string, backgroundSync = false) {
-    if(typeof backgroundSync!=='boolean')throw new ServiceError('invalid-frame', 'Invalid background sync mode');
+  registerPush(userId: string, token: string, backgroundSync = false,messagePreview=false) {
+    if(typeof backgroundSync!=='boolean'||typeof messagePreview!=='boolean')throw new ServiceError('invalid-frame', 'Invalid push capability mode');
     this.checkOpen(); if (!this.options.pushProvider) throw unavailable();
     const owner = this.db.prepare('SELECT user_id FROM push_tokens WHERE token = ?').get(token) as { user_id: string } | undefined;
     if (owner && owner.user_id !== userId) throw new ServiceError('push-token-in-use', 'This token belongs to another identity');
     this.reserve([{ scope: 'push-register', key: userId, limit: 30 }]);
-    this.db.prepare('INSERT INTO push_tokens(user_id,token,updated_at,background_sync) VALUES (?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET token=excluded.token,updated_at=excluded.updated_at,background_sync=excluded.background_sync').run(userId, token, this.now(), backgroundSync?1:0);
+    this.db.prepare('INSERT INTO push_tokens(user_id,token,updated_at,background_sync,message_preview) VALUES (?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET token=excluded.token,updated_at=excluded.updated_at,background_sync=excluded.background_sync,message_preview=excluded.message_preview').run(userId, token, this.now(), backgroundSync?1:0,backgroundSync&&messagePreview?1:0);
   }
   replaceWatchConsent(recipient: string, ids: string[]) {
     this.transaction(() => {
@@ -178,30 +179,37 @@ export class DirectoryServices {
       for (const sender of new Set(ids)) if (sender !== recipient) this.db.prepare('INSERT INTO push_consent(recipient_id,sender_id) VALUES (?,?)').run(recipient, sender);
     });
   }
-  async wake(sender: string, recipient: string, intent?: WakeIntent) {
+  async wake(sender: string, recipient: string, intent?: WakeIntent,preview?:string) {
     this.checkOpen(); if (!this.options.pushProvider) throw unavailable();
     const now = this.now();
     if (intent && intent.expiresAt <= now) throw new ServiceError('wake-expired', 'Notification intent expired');
-    const bounded = intent ? { ...intent, expiresAt: Math.min(intent.expiresAt, now + (intent.kind === 'call' ? 30_000 : 60_000)) } : undefined;
+    if(preview!==undefined){
+      preview=pushPreviewSchema.parse(preview);const header=pushPreviewEnvelopeSchema.parse(JSON.parse(preview));
+      if(!intent||(intent.kind!=='message'&&intent.kind!=='file')||header.kind!==intent.kind||header.senderId!==sender||header.recipientId!==recipient||header.intentId!==intent.intentId||header.expiresAt!==intent.expiresAt||intent.expiresAt>now+65000)throw new ServiceError('invalid-preview','Encrypted preview intent mismatch');
+    }
     this.expire();
     if (!this.db.prepare('SELECT 1 FROM push_consent WHERE recipient_id = ? AND sender_id = ?').get(recipient, sender)) throw new ServiceError('wake-not-allowed', 'Recipient has not authorized wake notifications from this contact');
-    const row = this.db.prepare('SELECT token,background_sync FROM push_tokens WHERE user_id = ?').get(recipient) as { token: string; background_sync:number } | undefined;
+    const row = this.db.prepare('SELECT token,background_sync,message_preview FROM push_tokens WHERE user_id = ?').get(recipient) as { token: string; background_sync:number;message_preview:number } | undefined;
     if (!row) return; // No false push-success or delivery receipt frame is returned.
+    const encrypted=preview!==undefined&&row.background_sync===1&&row.message_preview===1?preview:undefined;
+    // Ciphertext authenticates the original deadline; provider transport TTL is capped separately.
+    const bounded = intent ? { ...intent, expiresAt: encrypted?intent.expiresAt:Math.min(intent.expiresAt, now + (intent.kind === 'call' ? 30_000 : 60_000)) } : undefined;
     const key = bounded ? `${sender}:${recipient}:${bounded.intentId}` : undefined;
     if (key && this.wakeIntents.has(key)) return;
     // Static identifiers chosen by the validated enum, never caller-supplied SQL.
     const table = bounded?.kind === 'call' ? 'wake_call_last_attempt' : 'wake_last_attempt';
     const last = this.db.prepare(`SELECT attempted_at FROM ${table} WHERE recipient_id = ?`).get(recipient) as { attempted_at: number } | undefined;
-    if (last && now < last.attempted_at + 30_000) return; // Collapse across senders in this class.
+    const independent=encrypted!==undefined||bounded?.kind==='call';
+    if (!independent&&last && now < last.attempted_at + 30_000) return; // Legacy generic notifications retain their cooldown.
     if (key && this.wakeIntents.size >= 4096) throw new ServiceError('service-busy', 'Notification service is busy');
     if (this.activePush >= 8) throw new ServiceError('service-busy', 'Notification service is busy');
-    this.reserve([{ scope: 'wake-global', key: 'all', limit: 1000 }, { scope: 'wake-sender', key: sender, limit: 120 }]);
-    this.db.prepare(`INSERT INTO ${table}(recipient_id,attempted_at) VALUES (?,?) ON CONFLICT(recipient_id) DO UPDATE SET attempted_at=excluded.attempted_at`).run(recipient, now);
+    this.reserve([{ scope: 'wake-global', key: 'all', limit: 1000 }, { scope: 'wake-sender', key: sender, limit: 120 },...(encrypted?[{scope:'wake-preview-recipient',key:recipient,limit:240}]:[]),...(bounded?.kind==='call'?[{scope:'wake-call-recipient',key:recipient,limit:120}]:[])]);
+    if(!independent)this.db.prepare(`INSERT INTO ${table}(recipient_id,attempted_at) VALUES (?,?) ON CONFLICT(recipient_id) DO UPDATE SET attempted_at=excluded.attempted_at`).run(recipient, now);
     if (key) this.wakeIntents.set(key, bounded!.expiresAt); // Consume before async work, including failure.
     try { await this.provider('push', () => {
       this.checkOpen();
       if (bounded && bounded.expiresAt <= this.now()) throw new ServiceError('wake-expired', 'Notification intent expired');
-      return this.options.pushProvider!.sendWake(row.token, bounded, row.background_sync===1);
+      return this.options.pushProvider!.sendWake(row.token, bounded, row.background_sync===1,encrypted);
     }); }
     catch (error) {
       if (error instanceof InvalidPushToken && !this.closed) this.db.prepare('DELETE FROM push_tokens WHERE user_id = ? AND token = ?').run(recipient, row.token);

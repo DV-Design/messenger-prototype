@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseWakeNotice, SharedWakeRuntime, WakeSyncCoordinator, type WakeLease } from '../src/wake-model';
+import { parseWakeNotice, runWakeTask, WakeTaskRegistry, SharedWakeRuntime, WakeSyncCoordinator, type WakeLease } from '../src/wake-model';
 
 const now = 1_800_000_000_000;
 const raw = { kind: 'lastcall-wake', intentKind: 'message', intentId: 'ab'.repeat(16), expiresAt: String(now + 60_000) };
@@ -87,4 +87,63 @@ test('legacy/expired pushes do no cold work; connection errors still release own
   const coordinator = new WakeSyncCoordinator(async () => { acquisitions++; return { connect: async () => { throw new Error('Network unavailable'); }, release: async () => { releases++; } }; }, () => now);
   await coordinator.run({ legacy: true }); await coordinator.run({ legacy: false, kind: 'file', id: raw.intentId, expiresAt: now });
   assert.equal(acquisitions, 0); await coordinator.run(notice()); assert.equal(releases, 1);
+});
+
+test('overlapping preview/task leases and a live-call pin keep one client until all cold owners release', async () => {
+  let closed = 0; const client = { connect: async () => {}, disconnectAndFlush: async () => { closed++; } };
+  const owner = new SharedWakeRuntime<typeof client>(); const signal = new AbortController().signal;
+  const preview = await owner.acquire(async () => client, signal); const task = await owner.acquire(async () => { throw new Error('must reuse'); }, signal);
+  const unpin = owner.retain(client); await preview!.release(); await task!.release(); assert.equal(closed, 0); assert.equal(owner.peek(), client);
+  unpin(); await tick(); assert.equal(closed, 1); assert.equal(owner.peek(), null); await task!.release(); assert.equal(closed, 1);
+});
+
+test('preview authentication shares the task deadline and cannot connect after expiration', async () => {
+  const clock = timers(); const slow = deferred<void>(); let connects = 0; let released = 0; let signal!: AbortSignal;
+  const coordinator = new WakeSyncCoordinator(async () => ({ connect: async () => { connects++; }, release: async () => { released++; } }), () => now, clock);
+  const work = coordinator.run(notice(), async input => { signal = input; await slow.promise; }); await tick(); clock.fire(); await work;
+  assert.equal(signal.aborted, true); assert.equal(connects, 0); assert.equal(released, 1); slow.resolve(); await tick(); assert.equal(connects, 0);
+});
+
+test('distinct previews during one active wake share the lease/deadline and duplicates run once', async () => {
+  const clock = timers(); const previews: string[] = []; let acquisitions = 0; let releases = 0;
+  const coordinator = new WakeSyncCoordinator(async () => { acquisitions++; return { connect: async () => {}, release: async () => { releases++; } }; }, () => now, clock);
+  const first = coordinator.run(notice(), async () => { previews.push('first'); }); await tick();
+  const next = { ...notice(), legacy: false as const, kind: 'message' as const, id: 'ee'.repeat(16), expiresAt: now + 60_000 };
+  const second = coordinator.run(next, async () => { previews.push('second'); }); const duplicate = coordinator.run(next, async () => { previews.push('duplicate'); }); await tick();
+  assert.equal(first, second); assert.equal(second, duplicate); assert.deepEqual(previews, ['first', 'second']); assert.equal(acquisitions, 1); assert.equal(clock.duration(), 9000);
+  clock.fire(); await first; assert.equal(releases, 1);
+});
+
+
+test('new intent during storage-drain cleanup starts a fresh window after release rather than disappearing', async () => {
+  const clock = timers(); const drained = deferred<void>(); let acquisitions = 0; let previews = 0;
+  const coordinator = new WakeSyncCoordinator(async () => { const first = ++acquisitions === 1; return { connect: async () => {}, release: () => first ? drained.promise : Promise.resolve() }; }, () => now, clock);
+  const first = coordinator.run(notice()); await tick(); clock.fire(); await tick();
+  const second = coordinator.run({ legacy: false, kind: 'message', id: 'ff'.repeat(16), expiresAt: now + 60000 }, async () => { previews++; });
+  await tick(); assert.equal(acquisitions, 1); assert.equal(previews, 0); drained.resolve(); await first; await tick();
+  assert.equal(acquisitions, 2); assert.equal(previews, 1); clock.fire(); await second;
+});
+
+
+test('native wake task registry remains pending until the last duplicate owner releases, with idempotent cleanup', async () => {
+  const registry = new WakeTaskRegistry(); const first = registry.acquire(raw.intentId); const duplicate = registry.acquire(raw.intentId); let done = false;
+  const running = registry.run(raw.intentId); void running.then(() => { done = true; }); await tick(); assert.equal(done, false);
+  assert.equal(first(), false); assert.equal(first(), false); await tick(); assert.equal(done, false);
+  assert.equal(duplicate(), true); await running; assert.equal(done, true); assert.equal(duplicate(), false);
+  await registry.run(raw.intentId);
+});
+
+test('valid background work awaits native timer ownership before JS deadline setup, releases on failures, and ignores invalid intents', async () => {
+  const active = deferred<void>(); const events: string[] = [];
+  const acquire = async () => { events.push('acquire'); await active.promise; events.push('native-active'); return () => { events.push('release'); }; };
+  const work = async () => { events.push('deadline-created'); throw new Error('expected work failure'); };
+  await runWakeTask(null, acquire, work, () => now); await runWakeTask({ legacy: true }, acquire, work, () => now); await runWakeTask({ legacy: false, kind: 'message', id: raw.intentId, expiresAt: now }, acquire, work, () => now); assert.deepEqual(events, []);
+  const operation = runWakeTask(notice(), acquire, work, () => now); const rejected = assert.rejects(operation, /expected work failure/);
+  await tick(); assert.deepEqual(events, ['acquire']); active.resolve(); await rejected; assert.deepEqual(events, ['acquire', 'native-active', 'deadline-created', 'release']);
+});
+
+test('an intent that expires during runtime acquisition releases ownership without starting delayed work', async () => {
+  let clock = now; let works = 0; let releases = 0;
+  await runWakeTask(notice(), async () => { clock += 60001; return () => { releases++; }; }, async () => { works++; }, () => clock);
+  assert.equal(works, 0); assert.equal(releases, 1);
 });
