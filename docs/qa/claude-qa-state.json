@@ -1,0 +1,25 @@
+{
+  "run_id": "lastcall-060-qa-2026-10-30",
+  "max_cycles": 6,
+  "cycles_started": 1,
+  "status": "paused_access",
+  "agent": "lastcall-release-tester",
+  "session_id": "c6c005fc-88af-4d7f-9d4f-9226b4c6a733",
+  "stop_on_same_failure_without_new_evidence": 2,
+  "cycles": [
+    {
+      "cycle": 1,
+      "allocation": "lastcall-060-qa-2026-10-30:1",
+      "candidate_commit": "4d38b90",
+      "scope": "baseline unit/type/lint/build + existing local browser integration + focused high-risk source review; no native UI",
+      "status": "blocked_auth",
+      "verdict": "BLOCKED",
+      "commands_executed": [],
+      "test_results": "NOT_RUN",
+      "estimated_cost_usd": 0,
+      "session_id": "c6c005fc-88af-4d7f-9d4f-9226b4c6a733"
+    }
+  ],
+  "stop_reason": "Claude CLI returned Not logged in; Please run /login. No test commands were executed.",
+  "requires_user_resume": true
+}

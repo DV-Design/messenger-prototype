@@ -1,3 +1,10 @@
+# Claude QA configuration (msg-tan)
+
+- [X] Dedicated risk-based tester, three preloaded skills and documented six-cycle protocol
+  → Artifacts: [prompt](docs/qa/lastcall-release-tester.md), [protocol](docs/qa/CLAUDE-TESTER.md)
+- [ ] Run authenticated baseline; paused after cycle1/6 returned Not logged in
+  → Artifacts: [counter](docs/qa/claude-qa-state.json), [report](docs/reports/testing/2026-10/claude-qa-cycle-1.md)
+
 # LastCall 0.6.0: notifications, system calls and media
 
 - [X] Pair-encrypted bounded text/file-name FCM previews with explicit capability and durable ACK separation (msg-l6n)

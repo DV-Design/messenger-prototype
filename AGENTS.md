@@ -17,6 +17,13 @@ the parent workspace or inspect their secrets.
 
 ## Quality and security
 
+- Use the configured `claude_worker` MCP agent `lastcall-release-tester` for
+  independent QA. Read `docs/qa/CLAUDE-TESTER.md` and its persistent JSON counter
+  before every call. Maximum six allocated build/test/feedback/development cycles
+  per run, including interrupted attempts; never reset after a session restart.
+  Stop early on repeated failures without new evidence and report to the user.
+  No cycle7 or automatic resume. Phone UI acceptance remains with the user unless
+  separately assigned; avoid cosmetic screenshot matrices.
 - Prefer maintained libraries and primary documentation over new implementations.
 - `npm run check` and `npm run test:e2e` must pass before accepting changes.
 - Build Android when the local SDK/JDK is available; report iOS verification
