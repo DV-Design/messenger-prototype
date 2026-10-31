@@ -13,8 +13,9 @@ import { styles } from '../styles';
 import { Button, Icon } from './ui';
 import { VoiceNote } from './VoiceNote';
 import { VideoNote } from './VideoNote';
+import { RecordingWaveform } from './RecordingWaveform';
 
-const VOICE_OPTIONS = { ...RecordingPresets.HIGH_QUALITY, bitRate: 64_000, numberOfChannels: 1, directory: 'cache' as const };
+const VOICE_OPTIONS = { ...RecordingPresets.HIGH_QUALITY, bitRate: 64_000, numberOfChannels: 1, isMeteringEnabled: true, directory: 'cache' as const };
 type Draft = { uri: string; name: string; mime: string };
 type Phase = 'idle' | 'preparing' | 'ready' | 'recording' | 'stopping' | 'preview' | 'sending' | 'failed';
 
@@ -161,7 +162,7 @@ export function MediaComposer({ kind, conversationId, blocked, onClose }: { kind
     <Text style={[styles.info, { textAlign: 'center' }]}>{kind === 'voice' ? 'До 2 минут · запись только на этом экране' : 'До 30 секунд · фронтальная камера'} · до 5 МиБ</Text>
     <View style={{ minHeight: 250, justifyContent: 'center', alignItems: 'center' }}>
       {draft && (phase === 'preview' || phase === 'sending') ? kind === 'voice' ? <VoiceNote uri={draft.uri} /> : <VideoNote uri={draft.uri} /> : kind === 'circle' && ['ready', 'recording', 'stopping'].includes(phase) ?
-        <View style={{ width: 250, height: 250, borderRadius: 125, overflow: 'hidden', backgroundColor: '#182832' }}><CameraView ref={camera} style={{ width: 250, height: 250 }} facing="front" mode="video" videoQuality={Platform.OS === 'ios' ? '4:3' : '480p'} videoBitrate={600_000} mirror onCameraReady={() => setCameraReady(true)} onMountError={event => { recordingAttempt.current++; try { camera.current?.stopRecording(); } catch {} setError(event.message); update('failed'); }} /></View> : <Icon name={kind === 'voice' ? 'mic-circle-outline' : 'videocam-outline'} size={92} />}
+        <View style={{ width: 250, height: 250, borderRadius: 125, overflow: 'hidden', backgroundColor: '#182832' }}><CameraView ref={camera} style={{ width: 250, height: 250 }} facing="front" mode="video" videoQuality={Platform.OS === 'ios' ? '4:3' : '480p'} videoBitrate={600_000} mirror onCameraReady={() => setCameraReady(true)} onMountError={event => { recordingAttempt.current++; try { camera.current?.stopRecording(); } catch {} setError(event.message); update('failed'); }} /></View> : kind === 'voice' && ['recording', 'stopping'].includes(phase) ? <RecordingWaveform recorder={recorder} active={phase === 'recording'} /> : <Icon name={kind === 'voice' ? 'mic-circle-outline' : 'videocam-outline'} size={92} />}
     </View>
     {['recording', 'stopping'].includes(phase) && <Text style={{ textAlign: 'center', color: '#B03939', fontSize: 25, fontVariant: ['tabular-nums'] }}>● {mediaTime(seconds)} / {mediaTime(MEDIA_SECONDS[kind])}</Text>}
     {!!error && <Text style={styles.error}>{error}</Text>}

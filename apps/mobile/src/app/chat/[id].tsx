@@ -12,6 +12,7 @@ import { transportNotice } from '../../transport-notice';
 import { canMarkRead, deliveryIcon, deliveryLabel, deliveryStage, readContentVersion, waitingForDelivery } from '../../delivery-model';
 import { MediaComposer } from '../../components/MediaComposer';
 import type { MediaKind } from '../../media-model';
+import { chatTimeline, type ChatTimelineEntry } from '../../timeline-model';
 
 export default function Chat() {
   const params = useLocalSearchParams<{ id: string }>();
@@ -23,7 +24,7 @@ export default function Chat() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [recording, setRecording] = useState<MediaKind>();
-  const list = useRef<ComponentRef<typeof FlatList<MessengerMessage>>>(null);
+  const list = useRef<ComponentRef<typeof FlatList<ChatTimelineEntry>>>(null);
   const unread = conversation?.unread ?? 0;
   const focused = useIsFocused();
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
@@ -42,6 +43,7 @@ export default function Chat() {
   }, [focused, foreground, interacting, id, unread, contentVersion]);
   if (!profile) return <Redirect href="/onboarding" />;
   if (!conversation) return <SafeAreaView style={styles.whiteScreen}><View style={styles.chatHeader}><IconButton name="chevron-back" label="Назад" onPress={() => router.back()} /></View><Empty icon="chatbubble-outline" title="Чат не найден" text="Он может относиться к другому серверу. Вернитесь к списку чатов." /></SafeAreaView>;
+  const timeline = chatTimeline(conversation.messages, conversation.files);
   const peer = snapshot.contacts.find(item => conversation.memberIds.includes(item.userId) && item.userId !== identity?.userId);
   const group = conversation.kind === 'group';
   const canCall = !group && !snapshot.activeCall && !recording && (snapshot.status === 'online' || conversation.session?.status === 'connected');
@@ -86,10 +88,13 @@ export default function Chat() {
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={styles.conversation}>
         {group && <Text style={[styles.info, { textAlign: 'center', paddingVertical: 8, paddingHorizontal: 15 }]}>Группа до 8 участников · звонки в группах пока недоступны</Text>}
-        <FlatList ref={list} data={conversation.messages} keyExtractor={item => item.id + item.from} contentContainerStyle={styles.messages} keyboardShouldPersistTaps="handled" onContentSizeChange={() => list.current?.scrollToEnd({ animated: true })}
-          renderItem={({ item }) => renderMessage(item)}
-          ListEmptyComponent={conversation.files.length === 0 ? <Empty icon="chatbubble-ellipses-outline" title="Начните разговор" text={group ? 'Данные синхронизируются между телефонами участников.' : 'Отправьте первое сообщение. Если друга нет в сети, оно подождёт на вашем устройстве до 7 дней.'} /> : undefined}
-          ListFooterComponent={<>{conversation.files.map(file => <View key={`${file.id}-${file.senderId}`} style={{ marginTop: 9 }}><AttachmentCard file={file} self={file.senderId === identity?.userId} group={group} sender={group ? snapshot.contacts.find(contact => contact.userId === file.senderId)?.displayName : undefined} mediaDisabled={!focused || !!snapshot.activeCall || !!recording} onOpen={() => void action(() => shareFile(file))} /></View>)}</>} />
+        <FlatList ref={list} data={timeline} keyExtractor={entry => entry.key} contentContainerStyle={styles.messages} keyboardShouldPersistTaps="handled" onContentSizeChange={() => list.current?.scrollToEnd({ animated: true })}
+          renderItem={({ item: entry }) => {
+            if (entry.kind === 'message') return renderMessage(entry.item);
+            const file = entry.item;
+            return <View style={{ marginTop: 9 }}><AttachmentCard file={file} self={file.senderId === identity?.userId} group={group} sender={group ? snapshot.contacts.find(contact => contact.userId === file.senderId)?.displayName : undefined} mediaDisabled={!focused || !!snapshot.activeCall || !!recording} onOpen={() => void action(() => shareFile(file))} /></View>;
+          }}
+          ListEmptyComponent={<Empty icon="chatbubble-ellipses-outline" title="Начните разговор" text={group ? 'Данные синхронизируются между телефонами участников.' : 'Отправьте первое сообщение. Если друга нет в сети, оно подождёт на вашем устройстве до 7 дней.'} />} />
       </View>
       {!!error && <Pressable accessibilityRole="button" accessibilityLabel="Скрыть ошибку" onPress={() => setError('')}><Text style={[styles.error, { borderRadius: 0 }]}>{error}</Text></Pressable>}
       {attachments && <View><View style={styles.attachmentMenu}>

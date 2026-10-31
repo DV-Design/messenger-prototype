@@ -5,6 +5,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar, Empty, Icon, IconButton, ScreenHeader, time } from '../../components/ui';
 import { useMessenger } from '../../runtime';
 import { colors, styles } from '../../styles';
+import { chatTimeline } from '../../timeline-model';
+import { mediaKind } from '../../media-model';
 export default function Chats() {
   const { snapshot, identity } = useMessenger();
   const [query, setQuery] = useState('');
@@ -16,9 +18,11 @@ export default function Chats() {
       ListEmptyComponent={<Empty icon="chatbubbles-outline" title={query ? 'Ничего не найдено' : 'Ваши разговоры'} text={query ? 'Попробуйте другое название чата.' : 'Найдите друга по @username и начните переписку.'} />}
       renderItem={({ item }) => {
         const peer = snapshot.contacts.find(contact => item.memberIds.includes(contact.userId) && contact.userId !== identity?.userId);
-        const message = item.messages[item.messages.length - 1];
-        const file = item.files[item.files.length - 1];
-        const preview = message ? `${message.from === identity?.userId ? 'Вы: ' : ''}${message.text}` : file ? `Файл: ${file.name}` : item.kind === 'group' ? `${item.memberIds.length} участников` : 'Начните разговор';
+        const latest = chatTimeline(item.messages, item.files).at(-1);
+        const message = latest?.kind === 'message' ? latest.item : undefined;
+        const file = latest?.kind === 'attachment' ? latest.item : undefined;
+        const kind = file && mediaKind(file.name, file.mime);
+        const preview = message ? `${message.from === identity?.userId ? 'Вы: ' : ''}${message.text}` : file ? `${file.senderId === identity?.userId ? 'Вы: ' : ''}${kind === 'voice' ? 'Голосовое сообщение' : kind === 'circle' ? 'Видеокружок' : `Файл: ${file.name}`}` : item.kind === 'group' ? `${item.memberIds.length} участников` : 'Начните разговор';
         return <Pressable accessibilityRole="button" accessibilityLabel={`Чат ${item.title}`} onPress={() => router.push({ pathname: '/chat/[id]', params: { id: item.id } })} style={({ pressed }) => [styles.listRow, pressed && styles.pressed]}>
           <Avatar name={item.title} id={item.id} online={item.kind === 'direct' && peer?.online} group={item.kind === 'group'} />
           <View style={styles.rowBody}><Text numberOfLines={1} style={styles.rowName}>{item.title}</Text><Text numberOfLines={1} style={[styles.rowText, item.unread > 0 && { color: colors.text }]}>{preview}</Text></View>

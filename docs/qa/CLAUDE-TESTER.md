@@ -51,11 +51,22 @@ incoming calls. The user replied «Делай». This authorizes only allocation
 cycle8 is not authorized. The existing run/history is preserved, base cap6 and
 effective cap7 recorded in cycle_extensions. All earlier no-progress and
 read-only tester rules remain. This explicit authorization overrides only the
-six-cycle stop in the preceding default protocol. The local monitor runs with
-LASTCALL_QA_MAX_CYCLES=7 for this approved extension; its default remains6.
+six-cycle stop in the preceding default protocol. The local monitor used
+LASTCALL_QA_MAX_CYCLES=7 for that historical approved extension; its default remains6.
 A scoped pass explicitly records browser_tests_status=not_run when browser tests
 were not allocated. The panel leaves their totals unavailable and never labels
 that allocation as a full browser pass.
+
+## New media/audio run (2026-10-31)
+
+The owner clarified the cap is per distinct run and explicitly authorized agents
+again for the new voice waveform, mixed chat chronology and call audio output
+work. Completed0.7.1 history is archived in
+[runs/lastcall-060-qa-2026-10-30.json](runs/lastcall-060-qa-2026-10-30.json), unchanged.
+The active lastcall-072-media-audio-2026-10-31 run has its own six-allocation cap;
+the local monitor runs at the default6, with prior cycle logs archived separately.
+previous run's one-cycle extension does not carry over. A session restart never
+creates a new run. New scope and user authorization are required, as here.
 
 ## Authentication checkpoint
 

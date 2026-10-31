@@ -9,6 +9,7 @@ import { conversationIdSchema, MAX_FILE_BYTES, MAX_TEXT_CHARS, peerIdSchema, roo
 import { openAttachment, sealAttachment, openLocalState, sealLocalState } from './persistence.js';
 import { PeerSession, type PeerSessionOptions, type SessionSnapshot, type SharedFile, type ChatMessage } from './session.js';
 import {OUTBOX_TTL_MS,groupDefinitionSchema,signGroupDefinition,verifyGroupDefinition,signGroupOrigin,parseGroupOrigin,contentHash,receiptSchema,signGroupReceipt,verifyGroupReceipt,attachmentKey,type GroupDefinition,type GroupOrigin,type GroupReceipt} from './group-sync.js';
+import {encodeDirectFileTiming,parseDirectFileTiming} from './direct-file.js';
 import {readReceiptSchema,signReadReceipt,verifyReadReceipt,type ReadReceipt} from './read-receipt.js';
 export {OUTBOX_TTL_MS} from './group-sync.js';
 export interface MessengerMessage {id:string;text:string;from:string;timestamp:number;status:'pending'|'sent'|'delivered'|'received'|'expired';conversationId:string;expiresAt?:number;metadata?:string;recipientIds?:string[];deliveredTo?:string[];readBy?:string[];}
@@ -302,11 +303,18 @@ export class MessengerClient {
   private receiveFile(peerId:string,file:SharedFile):Promise<boolean>{return this.closing?Promise.resolve(false):this.track(this.receiveFileWork(peerId,file));}
   private async receiveFileWork(peerId:string,file:SharedFile):Promise<boolean>{
     if(!this.validConversation(peerId,file.conversationId)||!file.data)return false;const c=this.conversations.get(file.conversationId!)!;
-    const origin=this.origin(c,file.metadata,file.id,'file',contentHash('file',file.data,file.name,file.mime));const author=origin?.author??peerId;
+    const origin=this.origin(c,file.metadata,file.id,'file',contentHash('file',file.data,file.name,file.mime));const timing=c.kind==='direct'?parseDirectFileTiming(file.metadata,file.id,c.id,Date.now()):undefined;const author=origin?.author??peerId;
     let target=c.files.find(f=>f.id===file.id&&f.senderId===author);const key=attachmentKey(author,file.id,c.id);
-    if(!target){this.fileCapacity(file.size);target={...file,data:undefined,status:'receiving',receivedBytes:0,senderId:author,conversationId:c.id,blobKey:undefined,deliveryStatus:'received',expiresAt:origin?.expiresAt??Date.now()+OUTBOX_TTL_MS,timestamp:origin?.timestamp??Date.now()};c.files.push(target);c.updatedAt=Date.now();}
+    if(!target){this.fileCapacity(file.size);target={...file,data:undefined,status:'receiving',receivedBytes:0,senderId:author,conversationId:c.id,blobKey:undefined,deliveryStatus:'received',expiresAt:origin?.expiresAt??timing?.expiresAt??Date.now()+OUTBOX_TTL_MS,timestamp:origin?.timestamp??timing?.timestamp??Date.now()};c.files.push(target);c.updatedAt=Date.now();}
     else if(target.name!==file.name||target.mime!==file.mime||target.size!==file.size||target.metadata!==file.metadata)throw new Error('Conflicting file replay');
-    await this.putBlob(key,file.data);target.blobKey=key;target.status='complete';target.receivedBytes=file.size;await this.durable();if(origin)this.receiptAfterSave(c,origin,peerId);return true;
+    const retained=target.blobKey===key;
+    const checkDeadline=async()=>{
+      if(!timing||Date.now()<timing.expiresAt)return;
+      // A rejected late replay must not delete a previously accepted local copy.
+      if(!retained){target.blobKey=undefined;target.status='error';target.receivedBytes=0;target.deliveryStatus='expired';await this.durable();this.blobs.delete(key);await this.options.deleteAttachment?.(key);}
+      throw new Error('Direct file expired');
+    };
+    await this.putBlob(key,file.data);await checkDeadline();target.blobKey=key;target.status='complete';target.receivedBytes=file.size;await this.durable();await checkDeadline();if(origin)this.receiptAfterSave(c,origin,peerId);return true;
   }
   private receiptAfterSave(c:InternalConversation,origin:GroupOrigin,peerId:string){const receipt=signGroupReceipt(this.options.identity,origin);const receipts=c.receipts??=[];if(!receipts.some(r=>r.author===receipt.author&&r.id===receipt.id&&r.recipient===receipt.recipient))receipts.push(receipt);this.changed();queueMicrotask(()=>{void this.pairs.get(peerId)?.session.sendApplication(receipt).catch(e=>this.report(e));});for(const id of c.memberIds)if(id!==this.options.identity.userId&&id!==peerId)this.wakePeer(id);}
   private receiveApplication(peerId:string,payload:unknown){return this.closing?Promise.resolve():this.track(this.receiveApplicationWork(peerId,payload));}
@@ -410,7 +418,7 @@ export class MessengerClient {
   }
   async sendFile(conversationId:string,file:{name:string;mime:string;data:Uint8Array}):Promise<void>{return this.serial(async()=>{
     await this.restore();await this.expirePending();if(file.data.length>MAX_FILE_BYTES)throw new Error('File exceeds 5 MiB limit');const c=this.conversations.get(conversationId);if(!c)throw new Error('Unknown conversation');if(!file.name||file.name.length>255||typeof file.mime!=='string'||file.mime.length>255)throw new Error('Invalid file metadata');this.fileCapacity(file.data.length);
-    const timestamp=Date.now(),expiresAt=timestamp+OUTBOX_TTL_MS,id=this.id(),own=this.options.identity.userId;const key=attachmentKey(own,id,conversationId);const peers=c.memberIds.filter(id=>id!==own);const metadata=c.kind==='group'?JSON.stringify(signGroupOrigin(this.options.identity,{groupId:this.definition(c).id,id,type:'file',timestamp,expiresAt,hash:contentHash('file',file.data,file.name,file.mime)})):undefined;
+    const timestamp=Date.now(),expiresAt=timestamp+OUTBOX_TTL_MS,id=this.id(),own=this.options.identity.userId;const key=attachmentKey(own,id,conversationId);const peers=c.memberIds.filter(id=>id!==own);const metadata=c.kind==='group'?JSON.stringify(signGroupOrigin(this.options.identity,{groupId:this.definition(c).id,id,type:'file',timestamp,expiresAt,hash:contentHash('file',file.data,file.name,file.mime)})):encodeDirectFileTiming({id,conversationId,timestamp,expiresAt});
     await this.putBlob(key,file.data);const record:MessengerFile={id,name:file.name,mime:file.mime,size:file.data.length,from:'self',status:'sending',receivedBytes:0,timestamp,senderId:own,conversationId,blobKey:key,metadata,expiresAt,deliveryStatus:'pending',recipientIds:peers,deliveredTo:[]};const p:PendingMessage={conversationId,messageId:id,remaining:peers,type:'file',author:own,createdAt:timestamp,expiresAt};c.files.push(record);this.pending.push(p);c.updatedAt=timestamp;
     try{await this.durable();}catch(error){c.files=c.files.filter(f=>f!==record);this.pending=this.pending.filter(item=>item!==p);this.blobs.delete(key);this.dirty=true;throw error;}this.committed.add(this.pendingKey(p));await this.expirePending();this.kick(c);
   });}

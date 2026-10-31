@@ -1,4 +1,47 @@
-# LastCall Android preview 0.7.1
+# LastCall Android preview 0.7.2
+
+- Download: https://lienad.ru/messenger/download/LastCall-0.7.2.apk
+- Alternate: https://p2p.lienad.ru/download/LastCall-0.7.2.apk
+- Preview alias: https://lienad.ru/messenger/download/messenger-preview.apk
+- Local: `artifacts/LastCall-0.7.2.apk` (ignored binary)
+- Package `dev.messenger.prototype`, version0.7.2, versionCode12, label LastCall
+- ARM64, Android API24 minimum / target36 / compile37; same existing internal test certificate
+- Size:54,979,729 bytes
+- SHA256:`d5d0839ad0004c6476710e2ad4369c67f322d0c87ad418f1d1689a82bd73a951`
+- Signing certificate SHA256:`fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c`
+
+Published binary and preview alias were copied atomically before the updated
+page. Full primary, alternate and preview-alias HTTPS downloads all matched the
+exact size/hash above. Update both phones in place without deleting identity or
+history; historical0.7.1 remains available.
+
+`npm run build:apk` passed native Java/release assembly, forced JavaScript bundle
+regeneration and packaged `nativeFcmConfigured=true`, version0.7.2/code12 gates.
+Independent [QA1/6](../docs/reports/testing/2026-10/media-audio/claude-qa-cycle-1.md)
+passed363unit (95mobile/71server/197core),11browser/1TURN-environment-skip,
+all types/builds and Android+iOS JavaScript exports; lint0errors/one pre-existing
+VoiceNote warning. New owner-authorized run has six allocations maximum; prior
+history and its explicit one-off extension remain archived, not erased.
+
+Changes: actual microphone-level waveform during voice capture; chronological
+text/voice/file/photo/circle rows and latest-chat preview; original creation time
+for new direct attachments across delayed/retried delivery; Android incoming and
+outgoing audio output chooser showing observed available communication devices.
+Legacy queued metadata is preserved for lost-ACK replay compatibility.
+
+[Focused Android17 native acceptance](../docs/reports/debugging/2026-10/native-072.md)
+verified in-place identity/history preservation, incoming/outgoing active/direct
+bidirectional RTP with the actual speaker selected, voice capture and full
+108744-byte delivery, and text→voice→text→file→text order. The AVD exposes no
+earpiece/headset and was muted: no physical switching, microphone-amplitude
+reaction or heard intelligibility is claimed. Fresh background/lockscreen/video
+acceptance was not repeated; historical0.7.1 evidence below stays historical.
+Physical Android metering/routes (`msg-qlk`), iOS adapter (`msg-uhw`), physical
+video/Russian carriers/handover/OEM and APNs remain open. [Phone tasks](../docs/TESTING-RU.md).
+
+---
+
+# Historical LastCall Android preview 0.7.1
 
 - Download: https://lienad.ru/messenger/download/LastCall-0.7.1.apk
 - Alternate: https://p2p.lienad.ru/download/LastCall-0.7.1.apk

@@ -1,0 +1,211 @@
+{
+  "run_id": "lastcall-060-qa-2026-10-30",
+  "max_cycles": 7,
+  "cycles_started": 7,
+  "status": "passed",
+  "agent": "lastcall-release-tester",
+  "session_id": "fc6cadaa-156c-4387-8864-40819a83531f",
+  "stop_on_same_failure_without_new_evidence": 2,
+  "cycles": [
+    {
+      "cycle": 1,
+      "allocation": "lastcall-060-qa-2026-10-30:1",
+      "candidate_commit": "4d38b90",
+      "scope": "baseline unit/type/lint/build + existing local browser integration + focused high-risk source review; no native UI",
+      "status": "blocked_auth",
+      "verdict": "BLOCKED",
+      "commands_executed": [],
+      "test_results": "NOT_RUN",
+      "estimated_cost_usd": 0,
+      "session_id": "c6c005fc-88af-4d7f-9d4f-9226b4c6a733"
+    },
+    {
+      "cycle": 2,
+      "allocation": "lastcall-060-qa-2026-10-30:2",
+      "candidate_commit": "a654ba597ebe9d2f92e2b4142d5859443bc513da",
+      "scope": "Verify actual agent/skills/protocol adoption; baseline checks and local functional integration once; product read-only; no native UI",
+      "status": "passed",
+      "resume_reason": "User confirmed connection and explicitly requested configuration/work verification; separate hello probe succeeded.",
+      "verdict": "PASS",
+      "session_id": "050ab6ce-b7cb-4ab7-aaf8-9146ef539efe",
+      "commands_executed": [
+        "/bin/sh .tmp/current/claude-qa-baseline.sh"
+      ],
+      "exit_code": 0,
+      "unit_tests": {
+        "passed": 264,
+        "failed": 0
+      },
+      "browser_tests": {
+        "passed": 9,
+        "skipped": 1,
+        "failed": 0
+      },
+      "report": "docs/reports/testing/2026-10/claude-qa-cycle-2.md",
+      "estimated_cost_usd": 0.506173
+    },
+    {
+      "cycle": 3,
+      "allocation": "lastcall-060-qa-2026-10-30:3",
+      "candidate_commit": "a654ba597ebe9d2f92e2b4142d5859443bc513da",
+      "scope": "User-authorized next batch:liveprogresspanel,app-owned/backgroundcalls,readreceipts,videoquality; implementation before one bounded ClaudeQApass",
+      "status": "passed",
+      "candidate_version": "0.7.0/code10",
+      "candidate_apk_sha256": "ad39f92a0542ea5b90e05a3678a5475c1a8cddab2342f961a0f280da5757582f",
+      "native_build_attempts": [
+        {
+          "attempt": 1,
+          "status": "failed_compile",
+          "fingerprint": "androidx Person type mismatch and unavailable LocalBroadcastManager app classpath"
+        },
+        {
+          "attempt": 2,
+          "status": "passed",
+          "bundle_forced": true
+        }
+      ],
+      "verdict": "PASS",
+      "session_id": "8a88f550-7eb0-4a32-b9b7-a8b0e956a554",
+      "commands_executed": [
+        "/bin/sh .tmp/current/claude-qa-baseline.sh"
+      ],
+      "exit_code": 0,
+      "unit_tests": {
+        "passed": 292,
+        "failed": 0
+      },
+      "browser_tests": {
+        "passed": 10,
+        "skipped": 1,
+        "failed": 0
+      },
+      "report": "docs/reports/testing/2026-10/claude-qa-cycle-3.md",
+      "estimated_cost_usd": 1.152863
+    },
+    {
+      "cycle": 4,
+      "allocation": "lastcall-060-qa-2026-10-30:4",
+      "candidate_commit": "df467aba2ef46d3332d69e8ae7eab5a4584c976b",
+      "scope": "User physical regressions2026-10-31: authenticated call invitation/ringing before P2P media like Telegram, locked screen only pending push, >20s video flicker; implementation before one bounded independent Claude QA pass",
+      "status": "timeout",
+      "candidate_version": "0.7.1/code11",
+      "candidate_apk_sha256": "e9c20142970f91c04f606546bbbddb981b72c37630bb81e6cb020054b70735d9",
+      "verdict": "BLOCKED",
+      "timeout_sec": 280,
+      "commands_executed": [
+        "/bin/sh .tmp/current/claude-qa-baseline.sh"
+      ],
+      "unit_tests": {
+        "passed": 340,
+        "failed": 0
+      },
+      "browser_tests": {
+        "passed": 11,
+        "skipped": 1,
+        "failed": 0
+      },
+      "test_results": "ALL_GATES_PASS_NO_FINAL_REVIEW_TIMEOUT",
+      "report": "docs/reports/testing/2026-10/claude-qa-cycle-4.md",
+      "block_reason": "Final source-review response exceeded280s after completed gates"
+    },
+    {
+      "cycle": 5,
+      "allocation": "lastcall-060-qa-2026-10-30:5",
+      "candidate_commit": "df467aba2ef46d3332d69e8ae7eab5a4584c976b",
+      "candidate_version": "0.7.1/code11",
+      "candidate_apk_sha256": "e9c20142970f91c04f606546bbbddb981b72c37630bb81e6cb020054b70735d9",
+      "status": "passed",
+      "scope": "Same frozen candidate: narrow independent source review only after cycle4 final response timeout. No rebuild or repeat tests; completed cycle4 gate evidence retained and attributed to4.",
+      "verdict": "PASS",
+      "tests_this_invocation": "NOT_RUN",
+      "gate_evidence_cycle": 4,
+      "session_id": "84e8d66a-8cf6-4555-9d6c-bda2605795ff",
+      "estimated_cost_usd": 0.640369,
+      "report": "docs/reports/testing/2026-10/claude-qa-cycle-5.md",
+      "scope_verdict": "Narrow source review only; no repeated tests"
+    },
+    {
+      "cycle": 6,
+      "allocation": "lastcall-060-qa-2026-10-30:6",
+      "candidate_commit": "df467aba2ef46d3332d69e8ae7eab5a4584c976b",
+      "candidate_version": "0.7.1/code11",
+      "status": "failed",
+      "scope": "Final allocation: fix build invocation env omission proven in unpacked assets/app.config and Android17 UI. Same call/video source, add push-release build guard, rebuild with client config through ALL stages, verify packaged FCM true and focused native acceptance. No cycle7.",
+      "candidate_apk_sha256": "3d36731251871053711e48e0a9464a9259ffdd0024397d041cc412a253dd2122",
+      "verdict": "FAIL",
+      "session_id": "70b3ed0a-28a0-4708-83d4-961836d732fa",
+      "estimated_cost_usd": 0.270021,
+      "report": "docs/reports/testing/2026-10/claude-qa-cycle-6.md",
+      "scope_verdict": "Narrow build guard, packaged FCM constants and mobile types; core/call/video gates remain cycle4 and source review cycle5.",
+      "commands_executed": [
+        "bash -n infra/build-android-release.sh",
+        "env -u MESSENGER_GOOGLE_SERVICES_FILE bash infra/build-android-release.sh (expected exit1)",
+        "npm run typecheck -w @messenger/mobile",
+        "APK SHA256/size/allowlisted assets/app.config inspection"
+      ],
+      "native_acceptance": {
+        "verdict": "FAIL",
+        "fingerprint": "SDK58-dataString-null-strict-call-push-key-count",
+        "issue": "msg-el9",
+        "report": "docs/reports/debugging/2026-10/native-071.md",
+        "published": false
+      },
+      "independent_review_verdict": "PASS"
+    },
+    {
+      "cycle": 7,
+      "allocation": "lastcall-060-qa-2026-10-30:7",
+      "candidate_version": "0.7.1/code11",
+      "status": "passed",
+      "scope": "Explicitly user-authorized single extension: normalize SDK dataString:null, faithful serializer fixtures, one changed APK and cold nativeFCM answer/cancel verification. No cycle8.",
+      "candidate_apk_sha256": "a47c676b25b59ede87ca7cd3ad0fe067f52c2fe58957e342388166c622b1d53a",
+      "independent_review_verdict": "PASS",
+      "session_id": "fc6cadaa-156c-4387-8864-40819a83531f",
+      "estimated_cost_usd": 0.450908,
+      "unit_tests": {
+        "passed": 81,
+        "failed": 0,
+        "scope": "mobile only"
+      },
+      "monitor_tests": {
+        "passed": 10,
+        "failed": 0
+      },
+      "report": "docs/reports/testing/2026-10/claude-qa-cycle-7.md",
+      "verdict": "PASS",
+      "native_acceptance": {
+        "verdict": "PASS_SCOPED_EMULATOR",
+        "report": "docs/reports/debugging/2026-10/native-071-cycle7.md",
+        "cold_ring_seconds": 7.984,
+        "answer_active_seconds": 16.527,
+        "cancel_dismiss_seconds": 1.637,
+        "published": true
+      },
+      "browser_tests_status": "not_run",
+      "candidate_base_commit": "b130eb2",
+      "candidate_source": "Reviewed SDK wrapper fix and faithful fixtures on b130eb2; exact artifact identified by candidate_apk_sha256"
+    }
+  ],
+  "requires_user_resume": false,
+  "last_verdict": "PASS",
+  "skill_loading_verified": {
+    "systematic-debugging": "READ_FALLBACK",
+    "run-quality-gate": "READ_FALLBACK",
+    "webapp-testing": "READ_FALLBACK",
+    "future_policy": "Required explicit Read before tests if not preloaded; block if missing/denied"
+  },
+  "activity": {
+    "cycle": 7,
+    "stage": "review",
+    "updated_at": "2026-10-31T09:05:34.754286+00:00"
+  },
+  "base_max_cycles": 6,
+  "cycle_extensions": [
+    {
+      "from": 6,
+      "to": 7,
+      "authorized_at": "2026-10-31T08:51:25.244823+00:00",
+      "authorization": "User replied \u00ab\u0414\u0435\u043b\u0430\u0439\u00bb to explicit request for ONE additional cycle beyond6: SDK wrapper fix, rebuild, locked-screen native verification. No cycle8 authorized."
+    }
+  ]
+}

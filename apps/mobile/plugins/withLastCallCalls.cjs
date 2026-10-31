@@ -5,6 +5,10 @@ module.exports = function withLastCallCalls(config) {
   config = withAndroidManifest(config, mod => {
     const manifest = mod.modResults.manifest;
     manifest['uses-permission'] ??= [];
+    // Legacy SCO requires this install-time permission; modern communication-device APIs do not.
+    const bluetooth = manifest['uses-permission'].find(item => item.$['android:name'] === 'android.permission.BLUETOOTH');
+    if (bluetooth) bluetooth.$['android:maxSdkVersion'] = '30';
+    else manifest['uses-permission'].push({ $: { 'android:name': 'android.permission.BLUETOOTH', 'android:maxSdkVersion': '30' } });
     for (const name of ['FOREGROUND_SERVICE', 'FOREGROUND_SERVICE_PHONE_CALL', 'FOREGROUND_SERVICE_MICROPHONE', 'FOREGROUND_SERVICE_CAMERA', 'MANAGE_OWN_CALLS', 'USE_FULL_SCREEN_INTENT']) {
       const permission = `android.permission.${name}`;
       if (!manifest['uses-permission'].some(item => item.$['android:name'] === permission)) manifest['uses-permission'].push({ $: { 'android:name': permission } });
@@ -40,7 +44,7 @@ module.exports = function withLastCallCalls(config) {
   return withDangerousMod(config, ['android', async mod => {
     const target = path.join(mod.modRequest.platformProjectRoot, 'app/src/main/java/dev/messenger/prototype/calls');
     await fs.mkdir(target, { recursive: true });
-    for (const file of ['LastCallAudioService.java', 'LastCallAudioModule.java', 'LastCallAudioPackage.java', 'LastCallHeadlessAppLoader.java', 'LastCallHostLease.java', 'LastCallWakeLease.java', 'LastCallCallUiService.java', 'LastCallCallActivity.java', 'LastCallCallSetupService.java']) await fs.copyFile(path.join(__dirname, 'calls', file), path.join(target, file));
+    for (const file of ['LastCallAudioService.java', 'LastCallAudioModule.java', 'LastCallAudioPackage.java', 'LastCallAudioRoutes.java', 'LastCallHeadlessAppLoader.java', 'LastCallHostLease.java', 'LastCallWakeLease.java', 'LastCallCallUiService.java', 'LastCallCallActivity.java', 'LastCallCallSetupService.java']) await fs.copyFile(path.join(__dirname, 'calls', file), path.join(target, file));
     return mod;
   }]);
 };

@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { Modal, Pressable, Text, View, useWindowDimensions } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RTCView, type MediaStream as NativeMediaStream } from 'react-native-webrtc';
 import { client, errorText, useMessenger } from '../runtime';
 import { answerCurrentSystemCall } from '../system-calls';
+import { useCallAudioRoutes } from '../call-audio';
+import { audioRouteLabel } from '../call-audio-model';
 import { colors, styles } from '../styles';
 import { Avatar, Icon, IconButton } from './ui';
 
@@ -19,6 +21,8 @@ function CallPanel() {
   const [collapsed, setCollapsed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [audioMenu, setAudioMenu] = useState(false);
+  const audio = useCallAudioRoutes(call?.session.callId);
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const callState = call?.session.callState;
@@ -33,6 +37,8 @@ function CallPanel() {
   const localVideo = !!local?.getVideoTracks().some(track => track.readyState !== 'ended');
   const video = remoteVideo || localVideo;
   const landscape = width > height;
+  const selectedAudio = audio.routes.find(route => route.selected);
+  const audioIcon = selectedAudio?.kind === 'bluetooth' ? 'bluetooth' : selectedAudio?.kind === 'earpiece' ? 'ear' : selectedAudio?.kind === 'wired' ? 'headset' : 'volume-high';
   async function accept() {
     setBusy(true); setError('');
     try { if (!(await answerCurrentSystemCall())) await client().acceptCall(); } catch (cause) { setError(errorText(cause)); }
@@ -44,6 +50,7 @@ function CallPanel() {
             <Pressable accessibilityRole="button" accessibilityLabel="Принять вызов" disabled={busy} style={[styles.callControl, busy && styles.disabled]} onPress={() => void accept()}><View style={[styles.callCircle, { backgroundColor: colors.accent }]}><Icon name="call" color={colors.white} size={28} /></View><Text style={styles.callControlLabel}>{busy ? 'Подключаем…' : 'Принять'}</Text></Pressable>
           </> : <>
             <Pressable accessibilityRole="button" accessibilityLabel={call.session.muted ? 'Включить микрофон' : 'Выключить микрофон'} style={styles.callControl} onPress={() => client().setMuted(!call.session.muted)}><View style={styles.callCircle}><Icon name={call.session.muted ? 'mic-off' : 'mic'} color={colors.white} size={28} /></View><Text style={styles.callControlLabel}>{call.session.muted ? 'Включить' : 'Микрофон'}</Text></Pressable>
+            {audio.supported && <Pressable accessibilityRole="button" accessibilityLabel={`Выбрать звук: ${selectedAudio ? audioRouteLabel[selectedAudio.kind] : 'подключаем'}`} accessibilityState={{ disabled: !audio.active || !audio.routes.length }} disabled={!audio.active || !audio.routes.length} style={[styles.callControl, (!audio.active || !audio.routes.length) && styles.disabled]} onPress={() => setAudioMenu(true)}><View style={styles.callCircle}><Icon name={audioIcon} color={colors.white} size={28} /></View><Text style={styles.callControlLabel}>Звук</Text></Pressable>}
             <Pressable accessibilityRole="button" accessibilityLabel="Завершить звонок" style={styles.callControl} onPress={() => client().endCall()}><View style={[styles.callCircle, { backgroundColor: colors.danger }]}><Icon name="call" color={colors.white} size={28} /></View><Text style={styles.callControlLabel}>Завершить</Text></Pressable>
           </>}
         </View>;
@@ -51,6 +58,7 @@ function CallPanel() {
     {collapsed && <Pressable style={[styles.callBanner, { top: insets.top + 4 }]} onPress={() => setCollapsed(false)} accessibilityRole="button" accessibilityLabel="Вернуться к звонку">
       <Icon name="call" color={colors.white} size={19} /><Text style={styles.callBannerText}>{name} · {status.toLowerCase()}</Text><Icon name="chevron-forward" color={colors.white} size={19} /></Pressable>}
     <Modal visible={!collapsed} animationType="slide" presentationStyle="fullScreen" supportedOrientations={['portrait', 'landscape']} statusBarTranslucent navigationBarTranslucent onRequestClose={() => setCollapsed(true)}>
+      <View style={{ flex: 1 }}>
       {video ? <View style={styles.callVideoStage}>
         <RTCView style={styles.callVideoFill} objectFit="cover" zOrder={0} mirror={!remoteVideo} pointerEvents="none" streamURL={((remoteVideo ? remote : local) as unknown as NativeMediaStream).toURL()} />
         {remoteVideo && localVideo && <View pointerEvents="none" style={[styles.callVideoPip, { top: insets.top + (landscape ? 72 : 100), right: insets.right + 16, width: landscape ? 84 : 108, height: landscape ? 116 : 152 }]}>
@@ -68,6 +76,19 @@ function CallPanel() {
         <Avatar name={name} id={call.peerId} size={94} /><Text style={styles.callName}>{name}</Text><Text style={styles.callSubtitle}>{status}</Text>
         {!!error && <Text style={styles.error}>{error}</Text>}{controls}
       </SafeAreaView>}
+      {audioMenu && <View style={StyleSheet.absoluteFill}>
+        <Pressable style={StyleSheet.absoluteFill} accessibilityRole="button" accessibilityLabel="Закрыть выбор звука" onPress={() => setAudioMenu(false)} />
+        <View style={{ position: 'absolute', left: insets.left + 20, right: insets.right + 20, bottom: insets.bottom + 110, maxHeight: Math.max(120, height - insets.top - insets.bottom - 135), backgroundColor: '#252332', borderRadius: 20, padding: 16 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: colors.white, fontSize: 18, fontWeight: '600' }}>Звук звонка</Text><IconButton name="close" label="Закрыть выбор звука" color={colors.white} onPress={() => setAudioMenu(false)} /></View>
+          <ScrollView>
+            {audio.routes.map(route => <Pressable key={route.id} accessibilityRole="radio" accessibilityLabel={audioRouteLabel[route.kind]} accessibilityState={{ selected: route.selected, disabled: !!audio.pendingId }} disabled={!!audio.pendingId} onPress={() => void audio.select(route.id)} style={{ minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 12, opacity: audio.pendingId && audio.pendingId !== route.id ? 0.5 : 1 }}>
+              <Icon name={route.selected ? 'radio-button-on' : 'radio-button-off'} color={colors.white} size={23} /><Text style={{ color: colors.white, flex: 1 }}>{audioRouteLabel[route.kind]}{audio.pendingId === route.id ? ' · подключаем…' : ''}</Text>
+            </Pressable>)}
+          </ScrollView>
+          {!!audio.error && <Text accessibilityRole="alert" style={[styles.error, { marginTop: 8 }]}>{audio.error}</Text>}
+        </View>
+      </View>}
+      </View>
     </Modal>
   </>;
 }

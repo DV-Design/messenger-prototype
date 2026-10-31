@@ -24,6 +24,23 @@ public final class LastCallAudioModule extends ReactContextBaseJavaModule {
   }
   @ReactMethod public void addListener(String eventName) {}
   @ReactMethod public void removeListeners(Integer count) {}
+  static void dispatchRoutes(WritableMap routes) {
+    LastCallAudioModule module = active.get();
+    if (module == null || !module.getReactApplicationContext().hasActiveReactInstance()) return;
+    module.getReactApplicationContext().getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class).emit("LastCallAudioRoutes", routes);
+  }
+  @ReactMethod public void getCallAudioRoutes(String id, Promise result) {
+    UiThreadUtil.runOnUiThread(() -> {
+      try { result.resolve(LastCallAudioRoutes.snapshot(id)); }
+      catch (RuntimeException error) { result.reject("CALL_AUDIO_ROUTE", "Android could not read audio outputs", error); }
+    });
+  }
+  @ReactMethod public void setCallAudioRoute(String id, String deviceId, Promise result) {
+    UiThreadUtil.runOnUiThread(() -> {
+      try { result.resolve(LastCallAudioRoutes.select(id, deviceId)); }
+      catch (RuntimeException error) { result.reject("CALL_AUDIO_ROUTE", "Android could not switch audio output", error); }
+    });
+  }
   @ReactMethod public void holdWakeHost(String id, double durationMs, Promise result) { LastCallWakeLease.hold(getReactApplicationContext(), id, durationMs, result); }
   @ReactMethod public void releaseWakeHost(String id) { LastCallWakeLease.release(id); }
   @ReactMethod public void holdHost(String id) { LastCallHostLease.hold(getReactApplicationContext(), id); }

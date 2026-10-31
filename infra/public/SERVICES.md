@@ -1,6 +1,37 @@
 # Optional FCM and authenticated ICE configuration
 
-## 0.7.1/code11 published 2026-10-31
+## 0.7.2/code12 published 2026-10-31
+
+APK: `download/LastCall-0.7.2.apk`;54,979,729bytes, SHA256
+`d5d0839ad0004c6476710e2ad4369c67f322d0c87ad418f1d1689a82bd73a951`; unchanged signing certificate.
+Native Java/release assembly and packaged FCM=true/version0.7.2/code12 checks
+passed. Primary/alternate/preview full HTTPS downloads matched the same bytes/hash.
+Independent QA1/6 passed363unit,11browser/1TURN-environment-skip, types/builds and
+Android+iOS JS exports; lint0errors/one pre-existing VoiceNote warning. Focused
+Android17 AVD acceptance covered incoming/outgoing direct RTP, observed speaker,
+voice capture/delivery and mixed text/voice/file order. No physical route switch,
+heard speech, fresh lockscreen or physical video acceptance is implied.
+[QA1](../../docs/reports/testing/2026-10/media-audio/claude-qa-cycle-1.md),
+[native scope](../../docs/reports/debugging/2026-10/native-072.md).
+
+This client update adds real microphone metering while recording, a mixed
+text/voice/file/photo/circle timeline, and a call-scoped Android audio output
+chooser for incoming and outgoing calls. New direct attachments carry original
+creation/deadline timing inside existing opaque E2E metadata; the sender-held
+seven-day deadline and durable recipient ACK do not change. Legacy queued sends
+keep existing metadata for replay compatibility. No file bytes, recordings,
+waveform samples, audio routes or new content queue are added to the server/FCM.
+Existing group signed timing remains authoritative. No server redeploy is
+required solely for these client changes.
+
+API31+ routes use observed Android communication devices; API24–30 uses the
+legacy SCO/speakerphone fallback. Only connected devices are offered. Physical
+Bluetooth, heard quality and OEM behavior remain unverified; iOS route selection
+is not implemented (`msg-uhw`); physical metering/routing remains `msg-qlk`.
+The separate newly authorized QA run has a six-cycle cap;
+prior run history and its one-off seventh allocation remain historical.
+
+## Historical 0.7.1/code11 published 2026-10-31
 
 Published `artifacts/LastCall-0.7.1.apk` is54949929 bytes, SHA256
 `a47c676b25b59ede87ca7cd3ad0fe067f52c2fe58957e342388166c622b1d53a`, same

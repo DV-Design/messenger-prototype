@@ -1,3 +1,21 @@
+# LastCall 0.7.2: voice waveform, mixed timeline and Android call audio (published 2026-10-31)
+
+- [X] Real live microphone waveform with bounded history; recording/cancel lifecycle (msg-cmg)
+  → Artifacts: [composer](apps/mobile/src/components/MediaComposer.tsx), [waveform](apps/mobile/src/components/RecordingWaveform.tsx), [level model](apps/mobile/src/waveform-model.ts), [checks](apps/mobile/tests/waveform.test.ts)
+- [X] One chronological text/voice/file/photo/circle timeline; preserve new direct-file creation time through queue/restart/replay (msg-0tw)
+  → Artifacts: [timeline](apps/mobile/src/timeline-model.ts), [chat](apps/mobile/src/app/chat/[id].tsx), [timing](packages/core/src/direct-file.ts), [queue regressions](packages/core/src/direct-file.test.ts), [timeline checks](apps/mobile/tests/timeline.test.ts)
+- [X] Incoming/outgoing Android earpiece/speaker/connected-headset selection with observed state and stale-call guards (msg-5bn)
+  → Artifacts: [call UI](apps/mobile/src/components/CallOverlay.tsx), [controller](apps/mobile/src/call-audio-model.ts), [native routes](apps/mobile/plugins/calls/LastCallAudioRoutes.java), [checks](apps/mobile/tests/call-audio.test.ts)
+
+Implementation and gates verified: native Java/release/packaged FCM PASS; independent [QA1/6](docs/reports/testing/2026-10/media-audio/claude-qa-cycle-1.md),363unit/11browser PASS/1TURN skip; [focused native evidence](docs/reports/debugging/2026-10/native-072.md) covers observed speaker on incoming/outgoing direct calls, captured/delivered voice and mixed text/voice/file order. APK0.7.2/code12 published; all3fullHTTPS downloads match exact bytes/hash in [release record](artifacts/README.md). New run cap6; [old history preserved](docs/qa/runs/lastcall-060-qa-2026-10-30.json).
+
+- [ ] Physical Android waveform response/heard quality and incoming/outgoing audio/video earpiece↔speaker/BT/wired hotplug; emulator has no earpiece/headset (msg-qlk)
+  → Artifacts: [focused phone tasks](docs/TESTING-RU.md), [native limits](docs/reports/debugging/2026-10/native-072.md)
+- [ ] iOS native audio-route adapter and signed-device acceptance; chooser currently hidden/unsupported (msg-uhw)
+  → Artifacts: [mobile guide](apps/mobile/README.md)
+
+Existing physical Pixel/Vivo video, Russian carriers/handover, DPI and iOS/APNs acceptance remains open (`msg-si6`, `msg-3z9`, `msg-9rr`).
+
 # Claude QA configuration (msg-tan)
 
 - [X] Dedicated risk-based tester, three required skills and documented six-cycle protocol
