@@ -1,3 +1,5 @@
+import {CALL_INVITE_TTL_MS,callPushSchema,callPushEnvelopeSchema,type CallInvitation,type CallState} from './call-control.js';
+import {encryptCallPush,decryptCallPush,type OpenedCallPush} from './call-push.js';
 import { normalizePhone, iceServersSchema, type ServiceCapabilities, type PhoneChallenge } from './services.js';
 import { z } from 'zod';
 import { bytesToHex, randomChecked, secureRandomBytes, type RandomBytes } from './crypto.js';
@@ -12,7 +14,9 @@ export {OUTBOX_TTL_MS} from './group-sync.js';
 export interface MessengerMessage {id:string;text:string;from:string;timestamp:number;status:'pending'|'sent'|'delivered'|'received'|'expired';conversationId:string;expiresAt?:number;metadata?:string;recipientIds?:string[];deliveredTo?:string[];readBy?:string[];}
 export interface MessengerFile extends SharedFile {timestamp:number;senderId:string;conversationId:string;deliveryStatus?:'pending'|'sent'|'delivered'|'received'|'expired';expiresAt?:number;blobKey?:string;recipientIds?:string[];deliveredTo?:string[];readBy?:string[];}
 export interface Conversation {id:string;kind:'direct'|'group';title:string;memberIds:string[];messages:MessengerMessage[];files:MessengerFile[];unread:number;updatedAt:number;session?:SessionSnapshot;}
-export interface MessengerSnapshot {status:'idle'|'connecting'|'online'|'offline'|'error';self?:DirectoryUser;contacts:DirectoryUser[];conversations:Conversation[];activeCall?:{conversationId:string;peerId:string;session:SessionSnapshot};error?:string;}
+export interface PendingIncomingCall extends OpenedCallPush {state:'ringing'|'accepted';revision:number;}
+interface OutgoingInvitation extends CallInvitation {peerId:string;conversationId:string;video:boolean;serverEpoch?:string;offered:boolean;offering:boolean;ringing:boolean;sessionStarted:boolean;revision:number;operation:PendingOperation;timer?:ReturnType<typeof setTimeout>;expiry?:ReturnType<typeof setTimeout>;}
+export interface MessengerSnapshot {status:'idle'|'connecting'|'online'|'offline'|'error';self?:DirectoryUser;contacts:DirectoryUser[];conversations:Conversation[];activeCall?:{conversationId:string;peerId:string;session:SessionSnapshot};pendingIncomingCall?:PendingIncomingCall;error?:string;}
 export interface MessengerOptions {serverUrl:string;identity:DeviceIdentity;username:string;displayName:string;randomBytes?:RandomBytes;rtcFactory?:PeerSessionOptions['rtcFactory'];getUserMedia?:PeerSessionOptions['getUserMedia'];onChange?:(snapshot:MessengerSnapshot)=>void;loadState?:()=>Promise<string|null>;saveState?:(sealed:string)=>Promise<void>;saveAttachment?:(key:string,sealed:string)=>Promise<void>;loadAttachment?:(key:string)=>Promise<string|null>;deleteAttachment?:(key:string)=>Promise<void>;}
 export const MAX_CONTACTS=100;
 export const MAX_GROUPS=32;
@@ -26,20 +30,19 @@ const messageSchema=z.object({id:peerIdSchema,text:z.string().min(1).max(MAX_TEX
 const fileSchema=z.object({id:peerIdSchema,name:z.string().min(1).max(255),mime:z.string().max(255),size:z.number().int().min(0).max(MAX_FILE_BYTES),timestamp:z.number().finite().nonnegative(),from:z.enum(['self','peer']),status:z.enum(['sending','receiving','complete','error']),receivedBytes:z.number().nonnegative(),senderId:roomIdSchema,conversationId:conversationIdSchema,metadata:z.string().max(12000).optional(),expiresAt:z.number().finite().nonnegative().optional(),deliveryStatus:z.enum(['pending','sent','delivered','received','expired']).optional(),blobKey:roomIdSchema.optional(),recipientIds:z.array(roomIdSchema).max(7).optional(),deliveredTo:z.array(roomIdSchema).max(7).optional(),readBy:z.array(roomIdSchema).max(7).optional()}).strict();
 interface InternalConversation extends Conversation {creatorId?:string;definition?:GroupDefinition;receipts?:GroupReceipt[];readReceipts?:ReadReceipt[];}
 interface PendingOperation {controller:AbortController;started:number;timeout:number;timer?:ReturnType<typeof setTimeout>;conversationId:string;peerId?:string;}
-interface OutgoingCallWake {peerId:string;callId:string;deadline:number;timer?:ReturnType<typeof setTimeout>;}
 interface PendingMessage {conversationId:string;messageId:string;remaining:string[];type?:'message'|'file';author?:string;createdAt?:number;expiresAt?:number;}
 const pendingSchema=z.object({conversationId:conversationIdSchema,messageId:peerIdSchema,remaining:z.array(roomIdSchema).min(1).max(7),type:z.enum(['message','file']).optional(),author:roomIdSchema.optional(),createdAt:z.number().finite().nonnegative().optional(),expiresAt:z.number().finite().nonnegative().optional()}).strict();
 const storedConversationSchema=z.object({id:conversationIdSchema,kind:z.enum(['direct','group']),title:z.string().min(1).max(64),memberIds:z.array(roomIdSchema).min(2).max(8),creatorId:roomIdSchema.optional(),definition:groupDefinitionSchema.optional(),receipts:z.array(receiptSchema).max(4000).optional(),readReceipts:z.array(readReceiptSchema).max(1312).optional(),messages:z.array(messageSchema).max(100),files:z.array(fileSchema).max(64).optional(),unread:z.number().int().min(0).max(100),updatedAt:z.number().finite().nonnegative()}).strict();
 const storedSchema=z.object({version:z.union([z.literal(2),z.literal(3)]),contacts:z.array(directoryUserSchema).max(MAX_CONTACTS),conversations:z.array(storedConversationSchema).max(MAX_CONTACTS+MAX_GROUPS),pending:z.array(pendingSchema).max(MAX_PENDING_MESSAGES+MAX_PENDING_FILES)}).strict().refine(state=>state.conversations.reduce((n,c)=>n+c.messages.length,0)<=MAX_HISTORY_MESSAGES,{message:'History capacity exceeded'});
 type RequestInput<T=DirectoryClientFrame>=T extends {requestId:string}?Omit<T,'requestId'>:never;
-type ReplyType=Exclude<Extract<DirectoryServerFrame,{requestId:string}>['type'],'error'>;
+type ReplyType=Exclude<Extract<DirectoryServerFrame,{requestId:string}>['type'],'error'>|'call-state';
 interface Request {expected:ReplyType;resolve:(frame:DirectoryServerFrame)=>void;reject:(e:Error)=>void;timer:ReturnType<typeof setTimeout>;}
 interface Pair {session:PeerSession;connecting?:Promise<void>;retry?:ReturnType<typeof setTimeout>;attempt:number;flushing:boolean;notified:boolean;lastUsed:number;lastSent:Map<string,number>;definitions:Set<string>;pump?:ReturnType<typeof setTimeout>;}
 export class MessengerClient {
   private status:MessengerSnapshot['status']='idle';private self?:DirectoryUser;private error?:string;
   private contacts=new Map<string,DirectoryUser>();private conversations=new Map<string,InternalConversation>();private pending:PendingMessage[]=[];
   private closing=false;private closed=false;private shutdown?:Promise<void>;private activeWork=new Set<Promise<unknown>>();
-  private protectedReceive=new Set<string>();private committed=new Set<string>();private blobs=new Map<string,Uint8Array>();private enqueueQueue=Promise.resolve();private expiryTimer?:ReturnType<typeof setTimeout>;private pairs=new Map<string,Pair>();private socket?:WebSocket;private requests=new Map<string,Request>();private iceRequest?:Promise<RTCIceServer[]>;private wakeTimer?:ReturnType<typeof setTimeout>;private lastWake=new Map<string,number>();private wakeStarted=new Map<string,number>();private pendingCall?:PendingOperation;private outgoingCallWake?:OutgoingCallWake;private services?:ServiceCapabilities;private servicesRequest?:Promise<ServiceCapabilities>;private wakeCapabilitiesRequest?:Promise<ServiceCapabilities>;
+  private protectedReceive=new Set<string>();private committed=new Set<string>();private blobs=new Map<string,Uint8Array>();private enqueueQueue=Promise.resolve();private expiryTimer?:ReturnType<typeof setTimeout>;private pairs=new Map<string,Pair>();private socket?:WebSocket;private requests=new Map<string,Request>();private iceRequest?:Promise<RTCIceServer[]>;private wakeTimer?:ReturnType<typeof setTimeout>;private lastWake=new Map<string,number>();private wakeStarted=new Map<string,number>();private pendingCall?:PendingOperation;private outgoingInvitation?:OutgoingInvitation;private pendingIncoming?:PendingIncomingCall;private incomingExpiry?:ReturnType<typeof setTimeout>;private endedCalls=new Map<string,number>();private callStates=new Map<string,CallState>();private services?:ServiceCapabilities;private servicesRequest?:Promise<ServiceCapabilities>;private wakeCapabilitiesRequest?:Promise<ServiceCapabilities>;
   private random:RandomBytes;private stopped=true;private opening?:Promise<void>;private loaded=false;private restorePromise?:Promise<void>;
   private reconnect?:ReturnType<typeof setTimeout>;private attempt=0;private epoch=0;private savedTimer?:ReturnType<typeof setTimeout>;private saveQueue=Promise.resolve();private dirty=false;private cancelOpening?:()=>void;
   constructor(private options:MessengerOptions){validateDeviceIdentity(options.identity);usernameSchema.parse(options.username);displayNameSchema.parse(options.displayName);endpointUrl(options.serverUrl,'directory');this.random=options.randomBytes??secureRandomBytes;}
@@ -48,8 +51,9 @@ export class MessengerClient {
     const conversations=[...this.conversations.values()].map(c=>({id:c.id,kind:c.kind,title:c.title,memberIds:[...c.memberIds],messages:c.messages.map(m=>({...m,recipientIds:m.recipientIds?[...m.recipientIds]:undefined,deliveredTo:m.deliveredTo?[...m.deliveredTo]:undefined,readBy:m.readBy?[...m.readBy]:undefined})),files:c.files.map(f=>({...f,recipientIds:f.recipientIds?[...f.recipientIds]:undefined,deliveredTo:f.deliveredTo?[...f.deliveredTo]:undefined,readBy:f.readBy?[...f.readBy]:undefined})),unread:c.unread,updatedAt:c.updatedAt,session:c.kind==='direct'?this.pairs.get(c.memberIds.find(id=>id!==this.options.identity.userId)!)?.session.getSnapshot():undefined}));
     let activeCall:MessengerSnapshot['activeCall'];
     for(const [peerId,pair] of this.pairs){const session=pair.session.getSnapshot();if(session.callState!=='idle'){activeCall={conversationId:directConversationId(this.options.identity.userId,peerId),peerId,session};break;}}
-    if(!activeCall&&this.pendingCall){const op=this.pendingCall;const snapshot=this.pairs.get(op.peerId!)?.session.getSnapshot();activeCall={conversationId:op.conversationId,peerId:op.peerId!,session:{status:'connecting',messages:[],muted:false,route:'unknown',stats:{},files:[],...snapshot,callState:'outgoing'}};}
-    return {status:this.status,self:this.self?{...this.self}:undefined,contacts:[...this.contacts.values()].map(c=>({...c})),conversations:conversations.sort((a,b)=>b.updatedAt-a.updatedAt),activeCall,error:this.error};
+    if(!activeCall&&this.pendingIncoming){const incoming=this.pendingIncoming;activeCall={conversationId:incoming.conversationId,peerId:incoming.callerId,session:{status:'connecting',setup:'invitation',callId:incoming.callId,callVideo:incoming.video,callExpiresAt:incoming.expiresAt,messages:[],files:[],stats:{},muted:false,route:'unknown',callState:'incoming'}};}
+    if(!activeCall&&this.pendingCall){const op=this.pendingCall;const snapshot=this.pairs.get(op.peerId!)?.session.getSnapshot();activeCall={conversationId:op.conversationId,peerId:op.peerId!,session:{status:'connecting',messages:[],muted:false,route:'unknown',stats:{},files:[],...snapshot,callState:'outgoing',callId:this.outgoingInvitation?.callId,callVideo:this.outgoingInvitation?.video,callExpiresAt:this.outgoingInvitation?.expiresAt}};}
+    return {status:this.status,self:this.self?{...this.self}:undefined,contacts:[...this.contacts.values()].map(c=>({...c})),conversations:conversations.sort((a,b)=>b.updatedAt-a.updatedAt),activeCall,pendingIncomingCall:this.pendingIncoming?{...this.pendingIncoming}:undefined,error:this.error};
   }
   private emit(){this.options.onChange?.(this.getSnapshot());}
   private report(error:unknown){this.error=error instanceof Error?error.message:'Messenger operation failed';this.emit();}
@@ -118,7 +122,9 @@ export class MessengerClient {
             else if(frame.code!=='peer-offline'&&(frame.requestId!==undefined||!['wake-expired','wake-not-allowed','provider-failed','service-rate-limit','service-busy','service-unavailable'].includes(frame.code)))this.report(new Error(frame.message));
           }else {
             if(!ready)throw new Error('Directory message before authentication');
-            if('requestId' in frame){const request=this.requests.get(frame.requestId);if(request){clearTimeout(request.timer);this.requests.delete(frame.requestId);if(frame.type!==request.expected)request.reject(new Error('Unexpected directory response type'));else request.resolve(frame);}}
+            if(frame.type==='call-state'){this.handleCallState(frame);if(frame.requestId){const request=this.requests.get(frame.requestId);if(request){clearTimeout(request.timer);this.requests.delete(frame.requestId);if(request.expected!=='call-state')request.reject(new Error('Unexpected directory response type'));else request.resolve(frame);}}}
+            else if(frame.type==='call-invitation'){const h=callPushEnvelopeSchema.parse(JSON.parse(frame.invite));void this.openCallPush(frame.invite,{kind:'call',intentId:h.callId,expiresAt:h.expiresAt}).catch(e=>this.report(e));}
+            else if('requestId' in frame){const request=this.requests.get(frame.requestId);if(request){clearTimeout(request.timer);this.requests.delete(frame.requestId);if(frame.type!==request.expected)request.reject(new Error('Unexpected directory response type'));else request.resolve(frame);}}
             else if(frame.type==='presence'){this.updateContact(frame.user);if(frame.user.online)this.wakePeer(frame.user.userId);this.changed();}
             else if(frame.type==='connect'){this.remember(frame.from);this.ensureDirect(frame.from);void this.ensurePair(frame.from.userId,false).catch(e=>this.report(e));this.watch();this.changed();}
           }
@@ -149,7 +155,7 @@ export class MessengerClient {
   }
   async getServices():Promise<ServiceCapabilities>{
     if(this.services&&this.status==='online')return {...this.services};
-    if(!this.servicesRequest){const socket=this.socket;const request=this.requestFrame({type:'services'},'services').then(frame=>{const capabilities={...frame.capabilities};if(this.socket===socket&&this.status==='online')this.services=capabilities;return capabilities;});this.servicesRequest=request;
+    if(!this.servicesRequest){const socket=this.socket;const request=this.requestFrame({type:'services',callInviteV1:true},'services').then(frame=>{const capabilities={...frame.capabilities};if(this.socket===socket&&this.status==='online')this.services=capabilities;return capabilities;});this.servicesRequest=request;
       void request.finally(()=>{if(this.servicesRequest===request)this.servicesRequest=undefined;}).catch(()=>{});
     }
     return {...await this.servicesRequest};
@@ -157,7 +163,7 @@ export class MessengerClient {
   async startPhoneVerification(phone:string):Promise<PhoneChallenge>{return (await this.requestFrame({type:'phone-start',phone:normalizePhone(phone,'RU')},'phone-challenge')).challenge;}
   async verifyPhone(challengeId:string,code:string):Promise<void>{await this.requestFrame({type:'phone-verify',challengeId,code},'phone-verified');if(this.services)this.services={...this.services,phoneVerified:true};}
   async discoverPhones(hashes:string[]):Promise<PhoneMatch[]>{return (await this.requestFrame({type:'phone-discover',hashes},'phone-matches')).matches;}
-  async registerPushToken(token:string,backgroundSync=false,messagePreview=false):Promise<void>{if(typeof backgroundSync!=='boolean'||typeof messagePreview!=='boolean')throw new Error('Invalid push capability mode');await this.requestFrame({type:'push-register',token,...(backgroundSync?{backgroundSync:true}:{}),...(messagePreview?{messagePreview:true}:{})},'push-registered');}
+  async registerPushToken(token:string,backgroundSync=false,messagePreview=false,callInviteV1=false):Promise<void>{if(typeof backgroundSync!=='boolean'||typeof messagePreview!=='boolean'||typeof callInviteV1!=='boolean')throw new Error('Invalid push capability mode');await this.requestFrame({type:'push-register',token,...(backgroundSync?{backgroundSync:true}:{}),...(messagePreview?{messagePreview:true}:{}),...(callInviteV1?{callInviteV1:true}:{})},'push-registered');}
   /** Decrypt notification copy without inserting chat history or acknowledging delivery. */
   openPushPreview(envelope:string,intent:WakeIntent):Promise<OpenedPushPreview>{this.assertActive();return this.track(this.openPushPreviewWork(envelope,intent));}
   private async openPushPreviewWork(envelope:string,intent:WakeIntent):Promise<OpenedPushPreview>{
@@ -251,8 +257,9 @@ export class MessengerClient {
   private schedulePairRetry(peerId:string){const pair=this.pairs.get(peerId);if(!pair||pair.retry||this.stopped||!this.contacts.get(peerId)?.online)return;pair.notified=false;clearTimeout(pair.pump);pair.pump=undefined;pair.retry=setTimeout(()=>{pair.retry=undefined;void this.ensurePair(peerId,true).catch(e=>this.report(e));},Math.min(30000,1000*2**Math.min(5,pair.attempt++)));}
   private wakePeer(peerId:string){const needs=[...this.conversations.values()].some(c=>c.readReceipts?.some(r=>r.author===peerId))||this.pending.some(m=>m.remaining.includes(peerId))||this.pairs.has(peerId)||[...this.conversations.values()].some(c=>c.kind==='group'&&c.memberIds.includes(peerId));if(needs)void this.ensurePair(peerId,true).then(()=>this.flushPeer(peerId)).catch(e=>this.report(e));}
   private pairChanged(peerId:string,snapshot:SessionSnapshot){
-    if(this.outgoingCallWake?.peerId===peerId&&(snapshot.callState!=='outgoing'||snapshot.callId!==this.outgoingCallWake.callId))this.clearOutgoingCallWake();
     const pair=this.pairs.get(peerId);if(!pair)return;
+    if(snapshot.callState==='incoming'){const key=peerId+':'+snapshot.callId;const ended=this.endedCalls.get(key);if(ended&&Date.now()<ended){pair.session.rejectCall();return;}const invitation=this.pendingIncoming;if(invitation&&(invitation.callerId!==peerId||invitation.callId!==snapshot.callId||invitation.video!==snapshot.callVideo||invitation.expiresAt!==snapshot.callExpiresAt)){pair.session.rejectCall();return;}}
+    const outgoing=this.outgoingInvitation;if(outgoing?.peerId===peerId&&outgoing.sessionStarted&&snapshot.callState==='idle')queueMicrotask(()=>{if(this.outgoingInvitation===outgoing)this.endCall();});if(outgoing?.peerId===peerId&&snapshot.callId===outgoing.callId){if(snapshot.callRinging||snapshot.callState==='active'){outgoing.ringing=true;clearTimeout(outgoing.timer);}if(snapshot.callState==='active')clearTimeout(outgoing.expiry);}
     const direct=this.conversations.get(directConversationId(this.options.identity.userId,peerId));if(direct)direct.session=snapshot;for(const file of snapshot.files)if(file.status==='complete'&&file.data)pair.session.releaseFileData(file.id);
     if(this.pendingCall&&snapshot.callState==='incoming'){pair.session.rejectCall();return;}
     const nonIdle=[...this.pairs.entries()].find(([id,p])=>id!==peerId&&p.session.getSnapshot().callState!=='idle');
@@ -393,7 +400,7 @@ export class MessengerClient {
       if(!attempted||elapsed>=nextAttempt){attempted=true;nextAttempt=elapsed+5000;
         void this.ensurePair(peerId,true).catch(()=>{/* Bounded readiness loop and peer snapshot expose transport failures. */});
       }
-      if(elapsed>=nextWake){nextWake=elapsed+30000;void this.sendWake(peerId,kind,operation.timeout-elapsed,()=>!operation.controller.signal.aborted&&this.now()-operation.started<operation.timeout&&this.pairs.get(peerId)?.session.getSnapshot().status!=='connected');}
+      if(elapsed>=nextWake){nextWake=elapsed+30000;if(kind==='call'&&this.outgoingInvitation)void this.offerCallInvitation(this.outgoingInvitation);else void this.sendWake(peerId,kind,operation.timeout-elapsed,()=>!operation.controller.signal.aborted&&this.now()-operation.started<operation.timeout&&this.pairs.get(peerId)?.session.getSnapshot().status!=='connected');}
       await new Promise<void>((resolve,reject)=>{
         const abort=()=>{clearTimeout(timer);reject(operation.controller.signal.reason??new Error('Operation cancelled'));};
         const timer=setTimeout(()=>{operation.controller.signal.removeEventListener('abort',abort);resolve();},100);
@@ -407,31 +414,91 @@ export class MessengerClient {
     await this.putBlob(key,file.data);const record:MessengerFile={id,name:file.name,mime:file.mime,size:file.data.length,from:'self',status:'sending',receivedBytes:0,timestamp,senderId:own,conversationId,blobKey:key,metadata,expiresAt,deliveryStatus:'pending',recipientIds:peers,deliveredTo:[]};const p:PendingMessage={conversationId,messageId:id,remaining:peers,type:'file',author:own,createdAt:timestamp,expiresAt};c.files.push(record);this.pending.push(p);c.updatedAt=timestamp;
     try{await this.durable();}catch(error){c.files=c.files.filter(f=>f!==record);this.pending=this.pending.filter(item=>item!==p);this.blobs.delete(key);this.dirty=true;throw error;}this.committed.add(this.pendingKey(p));await this.expirePending();this.kick(c);
   });}
-  private clearOutgoingCallWake(){const wake=this.outgoingCallWake;this.outgoingCallWake=undefined;if(wake){clearTimeout(wake.timer);this.lastWake.delete('call:'+wake.peerId);}}
-  private armOutgoingCallWake(peerId:string,pair:Pair,operation:PendingOperation){
-    const snapshot=pair.session.getSnapshot();if(snapshot.callState!=='outgoing'||!snapshot.callId)return false;
-    const wake:OutgoingCallWake={peerId,callId:snapshot.callId,deadline:operation.started+operation.timeout};this.outgoingCallWake=wake;
-    const valid=()=>{const live=this.pairs.get(peerId)?.session.getSnapshot();return this.outgoingCallWake===wake&&!this.stopped&&!operation.controller.signal.aborted&&this.now()<wake.deadline&&live?.callState==='outgoing'&&live.callId===wake.callId;};
-    wake.timer=setTimeout(()=>{wake.timer=undefined;if(valid())void this.sendWake(peerId,'call',wake.deadline-this.now(),valid);},2500);
-    return true;
+  private currentOutgoing(invitation:OutgoingInvitation){if(this.outgoingInvitation!==invitation||this.stopped||invitation.operation.controller.signal.aborted||Date.now()>=invitation.expiresAt)return false;if(!invitation.sessionStarted)return this.pendingCall===invitation.operation;const live=this.pairs.get(invitation.peerId)?.session.getSnapshot();return live?.callId===invitation.callId&&live.callState==='outgoing';}
+  private rememberEnded(peerId:string,callId:string,expiresAt:number){for(const [key,expiry] of this.endedCalls)if(Date.now()>=expiry)this.endedCalls.delete(key);if(this.endedCalls.size>=128)this.endedCalls.delete(this.endedCalls.keys().next().value!);this.endedCalls.set(peerId+':'+callId,expiresAt);}
+  private async offerCallInvitation(invitation:OutgoingInvitation){
+    if(!this.currentOutgoing(invitation)||invitation.ringing||invitation.offering||invitation.offered)return;
+    invitation.offering=true;
+    try{
+      const capabilities=await this.getServices();if(!this.currentOutgoing(invitation)||invitation.ringing)return;
+      if(!capabilities.callInviteV1||!capabilities.serverEpoch){await this.sendWake(invitation.peerId,'call',invitation.expiresAt-Date.now(),()=>this.currentOutgoing(invitation)&&!invitation.ringing);return;}
+      invitation.serverEpoch=capabilities.serverEpoch;const contact=this.contacts.get(invitation.peerId);if(!contact)return;
+      const invite=encryptCallPush(this.options.identity,contact.publicKey,invitation,capabilities.serverEpoch,{conversationId:invitation.conversationId,video:invitation.video},this.random);
+      if(!this.currentOutgoing(invitation)||invitation.ringing)return;invitation.offered=true;
+      const state=await this.requestFrame({type:'call-offer',to:invitation.peerId,callId:invitation.callId,issuedAt:invitation.issuedAt,expiresAt:invitation.expiresAt,serverEpoch:capabilities.serverEpoch,invite},'call-state');
+      if(this.outgoingInvitation===invitation)this.handleCallState(state);
+    }catch{/* Optional push never starts media or marks a call connected. */}finally{invitation.offering=false;}
+  }
+  private callAction(call:OpenedCallPush|OutgoingInvitation,action:'accept'|'decline'|'cancel'|'end'):Promise<CallState|undefined>{
+    const otherId='callerId'in call?call.callerId:call.peerId;if(!call.serverEpoch||this.status!=='online')return Promise.resolve(undefined);
+    return this.requestFrame({type:'call-action',otherId,callId:call.callId,serverEpoch:call.serverEpoch,issuedAt:call.issuedAt,expiresAt:call.expiresAt,action},'call-state');
+  }
+  private clearPendingIncoming(endSession:boolean){const incoming=this.pendingIncoming;this.pendingIncoming=undefined;clearTimeout(this.incomingExpiry);this.incomingExpiry=undefined;if(incoming){this.rememberEnded(incoming.callerId,incoming.callId,incoming.expiresAt);if(endSession){const session=this.pairs.get(incoming.callerId)?.session;if(session?.getSnapshot().callId===incoming.callId)session.endCall();}}this.emit();}
+  private handleCallState(state:CallState){
+    const own=this.options.identity.userId;if(state.callerId!==own&&state.calleeId!==own)return;const stateKey=state.callerId+':'+state.callId;const previous=this.callStates.get(stateKey);if(previous&&previous.serverEpoch===state.serverEpoch&&previous.revision>state.revision)return;if(this.callStates.size>=128&&!this.callStates.has(stateKey))this.callStates.delete(this.callStates.keys().next().value!);this.callStates.set(stateKey,{...state});if(state.state==='ended')this.rememberEnded(state.callerId===own?state.calleeId:state.callerId,state.callId,state.expiresAt);
+    const incoming=this.pendingIncoming;
+    if(incoming&&state.callId===incoming.callId&&state.callerId===incoming.callerId&&state.calleeId===own){
+      const live=this.pairs.get(incoming.callerId)?.session.getSnapshot();
+      if(state.state==='unknown'||state.serverEpoch!==incoming.serverEpoch){if(live?.callId!==incoming.callId||live.callState!=='active')this.clearPendingIncoming(true);return;}
+      if(state.revision<incoming.revision)return;incoming.revision=state.revision;
+      if(state.state==='ended'){this.clearPendingIncoming(true);return;}
+    }
+    const outgoing=this.outgoingInvitation;
+    if(outgoing&&state.callId===outgoing.callId&&state.callerId===own&&state.calleeId===outgoing.peerId&&state.serverEpoch===outgoing.serverEpoch&&state.revision>=outgoing.revision){outgoing.revision=state.revision;if(state.state==='ringing'||state.state==='accepted'){outgoing.ringing=true;clearTimeout(outgoing.timer);}else if(state.state==='ended'){this.endCall();return;}}
+    this.emit();
+  }
+  /** Terminal push data is only a reason to fetch authenticated current state. */
+  async refreshCallState(callId:string,otherId:string,serverEpoch:string):Promise<CallState>{this.assertActive();const state=await this.requestFrame({type:'call-state-get',callId,otherId,serverEpoch},'call-state');const incoming=this.pendingIncoming;if(state.state==='unknown'&&state.callId===callId&&((state.callerId===this.options.identity.userId&&state.calleeId===otherId)||(state.callerId===otherId&&state.calleeId===this.options.identity.userId))&&incoming?.callId===callId&&incoming.callerId===otherId&&incoming.serverEpoch===serverEpoch){const live=this.pairs.get(otherId)?.session.getSnapshot();if(live?.callId!==callId||live.callState!=='active')this.clearPendingIncoming(true);}else this.handleCallState(state);return state;}
+  openCallPush(envelope:string,intent:WakeIntent,signal?:AbortSignal):Promise<PendingIncomingCall>{this.assertActive();return this.track(this.openCallPushWork(envelope,intent,signal));}
+  private async openCallPushWork(envelope:string,intent:WakeIntent,signal?:AbortSignal):Promise<PendingIncomingCall>{
+    const check=()=>{this.assertActive();if(signal?.aborted)throw signal.reason??new Error('Call wake cancelled');};check();await this.restore();check();const header=callPushEnvelopeSchema.parse(JSON.parse(callPushSchema.parse(envelope)));const contact=this.contacts.get(header.senderId);if(!contact)throw new Error('Unknown call sender');
+    const invitation=decryptCallPush(this.options.identity,contact.publicKey,envelope,intent);const conversation=this.conversations.get(invitation.conversationId);if(!conversation||conversation.kind!=='direct'||!conversation.memberIds.includes(invitation.callerId)||!conversation.memberIds.includes(this.options.identity.userId))throw new Error('Unknown direct call conversation');
+    if((this.endedCalls.get(invitation.callerId+':'+invitation.callId)??0)>Date.now())throw new Error('Call was already ended');
+    const active=this.getSnapshot().activeCall;if(active&&(active.peerId!==invitation.callerId||active.session.callId!==invitation.callId||active.session.callVideo!==invitation.video))throw new Error('Another call is already active');
+    if(this.status!=='online')await this.beforeCallDeadline(invitation,this.connect(),signal);check();
+    const capabilities=await this.beforeCallDeadline(invitation,this.getServices(),signal);check();if(!capabilities.callInviteV1||capabilities.serverEpoch!==invitation.serverEpoch)throw new Error('Call server epoch changed');
+    const state=await this.beforeCallDeadline(invitation,this.requestFrame({type:'call-received',callerId:invitation.callerId,callId:invitation.callId,serverEpoch:invitation.serverEpoch},'call-state'),signal);check();
+    if(state.callerId!==invitation.callerId||state.calleeId!==this.options.identity.userId||state.callId!==invitation.callId||state.serverEpoch!==invitation.serverEpoch||state.issuedAt!==invitation.issuedAt||state.expiresAt!==invitation.expiresAt||!['ringing','accepted'].includes(state.state)||Date.now()>=invitation.expiresAt)throw new Error('Call invitation is no longer current');
+    if((this.endedCalls.get(invitation.callerId+':'+invitation.callId)??0)>Date.now())throw new Error('Call was already ended');
+    const latest=this.callStates.get(invitation.callerId+':'+invitation.callId);if(latest&&(latest.serverEpoch!==invitation.serverEpoch||latest.state==='ended'||latest.state==='unknown'))throw new Error('Call invitation is no longer current');
+    const live=this.getSnapshot().activeCall;if(live&&(live.peerId!==invitation.callerId||live.session.callId!==invitation.callId||live.session.callVideo!==invitation.video||(live.session.callExpiresAt!==undefined&&live.session.callExpiresAt!==invitation.expiresAt)))throw new Error('Another call is already active');
+    if(this.pendingIncoming?.callId===invitation.callId&&this.pendingIncoming.callerId===invitation.callerId)return {...this.pendingIncoming};
+    this.pendingIncoming={...invitation,state:'ringing',revision:state.revision};clearTimeout(this.incomingExpiry);
+    this.incomingExpiry=setTimeout(()=>{if(this.pendingIncoming?.callId===invitation.callId){const snapshot=this.pairs.get(invitation.callerId)?.session.getSnapshot();this.clearPendingIncoming(snapshot?.callState!=='active');}},Math.max(1,invitation.expiresAt-Date.now()));
+    this.emit();void this.ensurePair(invitation.callerId,true).catch(e=>this.report(e));return {...this.pendingIncoming};
   }
   async startCall(conversationId:string,video=false):Promise<void>{
-    const c=this.conversations.get(conversationId);if(!c||c.kind!=='direct')throw new Error('Group calls are not implemented');
-    if(this.getSnapshot().activeCall)throw new Error('Another call is already active');
-    this.clearOutgoingCallWake();
-    const peerId=c.memberIds.find(id=>id!==this.options.identity.userId)!;const operation=this.operation(conversationId,30000,peerId);this.pendingCall=operation;this.emit();let awaitingAnswer=false;
+    const c=this.conversations.get(conversationId);if(!c||c.kind!=='direct')throw new Error('Group calls are not implemented');if(this.getSnapshot().activeCall)throw new Error('Another call is already active');
+    const previous=this.outgoingInvitation;if(previous){clearTimeout(previous.timer);clearTimeout(previous.expiry);}const peerId=c.memberIds.find(id=>id!==this.options.identity.userId)!;const operation=this.operation(conversationId,CALL_INVITE_TTL_MS,peerId);const issuedAt=Date.now();
+    const invitation:OutgoingInvitation={callId:this.id(),issuedAt,expiresAt:issuedAt+CALL_INVITE_TTL_MS,peerId,conversationId,video,offered:false,offering:false,ringing:false,sessionStarted:false,revision:0,operation};this.outgoingInvitation=invitation;this.pendingCall=operation;
+    invitation.timer=setTimeout(()=>{void this.offerCallInvitation(invitation);},2500);invitation.expiry=setTimeout(()=>{if(this.outgoingInvitation===invitation){const live=this.pairs.get(peerId)?.session.getSnapshot();if(live?.callState!=='active')this.endCall();}},CALL_INVITE_TTL_MS);this.emit();
     try{
-      const pair=await this.waitForPeer(peerId,operation,'call');this.assertOperation(operation);
-      if([...this.pairs.values()].some(p=>p.session.getSnapshot().callState!=='idle'))throw new Error('Another call is already active');
-      // Cancellation also invalidates an outstanding microphone permission request.
-      let abort!:()=>void;
-      const cancelled=new Promise<never>((_resolve,reject)=>{abort=()=>{pair.session.endCall();reject(operation.controller.signal.reason??new Error('Call cancelled'));};operation.controller.signal.addEventListener('abort',abort,{once:true});});
-      try{await Promise.race([pair.session.startCall(video),cancelled]);this.assertOperation(operation);awaitingAnswer=this.armOutgoingCallWake(peerId,pair,operation);}finally{operation.controller.signal.removeEventListener('abort',abort);}
-    }finally{clearTimeout(operation.timer);if(this.pendingCall===operation){this.pendingCall=undefined;if(!awaitingAnswer)this.lastWake.delete('call:'+peerId);}this.emit();}
+      const pair=await this.waitForPeer(peerId,operation,'call');this.assertOperation(operation);if([...this.pairs.values()].some(p=>p.session.getSnapshot().callState!=='idle'))throw new Error('Another call is already active');
+      let abort!:()=>void;const cancelled=new Promise<never>((_resolve,reject)=>{abort=()=>{pair.session.endCall();reject(operation.controller.signal.reason??new Error('Call cancelled'));};operation.controller.signal.addEventListener('abort',abort,{once:true});});
+      try{invitation.sessionStarted=true;await Promise.race([pair.session.startCall(video,invitation),cancelled]);this.assertOperation(operation);}finally{operation.controller.signal.removeEventListener('abort',abort);}
+    }catch(error){if(this.outgoingInvitation===invitation){void this.callAction(invitation,'cancel').catch(()=>{});this.outgoingInvitation=undefined;clearTimeout(invitation.timer);clearTimeout(invitation.expiry);}throw error;}
+    finally{clearTimeout(operation.timer);if(this.pendingCall===operation)this.pendingCall=undefined;this.emit();}
   }
-  async acceptCall():Promise<void>{const active=this.getSnapshot().activeCall;if(!active||active.session.callState!=='incoming')throw new Error('No incoming call');await this.pairs.get(active.peerId)!.session.acceptCall();}
-  rejectCall():void{const active=this.getSnapshot().activeCall;if(active)this.pairs.get(active.peerId)?.session.rejectCall();}
-  endCall():void{this.clearOutgoingCallWake();const pending=this.pendingCall;this.pendingCall=undefined;if(pending){this.lastWake.delete('call:'+pending.peerId);clearTimeout(pending.timer);pending.controller.abort(new Error('Call cancelled'));}const active=this.getSnapshot().activeCall;if(active)this.pairs.get(active.peerId)?.session.endCall();else if(pending)this.pairs.get(pending.peerId!)?.session.endCall();this.emit();}
+  private async beforeCallDeadline<T>(call:CallInvitation,work:Promise<T>,signal?:AbortSignal):Promise<T>{
+    let timer:ReturnType<typeof setTimeout>|undefined;let abort:(()=>void)|undefined;
+    try{return await Promise.race([work,new Promise<never>((_resolve,reject)=>{timer=setTimeout(()=>reject(new Error('Call invitation expired')),Math.max(0,call.expiresAt-Date.now()));abort=()=>reject(signal?.reason??new Error('Call wake cancelled'));if(signal?.aborted)abort();else signal?.addEventListener('abort',abort,{once:true});})]);}
+    finally{clearTimeout(timer);if(abort)signal?.removeEventListener('abort',abort);}
+  }
+  async acceptCall():Promise<void>{
+    const incoming=this.pendingIncoming;if(!incoming){const active=this.getSnapshot().activeCall;if(!active||active.session.callState!=='incoming')throw new Error('No incoming call');await this.pairs.get(active.peerId)!.session.acceptCall();return;}
+    if(incoming.state==='accepted')throw new Error('Call answer is already pending');incoming.state='accepted';this.emit();
+    return this.track((async()=>{
+      try{const state=await this.beforeCallDeadline(incoming,this.callAction(incoming,'accept'));if(!state||state.state!=='accepted'||state.serverEpoch!==incoming.serverEpoch||state.callId!==incoming.callId||state.callerId!==incoming.callerId||state.calleeId!==this.options.identity.userId||state.issuedAt!==incoming.issuedAt||state.expiresAt!==incoming.expiresAt)throw new Error('Call answer is no longer current');
+        while(this.pendingIncoming===incoming&&Date.now()<incoming.expiresAt&&!this.closing){const session=this.pairs.get(incoming.callerId)?.session,snapshot=session?.getSnapshot();if(snapshot?.callId===incoming.callId&&snapshot.callState==='incoming'&&snapshot.callVideo===incoming.video&&snapshot.callExpiresAt===incoming.expiresAt){await this.beforeCallDeadline(incoming,session!.acceptCall());if(this.pendingIncoming===incoming){clearTimeout(this.incomingExpiry);this.incomingExpiry=undefined;this.pendingIncoming=undefined;this.emit();}return;}await new Promise<void>(resolve=>setTimeout(resolve,100));}
+        throw new Error('Call connection expired or was cancelled');
+      }catch(error){if(this.pendingIncoming===incoming)this.clearPendingIncoming(true);throw error;}
+    })());
+  }
+  rejectCall():void{const incoming=this.pendingIncoming;if(incoming){void this.callAction(incoming,'decline').catch(()=>{});this.clearPendingIncoming(true);return;}const active=this.getSnapshot().activeCall;if(active)this.pairs.get(active.peerId)?.session.rejectCall();}
+  endCall():void{
+    const invitation=this.outgoingInvitation;this.outgoingInvitation=undefined;if(invitation){clearTimeout(invitation.timer);clearTimeout(invitation.expiry);this.rememberEnded(invitation.peerId,invitation.callId,invitation.expiresAt);void this.callAction(invitation,'cancel').catch(()=>{});this.lastWake.delete('call:'+invitation.peerId);}
+    const incoming=this.pendingIncoming;if(incoming){void this.callAction(incoming,'end').catch(()=>{});this.clearPendingIncoming(true);}const pending=this.pendingCall;this.pendingCall=undefined;if(pending){clearTimeout(pending.timer);pending.controller.abort(new Error('Call cancelled'));}const active=this.getSnapshot().activeCall;if(active)this.pairs.get(active.peerId)?.session.endCall();else if(pending)this.pairs.get(pending.peerId!)?.session.endCall();this.emit();
+  }
   setMuted(muted:boolean):void{const active=this.getSnapshot().activeCall;if(active)this.pairs.get(active.peerId)?.session.setMuted(muted);}
   /** Called only by a foreground, focused chat; notification previews never call this. */
   markRead(conversationId:string):Promise<void>{if(this.closing)return Promise.resolve();return this.serial(async()=>{
@@ -502,7 +569,7 @@ export class MessengerClient {
   }
   disconnect():void{
     if(this.closed)return;
-    this.clearOutgoingCallWake();if(this.pendingCall)this.endCall();clearTimeout(this.expiryTimer);this.expiryTimer=undefined;
+    if(this.outgoingInvitation||this.pendingIncoming||this.pendingCall)this.endCall();clearTimeout(this.expiryTimer);this.expiryTimer=undefined;
     this.stopped=true;++this.epoch;this.cancelOpening?.();this.cancelOpening=undefined;clearTimeout(this.wakeTimer);this.wakeTimer=undefined;clearTimeout(this.reconnect);this.reconnect=undefined;
     const socket=this.socket;this.socket=undefined;this.services=undefined;this.servicesRequest=undefined;this.wakeCapabilitiesRequest=undefined;if(socket){socket.onmessage=null;socket.onclose=null;socket.onerror=null;socket.close();}
     for(const request of this.requests.values()){clearTimeout(request.timer);request.reject(new Error('Disconnected'));}this.requests.clear();

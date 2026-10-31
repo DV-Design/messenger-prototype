@@ -1,6 +1,7 @@
 package dev.messenger.prototype.calls;
 
 import android.app.Activity;
+import android.app.ActivityOptions;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -74,6 +75,7 @@ public final class LastCallCallUiService extends Service {
     boolean notifications;
     boolean channel;
     boolean fullScreen;
+    boolean specialAccessRequired;
   }
 
   static synchronized boolean begin(Context context, String uuid, String name, boolean video, long expiresAt) {
@@ -111,6 +113,7 @@ public final class LastCallCallUiService extends Service {
     synchronized (LastCallCallUiService.class) {
       // A stale timer from an old entry must never touch the current call.
       if (active != entry) return;
+      LastCallAudioService.endPending(entry.context, entry.uuid);
       // Close only this ringing self-managed connection; never answer or capture media.
       if (Build.VERSION.SDK_INT >= 26) {
         Connection connection = VoiceConnectionService.getConnection(entry.uuid);
@@ -139,7 +142,12 @@ public final class LastCallCallUiService extends Service {
     return MessageDigest.isEqual(nonce.getBytes(StandardCharsets.UTF_8), entry.nonce.getBytes(StandardCharsets.UTF_8)) ? entry : null;
   }
 
-  static synchronized Entry current() { return active; }
+  static Entry current() { return active; }
+
+  static void expirePendingAudio(String uuid) {
+    Entry entry = active;
+    if (entry != null && entry.uuid.equals(uuid)) expire(entry);
+  }
 
   static void bindScreen(Activity activity, String uuid) {
     screen = new WeakReference<>(activity); screenUuid = uuid;
@@ -204,6 +212,7 @@ public final class LastCallCallUiService extends Service {
   static Status status(Context context) {
     Status status = new Status();
     status.supported = Build.VERSION.SDK_INT >= 24;
+    status.specialAccessRequired = Build.VERSION.SDK_INT >= 34;
     NotificationManager manager = (NotificationManager) context.getSystemService(NOTIFICATION_SERVICE);
     status.notifications = NotificationManagerCompat.from(context).areNotificationsEnabled();
     if (!status.supported) { status.channel = false; status.fullScreen = false; return status; }
@@ -233,6 +242,17 @@ public final class LastCallCallUiService extends Service {
     } catch (Exception ignored) {
       // Some OEMs hide notification/full-screen settings; do not fail the call path.
     }
+  }
+
+  /** Launching special settings does not grant access; JS waits for leave/return and reads status. */
+  static boolean openFullScreenSettings(Context context) {
+    if (Build.VERSION.SDK_INT < 34) return false;
+    try {
+      Intent intent = new Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT,
+        Uri.parse("package:" + context.getPackageName())).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+      context.startActivity(intent);
+      return true;
+    } catch (Exception unavailable) { return false; }
   }
 
   /** Replaces only LastCall's previous managed CallKeep phone account during the upgrade. */
@@ -297,7 +317,17 @@ public final class LastCallCallUiService extends Service {
       .putExtra(EXTRA_VIDEO, entry.video).putExtra(EXTRA_NONCE, entry.nonce)
       .putExtra(EXTRA_EXPIRES, entry.expiresAt);
     int request = entry.uuid.hashCode() * 31 + kind;
-    return PendingIntent.getActivity(this, request, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+    int flags = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
+    if (Build.VERSION.SDK_INT >= 34) {
+      // Delegate BAL only for this private, immutable, live UUID/nonce/expiry-bound call activity.
+      // ALLOW_IF_VISIBLE would suppress a legitimate incoming call while the phone is locked.
+      ActivityOptions options = ActivityOptions.makeBasic();
+      options.setPendingIntentCreatorBackgroundActivityStartMode(Build.VERSION.SDK_INT >= 36
+        ? ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOW_ALWAYS
+        : ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED);
+      return PendingIntent.getActivity(this, request, intent, flags, options.toBundle());
+    }
+    return PendingIntent.getActivity(this, request, intent, flags);
   }
 
   @Override public int onStartCommand(Intent intent, int flags, int startId) {

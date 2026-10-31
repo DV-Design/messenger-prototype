@@ -5,6 +5,7 @@ import type { MessengerClient, MessengerSnapshot } from '@messenger/core';
 import { registerMessengerObserver, retainMessenger } from './runtime';
 import { WakeTaskRegistry, type WakeNotice } from './wake-model';
 import { CallTaskRegistry, SystemCallController, callStatusText, nativeCallMode, type CallUiStatus } from './system-call-model';
+import { callInviteNativeReady } from './call-push-model';
 const android = Platform.OS === 'android';
 const apiLevel = Number(Platform.Version);
 const nativeCalls = android && nativeCallMode(apiLevel) === 'self-managed';
@@ -22,6 +23,7 @@ function publish(text: string) { status = text; listeners.forEach(listener => li
 interface LastCallAudio {
   start(id: string, video: boolean): Promise<boolean>;
   stop(id: string): void;
+  activateCallAudio(id: string): void;
   holdHost(id: string): void;
   releaseHost(id: string): void;
   holdWakeHost(id: string, durationMs: number): Promise<boolean>;
@@ -37,42 +39,39 @@ interface LastCallAudio {
 const audio = NativeModules.LastCallAudio as LastCallAudio | undefined;
 const callTasks = new CallTaskRegistry();
 const wakeTasks = new WakeTaskRegistry();
-let callIntentExpiresAt = 0;
 /** Call wake keeps a mic-free setup FGS; data wake keeps the original 12s native deadline. */
-export async function retainWakeRuntime(notice: Extract<WakeNotice, { legacy: false }>): Promise<() => void> {
+export async function retainWakeRuntime(notice: Extract<WakeNotice, { legacy: false }>, showSetup = true): Promise<() => void> {
   if (!android || !audio?.holdWakeHost) return () => {};
   const call = notice.kind === 'call';
-  if (call) callIntentExpiresAt = notice.expiresAt;
   const release = wakeTasks.acquire(notice.id);
   const budget = Math.min(call ? 28_000 : 12_000, notice.expiresAt - Date.now());
   if (budget <= 0) { release(); return () => {}; }
   try { await audio.holdWakeHost(notice.id, budget); }
   catch { if (release()) audio.releaseWakeHost(notice.id); throw new Error('Background timer ownership unavailable'); }
-  if (call) { try { audio.startCallSetup(notice.id, notice.expiresAt); } catch { /* The P2P wake still proceeds. */ } }
+  if (call && showSetup) { try { audio.startCallSetup(notice.id, notice.expiresAt); } catch { /* The P2P wake still proceeds. */ } }
   return () => { if (release()) { audio.releaseWakeHost(notice.id); if (call) audio.stopCallSetup(notice.id); } };
 }
 function retainCall(manager: MessengerClient, id: string): () => void {
   callTasks.claim(id); const release = retainMessenger(manager); audio?.holdHost(id);
   return () => { void release().finally(() => { callTasks.release(id); audio?.releaseHost(id); }).catch(() => {}); };
 }
-function showNativeCallUi(uuid: string, name: string, video: boolean): boolean {
-  // Foreground rings in the existing CallOverlay; the native call activity is for lockscreen/background.
-  if (!nativeUi || !audio?.showCallUi || AppState.currentState === 'active') return false;
-  const now = Date.now();
-  const expiresAt = callIntentExpiresAt > now ? Math.min(callIntentExpiresAt, now + 30_000) : now + 30_000;
+function showNativeCallUi(uuid: string, name: string, video: boolean, expiresAt: number): boolean {
+  // Android decides heads-up vs locked fullscreen; JS AppState can remain active under keyguard.
+  if (!nativeUi || !audio?.showCallUi) return false;
+  const now = Date.now(); if (expiresAt <= now) return false;
   void audio.showCallUi(uuid, name, video, expiresAt).catch(() => {});
   return true;
 }
 const controller = new SystemCallController({
   present: async (uuid, name, video) => {
     // Android 7 shows the same authenticated call-only surface without Telecom.
-    if (!nativeCalls) { showNativeCallUi(uuid, name, video); return true; }
+    if (!nativeCalls) return true;
     if (!(await initialize())) return true;
     RNCallKeep.displayIncomingCall(uuid, 'LastCall', name, 'generic', video); return true;
   },
   showUi: showNativeCallUi,
   dismiss: uuid => audio?.dismissCallUi(uuid),
-  activate: uuid => RNCallKeep.setCurrentCallActive(uuid),
+  activate: uuid => { audio?.activateCallAudio?.(uuid); if (nativeCalls) RNCallKeep.setCurrentCallActive(uuid); },
   end: uuid => RNCallKeep.endCall(uuid),
   startAudio: async (uuid, video) => {
     if (!(await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO))) throw new Error('Microphone must be granted in foreground');
@@ -118,6 +117,13 @@ export async function refreshSystemCallStatus(): Promise<void> {
   if (!nativeCalls) { const ui = await queryUiStatus(); enabled = !!ui?.supported; publish(callStatusText(enabled, ui)); return; }
   enabled = await RNCallKeep.hasPhoneAccount().catch(() => false);
   publish(callStatusText(enabled, await queryUiStatus()));
+}
+/** No permission prompt. Denied fullscreen still supports authenticated CallStyle fallback. */
+export async function prepareCallInvitePush(): Promise<boolean> {
+  if (!nativeUi || !audio?.showCallUi || !audio?.holdHost || !audio?.start || !audio?.activateCallAudio) return false;
+  await initialize();
+  const ui = await queryUiStatus();
+  return callInviteNativeReady(ui);
 }
 /** No phone-account/phone-number permission prompt: CallKeep self-registers its own account. */
 export async function enableSystemCalls(): Promise<void> {

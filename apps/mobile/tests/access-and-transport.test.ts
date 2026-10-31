@@ -17,8 +17,8 @@ test('only active features request permissions sequentially and survive one deni
     if (kind === 'camera') throw new Error('Denied');
     return 'granted';
   });
-  assert.deepEqual(visited, ['microphone', 'camera', 'photos', 'notifications']);
-  assert.equal(maximum, 1); assert.equal(results.length, 4);
+  assert.deepEqual(visited, ['microphone', 'camera', 'photos', 'notifications', 'fullScreenCalls']);
+  assert.equal(maximum, 1); assert.equal(results.length, 5);
   assert.ok(results[1]?.error); assert.equal(results[3]?.result, 'granted');
 });
 const session = (status: SessionSnapshot['status'], error?: string): SessionSnapshot => ({ status, error, messages: [], files: [], callState: 'idle', muted: false, route: 'unknown', stats: {} });

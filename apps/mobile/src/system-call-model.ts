@@ -10,7 +10,7 @@ export const SELF_MANAGED_MIN_API = 26;
 export function nativeCallMode(apiLevel: number): 'self-managed' | 'in-app' {
   return Number.isFinite(apiLevel) && apiLevel >= SELF_MANAGED_MIN_API ? 'self-managed' : 'in-app';
 }
-export interface CallUiStatus { supported: boolean; notifications: boolean; channel: boolean; fullScreen: boolean }
+export interface CallUiStatus { supported: boolean; notifications: boolean; channel: boolean; fullScreen: boolean; specialAccessRequired?: boolean }
 export function callSettingsTarget(status: CallUiStatus | undefined): 'full-screen' | 'notifications' | 'none' {
   if (!status?.supported) return 'none';
   if (status.notifications && status.channel && status.fullScreen) return 'none';
@@ -26,8 +26,8 @@ export function callStatusText(enabled: boolean, status?: CallUiStatus): string 
   return 'Системные входящие звонки включены. Телефонный аккаунт LastCall регистрируется автоматически.';
 }
 interface NativeCallPort {
-  present(uuid: string, name: string, video: boolean): Promise<boolean>;
-  showUi(uuid: string, name: string, video: boolean): boolean;
+  present(uuid: string, name: string, video: boolean, expiresAt: number): Promise<boolean>;
+  showUi(uuid: string, name: string, video: boolean, expiresAt: number): boolean;
   dismiss(uuid: string): void;
   activate(uuid: string): void;
   end(uuid: string): void;
@@ -35,8 +35,8 @@ interface NativeCallPort {
   stopAudio(uuid: string): void;
   retain(manager: Manager, uuid: string): () => void;
 }
-interface LiveCall { id: string; uuid: string; manager: Manager; name: string; video: boolean; release: () => void; timer?: ReturnType<typeof setTimeout>; answering: boolean; presented: boolean; audioStarted: boolean; uiShown: boolean }
-/** Native ringing requires a current authenticated session callId, never a wake payload. */
+interface LiveCall { id: string; uuid: string; manager: Manager; name: string; video: boolean; expiresAt: number; release: () => void; timer?: ReturnType<typeof setTimeout>; answering: boolean; presented: boolean; audioStarted: boolean; uiShown: boolean; activated: boolean }
+/** Core must authenticate a pending invitation or P2P call before it enters this controller. */
 export class SystemCallController {
   private current?: LiveCall;
   private pendingUi?: string;
@@ -49,11 +49,15 @@ export class SystemCallController {
     if (!call?.session.callId) return;
     if (!this.current && call.session.callState === 'incoming') {
       const id = call.session.callId;
+      const expiresAt = Math.min(call.session.callExpiresAt ?? Date.now() + 30_000, Date.now() + 30_000);
+      if (!Number.isSafeInteger(expiresAt) || expiresAt <= Date.now()) { manager.endCall(); return; }
       const name = snapshot.contacts.find(user => user.userId === call.peerId)?.displayName ?? 'LastCall';
-      const live: LiveCall = { id, uuid: nativeCallUuid(id), manager, name, video: !!call.session.callVideo, release: this.port.retain(manager, nativeCallUuid(id)), answering: false, presented: false, audioStarted: false, uiShown: false };
+      const live: LiveCall = { id, uuid: nativeCallUuid(id), manager, name, video: !!call.session.callVideo, expiresAt, release: this.port.retain(manager, nativeCallUuid(id)), answering: false, presented: false, audioStarted: false, uiShown: false, activated: false };
       this.current = live;
-      live.timer = setTimeout(() => { if (this.current === live && manager.getSnapshot().activeCall?.session.callState !== 'active') { manager.endCall(); this.clear(); } }, 30_000);
-      void this.port.present(live.uuid, name, live.video).then(success => {
+      live.timer = setTimeout(() => { if (this.current === live && manager.getSnapshot().activeCall?.session.callState !== 'active') { manager.endCall(); this.clear(); } }, Math.max(0, expiresAt - Date.now()));
+      // Own CallStyle UI is independent of ICE or Telecom's async showIncomingCallUi callback.
+      this.showUi(live.uuid);
+      void this.port.present(live.uuid, name, live.video, expiresAt).then(success => {
         if (this.current !== live) { if (success) this.port.end(live.uuid); return; }
         if (!success) { this.clear(); return; }
         live.presented = true;
@@ -66,18 +70,18 @@ export class SystemCallController {
     if (this.pendingUi === live.uuid && live.presented) { this.pendingUi = undefined; this.showUi(live.uuid); }
     if (this.pendingAnswer === live.uuid) { this.pendingAnswer = undefined; void this.answer(live.uuid); return; }
     if (this.pendingEnd === live.uuid) { this.pendingEnd = undefined; this.end(live.uuid); return; }
-    if (call.session.callState === 'active') { clearTimeout(live.timer); this.port.activate(live.uuid); this.dismissUi(live); }
+    if (call.session.callState === 'active') this.activate(live);
   }
   private matches(uuid: string): LiveCall | undefined {
     const live = this.current;
     return live?.uuid === uuid && live.manager.getSnapshot().activeCall?.session.callId === live.id ? live : undefined;
   }
-  /** Called from CallKeep's showIncomingCallUi only after a real authenticated call connection. */
+  /** CallKeep callbacks and the authenticated invitation observer share one UI owner/UUID. */
   showUi(uuid: string): boolean {
     const live = this.matches(uuid);
     if (!live) { if (nativeUuid.test(uuid)) this.pendingUi = uuid; return false; }
     if (live.uiShown || live.manager.getSnapshot().activeCall?.session.callState !== 'incoming') return true;
-    live.uiShown = this.port.showUi(live.uuid, live.name, live.video); return true;
+    live.uiShown = this.port.showUi(live.uuid, live.name, live.video, live.expiresAt); return true;
   }
   /** A foreground call was answered in CallOverlay; show native UI only if the app leaves foreground. */
   remindUi(): void {
@@ -88,14 +92,15 @@ export class SystemCallController {
     const live = uuid ? this.matches(uuid) : this.current;
     if (!live) { if (uuid && nativeUuid.test(uuid)) this.pendingAnswer = uuid; return false; }
     if (live.manager.getSnapshot().activeCall?.session.callState !== 'incoming') return false;
+    if (Date.now() >= live.expiresAt) { this.end(live.uuid); return false; }
     if (live.answering) return true;
     live.answering = true;
     try {
       await this.port.startAudio(live.uuid, !!live.manager.getSnapshot().activeCall?.session.callVideo);
-      if (this.current !== live || live.manager.getSnapshot().activeCall?.session.callId !== live.id || live.manager.getSnapshot().activeCall?.session.callState !== 'incoming') { this.port.stopAudio(live.uuid); return true; }
+      if (this.current !== live || Date.now() >= live.expiresAt || live.manager.getSnapshot().activeCall?.session.callId !== live.id || live.manager.getSnapshot().activeCall?.session.callState !== 'incoming') { this.port.stopAudio(live.uuid); return true; }
       live.audioStarted = true;
       await live.manager.acceptCall();
-      if (this.current === live) { this.port.activate(live.uuid); this.dismissUi(live); }
+      if (this.current === live && live.manager.getSnapshot().activeCall?.session.callId === live.id && live.manager.getSnapshot().activeCall?.session.callState === 'active') this.activate(live);
     } catch { this.fail(live); }
     return true;
   }
@@ -107,6 +112,7 @@ export class SystemCallController {
   mute(uuid: string, muted: boolean): void { this.matches(uuid)?.manager.setMuted(muted); }
   failCurrent(uuid: string): void { const live = this.matches(uuid); if (live) this.fail(live); }
   private fail(live: LiveCall): void { if (this.current !== live) return; live.manager.endCall(); this.clear(); }
+  private activate(live: LiveCall): void { clearTimeout(live.timer); if (!live.activated) { live.activated = true; this.port.activate(live.uuid); } this.dismissUi(live); }
   private dismissUi(live: LiveCall): void { if (!live.uiShown) return; live.uiShown = false; this.port.dismiss(live.uuid); }
   private clear(): void {
     const live = this.current; if (!live) return; this.current = undefined;

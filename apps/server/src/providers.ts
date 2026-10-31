@@ -2,16 +2,31 @@ import { readFileSync, statSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { cert, deleteApp, initializeApp } from 'firebase-admin/app';
 import { getMessaging, type Message } from 'firebase-admin/messaging';
-import {pushPreviewSchema,pushPreviewEnvelopeSchema,type WakeIntent} from '@messenger/core';
+import {pushPreviewSchema,pushPreviewEnvelopeSchema,callPushSchema,callPushEnvelopeSchema,callStateSchema,type CallState,type WakeIntent} from '@messenger/core';
 
 export interface SMSProvider { sendCode(phone: string, code: string): Promise<void>; dispose?(): Promise<void> }
-export interface PushProvider { sendWake(token: string, intent?: WakeIntent, backgroundSync?: boolean,preview?:string): Promise<void>; dispose?(): Promise<void> }
+export interface PushProvider { sendWake(token: string, intent?: WakeIntent, backgroundSync?: boolean,preview?:string,callInvite?:string,callState?:CallState): Promise<void>; dispose?(): Promise<void> }
 export class InvalidPushToken extends Error { constructor() { super('Push token is no longer valid'); } }
 
 /** Generic metadata or an opted-in opaque encrypted preview; expired intents never reach FCM. */
-export function buildFcmWakeMessage(token: string, intent?: WakeIntent, now = Date.now(), backgroundSync = false,preview?:string): Message | undefined {
+export function buildFcmWakeMessage(token: string, intent?: WakeIntent, now = Date.now(), backgroundSync = false,preview?:string,callInvite?:string,callState?:CallState): Message | undefined {
   const expiresAt = intent ? Math.min(intent.expiresAt, now + (intent.kind === 'call' ? 30_000 : 60_000)) : now + 60_000;
   if (expiresAt <= now) return undefined;
+  if(callInvite!==undefined||callState!==undefined){
+    if(!backgroundSync||!intent||intent.kind!=='call'||preview!==undefined||(callInvite!==undefined&&callState!==undefined))throw new Error('Invalid call delivery mode');
+    let data:Record<string,string>;
+    if(callInvite!==undefined){
+      callInvite=callPushSchema.parse(callInvite);const header=callPushEnvelopeSchema.parse(JSON.parse(callInvite));
+      if(header.callId!==intent.intentId||header.expiresAt!==intent.expiresAt||header.issuedAt>now+5000||header.expiresAt>now+35000)throw new Error('Call intent mismatch');
+      data={kind:'lastcall-call',intentKind:'call',intentId:header.callId,expiresAt:String(header.expiresAt),callInvite};
+    }else{
+      const state=callStateSchema.parse(callState);
+      if(state.state!=='ended'||state.callId!==intent.intentId||state.expiresAt!==intent.expiresAt||state.expiresAt-state.issuedAt!==30000||state.issuedAt>now+5000)throw new Error('Invalid terminal call state');
+      data={kind:'lastcall-call-state',callId:state.callId,callerId:state.callerId,calleeId:state.calleeId,serverEpoch:state.serverEpoch,issuedAt:String(state.issuedAt),expiresAt:String(state.expiresAt)};
+    }
+    if(Buffer.byteLength(JSON.stringify(data),'utf8')>4096)throw new Error('Call data exceeds FCM payload limit');
+    return {token,data,android:{priority:'high',ttl:expiresAt-now,restrictedPackageName:'dev.messenger.prototype'}};
+  }
   if(preview!==undefined){
     preview=pushPreviewSchema.parse(preview);const header=pushPreviewEnvelopeSchema.parse(JSON.parse(preview));
     if(!backgroundSync||!intent||(intent.kind!=='message'&&intent.kind!=='file')||header.kind!==intent.kind||header.intentId!==intent.intentId||header.expiresAt!==intent.expiresAt||intent.expiresAt>now+65000)throw new Error('Invalid encrypted preview delivery mode');
@@ -67,9 +82,9 @@ export function createFcmPushProvider(credentialsPath: string): PushProvider | u
     const app = initializeApp({ credential: cert({ projectId: account.project_id, clientEmail: account.client_email, privateKey: account.private_key }), projectId: account.project_id }, `lastcall-${randomBytes(8).toString('hex')}`);
     const messaging = getMessaging(app);
     return {
-      async sendWake(token, intent, backgroundSync = false,preview) {
+      async sendWake(token, intent, backgroundSync = false,preview,callInvite,callState) {
         try {
-          const message = buildFcmWakeMessage(token, intent, Date.now(), backgroundSync,preview);
+          const message = buildFcmWakeMessage(token, intent, Date.now(), backgroundSync,preview,callInvite,callState);
           if (message) await messaging.send(message);
         } catch (error) {
           const code = typeof error === 'object' && error ? (error as { code?: unknown }).code : undefined;

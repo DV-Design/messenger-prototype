@@ -18,6 +18,10 @@ import io.wazo.callkeep.VoiceConnectionService;
 /** Call-only lockscreen surface: no chat, navigation or history. */
 public final class LastCallCallActivity extends Activity {
   private String uuid;
+  private boolean answering;
+  private TextView hint;
+  private Button answerButton;
+  private Button declineButton;
 
   @Override protected void onCreate(Bundle state) {
     super.onCreate(state);
@@ -39,6 +43,7 @@ public final class LastCallCallActivity extends Activity {
   }
 
   private void render(LastCallCallUiService.Entry entry) {
+    if (!entry.uuid.equals(uuid)) answering = false;
     uuid = entry.uuid;
     LinearLayout root = new LinearLayout(this);
     root.setOrientation(LinearLayout.VERTICAL);
@@ -62,7 +67,7 @@ public final class LastCallCallActivity extends Activity {
     name.setPadding(0, dp(18), 0, dp(10));
     root.addView(name);
 
-    TextView hint = new TextView(this);
+    hint = new TextView(this);
     hint.setText(entry.video ? "Видеозвонок начнётся после ответа" : "Микрофон включится только после ответа");
     hint.setTextColor(Color.rgb(156, 163, 175));
     hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
@@ -71,11 +76,13 @@ public final class LastCallCallActivity extends Activity {
     root.addView(hint);
 
     Button decline = new Button(this);
+    declineButton = decline;
     decline.setText("Отклонить");
     decline.setOnClickListener(view -> decline());
     root.addView(decline, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(56)));
 
     Button answer = new Button(this);
+    answerButton = answer;
     answer.setText("Принять");
     answer.setOnClickListener(view -> answer());
     LinearLayout.LayoutParams answerParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(56));
@@ -83,6 +90,7 @@ public final class LastCallCallActivity extends Activity {
     root.addView(answer, answerParams);
 
     setContentView(root);
+    if (answering) showConnecting();
   }
 
   private void performAction(String action) {
@@ -91,14 +99,25 @@ public final class LastCallCallActivity extends Activity {
   }
 
   private void answer() {
+    LastCallCallUiService.Entry entry = LastCallCallUiService.current();
+    if (entry == null || uuid == null || !uuid.equals(entry.uuid) || entry.expiresAt <= System.currentTimeMillis()) { finish(); return; }
+    if (answering) return;
+    answering = true; showConnecting();
     Connection connection = uuid == null ? null : VoiceConnectionService.getConnection(uuid);
     if (connection != null) connection.onAnswer();
     else LastCallCallUiService.dispatchAction(this, uuid, LastCallCallUiService.ACTION_ANSWER);
-    LastCallCallUiService.stop(getApplicationContext(), uuid);
-    finish();
+    // Keep this call-only Activity visible while Android grants while-in-use microphone/camera access.
+    // Core's actual active session or matching cancel/expiry closes it, never an early answer receipt.
+  }
+
+  private void showConnecting() {
+    if (hint != null) hint.setText("Подключаем…");
+    if (answerButton != null) { answerButton.setText("Подключаем…"); answerButton.setEnabled(false); }
+    if (declineButton != null) declineButton.setText("Завершить");
   }
 
   private void decline() {
+    if (uuid != null) LastCallAudioService.end(getApplicationContext(), uuid);
     Connection connection = uuid == null ? null : VoiceConnectionService.getConnection(uuid);
     if (connection != null) connection.onReject();
     else LastCallCallUiService.dispatchAction(this, uuid, LastCallCallUiService.ACTION_DECLINE);

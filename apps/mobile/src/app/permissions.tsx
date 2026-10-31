@@ -13,6 +13,7 @@ const details: Record<PermissionKind, { title: string; purpose: string; icon: Ic
   microphone: { title: 'Микрофон', purpose: 'Передавать ваш голос во время звонка.', icon: 'mic-outline' },
   notifications: { title: 'Уведомления', purpose: 'Показывать уведомление о новом сообщении и открывать приложение для доставки. Android может задерживать уведомления; отправитель должен оставаться доступным.', icon: 'notifications-outline' },
   photos: { title: 'Фото и видео', purpose: 'Выбирать изображения и видео для отправки. Можно дать доступ только к выбранным файлам.', icon: 'images-outline' },
+  fullScreenCalls: { title: 'Полноэкранные звонки', purpose: 'Открывать входящий звонок поверх экрана блокировки. На Android 14+ это отдельный доступ в настройках телефона; приложение проверит его после вашего возврата.', icon: 'call-outline' },
 };
 const labels: Record<Access['status'], string> = { unavailable: 'Не настроено', unknown: 'Проверяем…', undetermined: 'Ещё не запрошено', denied: 'Не разрешено', limited: 'Выбранные элементы', granted: 'Разрешено' };
 async function currentAccess() {
@@ -22,7 +23,7 @@ async function currentAccess() {
 export default function PermissionScreen() {
   const { setup, auto } = useLocalSearchParams<{ setup?: string; auto?: string }>();
   const automaticStarted = useRef(false);
-  const [values, setValues] = useState<Record<PermissionKind, Access>>({ camera: UNKNOWN_ACCESS, microphone: UNKNOWN_ACCESS, photos: UNKNOWN_ACCESS, notifications: UNKNOWN_ACCESS });
+  const [values, setValues] = useState<Record<PermissionKind, Access>>({ camera: UNKNOWN_ACCESS, microphone: UNKNOWN_ACCESS, photos: UNKNOWN_ACCESS, notifications: UNKNOWN_ACCESS, fullScreenCalls: UNKNOWN_ACCESS });
   const [busy, setBusy] = useState<PermissionKind | 'all' | 'done' | null>(auto === '1' ? 'all' : null);
   const [error, setError] = useState('');
   async function refresh() {
@@ -79,13 +80,13 @@ export default function PermissionScreen() {
     <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
       <Text style={[styles.body, { margin: 20 }]}>Для переписки доступы не нужны. Разрешите функции, которыми планируете пользоваться. Выбор можно изменить позже в настройках.</Text>
       {PERMISSION_ORDER.map(kind => { const item = details[kind]; const access = values[kind]; return <View key={kind} style={[styles.section, { marginTop: 12, padding: 17, gap: 12 }]}>
-        <View style={styles.row}><Icon name={item.icon} /><Text style={[styles.rowName, styles.flex]}>{item.title}</Text><Text style={[styles.info, hasAccess(access) && { color: colors.accent }]}>{labels[access.status]}</Text></View>
+        <View style={styles.row}><Icon name={item.icon} /><Text style={[styles.rowName, styles.flex]}>{item.title}</Text><Text style={[styles.info, hasAccess(access) && { color: colors.accent }]}>{kind === 'fullScreenCalls' && access.status === 'unavailable' ? 'Недоступно на этом устройстве' : labels[access.status]}</Text></View>
         <Text style={styles.body}>{item.purpose}</Text>
         {!hasAccess(access) && access.status !== 'unknown' && access.status !== 'unavailable' && (access.canAskAgain
-          ? <Button title="Разрешить" secondary busy={busy === kind} disabled={!!busy && busy !== kind} onPress={() => void request(kind)} />
+          ? <Button title={kind === 'fullScreenCalls' ? 'Настроить полноэкранные звонки' : 'Разрешить'} secondary busy={busy === kind} disabled={!!busy && busy !== kind} onPress={() => void request(kind)} />
           : <Button title="Открыть настройки телефона" secondary disabled={!!busy} onPress={() => void settings()} />)}
         {kind === 'notifications' && !pushConfigured && <Text style={styles.info}>Разрешение телефона не включает push само по себе. {pushUnavailable}</Text>}
-        {access.status === 'denied' && access.canAskAgain && <Text style={styles.info}>Если системное окно больше не появляется, включите доступ в настройках телефона.</Text>}
+        {access.status === 'denied' && access.canAskAgain && <Text style={styles.info}>{kind === 'fullScreenCalls' ? 'Доступ пока не разрешён. Можно открыть настройки или вернуться к этому позже.' : 'Если системное окно больше не появляется, включите доступ в настройках телефона.'}</Text>}
       </View>; })}
       {!!error && <Text style={[styles.error, { margin: 16 }]}>{error}</Text>}
       <View style={styles.content}>{auto !== '1' && <Button title="Разрешить нужное" busy={busy === 'all'} disabled={!!busy && busy !== 'all'} onPress={() => void requestAll()} />}<Button title={setup ? 'Продолжить' : 'Готово'} secondary busy={busy === 'done'} disabled={!!busy && busy !== 'done'} onPress={() => void finish()} />

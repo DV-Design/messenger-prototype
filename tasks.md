@@ -7,6 +7,21 @@
 - [X] Show actual local agent stages, six-cycle history and stale/disconnected evidence without raw traces (msg-mio)
   → Artifacts: [monitor](infra/qa/monitor.mjs), [panel](infra/qa/monitor.html), [focused checks](infra/qa/monitor.test.mjs), [verification](docs/reports/testing/2026-10/live-monitor.md), [run instructions](docs/qa/CLAUDE-TESTER.md#local-progress-panel)
 
+# LastCall 0.7.1: authenticated call invite and stable video (paused, unpublished)
+
+- [X] Implement candidate0.7.1/code11 call invite, media gating, full-screen access and video stability; **not accepted** (msg-d1e, msg-si6)
+  → Artifacts: [wake contract](docs/WAKE-CONTRACT.md), [candidate report](docs/reports/debugging/2026-10/call-invite-071.md), [native 0.7.1](docs/reports/debugging/2026-10/native-071.md)
+- [X] Independent Claude QA cycles4–6/6: cycle4 full commands completed but response BLOCKED at280s; cycle5 source review PASS; cycle6 build/types/final-APK PASS (msg-tan)
+  → Artifacts: [cycle4](docs/reports/testing/2026-10/claude-qa-cycle-4.md), [cycle5](docs/reports/testing/2026-10/claude-qa-cycle-5.md), [cycle6](docs/reports/testing/2026-10/claude-qa-cycle-6.md), [counter](docs/qa/claude-qa-state.json)
+- [X] Build/sign final unpublished candidate; exact SHA256/size/certificate recorded; **native Android17 cold FCM FAIL**; no publication (main)
+  → Artifacts: [APK record](artifacts/README.md), [native failure evidence](docs/reports/debugging/2026-10/native-071.md)
+- [X] Guard Android push release configuration across every Expo/Gradle stage with packaged FCM/version/code gate (msg-c5v)
+  → Artifacts: [helper](infra/build-android-release.sh), ignored positive log `.tmp/current/native-071/release-fixed.log`, [cycle6](docs/reports/testing/2026-10/claude-qa-cycle-6.md)
+- [ ] Fix SDK58 `dataString:null` wrapper rejection: normalize only the known null SDK field, add installed-serializer fixtures, rebuild and retest real cold FCM answer/cancel (msg-el9)
+  → Evidence: ignored PoC `.tmp/current/native-071/sdk-wrapper-repro.json`, [native report](docs/reports/debugging/2026-10/native-071.md); requires explicit user quota/extensions, no automatic cycle7
+- [ ] Physical phone acceptance on published0.7.0: both phones updated in place, Android14+ full-screen access, locked/background/process-death/cancel/answer, >90s video with diagnostics on flicker; force-stop and iOS not guaranteed
+  → Artifacts: [phone tasks](docs/TESTING-RU.md); 0.7.1-specific items deferred
+
 # LastCall 0.7.0: background calls, read receipts and video
 
 - [X] Refresh root/mobile README and linked wake/outbox status for published0.7.0, actual acceptance limits and current delivery/read behavior (msg-8vd)

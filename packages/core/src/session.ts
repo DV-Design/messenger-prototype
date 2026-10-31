@@ -1,3 +1,4 @@
+import {type CallInvitation} from './call-control.js';
 import { iceServersSchema } from './services.js';
 import { endpointUrl } from './directory.js';
 import { audioPolicy } from './audio.js';
@@ -9,11 +10,11 @@ export interface ChatMessage {id:string;text:string;from:'self'|'peer';timestamp
 export interface SharedFile {id:string;name:string;mime:string;size:number;from:'self'|'peer';status:'sending'|'receiving'|'complete'|'error';receivedBytes:number;data?:Uint8Array;conversationId?:string;metadata?:string;}
 export interface SessionSnapshot {
   status:'idle'|'connecting'|'waiting'|'connected'|'disconnected'|'error';error?:string;
-  callId?:string;callVideo?:boolean;
+  callId?:string;callVideo?:boolean;callExpiresAt?:number;callRinging?:boolean;setup?:'invitation';
   messages:ChatMessage[];callState:'idle'|'outgoing'|'incoming'|'active';muted:boolean;
   localStream?:MediaStream;remoteStream?:MediaStream;route:'unknown'|'direct'|'relay';
   recovering?:boolean;
-  stats:{rttMs?:number;audioBitrateKbps?:number;packetsLost?:number;jitterMs?:number;videoBitrateKbps?:number;videoFramesPerSecond?:number;videoWidth?:number;videoHeight?:number;videoEncodeMs?:number;videoQualityLimitation?:'none'|'cpu'|'bandwidth'|'other'};files:SharedFile[];
+  stats:{rttMs?:number;audioBitrateKbps?:number;packetsLost?:number;jitterMs?:number;videoBitrateKbps?:number;videoFramesPerSecond?:number;videoWidth?:number;videoHeight?:number;videoEncodeMs?:number;videoQualityLimitation?:'none'|'cpu'|'bandwidth'|'other';videoCodec?:string;remoteVideoCodec?:string;remoteVideoFramesPerSecond?:number;videoFramesDecoded?:number;videoFramesDropped?:number;videoFreezeCount?:number;videoFreezeSeconds?:number;remoteVideoWidth?:number;remoteVideoHeight?:number};files:SharedFile[];
 }
 export interface PeerSessionOptions {
   serverUrl:string;invite:string;relayOnly?:boolean;iceServers?:RTCIceServer[];expectPeer?:boolean;getIceServers?:()=>Promise<RTCIceServer[]>;
@@ -82,8 +83,9 @@ export class PeerSession {
   private previousVideoEncoding?:{id:string;bytes:number;frames:number;encodeTime:number;time:number};
   private videoPolicy=new AdaptiveVideoPolicy();
   private videoBasicOnly=new WeakSet<RTCRtpSender>();
+  private configuredVideo=new WeakMap<RTCRtpSender,{track:MediaStreamTrack;callId:string|undefined;target:string}>();
   private unsupportedEncoders=new WeakSet<RTCRtpSender>();
-  private callId?:string;
+  private callId?:string;private endedCallIds=new Map<string,number>();
   private callVideo=false;
   private mediaPending=false;
   private callTimer?:ReturnType<typeof setTimeout>;
@@ -299,8 +301,13 @@ export class PeerSession {
       if(pc.remoteDescription)await pc.addIceCandidate(body.candidate);else {if(this.pendingCandidates.length>=128)throw new Error('Too many queued ICE candidates');this.pendingCandidates.push(body.candidate);}
     }else if(body.kind==='renegotiate'){if(body.iceRestart)this.restartPending=true;await this.offer();
     }else if(body.kind==='call-invite'){
+      for(const [id,expiry] of this.endedCallIds)if(Date.now()>=expiry)this.endedCallIds.delete(id);if((this.endedCallIds.get(body.callId)??0)>Date.now()){this.signal({kind:'call-end',callId:body.callId});return;}
+      if(body.expiresAt!==undefined&&(Date.now()>=body.expiresAt||body.issuedAt!>Date.now()+5000)){this.signal({kind:'call-end',callId:body.callId});return;}
+      if(this.callId===body.callId&&this.state.callState==='incoming'){if(body.expiresAt!==undefined)this.signal({kind:'call-ringing',callId:body.callId});return;}
       if(this.state.callState!=='idle'){this.signal({kind:'call-end',callId:body.callId});return;}
-      this.callId=body.callId;this.callVideo=body.video;this.change({callState:'incoming'});this.armCallTimeout();
+      this.callId=body.callId;this.callVideo=body.video;this.change({callState:'incoming',callExpiresAt:body.expiresAt});if(this.callId===body.callId){this.armCallTimeout(body.expiresAt);if(body.expiresAt!==undefined)this.signal({kind:'call-ringing',callId:body.callId});}
+    }else if(body.kind==='call-ringing'){
+      if(this.callId===body.callId&&this.state.callState==='outgoing')this.change({callRinging:true});
     }else if(body.kind==='call-accept'){
       if(this.callId!==body.callId||this.state.callState!=='outgoing')return;
       clearTimeout(this.callTimer);this.change({callState:'active'});await this.negotiate();
@@ -315,7 +322,7 @@ export class PeerSession {
     const error=`Transport ${stage} (ICE=${ice}, connection=${connection}; TURN ${this.hasTurn?'configured':'not configured'}). Messages remain pending.`;
     this.cleanupPeer();this.change({status:'error',error});
   }
-  private armCallTimeout(){clearTimeout(this.callTimer);this.callTimer=setTimeout(()=>this.endCall(),45000);}
+  private armCallTimeout(expiresAt?:number){clearTimeout(this.callTimer);this.callTimer=setTimeout(()=>this.endCall(),expiresAt===undefined?45000:Math.max(1,expiresAt-Date.now()));}
   private async acquireMedia(video:boolean){
     const pc=this.pc;if(!pc)throw new Error('No peer connection');
     const media=this.options.getUserMedia??(constraints=>navigator.mediaDevices.getUserMedia(constraints));
@@ -343,22 +350,25 @@ export class PeerSession {
       this.change({localStream:stream,muted:false});
     });}catch(error){stream.getTracks().forEach(track=>track.stop());throw error;}
   }
-  async startCall(video=false):Promise<void>{
+  async startCall(video=false,invitation?:CallInvitation):Promise<void>{
     if(this.state.status!=='connected'||this.state.callState!=='idle')throw new Error('A connected, idle session is required');
-    const callId=this.id();this.callId=callId;this.callVideo=video;this.change({callState:'outgoing'});
-    try{await this.acquireMedia(video);if(this.callId!==callId)throw new Error('Call cancelled');this.signal({kind:'call-invite',callId,video});this.armCallTimeout();}catch(error){if(this.callId===callId)this.stopCall();throw error;}
+    if(invitation&&(invitation.expiresAt-invitation.issuedAt!==30000||Date.now()>=invitation.expiresAt||invitation.issuedAt>Date.now()+5000||!/^[a-f0-9]{32}$/.test(invitation.callId)))throw new Error('Invalid or expired call invitation');
+    const callId=invitation?.callId??this.id();this.callId=callId;this.callVideo=video;this.change({callState:'outgoing',callExpiresAt:invitation?.expiresAt,callRinging:false});
+    try{await this.acquireMedia(video);if(this.callId!==callId)throw new Error('Call cancelled');if(invitation&&Date.now()>=invitation.expiresAt)throw new Error('Call invitation expired');this.signal({kind:'call-invite',callId,video,...(invitation?{issuedAt:invitation.issuedAt,expiresAt:invitation.expiresAt}:{})});this.armCallTimeout(invitation?.expiresAt);}catch(error){if(this.callId===callId)this.stopCall();throw error;}
   }
   async acceptCall():Promise<void>{
     if(this.mediaPending)throw new Error('Media permission request is already pending');
     if(this.state.callState!=='incoming'||!this.callId)throw new Error('No incoming call');
+    if(this.state.callExpiresAt!==undefined&&Date.now()>=this.state.callExpiresAt){this.endCall();throw new Error('Call invitation expired');}
     const callId=this.callId;
-    try{await this.acquireMedia(this.callVideo);if(this.callId!==callId)throw new Error('Call cancelled');this.signal({kind:'call-accept',callId});clearTimeout(this.callTimer);this.change({callState:'active'});await this.serial(()=>this.negotiate());}catch(error){if(this.callId===callId)this.endCall();throw error;}
+    try{await this.acquireMedia(this.callVideo);if(this.callId!==callId)throw new Error('Call cancelled');if(this.state.callExpiresAt!==undefined&&Date.now()>=this.state.callExpiresAt)throw new Error('Call invitation expired');this.signal({kind:'call-accept',callId});clearTimeout(this.callTimer);this.change({callState:'active'});await this.serial(()=>this.negotiate());}catch(error){if(this.callId===callId)this.endCall();throw error;}
   }
   rejectCall():void{if(this.state.callState==='incoming')this.endCall();}
   endCall():void{
     const callId=this.callId;this.stopCall();if(callId){try{this.signal({kind:'call-end',callId});}catch{}void this.serial(()=>this.negotiate()).catch(()=>{});}
   }
   private stopCall(){
+    if(this.callId){if(this.endedCallIds.size>=128)this.endedCallIds.delete(this.endedCallIds.keys().next().value!);this.endedCallIds.set(this.callId,this.state.callExpiresAt??Date.now()+45000);}
     clearTimeout(this.callTimer);this.callTimer=undefined;this.callId=undefined;
     this.videoPolicy=new AdaptiveVideoPolicy();this.previousVideoLoss=undefined;this.previousVideoPackets=undefined;this.previousVideoEncoding=undefined;
     this.state.localStream?.getTracks().forEach(track=>track.stop());
@@ -367,7 +377,7 @@ export class PeerSession {
     // local sender tracks are stopped above and pc.close() releases receivers.
     const pc=this.pc;const senders=pc?.getSenders().filter(sender=>sender.track);
     if(pc&&senders?.length)void this.serial(async()=>{if(this.pc!==pc)return;for(const sender of senders){try{pc.removeTrack(sender);}catch{}}await this.negotiate();}).catch(()=>{});
-    this.change({callState:'idle',muted:false,localStream:undefined,remoteStream:undefined});
+    this.change({callState:'idle',callExpiresAt:undefined,callRinging:undefined,muted:false,localStream:undefined,remoteStream:undefined});
   }
   setMuted(muted:boolean):void{this.state.localStream?.getAudioTracks().forEach(track=>{track.enabled=!muted;});this.change({muted});}
   private dataSend(frame:DataFrame){const channel=this.channel;if(channel?.readyState!=='open'||(!this.channelReady()&&!['ready','ready-ack','text-ack','file-ack'].includes(frame.kind)))throw new Error('Peer data channel is not connected or application-ready');const text=JSON.stringify(frame);if(text.length>MAX_DATA_FRAME)throw new Error('Data frame exceeds limit');channel.send(text);}
@@ -479,6 +489,10 @@ export class PeerSession {
     const valid=()=>this.pc===pc&&this.callId===callId&&sender.track===track&&track.readyState!=='ended'&&pc.getSenders().includes(sender);
     if(!valid()||this.unsupportedEncoders.has(sender)||typeof sender.getParameters!=='function'||typeof sender.setParameters!=='function')return;
     const video=typeof target!=='number';
+    const signature=video?JSON.stringify(target):'';
+    const configured=this.configuredVideo.get(sender);
+    if(video&&configured?.track===track&&configured.callId===callId&&configured.target===signature)return;
+    const remember=()=>{if(video&&valid())this.configuredVideo.set(sender,{track,callId,target:signature});};
     const attempt=async(advanced:boolean,force=false)=>{
       if(!valid())return;
       // RN155 returns a cached class instance; JSON cloning also preserves its toJSON conversion.
@@ -486,9 +500,12 @@ export class PeerSession {
       if(!parameters.encodings?.length)return;
       const bitrate=Math.max(1,Math.floor((video?target.maxBitrate:target)/parameters.encodings.length));
       const changed=parameters.encodings.some(encoding=>encoding.maxBitrate!==bitrate||(video&&(encoding.active!==target.active||(advanced&&(encoding.maxFramerate!==target.maxFramerate||encoding.scaleResolutionDownBy!==target.scaleResolutionDownBy)))));
-      if(!changed&&!force)return;
+      if(!changed&&!force){remember();return;}
       for(const encoding of parameters.encodings){encoding.maxBitrate=bitrate;if(video){encoding.active=target.active;if(advanced){encoding.maxFramerate=target.maxFramerate;encoding.scaleResolutionDownBy=target.scaleResolutionDownBy;}}}
       await sender.setParameters(parameters);
+      // RN155 Android may resolve even when native setParameters returned false.
+      // Do not repeatedly reconfigure a device that normalizes/declines this cap.
+      remember();
     };
     try{await attempt(video&&!this.videoBasicOnly.has(sender));}
     catch{
@@ -504,12 +521,13 @@ export class PeerSession {
     const pc=this.pc;const statsCall=this.callId;if(!pc||this.statsBusy)return;this.statsBusy=true;
     try{
       const report=await pc.getStats();if(this.pc!==pc||this.callId!==statsCall)return;
-      let pair:any;let outbound:any;let outboundVideo:any;let inbound:any;let remoteInbound:any;const remoteReports:any[]=[];
+      let pair:any;let outbound:any;let outboundVideo:any;let inboundVideo:any;let inbound:any;let remoteInbound:any;const remoteReports:any[]=[];
       report.forEach((value:any)=>{
         if(value.type==='transport'&&value.selectedCandidatePairId)pair=report.get(value.selectedCandidatePairId);
         if(!pair&&value.type==='candidate-pair'&&value.state==='succeeded'&&(value.nominated||value.selected))pair=value;
         if(value.type==='outbound-rtp'&&(value.kind??value.mediaType)==='audio'&&!value.isRemote)outbound=value;
         if(value.type==='outbound-rtp'&&(value.kind??value.mediaType)==='video'&&!value.isRemote)outboundVideo=value;
+        if(value.type==='inbound-rtp'&&(value.kind??value.mediaType)==='video'&&!value.isRemote)inboundVideo=value;
         if(value.type==='inbound-rtp'&&(value.kind??value.mediaType)==='audio'&&!value.isRemote)inbound=value;
         if(value.type==='remote-inbound-rtp')remoteReports.push(value);
       });
@@ -557,7 +575,9 @@ export class PeerSession {
         this.previousVideoEncoding={id:outboundVideo.id,bytes:outboundVideo.bytesSent,frames:outboundVideo.framesEncoded,encodeTime:outboundVideo.totalEncodeTime,time:outboundVideo.timestamp};
       }else this.previousVideoEncoding=undefined;
       const videoQualityLimitation=['none','cpu','bandwidth','other'].includes(outboundVideo?.qualityLimitationReason)?outboundVideo.qualityLimitationReason as 'none'|'cpu'|'bandwidth'|'other':undefined;
-      this.change({route,stats:{rttMs,audioBitrateKbps,packetsLost:inbound?.packetsLost,jitterMs:inbound?.jitter!==undefined?inbound.jitter*1000:undefined,videoBitrateKbps,videoFramesPerSecond,videoWidth:finite(outboundVideo?.frameWidth)?outboundVideo.frameWidth:undefined,videoHeight:finite(outboundVideo?.frameHeight)?outboundVideo.frameHeight:undefined,videoEncodeMs,videoQualityLimitation}});
+      const videoCodec=(id:unknown)=>{const mime=typeof id==='string'?report.get(id)?.mimeType:undefined;return typeof mime==='string'&&/^video\/(VP8|VP9|H264|H265|AV1)$/i.test(mime)?mime:undefined;};
+      const counter=(value:unknown)=>finite(value)?value:undefined;
+      this.change({route,stats:{rttMs,audioBitrateKbps,packetsLost:inbound?.packetsLost,jitterMs:inbound?.jitter!==undefined?inbound.jitter*1000:undefined,videoBitrateKbps,videoFramesPerSecond,videoWidth:finite(outboundVideo?.frameWidth)?outboundVideo.frameWidth:undefined,videoHeight:finite(outboundVideo?.frameHeight)?outboundVideo.frameHeight:undefined,videoEncodeMs,videoQualityLimitation,videoCodec:videoCodec(outboundVideo?.codecId),remoteVideoCodec:videoCodec(inboundVideo?.codecId),remoteVideoFramesPerSecond:counter(inboundVideo?.framesPerSecond),videoFramesDecoded:counter(inboundVideo?.framesDecoded),videoFramesDropped:counter(inboundVideo?.framesDropped),videoFreezeCount:counter(inboundVideo?.freezeCount),videoFreezeSeconds:counter(inboundVideo?.totalFreezesDuration),remoteVideoWidth:counter(inboundVideo?.frameWidth),remoteVideoHeight:counter(inboundVideo?.frameHeight)}});
       for(const sender of pc.getSenders()){
         const track=sender.track;const callId=statsCall;if(!track||!['audio','video'].includes(track.kind))continue;
         const target=track.kind==='audio'?audioPolicy({rttMs,lossRatio}).maxBitrate:{...videoTarget,maxBitrate:videoTarget.maxBitrate/Math.max(1,pc.getSenders().filter(value=>value.track?.kind==='video').length)};

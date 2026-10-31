@@ -1,3 +1,4 @@
+import {callOfferFrameSchema,callReceivedFrameSchema,callActionFrameSchema,callStateGetFrameSchema,callStateSchema,callPushSchema} from './call-control.js';
 import { e164PhoneSchema, iceServersSchema, phoneChallengeSchema, serviceCapabilitiesSchema } from './services.js';
 import { z } from 'zod';
 import { ed25519, x25519 } from '@noble/curves/ed25519.js';
@@ -70,14 +71,15 @@ export const pushPreviewSchema=z.string().min(1).max(MAX_PUSH_PREVIEW_BYTES).sup
   catch{ctx.addIssue({code:'custom',message:'Invalid encrypted push preview'});}
 }).transform(value=>JSON.stringify(pushPreviewEnvelopeSchema.parse(JSON.parse(value))));
 export const directoryClientFrameSchema=z.discriminatedUnion('type',[
+  callOfferFrameSchema,callReceivedFrameSchema,callActionFrameSchema,callStateGetFrameSchema,
   z.object({type:z.literal('resolve-profile'),publicKey:roomIdSchema,signature:z.string().regex(/^[0-9a-f]{128}$/)}).strict(),
   z.object({type:z.literal('list-users'),requestId:peerIdSchema,cursor:usernameSchema.optional()}).strict(),
-  z.object({type:z.literal('services'),requestId:peerIdSchema}).strict(),
+  z.object({type:z.literal('services'),requestId:peerIdSchema,callInviteV1:z.literal(true).optional()}).strict(),
   z.object({type:z.literal('ice'),requestId:peerIdSchema}).strict(),
   z.object({type:z.literal('phone-start'),phone:e164PhoneSchema,requestId:peerIdSchema}).strict(),
   z.object({type:z.literal('phone-verify'),challengeId:peerIdSchema,code:z.string().regex(/^[0-9]{6}$/),requestId:peerIdSchema}).strict(),
   z.object({type:z.literal('phone-discover'),hashes:z.array(roomIdSchema).max(100),requestId:peerIdSchema}).strict(),
-  z.object({type:z.literal('push-register'),token:z.string().min(1).max(4096),backgroundSync:z.boolean().optional(),messagePreview:z.boolean().optional(),requestId:peerIdSchema}).strict(),
+  z.object({type:z.literal('push-register'),token:z.string().min(1).max(4096),backgroundSync:z.boolean().optional(),messagePreview:z.boolean().optional(),callInviteV1:z.boolean().optional(),requestId:peerIdSchema}).strict(),
   z.object({type:z.literal('wake'),to:roomIdSchema,kind:wakeIntentSchema.shape.kind.optional(),intentId:peerIdSchema.optional(),expiresAt:wakeIntentSchema.shape.expiresAt.optional(),preview:pushPreviewSchema.optional()}).strict().refine(frame=>[frame.kind,frame.intentId,frame.expiresAt].filter(value=>value!==undefined).length%3===0&&(frame.preview===undefined||((frame.kind==='message'||frame.kind==='file')&&pushPreviewSchema.safeParse(frame.preview).success&&JSON.parse(frame.preview).kind===frame.kind)),{message:'Wake metadata must be supplied together; previews require matching message/file intent'}),
   z.object({type:z.literal('authenticate'),publicKey:roomIdSchema,username:usernameSchema,displayName:displayNameSchema,signature:z.string().regex(/^[0-9a-f]{128}$/)}).strict(),
   z.object({type:z.literal('search'),query:z.string().max(48),requestId:peerIdSchema}).strict(),
@@ -86,6 +88,8 @@ export const directoryClientFrameSchema=z.discriminatedUnion('type',[
   z.object({type:z.literal('connect'),to:roomIdSchema}).strict(),
 ]);
 export const directoryServerFrameSchema=z.discriminatedUnion('type',[
+  z.object({type:z.literal('call-state'),requestId:peerIdSchema.optional(),...callStateSchema.shape}).strict(),
+  z.object({type:z.literal('call-invitation'),invite:callPushSchema}).strict(),
   z.object({type:z.literal('profile'),user:directoryUserSchema.nullable()}).strict(),
   z.object({type:z.literal('users-page'),requestId:peerIdSchema,...directoryPageSchema.shape}).strict(),
   z.object({type:z.literal('services'),requestId:peerIdSchema,capabilities:serviceCapabilitiesSchema}).strict(),

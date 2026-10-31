@@ -7,10 +7,9 @@ import Constants from 'expo-constants';
 import { enableSystemCalls, useSystemCallStatus } from '../../system-calls';
 import { Avatar, Button, Icon, ScreenHeader, connectionLabel } from '../../components/ui';
 import { changeServer, errorText, reconnect, useMessenger } from '../../runtime';
-import { sanitizeDiagnostic } from '../../diagnostics';
+import { formatMediaDiagnostics, sanitizeDiagnostic } from '../../diagnostics';
 import { usePushStatus } from '../../components/PushBridge';
 import { colors, styles } from '../../styles';
-const metric = (value: number | undefined, suffix: string) => value === undefined ? '—' : `${value.toFixed(1)} ${suffix}`;
 export default function Settings() {
   const { profile, identity, snapshot, error, busy } = useMessenger();
   const pushStatus = usePushStatus();
@@ -32,7 +31,7 @@ export default function Settings() {
     const sanitize = (value?: string) => sanitizeDiagnostic(value, privateValues);
     const peers = snapshot.conversations.filter(item => item.kind === 'direct');
     const report = [`LastCall ${Constants.expoConfig?.version ?? ''}`, `Платформа: ${Platform.OS} ${Platform.Version}`, `Сервер: ${sanitize(profile?.serverUrl)}`, `Directory: ${snapshot.status}`, `Личных соединений: ${peers.length}`, `Ошибка приложения: ${sanitize(snapshot.error)}`,
-      ...peers.map((item, index) => `Контакт ${index + 1}: ${item.session?.status ?? 'idle'} / ${item.session?.route ?? 'unknown'} / ${sanitize(item.session?.error)}`)].join('\n');
+      ...peers.flatMap((item, index) => [`Контакт ${index + 1}: ${item.session?.status ?? 'idle'} / ${item.session?.route ?? 'unknown'} / ${sanitize(item.session?.error)}`, ...formatMediaDiagnostics(item.session?.stats)])].join('\n');
     try { await Clipboard.setStringAsync(report); setReportCopied(true); }
     catch (cause) { setLocalError(errorText(cause)); }
   }
@@ -52,7 +51,7 @@ export default function Settings() {
       </View>
       {!!(localError || error || snapshot.error) && <Text style={[styles.error, { marginHorizontal: 16, marginTop: 16 }]}>{localError || error || snapshot.error}</Text>}
       <Text style={styles.sectionTitle}>УВЕДОМЛЕНИЯ</Text><View style={[styles.section, styles.content]}><Text style={styles.body}>{pushStatus}</Text><Button title="Настроить доступы" secondary onPress={() => router.push('/permissions')} /></View>
-      {Platform.OS === 'android' && <><Text style={styles.sectionTitle}>СИСТЕМНЫЕ ЗВОНКИ</Text><View style={[styles.section, styles.content]}><Text style={styles.body}>{callStatus}</Text><Text style={styles.info}>На Android 8+ LastCall сам регистрирует телефонный аккаунт и показывает собственный экран входящего; вручную включать его в приложении «Телефон» не нужно. Экран появляется только после защищённого соединения с отправителем, поэтому push сам по себе не начинает звонок. На Android 14+ разрешите полноэкранные уведомления, иначе звонок останется обычным уведомлением. Микрофон включается только после ответа. На Android 7 используется собственное уведомление и экран LastCall без телефонного приложения.</Text><Button title="Открыть настройки звонков" secondary onPress={() => void enableSystemCalls().catch(cause => setLocalError(errorText(cause)))} /></View></>}
+      {Platform.OS === 'android' && <><Text style={styles.sectionTitle}>СИСТЕМНЫЕ ЗВОНКИ</Text><View style={[styles.section, styles.content]}><Text style={styles.body}>{callStatus}</Text><Text style={styles.info}>На Android 8+ LastCall сам регистрирует телефонный аккаунт и показывает собственный экран входящего; вручную включать его в приложении «Телефон» не нужно. Экран появляется после проверки защищённого приглашения на звонок; подключение собеседника может продолжаться после ответа. На Android 14+ разрешите полноэкранные уведомления, иначе звонок останется обычным уведомлением. Микрофон включается только после ответа. На Android 7 используется собственное уведомление и экран LastCall без телефонного приложения.</Text><Button title="Открыть настройки звонков" secondary onPress={() => void enableSystemCalls().catch(cause => setLocalError(errorText(cause)))} /></View></>}
       <Text style={styles.sectionTitle}>О ПРИЛОЖЕНИИ</Text>
       <View style={[styles.section, { marginTop: 0, padding: 18, gap: 13 }]}><Text style={styles.rowName}>LastCall · {Constants.expoConfig?.version}</Text>
         <Text style={styles.body}>Сервер хранит профиль и помогает находить собеседников. Текст, файлы и звонки идут по защищённому соединению между участниками; при необходимости WebRTC использует TURN.</Text>
@@ -62,7 +61,7 @@ export default function Settings() {
       </View>
       <View style={styles.section}><Pressable style={styles.listRow} accessibilityRole="button" onPress={() => setShowDiagnostics(!showDiagnostics)}><Icon name="pulse-outline" /><Text style={[styles.rowName, styles.flex]}>Диагностика</Text><Icon name={showDiagnostics ? 'chevron-up' : 'chevron-forward'} size={18} color={colors.secondary} /></Pressable>
         {showDiagnostics && <View style={styles.content}><Text selectable style={styles.info}>Ключ профиля: {identity?.userId}</Text>
-          {snapshot.conversations.filter(item => item.kind === 'direct').map(item => <View key={item.id} style={{ gap: 5 }}><Text style={styles.rowName}>{item.title}</Text><Text style={styles.info}>Соединение: {item.session?.status ?? 'не установлено'} · {item.session?.route === 'direct' ? 'P2P напрямую' : item.session?.route === 'relay' ? 'через TURN' : 'маршрут не определён'}</Text><Text style={styles.info}>RTT {metric(item.session?.stats.rttMs, 'мс')} · аудио {metric(item.session?.stats.audioBitrateKbps, 'кбит/с')} · jitter {metric(item.session?.stats.jitterMs, 'мс')} · потери {item.session?.stats.packetsLost ?? '—'}</Text></View>)}
+          {snapshot.conversations.filter(item => item.kind === 'direct').map(item => <View key={item.id} style={{ gap: 5 }}><Text style={styles.rowName}>{item.title}</Text><Text style={styles.info}>Соединение: {item.session?.status ?? 'не установлено'} · {item.session?.route === 'direct' ? 'P2P напрямую' : item.session?.route === 'relay' ? 'через TURN' : 'маршрут не определён'}</Text>{formatMediaDiagnostics(item.session?.stats).map(line => <Text key={line} style={styles.info}>{line}</Text>)}</View>)}
           <Text style={styles.info}>«—» означает, что WebRTC ещё не предоставил метрику. Отдельные диалоги используют независимые соединения.</Text>
           <Button title="Скопировать отчёт о соединении" secondary onPress={() => void copyDiagnostics()} />
           {reportCopied && <Text style={styles.info}>Отчёт скопирован. Известные имена, сообщения, телефоны и идентификаторы скрыты. Проверьте текст перед отправкой.</Text>}

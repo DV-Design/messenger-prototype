@@ -179,7 +179,7 @@ it('integrates real MessengerClient service APIs, verified discovery, offline wa
   const a = new MessengerClient({ serverUrl: url, identity: createDeviceIdentity(), username: 'manager_alice', displayName: 'Manager Alice', rtcFactory });
   const b = new MessengerClient({ serverUrl: url, identity: createDeviceIdentity(), username: 'manager_bob', displayName: 'Manager Bob', rtcFactory }); managers.push(a, b);
   await Promise.all([a.connect(), b.connect()]);
-  expect(await a.getServices()).toEqual({ phoneVerification: true, push: true, relay: true, phoneVerified: false });
+  expect(await a.getServices()).toEqual({ phoneVerification: true, push: true, relay: true, phoneVerified: false,callInviteV1:true,serverEpoch:expect.stringMatching(/^[a-f0-9]{32}$/) });
   const ca = await a.startPhoneVerification(phoneA); await a.verifyPhone(ca.challengeId, fake.codes.get(phoneA)!);
   const cb = await b.startPhoneVerification(phoneB); await b.verifyPhone(cb.challengeId, fake.codes.get(phoneB)!);
   expect((await a.discoverPhones([phoneLookupHash(phoneB)]))[0]?.user.userId).toBe(b.getSnapshot().self!.userId);

@@ -48,13 +48,16 @@ public final class LastCallAudioModule extends ReactContextBaseJavaModule {
     map.putBoolean("notifications", status.notifications);
     map.putBoolean("channel", status.channel);
     map.putBoolean("fullScreen", status.fullScreen);
+    map.putBoolean("specialAccessRequired", status.specialAccessRequired);
     result.resolve(map);
   }
   @ReactMethod public void openCallUiSettings() { LastCallCallUiService.openSettings(getReactApplicationContext()); }
+  @ReactMethod public void openFullScreenCallSettings(Promise result) { result.resolve(LastCallCallUiService.openFullScreenSettings(getReactApplicationContext())); }
   @ReactMethod public void start(String id, boolean video, Promise promise) {
     if (getReactApplicationContext().checkSelfPermission("android.permission.RECORD_AUDIO") != PackageManager.PERMISSION_GRANTED) { promise.reject("CALL_MIC_DENIED", "Microphone permission must be granted in foreground first"); return; }
     if (video && getReactApplicationContext().checkSelfPermission("android.permission.CAMERA") != PackageManager.PERMISSION_GRANTED) { promise.reject("CALL_CAMERA_DENIED", "Camera permission must be granted in foreground first"); return; }
     LastCallAudioService.begin(getReactApplicationContext(), id, video, promise);
   }
   @ReactMethod public void stop(String id) { LastCallAudioService.end(getReactApplicationContext(), id); }
+  @ReactMethod public void activateCallAudio(String id) { LastCallAudioService.activate(getReactApplicationContext(), id); }
 }

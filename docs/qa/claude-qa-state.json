@@ -1,10 +1,10 @@
 {
   "run_id": "lastcall-060-qa-2026-10-30",
   "max_cycles": 6,
-  "cycles_started": 3,
-  "status": "passed",
+  "cycles_started": 6,
+  "status": "paused_limit",
   "agent": "lastcall-release-tester",
-  "session_id": "8a88f550-7eb0-4a32-b9b7-a8b0e956a554",
+  "session_id": "70b3ed0a-28a0-4708-83d4-961836d732fa",
   "stop_on_same_failure_without_new_evidence": 2,
   "cycles": [
     {
@@ -81,10 +81,80 @@
       },
       "report": "docs/reports/testing/2026-10/claude-qa-cycle-3.md",
       "estimated_cost_usd": 1.152863
+    },
+    {
+      "cycle": 4,
+      "allocation": "lastcall-060-qa-2026-10-30:4",
+      "candidate_commit": "df467aba2ef46d3332d69e8ae7eab5a4584c976b",
+      "scope": "User physical regressions2026-10-31: authenticated call invitation/ringing before P2P media like Telegram, locked screen only pending push, >20s video flicker; implementation before one bounded independent Claude QA pass",
+      "status": "timeout",
+      "candidate_version": "0.7.1/code11",
+      "candidate_apk_sha256": "e9c20142970f91c04f606546bbbddb981b72c37630bb81e6cb020054b70735d9",
+      "verdict": "BLOCKED",
+      "timeout_sec": 280,
+      "commands_executed": [
+        "/bin/sh .tmp/current/claude-qa-baseline.sh"
+      ],
+      "unit_tests": {
+        "passed": 340,
+        "failed": 0
+      },
+      "browser_tests": {
+        "passed": 11,
+        "skipped": 1,
+        "failed": 0
+      },
+      "test_results": "ALL_GATES_PASS_NO_FINAL_REVIEW_TIMEOUT",
+      "report": "docs/reports/testing/2026-10/claude-qa-cycle-4.md",
+      "block_reason": "Final source-review response exceeded280s after completed gates"
+    },
+    {
+      "cycle": 5,
+      "allocation": "lastcall-060-qa-2026-10-30:5",
+      "candidate_commit": "df467aba2ef46d3332d69e8ae7eab5a4584c976b",
+      "candidate_version": "0.7.1/code11",
+      "candidate_apk_sha256": "e9c20142970f91c04f606546bbbddb981b72c37630bb81e6cb020054b70735d9",
+      "status": "passed",
+      "scope": "Same frozen candidate: narrow independent source review only after cycle4 final response timeout. No rebuild or repeat tests; completed cycle4 gate evidence retained and attributed to4.",
+      "verdict": "PASS",
+      "tests_this_invocation": "NOT_RUN",
+      "gate_evidence_cycle": 4,
+      "session_id": "84e8d66a-8cf6-4555-9d6c-bda2605795ff",
+      "estimated_cost_usd": 0.640369,
+      "report": "docs/reports/testing/2026-10/claude-qa-cycle-5.md",
+      "scope_verdict": "Narrow source review only; no repeated tests"
+    },
+    {
+      "cycle": 6,
+      "allocation": "lastcall-060-qa-2026-10-30:6",
+      "candidate_commit": "df467aba2ef46d3332d69e8ae7eab5a4584c976b",
+      "candidate_version": "0.7.1/code11",
+      "status": "failed",
+      "scope": "Final allocation: fix build invocation env omission proven in unpacked assets/app.config and Android17 UI. Same call/video source, add push-release build guard, rebuild with client config through ALL stages, verify packaged FCM true and focused native acceptance. No cycle7.",
+      "candidate_apk_sha256": "3d36731251871053711e48e0a9464a9259ffdd0024397d041cc412a253dd2122",
+      "verdict": "FAIL",
+      "session_id": "70b3ed0a-28a0-4708-83d4-961836d732fa",
+      "estimated_cost_usd": 0.270021,
+      "report": "docs/reports/testing/2026-10/claude-qa-cycle-6.md",
+      "scope_verdict": "Narrow build guard, packaged FCM constants and mobile types; core/call/video gates remain cycle4 and source review cycle5.",
+      "commands_executed": [
+        "bash -n infra/build-android-release.sh",
+        "env -u MESSENGER_GOOGLE_SERVICES_FILE bash infra/build-android-release.sh (expected exit1)",
+        "npm run typecheck -w @messenger/mobile",
+        "APK SHA256/size/allowlisted assets/app.config inspection"
+      ],
+      "native_acceptance": {
+        "verdict": "FAIL",
+        "fingerprint": "SDK58-dataString-null-strict-call-push-key-count",
+        "issue": "msg-el9",
+        "report": "docs/reports/debugging/2026-10/native-071.md",
+        "published": false
+      },
+      "independent_review_verdict": "PASS"
     }
   ],
-  "requires_user_resume": false,
-  "last_verdict": "PASS",
+  "requires_user_resume": true,
+  "last_verdict": "FAIL",
   "skill_loading_verified": {
     "systematic-debugging": "READ_FALLBACK",
     "run-quality-gate": "READ_FALLBACK",
@@ -92,8 +162,9 @@
     "future_policy": "Required explicit Read before tests if not preloaded; block if missing/denied"
   },
   "activity": {
-    "cycle": 3,
+    "cycle": 6,
     "stage": "review",
-    "updated_at": "2026-10-30T18:39:36.365375+00:00"
-  }
+    "updated_at": "2026-10-31T07:48:27.821371+00:00"
+  },
+  "stop_reason": "6/6 allocations consumed; actual SDK58 wrapper reproduced failing rich invite and terminal parsing. No cycle7 or product fixes after discovery; explicit user extension required."
 }

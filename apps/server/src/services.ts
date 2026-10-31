@@ -1,6 +1,7 @@
 import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
-import { normalizePhone, phoneLookupHash,pushPreviewSchema,pushPreviewEnvelopeSchema, type DirectoryUser, type PhoneChallenge, type PhoneMatch, type ServiceCapabilities, type WakeIntent } from '@messenger/core';
+import { normalizePhone, phoneLookupHash,pushPreviewSchema,pushPreviewEnvelopeSchema,callPushSchema,callPushEnvelopeSchema,type CallState, type DirectoryUser, type PhoneChallenge, type PhoneMatch, type ServiceCapabilities, type WakeIntent } from '@messenger/core';
+import {CallRegistry,CallControlError,type CallTiming,type CallAction} from './call-registry.js';
 import { InvalidPushToken, type PushProvider, type SMSProvider } from './providers.js';
 
 export class ServiceError extends Error {
@@ -37,8 +38,10 @@ export class DirectoryServices {
   private closed = false;
   private secret?: Buffer;
   private now: () => number;
-  constructor(private db: DatabaseSync, private options: ServiceOptions, private lookup: (id: string) => DirectoryUser | undefined, private ice: () => RTCIceServer[]) {
+  private calls:CallRegistry;
+  constructor(private db: DatabaseSync, private options: ServiceOptions, private lookup: (id: string) => DirectoryUser | undefined, private ice: () => RTCIceServer[],private onCallState?:(state:CallState)=>void,private onCallInvitation?:(recipient:string,invite:string)=>void) {
     this.now = options.serviceNow ?? Date.now;
+    this.calls=new CallRegistry(this.now);
     if (options.enableLegacyPhoneServices && options.phoneVerificationSecret && Buffer.byteLength(options.phoneVerificationSecret) >= 32) this.secret = Buffer.from(options.phoneVerificationSecret);
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS verified_phones (user_id TEXT PRIMARY KEY REFERENCES directory_users(user_id), phone_hash TEXT NOT NULL UNIQUE, verified_at INTEGER NOT NULL) STRICT;
@@ -52,10 +55,11 @@ export class DirectoryServices {
     // Existing 0.3-0.5 token rows default to the original visible notification path.
     const columns=this.db.prepare('PRAGMA table_info(push_tokens)').all() as Array<{name:string}>;
     if(!columns.some(column=>column.name==='background_sync'))this.db.exec('ALTER TABLE push_tokens ADD COLUMN background_sync INTEGER NOT NULL DEFAULT 0 CHECK(background_sync IN (0,1))');
+    if(!columns.some(column=>column.name==='call_invite_v1'))this.db.exec('ALTER TABLE push_tokens ADD COLUMN call_invite_v1 INTEGER NOT NULL DEFAULT 0 CHECK(call_invite_v1 IN (0,1))');
     if(!columns.some(column=>column.name==='message_preview'))this.db.exec('ALTER TABLE push_tokens ADD COLUMN message_preview INTEGER NOT NULL DEFAULT 0 CHECK(message_preview IN (0,1))');
   }
-  capabilities(userId: string): ServiceCapabilities {
-    return { phoneVerification: Boolean(this.options.smsProvider && this.secret), push: Boolean(this.options.pushProvider), relay: this.ice().some(server => (Array.isArray(server.urls) ? server.urls : [server.urls]).some(url => /^turns?:/.test(url))), phoneVerified: Boolean(this.options.enableLegacyPhoneServices && this.verified(userId)) };
+  capabilities(userId: string,callInviteV1=false): ServiceCapabilities {
+    return { ...(callInviteV1?{callInviteV1:true,serverEpoch:this.calls.epoch}:{}),phoneVerification: Boolean(this.options.smsProvider && this.secret), push: Boolean(this.options.pushProvider), relay: this.ice().some(server => (Array.isArray(server.urls) ? server.urls : [server.urls]).some(url => /^turns?:/.test(url))), phoneVerified: Boolean(this.options.enableLegacyPhoneServices && this.verified(userId)) };
   }
   private verified(userId: string) { return Boolean(this.db.prepare('SELECT 1 FROM verified_phones WHERE user_id = ?').get(userId)); }
   private checkOpen() { if (this.closed) throw unavailable(); }
@@ -74,7 +78,7 @@ export class DirectoryServices {
   }
   private reserve(quotas: Quota[]) { this.transaction(() => this.reserveInside(quotas)); }
   expire() {
-    const now = this.now();
+    const now = this.now();this.calls.expire();
     for (const [id, value] of this.challenges) if (now >= value.expiresAt) { value.digest.fill(0); this.challenges.delete(id); }
     for (const [id, expiresAt] of this.wakeIntents) if (now >= expiresAt) this.wakeIntents.delete(id);
     this.db.prepare('DELETE FROM service_quotas WHERE period < ?').run(Math.floor(now / 3_600_000) - 1);
@@ -165,13 +169,13 @@ export class DirectoryServices {
     }
     return matches;
   }
-  registerPush(userId: string, token: string, backgroundSync = false,messagePreview=false) {
-    if(typeof backgroundSync!=='boolean'||typeof messagePreview!=='boolean')throw new ServiceError('invalid-frame', 'Invalid push capability mode');
+  registerPush(userId: string, token: string, backgroundSync = false,messagePreview=false,callInviteV1=false) {
+    if(typeof backgroundSync!=='boolean'||typeof messagePreview!=='boolean'||typeof callInviteV1!=='boolean')throw new ServiceError('invalid-frame', 'Invalid push capability mode');
     this.checkOpen(); if (!this.options.pushProvider) throw unavailable();
     const owner = this.db.prepare('SELECT user_id FROM push_tokens WHERE token = ?').get(token) as { user_id: string } | undefined;
     if (owner && owner.user_id !== userId) throw new ServiceError('push-token-in-use', 'This token belongs to another identity');
     this.reserve([{ scope: 'push-register', key: userId, limit: 30 }]);
-    this.db.prepare('INSERT INTO push_tokens(user_id,token,updated_at,background_sync,message_preview) VALUES (?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET token=excluded.token,updated_at=excluded.updated_at,background_sync=excluded.background_sync,message_preview=excluded.message_preview').run(userId, token, this.now(), backgroundSync?1:0,backgroundSync&&messagePreview?1:0);
+    this.db.prepare('INSERT INTO push_tokens(user_id,token,updated_at,background_sync,message_preview,call_invite_v1) VALUES (?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET token=excluded.token,updated_at=excluded.updated_at,background_sync=excluded.background_sync,message_preview=excluded.message_preview,call_invite_v1=excluded.call_invite_v1').run(userId, token, this.now(), backgroundSync?1:0,backgroundSync&&messagePreview?1:0,backgroundSync&&callInviteV1?1:0);
   }
   replaceWatchConsent(recipient: string, ids: string[]) {
     this.transaction(() => {
@@ -179,8 +183,8 @@ export class DirectoryServices {
       for (const sender of new Set(ids)) if (sender !== recipient) this.db.prepare('INSERT INTO push_consent(recipient_id,sender_id) VALUES (?,?)').run(recipient, sender);
     });
   }
-  async wake(sender: string, recipient: string, intent?: WakeIntent,preview?:string) {
-    this.checkOpen(); if (!this.options.pushProvider) throw unavailable();
+  async wake(sender: string, recipient: string, intent?: WakeIntent,preview?:string,valid:()=>boolean=()=>true) {
+    this.checkOpen(); if (!this.options.pushProvider) throw unavailable();if(!valid())return;
     const now = this.now();
     if (intent && intent.expiresAt <= now) throw new ServiceError('wake-expired', 'Notification intent expired');
     if(preview!==undefined){
@@ -208,6 +212,7 @@ export class DirectoryServices {
     if (key) this.wakeIntents.set(key, bounded!.expiresAt); // Consume before async work, including failure.
     try { await this.provider('push', () => {
       this.checkOpen();
+      if(!valid())return Promise.resolve();
       if (bounded && bounded.expiresAt <= this.now()) throw new ServiceError('wake-expired', 'Notification intent expired');
       return this.options.pushProvider!.sendWake(row.token, bounded, row.background_sync===1,encrypted);
     }); }
@@ -216,6 +221,67 @@ export class DirectoryServices {
       throw error instanceof ServiceError ? error : new ServiceError('provider-failed', 'Push provider did not accept notification');
     }
   }
+  private callControl<T>(work:()=>T):T {this.checkOpen();try{return work();}catch(error){if(error instanceof CallControlError)throw new ServiceError(error.code,error.message);throw error;}}
+  private callConsent(caller:string,callee:string){
+    if(caller===callee||!this.lookup(caller)||!this.lookup(callee))throw new ServiceError('call-target','Unknown call participant');
+    if(!this.db.prepare('SELECT 1 FROM push_consent WHERE recipient_id = ? AND sender_id = ?').get(callee,caller))throw new ServiceError('wake-not-allowed','Recipient has not authorized calls from this contact');
+  }
+  callState(actor:string,other:string,callId:string,epoch:string):CallState{return this.callControl(()=>this.calls.state(actor,other,callId,epoch));}
+  callReceived(callee:string,caller:string,callId:string,epoch:string):CallState {
+    return this.callControl(()=>{const current=this.calls.state(callee,caller,callId,epoch);if(current.state==='unknown')return current;if(current.calleeId!==callee||current.callerId!==caller)throw new ServiceError('call-role','Only the callee may acknowledge ringing');this.callConsent(caller,callee);const result=this.calls.received(callee,caller,callId,epoch);if(result.changed)this.onCallState?.(result.value);return result.value;});
+  }
+  async callOffer(caller:string,callee:string,timing:CallTiming,invite:string):Promise<CallState>{
+    const result=this.callControl(()=>{
+      const sealed=callPushSchema.parse(invite),header=callPushEnvelopeSchema.parse(JSON.parse(sealed));
+      if(header.senderId!==caller||header.recipientId!==callee||header.callId!==timing.callId||header.serverEpoch!==timing.serverEpoch||header.issuedAt!==timing.issuedAt||header.expiresAt!==timing.expiresAt)throw new ServiceError('call-mismatch','Encrypted invitation does not match call participants or deadline');
+      this.callConsent(caller,callee);return this.calls.offer(caller,callee,timing);
+    });
+    if(!result.changed)return result.value;
+    this.onCallState?.(result.value);
+    // Forward once to a negotiated connected client; never retain the envelope.
+    this.onCallInvitation?.(callee,invite);
+    const current=()=>this.calls.state(caller,callee,timing.callId,timing.serverEpoch);
+    const row=this.db.prepare('SELECT token,background_sync,call_invite_v1 FROM push_tokens WHERE user_id = ?').get(callee) as {token:string;background_sync:number;call_invite_v1:number}|undefined;
+    if(!row||!this.options.pushProvider)return current();
+    const intent:WakeIntent={kind:'call',intentId:timing.callId,expiresAt:timing.expiresAt};
+    if(row.background_sync!==1||row.call_invite_v1!==1){
+      // Explicit token opt-in gates the new payload; legacy clients keep their old wake.
+      if(current().state==='pending')await this.wake(caller,callee,intent,undefined,()=>current().state==='pending');return current();
+    }
+    if(this.activePush>=8)throw new ServiceError('service-busy','Notification service is busy');
+    this.reserve([{scope:'wake-global',key:'all',limit:1000},{scope:'wake-sender',key:caller,limit:120},{scope:'wake-call-recipient',key:callee,limit:120}]);
+    try{await this.provider('push',()=>{
+      this.checkOpen();this.callConsent(caller,callee);
+      if(current().state!=='pending'||this.now()>=timing.expiresAt)return Promise.resolve();
+      const token=this.db.prepare('SELECT token,background_sync,call_invite_v1 FROM push_tokens WHERE user_id = ?').get(callee) as typeof row;
+      if(!token||token.token!==row.token||token.background_sync!==1||token.call_invite_v1!==1)return Promise.resolve();
+      return this.options.pushProvider!.sendWake(row.token,intent,true,undefined,invite);
+    });}catch(error){if(error instanceof InvalidPushToken&&!this.closed)this.db.prepare('DELETE FROM push_tokens WHERE user_id = ? AND token = ?').run(callee,row.token);throw error instanceof ServiceError?error:new ServiceError('provider-failed','Push provider did not accept call invitation');}
+    return current();
+  }
+  async callAction(actor:string,other:string,action:CallAction,timing:CallTiming):Promise<CallState>{
+    const result=this.callControl(()=>{const current=this.calls.state(actor,other,timing.callId,timing.serverEpoch);if(current.state==='unknown'&&action==='cancel')this.callConsent(actor,other);return this.calls.action(actor,other,action,timing);});
+    if(!result.changed)return result.value;
+    this.onCallState?.(result.value);
+    if(result.value.state==='ended')await this.pushCallTerminal(actor,other,result.value);
+    return result.value;
+  }
+  private async pushCallTerminal(actor:string,recipient:string,state:CallState){
+    if(!this.options.pushProvider||this.now()>=state.expiresAt)return;
+    const row=this.db.prepare('SELECT token,background_sync,call_invite_v1 FROM push_tokens WHERE user_id = ?').get(recipient) as {token:string;background_sync:number;call_invite_v1:number}|undefined;
+    if(!row||row.background_sync!==1||row.call_invite_v1!==1)return;
+    // A terminal freshness hint is optional; state already changed atomically.
+    try{
+      if(!this.db.prepare('SELECT 1 FROM push_consent WHERE recipient_id = ? AND sender_id = ?').get(recipient,actor))return;
+      this.reserve([{scope:'wake-global',key:'all',limit:1000},{scope:'wake-sender',key:actor,limit:120},{scope:'wake-call-recipient',key:recipient,limit:120}]);
+      await this.provider('push',()=>{
+        this.checkOpen();if(this.now()>=state.expiresAt||this.calls.state(actor,recipient,state.callId,state.serverEpoch).state!=='ended')return Promise.resolve();
+        const token=this.db.prepare('SELECT token,background_sync,call_invite_v1 FROM push_tokens WHERE user_id = ?').get(recipient) as typeof row;
+        if(!token||token.token!==row.token||token.background_sync!==1||token.call_invite_v1!==1||!this.db.prepare('SELECT 1 FROM push_consent WHERE recipient_id = ? AND sender_id = ?').get(recipient,actor))return Promise.resolve();
+        return this.options.pushProvider!.sendWake(row.token,{kind:'call',intentId:state.callId,expiresAt:state.expiresAt},true,undefined,undefined,state);
+      });
+    }catch(error){if(error instanceof InvalidPushToken&&!this.closed)this.db.prepare('DELETE FROM push_tokens WHERE user_id = ? AND token = ?').run(recipient,row.token);}
+  }
   iceServers(userId: string) {
     this.checkOpen(); this.expire();
     this.reserve([{ scope: 'ice-user', key: userId, limit: 60 }, { scope: 'ice-global', key: 'all', limit: 1000 }]);
@@ -223,7 +289,7 @@ export class DirectoryServices {
   }
   async close() {
     if (this.closed) return; this.closed = true;
-    this.wakeIntents.clear();
+    this.wakeIntents.clear();this.calls.clear();
     for (const id of this.challenges.keys()) this.removeChallenge(id);
     this.secret?.fill(0); this.starting.clear();
     let timer: ReturnType<typeof setTimeout> | undefined;

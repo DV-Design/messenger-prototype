@@ -31,8 +31,9 @@ export const signalBodySchema = z.discriminatedUnion('kind',[
   z.object({kind:z.literal('description'),description:z.object({type:z.enum(['offer','answer']),sdp:z.string().max(40000)}).strict()}).strict(),
   z.object({kind:z.literal('candidate'),candidate:z.object({candidate:z.string().max(3000),sdpMid:z.string().nullable().optional(),sdpMLineIndex:z.number().int().min(0).max(100).nullable().optional(),usernameFragment:z.string().max(300).nullable().optional()}).strict()}).strict(),
   z.object({kind:z.literal('renegotiate'),iceRestart:z.boolean().optional()}).strict(),
-  z.object({kind:z.literal('call-invite'),callId:id,video:z.boolean()}).strict(),
+  z.object({kind:z.literal('call-invite'),callId:id,video:z.boolean(),issuedAt:z.number().int().nonnegative().optional(),expiresAt:z.number().int().positive().optional()}).strict().refine(v=>(v.issuedAt===undefined&&v.expiresAt===undefined)||(v.issuedAt!==undefined&&v.expiresAt!==undefined&&v.expiresAt-v.issuedAt===30000)),
   z.object({kind:z.literal('call-accept'),callId:id}).strict(),
+  z.object({kind:z.literal('call-ringing'),callId:id}).strict(),
   z.object({kind:z.literal('call-end'),callId:id}).strict(),
 ]);
 export type SignalBody = z.infer<typeof signalBodySchema>;

@@ -3,7 +3,7 @@ import { parsePhoneNumberWithError } from 'libphonenumber-js/min';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex } from './crypto.js';
 import { peerIdSchema, roomIdSchema } from './protocol.js';
-export const serviceCapabilitiesSchema=z.object({phoneVerification:z.boolean(),push:z.boolean(),relay:z.boolean(),phoneVerified:z.boolean()}).strict();
+export const serviceCapabilitiesSchema=z.object({phoneVerification:z.boolean(),push:z.boolean(),relay:z.boolean(),phoneVerified:z.boolean(),callInviteV1:z.boolean().optional(),serverEpoch:peerIdSchema.optional()}).strict();
 export type ServiceCapabilities=z.infer<typeof serviceCapabilitiesSchema>;
 export const phoneChallengeSchema=z.object({challengeId:peerIdSchema,expiresAt:z.number().finite().nonnegative(),retryAt:z.number().finite().nonnegative()}).strict();
 export type PhoneChallenge=z.infer<typeof phoneChallengeSchema>;

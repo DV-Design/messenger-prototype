@@ -13,6 +13,7 @@ interface Connection {
   expiresAt: number;
   userId?: string;
   watches: Set<string>;
+  callInviteV1?:boolean;
 }
 export interface DirectoryOptions extends ServiceOptions {
   iceServers: () => RTCIceServer[];
@@ -51,7 +52,7 @@ export class Directory {
     // SQLite's built-in lower()/LIKE fold only ASCII. Keep existing stored names
     // intact and fold both operands with the same Unicode rule instead.
     this.db.function('lastcall_fold', { deterministic: true }, (value) => String(value ?? '').normalize('NFKC').toLowerCase());
-    this.services = new DirectoryServices(this.db, options, (id) => { const row = this.row(id); return row && this.user(row); }, options.iceServers);
+    this.services = new DirectoryServices(this.db, options, (id) => { const row = this.row(id); return row && this.user(row); }, options.iceServers,state=>{for(const id of [state.callerId,state.calleeId]){const target=this.online.get(id);if(target?.callInviteV1)this.options.send(target.ws,{type:'call-state',...state});}},(recipient,invite)=>{const target=this.online.get(recipient);if(target?.callInviteV1)this.options.send(target.ws,{type:'call-invitation',invite});});
   }
   open(ws: WebSocket) {
     const challenge = randomBytes(32).toString('hex');
@@ -121,7 +122,8 @@ export class Directory {
         const page = rows.slice(0, 100);
         this.options.send(ws, { type: 'users-page', requestId: frame.requestId, users: page.map((row) => this.user(row)), ...(rows.length > 100 ? { nextCursor: page.at(-1)!.username } : {}) });
       } else if (frame.type === 'services') {
-        this.options.send(ws, { type: 'services', requestId: frame.requestId, capabilities: this.services.capabilities(connection.userId) });
+        if(frame.callInviteV1===true)connection.callInviteV1=true;
+        this.options.send(ws, { type: 'services', requestId: frame.requestId, capabilities: this.services.capabilities(connection.userId,frame.callInviteV1===true) });
       } else if (frame.type === 'ice') {
         this.options.send(ws, { type: 'ice', requestId: frame.requestId, iceServers: this.services.iceServers(connection.userId) });
       } else if (frame.type === 'phone-start') {
@@ -134,8 +136,17 @@ export class Directory {
         const matches = this.services.discover(connection.userId, frame.hashes);
         this.options.send(ws, { type: 'phone-matches', requestId: frame.requestId, matches });
       } else if (frame.type === 'push-register') {
-        this.services.registerPush(connection.userId, frame.token, frame.backgroundSync,frame.messagePreview);
+        this.services.registerPush(connection.userId, frame.token, frame.backgroundSync,frame.messagePreview,frame.callInviteV1);
+        if(frame.callInviteV1===true&&frame.backgroundSync===true)connection.callInviteV1=true;
         this.options.send(ws, { type: 'push-registered', requestId: frame.requestId });
+      } else if (frame.type === 'call-offer') {
+        connection.callInviteV1=true;const value=await this.services.callOffer(connection.userId,frame.to,frame,frame.invite);this.options.send(ws,{type:'call-state',requestId:frame.requestId,...value});
+      } else if (frame.type === 'call-received') {
+        connection.callInviteV1=true;const value=this.services.callReceived(connection.userId,frame.callerId,frame.callId,frame.serverEpoch);this.options.send(ws,{type:'call-state',requestId:frame.requestId,...value});
+      } else if (frame.type === 'call-state-get') {
+        connection.callInviteV1=true;const value=this.services.callState(connection.userId,frame.otherId,frame.callId,frame.serverEpoch);this.options.send(ws,{type:'call-state',requestId:frame.requestId,...value});
+      } else if (frame.type === 'call-action') {
+        connection.callInviteV1=true;const value=await this.services.callAction(connection.userId,frame.otherId,frame.action,frame);this.options.send(ws,{type:'call-state',requestId:frame.requestId,...value});
       } else if (frame.type === 'wake') {
         await this.services.wake(connection.userId, frame.to, frame.kind === undefined ? undefined : wakeIntentSchema.parse({ kind: frame.kind, intentId: frame.intentId, expiresAt: frame.expiresAt }),frame.preview);
       } else if (frame.type === 'search') {

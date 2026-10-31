@@ -1,5 +1,52 @@
 # Direct-first wake and bounded Android background sync
 
+## Candidate 0.7.1/code11 — not published or accepted yet
+
+0.7.0/code10 remains the available public build. The independent six-cycle QA is
+stopped at6/6 (`paused_limit`); there is no automatic cycle7. Cycle4 executed the
+full commands but its worker response timed out at280s and returned BLOCKED, not
+PASS: 340 unit tests (80 mobile/71 server/189 core),11 browser PASS/1
+authenticated-TURN skip, types/builds/Android+iOS JS exports PASS, lint0 errors plus
+the existing VoiceNote warning. Cycle5 was a narrow read-only source-review PASS;
+cycle6 a narrow build-helper/types/final-APK PASS without a full rerun. The final
+candidate APK (`artifacts/LastCall-0.7.1.apk`, SHA256
+`3d36731251871053711e48e0a9464a9259ffdd0024397d041cc412a253dd2122`,54949881
+bytes) is **not published and not accepted**. Final Android17 cold FCM started a
+process but showed no owned incoming UI within27s. The confirmed root cause is the
+installed `expo-notifications` `RemoteMessageSerializer.toBundle(Map)` adding
+`dataString:null`; the strict call parser expects5/7 keys and rejects the actual
+6/8 SDK keys. No fix was applied after the limit (tracked as `msg-el9`). See
+[cycle4](reports/testing/2026-10/claude-qa-cycle-4.md),
+[cycle5](reports/testing/2026-10/claude-qa-cycle-5.md),
+[cycle6](reports/testing/2026-10/claude-qa-cycle-6.md) and the
+[native 0.7.1 report](reports/debugging/2026-10/native-071.md).
+
+Candidate call setup separates an authenticated encrypted invitation from media:
+
+- The caller tries directly first; after 2.5 s without an answer, bounded server/FCM
+  metadata may carry an XChaCha20-Poly1305 invitation derived from the pinned-pair
+  secret. No SDP, media or chat content is in that invitation. `callId` is stable and
+  the original 30 s deadline is never extended by a retry or push.
+- The server validates caller/callee consent, invite binding, server epoch and timing,
+  forwards once to a connected callee and never stores the envelope. Its coordination
+  map is RAM-only, expires in <=30 s, is bounded to 4096 calls/8 per user, and keeps a
+  cancel tombstone binding the original deadline. Restart or epoch change invalidates
+  old actions; no media/content/history is retained.
+- The receiver decrypts only with the pinned contact key and verifies sender, recipient,
+  `callId`, conversation membership, expiry and current server epoch/state before any
+  ring. A terminal push hint cannot mutate core state; only the authenticated response
+  can. A cancelled/expired call cannot be resurrected.
+- Explicit answer means permission to wait for the matching P2P call, not active media.
+  The native call-only screen appears before ICE, shows no chat/history, and remains
+  "connecting" until core observes the active session; microphone/camera start only
+  after the explicit answer. Native UUID/nonce/deadline binding rejects stale actions.
+
+Android 14+ adds a separate full-screen special-access step. Opening
+`ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT` is not a grant; JS re-reads the real state
+only after app leave/return (60 s failure keeps prior truth). A separate upgrade marker
+prevents the old four permission prompts from repeating. Without access, Android may
+show only a banner/notification. See the [candidate report](reports/debugging/2026-10/call-invite-071.md).
+
 ## Status: published 0.7.0/code10, 2026-10-30
 
 Published 0.7.0 changes Android calls to LastCall-owned incoming UI, extends

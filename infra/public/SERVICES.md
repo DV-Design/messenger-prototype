@@ -1,5 +1,25 @@
 # Optional FCM and authenticated ICE configuration
 
+## 0.7.1/code11 candidate
+
+Not published or accepted; 0.7.0/code10 remains live. Independent QA stopped at
+6/6 (`paused_limit`). The final candidate is54949881 bytes, SHA256
+`3d36731251871053711e48e0a9464a9259ffdd0024397d041cc412a253dd2122`, with
+packaged FCM=true/version0.7.1/code11/min24/target36/same certificate, but actual
+Android17 cold FCM showed no owned incoming UI within27s. The installed SDK
+serializer appends `dataString:null`, and the strict parser expects5/7 keys while
+the actual SDK shape has6/8 (`msg-el9`; no fix after the limit). Cycle4 ran the
+full340-unit/11-browser/1-skip commands but returned BLOCKED after a280s timeout;
+cycle5 was a narrow source-review PASS and cycle6 a narrow build/types/final-APK
+PASS. The call invitation is end-to-end encrypted and carries no media/SDP/chat
+content. The server validates consent, invite binding, epoch and deadline,
+forwards at most once, and retains only bounded RAM metadata for <=30s (4096
+calls/8 per user, cancel tombstone). It stores no call media, content or history.
+FCM tokens opt in separately via `call_invite_v1`; old tokens keep their previous
+wake. Android14+ full-screen access is a separate user step and must be re-read
+after return. See [the candidate report](../../docs/reports/debugging/2026-10/call-invite-071.md)
+and [native 0.7.1 report](../../docs/reports/debugging/2026-10/native-071.md).
+
 ## 0.6.0/code9
 
 Android0.6 adds encrypted previews, authenticated notification routes, managed

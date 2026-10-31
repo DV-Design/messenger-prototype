@@ -3,6 +3,28 @@
 User direction: persist text and files on sender devices until recipient acknowledgement,
 with a seven-day deadline. The coordination server has no chat-content mailbox.
 
+## Candidate 0.7.1/code11 — call coordination is not an outbox
+
+Not published or accepted; 0.7.0/code10 remains available. Independent QA is
+stopped at6/6 (`paused_limit`); cycle4 ran the full340-unit/11-browser/1-skip
+commands but its final response timed out and was BLOCKED, cycle5 was a narrow
+read-only source-review PASS, and cycle6 a narrow build-helper/types/final-APK PASS.
+The final candidate is `artifacts/LastCall-0.7.1.apk`,54949881 bytes, SHA256
+`3d36731251871053711e48e0a9464a9259ffdd0024397d041cc412a253dd2122`, but native
+Android17 cold FCM showed no owned incoming UI within27s. Confirmed cause: the
+installed SDK serializer appends `dataString:null` and the strict parser rejects
+the actual6/8-key SDK shape (tracked as `msg-el9`; no fix after the limit). See
+[cycle4](reports/testing/2026-10/claude-qa-cycle-4.md),
+[cycle5](reports/testing/2026-10/claude-qa-cycle-5.md),
+[cycle6](reports/testing/2026-10/claude-qa-cycle-6.md) and
+[native071](reports/debugging/2026-10/native-071.md). A call invitation is a transient
+authenticated signalling object, not a chat message: it has a stable `callId`, an
+original 30 s deadline, no media/SDP/chat content, and is never stored by the server
+beyond bounded RAM metadata. A later terminal push is only a freshness hint and
+cannot change delivery, read state or resurrect a cancelled call. It creates no chat
+record, ACK or history. See the [wake contract](WAKE-CONTRACT.md) and
+[candidate report](reports/debugging/2026-10/call-invite-071.md).
+
 0.7.0/code10 is published with verified APK/signature/public-download hashes. It separates
 durable delivery from actual foreground-chat read state; the existing queue,
 encrypted local storage and server-content boundaries remain authoritative.

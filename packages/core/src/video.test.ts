@@ -1,51 +1,24 @@
 import {describe,expect,it,vi} from 'vitest';
 import {AdaptiveVideoPolicy} from './video.js';
 import {PeerSession} from './session.js';
-describe('voice-first video envelope above native congestion control',()=>{
- it('starts with a full720p ceiling, then reserves voice before pausing on a real low budget',()=>{
-  const policy=new AdaptiveVideoPolicy();expect(policy.current()).toMatchObject({maxBitrate:1800000,maxFramerate:30,scaleResolutionDownBy:1});
-  expect(policy.update({availableOutgoingBitrate:250000,rttMs:40,lossRatio:0},0)).toMatchObject({active:true,maxBitrate:120000,maxFramerate:10,scaleResolutionDownBy:4});
-  expect(policy.update({availableOutgoingBitrate:110000},2000)).toMatchObject({active:true,maxBitrate:24000,maxFramerate:5});
-  expect(policy.update({availableOutgoingBitrate:90000},4000).active).toBe(false);
-  expect(policy.update({availableOutgoingBitrate:1000000,lossRatio:0.2},6000)).toMatchObject({active:false});
- });
- it('does not mistake long baseline RTT or missing bandwidth estimates for congestion',()=>{
+describe('stable video envelope above native congestion/CPU adaptation',()=>{
+ it('does not feed a discounted GCC estimate back into encoder shutdown/resizing',()=>{
   const policy=new AdaptiveVideoPolicy();
-  expect(policy.update({rttMs:800,lossRatio:0},0).maxBitrate).toBe(1800000);
-  expect(policy.update({},4000).scaleResolutionDownBy).toBe(1);
-  expect(policy.update({availableOutgoingBitrate:NaN,rttMs:Infinity},8000).maxBitrate).toBe(1800000);
+  const estimates=[2200000,1200000,600000,240000,100000,80000,80000,3000000,3000000,3000000,3000000,3000000,80000,80000,3000000];
+  const results=estimates.map((availableOutgoingBitrate,index)=>policy.update({availableOutgoingBitrate,rttMs:40,lossRatio:0},index*2000));
+  expect(results.every(result=>result.active&&result.scaleResolutionDownBy===1&&result.maxFramerate===30)).toBe(true);
+  expect(new Set(results.map(result=>result.maxBitrate)).size).toBe(1);
  });
- it('lets GCC handle brief moderate loss, but reduces on sustained or severe receiver loss',()=>{
+ it('keeps native GCC in control for severe or missing feedback and long routes',()=>{
   const policy=new AdaptiveVideoPolicy();
-  expect(policy.update({lossRatio:0.06},0).maxBitrate).toBe(1800000);
-  expect(policy.update({lossRatio:0},2000).maxBitrate).toBe(1800000);
-  policy.update({lossRatio:0.06},4000);
-  expect(policy.update({lossRatio:0.06},6000).maxBitrate).toBe(120000);
-  expect(policy.update({lossRatio:0.2},8000).maxBitrate).toBe(40000);
+  for(const measurements of [{availableOutgoingBitrate:0,lossRatio:1},{rttMs:800,lossRatio:0.2},{},{availableOutgoingBitrate:NaN,rttMs:Infinity}]){
+   expect(policy.update(measurements,20000)).toMatchObject({active:true,maxBitrate:1800000,scaleResolutionDownBy:1});
+  }
  });
- it('recovers one tier after sustained headroom and restarts recovery after pressure or clock rollback',()=>{
-  const policy=new AdaptiveVideoPolicy();policy.update({lossRatio:0.2},0);
-  const good={availableOutgoingBitrate:3000000,rttMs:600,lossRatio:0};
-  policy.update(good,2000);expect(policy.update(good,5999).maxBitrate).toBe(40000);
-  expect(policy.update(good,6000).maxBitrate).toBe(120000);
-  policy.update(good,8000);expect(policy.update(good,12000).maxBitrate).toBe(450000);
-  policy.update(good,14000);expect(policy.update(good,18000).maxBitrate).toBe(900000);
-  policy.update(good,20000);expect(policy.update(good,24000).maxBitrate).toBe(1800000);
-  policy.update({lossRatio:0.2},26000);policy.update(good,28000);
-  expect(policy.update(good,100).maxBitrate).toBe(40000);
-  expect(policy.update(good,4099).maxBitrate).toBe(40000);
-  expect(policy.update(good,4100).maxBitrate).toBe(120000);
- });
- it('recovers all the way with healthy receiver reports even when native omits bandwidth',()=>{
-  const policy=new AdaptiveVideoPolicy();policy.update({lossRatio:0.2},0);
-  const good={rttMs:500,lossRatio:0};
-  for(let level=0;level<4;level++){policy.update(good,2000+level*6000);policy.update(good,6000+level*6000);}
-  expect(policy.current()).toMatchObject({maxBitrate:1800000,scaleResolutionDownBy:1});
- });
- it('slowly probes after missing feedback instead of retaining an old tiny cap indefinitely',()=>{
-  const policy=new AdaptiveVideoPolicy();policy.update({lossRatio:0.2},0);
-  policy.update({},2000);expect(policy.update({},9999).maxBitrate).toBe(40000);
-  expect(policy.update({},10000).maxBitrate).toBe(120000);
+ it('returns an isolated bounded envelope despite stale clocks or caller mutations',()=>{
+  const policy=new AdaptiveVideoPolicy();const first=policy.current();first.active=false;first.maxBitrate=1;
+  expect(policy.update({},NaN)).toMatchObject({active:true,maxBitrate:1800000,maxFramerate:30,scaleResolutionDownBy:1});
+  expect(policy.update({},-1)).toEqual(policy.current());
  });
 });
 function fixture(){
@@ -63,6 +36,22 @@ function fixture(){
  return {session,internal,sender,track,report,pc,writes,cached,newTransaction:()=>{transaction='fresh';}};
 }
 describe('session video sender integration',()=>{
+ it('does not retry identical video targets every stats tick when native normalizes its parameters',async()=>{
+  const f=fixture();
+  for(let index=0;index<30;index++)await f.internal.readStats();
+  expect(f.sender.setParameters).toHaveBeenCalledTimes(1);
+  f.internal.callId='next-call';await f.internal.readStats();expect(f.sender.setParameters).toHaveBeenCalledTimes(2);
+  f.sender.track={kind:'video',readyState:'live'};await f.internal.readStats();expect(f.sender.setParameters).toHaveBeenCalledTimes(3);
+ });
+ it('exposes only safe selected codec names and finite received-video diagnostics',async()=>{
+  const f=fixture();f.report.set('codec',{mimeType:'video/VP8'});f.report.set('remote-codec',{mimeType:'video/H264'});
+  f.report.get('video').codecId='codec';
+  Object.assign(f.report.get('incoming'),{codecId:'remote-codec',framesDecoded:300,framesDropped:2,freezeCount:1,totalFreezesDuration:0.4,frameWidth:1280,frameHeight:720});
+  await f.internal.readStats();expect(f.session.getSnapshot().stats).toMatchObject({videoCodec:'video/VP8',remoteVideoCodec:'video/H264',videoFramesDecoded:300,videoFramesDropped:2,videoFreezeCount:1,videoFreezeSeconds:0.4,remoteVideoWidth:1280,remoteVideoHeight:720});
+  f.report.get('codec').mimeType='https://untrusted.test/private';f.report.get('remote-codec').mimeType='audio/opus';
+  Object.assign(f.report.get('incoming'),{framesDecoded:NaN,framesDropped:-1,freezeCount:Infinity});
+  await f.internal.readStats();expect(f.session.getSnapshot().stats.videoCodec).toBeUndefined();expect(f.session.getSnapshot().stats.remoteVideoCodec).toBeUndefined();expect(f.session.getSnapshot().stats.videoFramesDecoded).toBeUndefined();expect(f.session.getSnapshot().stats.videoFramesDropped).toBeUndefined();expect(f.session.getSnapshot().stats.videoFreezeCount).toBeUndefined();
+ });
  it('reports measured video rate, encoded size/fps and CPU delay without mixing SSRC counters',async()=>{
   const f=fixture();const video=f.report.get('video');
   Object.assign(video,{bytesSent:10000,timestamp:1000,framesEncoded:30,totalEncodeTime:0.15,frameWidth:1280,frameHeight:720,qualityLimitationReason:'cpu'});
@@ -75,33 +64,33 @@ describe('session video sender integration',()=>{
   await f.internal.readStats();expect(f.session.getSnapshot().stats.videoBitrateKbps).toBeUndefined();expect(f.session.getSnapshot().stats.videoFramesPerSecond).toBeUndefined();expect(f.session.getSnapshot().stats.videoEncodeMs).toBeUndefined();
  });
  it('uses remote video RTCP feedback, not local incoming loss; missing stats keep GCC running',async()=>{
-  const f=fixture();await f.internal.readStats();expect(f.writes[0].encodings[0]).toMatchObject({maxBitrate:450000,maxFramerate:20,scaleResolutionDownBy:2});
+  const f=fixture();await f.internal.readStats();expect(f.writes[0].encodings[0]).toMatchObject({maxBitrate:1800000,maxFramerate:30,scaleResolutionDownBy:1});
   expect(f.cached.encodings).toEqual([{active:true}]);
-  f.report.get('feedback').fractionLost=0.2;f.report.get('video').packetsSent=200;await f.internal.readStats();expect(f.writes.at(-1).encodings[0].maxBitrate).toBe(40000);
-  f.report.get('pair').availableOutgoingBitrate=80000;await f.internal.readStats();expect(f.writes.at(-1).encodings[0].active).toBe(false);
+  f.report.get('feedback').fractionLost=0.2;f.report.get('video').packetsSent=200;await f.internal.readStats();expect(f.writes.at(-1).encodings[0].maxBitrate).toBe(1800000);
+  f.report.get('pair').availableOutgoingBitrate=80000;await f.internal.readStats();expect(f.writes.at(-1).encodings[0].active).toBe(true);
   f.pc.getStats=async()=>{throw new Error('unsupported');};await expect(f.internal.readStats()).resolves.toBeUndefined();expect(f.session.getSnapshot().error).toBeUndefined();
  });
  it('uses video RTCP RTT/counter deltas and discards loss baselines after an SSRC change',async()=>{
   const f=fixture();const feedback=f.report.get('feedback');delete feedback.fractionLost;feedback.packetsLost=0;
-  await f.internal.readStats();feedback.packetsLost=20;f.report.get('video').packetsSent=200;await f.internal.readStats();expect(f.writes.at(-1).encodings[0].maxBitrate).toBe(40000);
+  await f.internal.readStats();feedback.packetsLost=20;f.report.get('video').packetsSent=200;await f.internal.readStats();expect(f.writes.at(-1).encodings[0].maxBitrate).toBe(1800000);
   f.internal.videoPolicy=new AdaptiveVideoPolicy();feedback.localId='new-video';f.report.get('video').id='new-video';f.report.get('video').packetsSent=5;feedback.packetsLost=0;
-  await f.internal.readStats();expect(f.writes.at(-1).encodings[0].maxBitrate).toBe(450000);
-  feedback.roundTripTime=0.8;f.report.get('video').packetsSent=6;await f.internal.readStats();expect(f.writes.at(-1).encodings[0].maxBitrate).toBe(450000);
+  await f.internal.readStats();expect(f.writes.at(-1).encodings[0].maxBitrate).toBe(1800000);
+  feedback.roundTripTime=0.8;f.report.get('video').packetsSent=6;await f.internal.readStats();expect(f.writes.at(-1).encodings[0].maxBitrate).toBe(1800000);
  });
- it('resumes paused video after healthy pair estimates despite frozen bad video RTCP',async()=>{
+ it('does not stop a live encoder or retain stale RTCP pressure when packets do not advance',async()=>{
   const clock=vi.spyOn(performance,'now');
   try{
    const f=fixture();const pair=f.report.get('pair'),feedback=f.report.get('feedback');
    feedback.fractionLost=0.2;feedback.roundTripTime=0.8;pair.availableOutgoingBitrate=80000;
-   clock.mockReturnValue(0);await f.internal.readStats();expect(f.writes.at(-1).encodings[0].active).toBe(false);
+   clock.mockReturnValue(0);await f.internal.readStats();expect(f.writes.at(-1).encodings[0].active).toBe(true);
    pair.availableOutgoingBitrate=2500000;pair.currentRoundTripTime=0.03;
-   // Encoder is paused: packetsSent and its old remote loss/RTT report never change.
-   clock.mockReturnValue(2000);await f.internal.readStats();expect(f.writes.at(-1).encodings[0].active).toBe(false);
-   clock.mockReturnValue(5999);await f.internal.readStats();expect(f.writes.at(-1).encodings[0].active).toBe(false);
-   clock.mockReturnValue(6000);await f.internal.readStats();expect(f.writes.at(-1).encodings[0]).toMatchObject({active:true,maxBitrate:40000,maxFramerate:5});
+   // No new packets: old remote loss/RTT must not trigger periodic encoder restarts.
+   clock.mockReturnValue(2000);await f.internal.readStats();expect(f.writes.at(-1).encodings[0].active).toBe(true);
+   clock.mockReturnValue(5999);await f.internal.readStats();expect(f.writes.at(-1).encodings[0].active).toBe(true);
+   clock.mockReturnValue(6000);await f.internal.readStats();expect(f.writes.at(-1).encodings[0]).toMatchObject({active:true,maxBitrate:1800000,maxFramerate:30});
    expect(f.report.get('video').packetsSent).toBe(100);expect(feedback.fractionLost).toBe(0.2);expect(feedback.roundTripTime).toBe(0.8);
-   // Once sending advances again, a genuinely bad receiver report still causes immediate reduction.
-   f.report.get('video').packetsSent=101;f.internal.videoPolicy=new AdaptiveVideoPolicy();clock.mockReturnValue(14000);await f.internal.readStats();expect(f.writes.at(-1).encodings[0].maxBitrate).toBe(40000);
+   // Even genuinely bad feedback stays with native GCC; JS must not toggle encodings.
+   f.report.get('video').packetsSent=101;f.internal.videoPolicy=new AdaptiveVideoPolicy();clock.mockReturnValue(14000);await f.internal.readStats();expect(f.writes.at(-1).encodings[0].maxBitrate).toBe(1800000);
   }finally{clock.mockRestore();}
  });
  it('obtains parameters inside the serial queue after a queued negotiation and skips replaced senders',async()=>{
@@ -117,9 +106,9 @@ describe('session video sender integration',()=>{
  });
  it('retries unsupported resolution/fps with fresh bitrate-only parameters and survives unavailable setters',async()=>{
   const f=fixture();f.sender.setParameters.mockImplementation(async(value:any)=>{if(value.encodings[0].maxFramerate)throw new Error('unsupported scale');f.writes.push(value);});
-  await f.internal.readStats();expect(f.sender.getParameters).toHaveBeenCalledTimes(2);expect(f.writes[0].encodings[0]).toEqual({active:true,maxBitrate:450000});expect(f.cached.encodings).toEqual([{active:true}]);
-  await f.internal.readStats();expect(f.sender.setParameters).toHaveBeenCalledTimes(3);
-  f.sender.setParameters.mockRejectedValue(new Error('unavailable'));await f.internal.readStats();const count=f.sender.setParameters.mock.calls.length;await f.internal.readStats();expect(f.sender.setParameters).toHaveBeenCalledTimes(count);expect(f.session.getSnapshot().error).toBeUndefined();
+  await f.internal.readStats();expect(f.sender.getParameters).toHaveBeenCalledTimes(2);expect(f.writes[0].encodings[0]).toEqual({active:true,maxBitrate:1800000});expect(f.cached.encodings).toEqual([{active:true}]);
+  await f.internal.readStats();expect(f.sender.setParameters).toHaveBeenCalledTimes(2);
+  f.internal.callId='next-call';f.sender.setParameters.mockRejectedValue(new Error('unavailable'));await f.internal.readStats();const count=f.sender.setParameters.mock.calls.length;await f.internal.readStats();expect(f.sender.setParameters).toHaveBeenCalledTimes(count);expect(f.session.getSnapshot().error).toBeUndefined();
  });
  it('requests bounded720p capture, falls back only for constraints, and never retries a permission denial',async()=>{
   const track={kind:'video',readyState:'live',stop:vi.fn()};const stream={getTracks:()=>[track]};

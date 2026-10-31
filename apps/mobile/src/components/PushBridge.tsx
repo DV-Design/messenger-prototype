@@ -3,6 +3,8 @@ import { client, reconnect, useMessenger } from '../runtime';
 import { listenForWake, nativePushToken, onPushRefresh, pushConfigured, pushUnavailable } from '../notifications';
 import { prepareMessagePreviews } from '../push-previews';
 import { ensureBackgroundNotifications } from '../background-notifications';
+import { prepareCallInvitePush } from '../system-calls';
+import { callInviteCapability } from '../call-push-model';
 let status = pushConfigured ? 'Ожидаем подключения к серверу' : pushUnavailable;
 const listeners = new Set<() => void>();
 const publish = (value: string) => { status = value; listeners.forEach(listener => listener()); };
@@ -31,7 +33,9 @@ export function PushBridge() {
         if (!active || current !== client()) return;
         const messagePreview = backgroundSync && await prepareMessagePreviews();
         if (!active || current !== client()) return;
-        await current.registerPushToken(token, backgroundSync, messagePreview); success = true;
+        const callInviteV1 = callInviteCapability(backgroundSync, backgroundSync && await prepareCallInvitePush());
+        if (!active || current !== client()) return;
+        await current.registerPushToken(token, backgroundSync, messagePreview, callInviteV1); success = true;
         if (active) { if (rotatedToken === token) rotatedToken = undefined; publish('FCM зарегистрирован. Реальная доставка зависит от сети и Android.'); }
       } catch { if (active) publish('Не удалось зарегистрировать FCM. Проверьте сеть, Firebase и Google Play Services.'); }
       finally { running = false; if (active && success && rotatedToken) { const retryToken = rotatedToken; rotatedToken = undefined; queueMicrotask(() => { rotatedToken = retryToken; void register(); }); } }

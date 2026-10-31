@@ -58,6 +58,24 @@ iOS/APNs/CallKit remain separate acceptance work. No universal instant-delivery
 or DPI-invisibility claim. See [phone tasks](../docs/TESTING-RU.md),
 [wake contract](../docs/WAKE-CONTRACT.md) and [outbox contract](../docs/OUTBOX-CONTRACT.md).
 
+## Unpublished candidate 0.7.1 / code11 — native FAIL, do not distribute
+
+- Local only: `artifacts/LastCall-0.7.1.apk` (ignored binary); **no public download**
+- Package `dev.messenger.prototype`, version0.7.1, versionCode11, label LastCall
+- ARM64, Android API24 minimum / target36; same internal test signing certificate
+- Size:54,949,881 bytes
+- SHA256:`3d36731251871053711e48e0a9464a9259ffdd0024397d041cc412a253dd2122`
+- Signing certificate SHA256:`fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c`
+- Packaged gate PASS: `nativeFcmConfigured=true`, version0.7.1, code11
+- **Not published and not accepted.** Independent QA stopped at6/6
+  (`paused_limit`). Actual Android17 cold FCM started a process but showed no
+  owned incoming UI within27s. Confirmed root cause: the installed SDK serializer
+  appends `dataString:null`; the strict parser expects5/7 keys and rejects the
+  actual6/8-key shape (`msg-el9`). No 0.7.1 link is advertised.
+- Evidence: ignored positive log `.tmp/current/native-071/release-fixed.log`,
+  [native report](../docs/reports/debugging/2026-10/native-071.md),
+  [cycle6](../docs/reports/testing/2026-10/claude-qa-cycle-6.md).
+
 ---
 
 # Historical LastCall Android preview 0.6.0

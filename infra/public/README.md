@@ -1,5 +1,24 @@
 # LastCall public preview
 
+0.7.1/code11 is **built but unpublished and not accepted**; public 0.7.0/code10
+remains the only download. Independent QA stopped at6/6 (`paused_limit`). The
+final candidate `artifacts/LastCall-0.7.1.apk` is54949881 bytes, SHA256
+`3d36731251871053711e48e0a9464a9259ffdd0024397d041cc412a253dd2122`, packaged with
+FCM=true/version0.7.1/code11/min24/target36/same certificate. Actual native
+Android17 cold FCM started a process but showed no owned incoming UI within27s.
+Confirmed cause: the installed SDK serializer appends `dataString:null` and the
+strict parser rejects the actual6/8-key shape (`msg-el9`; no fix after the limit).
+Cycle4 ran the full340-unit/11-browser/1-skip commands but its response timed out
+and was BLOCKED; cycle5 was a narrow source-review PASS and cycle6 a narrow
+build/types/final-APK PASS. No 0.7.1 download is advertised. Candidate calls use
+an authenticated encrypted invite with stable `callId`/original 30s deadline,
+server metadata only in bounded 30s RAM (no media/content history), and answer is
+not media-active. Android14+ adds a separate full-screen special-access step. A
+controlled66s browser test showed VP8 RTP advancing with a2.016s max gap and no JS
+periodic stream disable; this is not quality proof for physical Pixel/Vivo. See
+[the candidate report](../../docs/reports/debugging/2026-10/call-invite-071.md)
+and [native 0.7.1 report](../../docs/reports/debugging/2026-10/native-071.md).
+
 0.6.0/code9 adds encrypted text/file-name previews, authenticated notification
 routing, managed Android lockscreen calls, voice/circles and fullscreen adaptive
 video. Exact emulator evidence and limits are in the
