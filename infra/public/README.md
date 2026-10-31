@@ -1,23 +1,28 @@
 # LastCall public preview
 
-0.7.1/code11 is **built but unpublished and not accepted**; public 0.7.0/code10
-remains the only download. Independent QA stopped at6/6 (`paused_limit`). The
-final candidate `artifacts/LastCall-0.7.1.apk` is54949881 bytes, SHA256
-`3d36731251871053711e48e0a9464a9259ffdd0024397d041cc412a253dd2122`, packaged with
-FCM=true/version0.7.1/code11/min24/target36/same certificate. Actual native
-Android17 cold FCM started a process but showed no owned incoming UI within27s.
-Confirmed cause: the installed SDK serializer appends `dataString:null` and the
-strict parser rejects the actual6/8-key shape (`msg-el9`; no fix after the limit).
-Cycle4 ran the full340-unit/11-browser/1-skip commands but its response timed out
-and was BLOCKED; cycle5 was a narrow source-review PASS and cycle6 a narrow
-build/types/final-APK PASS. No 0.7.1 download is advertised. Candidate calls use
-an authenticated encrypted invite with stable `callId`/original 30s deadline,
-server metadata only in bounded 30s RAM (no media/content history), and answer is
+0.7.1/code11 is **published**: `artifacts/LastCall-0.7.1.apk`,54949929 bytes,
+SHA256 `a47c676b25b59ede87ca7cd3ad0fe067f52c2fe58957e342388166c622b1d53a`,
+same certificate, min24/target36/compile37, ARM64. Primary, alternate and preview
+URLs all returned the exact bytes/hash. The owner explicitly approved one extra
+allocation; cycles1–6 are preserved and cycle7/7 ran with base6/effective7, no
+cycle8. Cycle7 PASS covered81 mobile/10 monitor tests and mobile tsc/lint0 errors;
+full core/server/e2e was not rerun and remains attributed to cycle4.
+
+`msg-el9` is fixed and closed: only the known null `dataString` wrapper is
+normalized before strict5/7 validation, input is not mutated, raw size is checked,
+and unknown/non-null/conflicting fields still fail. Real Android17 acceptance
+passed: cold FCM under PIN showed the owned call UI at7.984 s, answer activated
+audio, direct bidirectional RTP was present at66 s from call start, and cancel removed UI without
+microphone. Emulator audio was disabled, so heard quality is not claimed. Calls
+use an authenticated encrypted invite with stable `callId`/original30s deadline,
+server metadata only in bounded30s RAM (no media/content history), and answer is
 not media-active. Android14+ adds a separate full-screen special-access step. A
 controlled66s browser test showed VP8 RTP advancing with a2.016s max gap and no JS
 periodic stream disable; this is not quality proof for physical Pixel/Vivo. See
-[the candidate report](../../docs/reports/debugging/2026-10/call-invite-071.md)
-and [native 0.7.1 report](../../docs/reports/debugging/2026-10/native-071.md).
+[call-invite report](../../docs/reports/debugging/2026-10/call-invite-071.md),
+[native 0.7.1 report](../../docs/reports/debugging/2026-10/native-071-cycle7.md),
+[cycle7](../../docs/reports/testing/2026-10/claude-qa-cycle-7.md), and the
+historical [pre-extension FAIL](../../docs/reports/debugging/2026-10/native-071.md).
 
 0.6.0/code9 adds encrypted text/file-name previews, authenticated notification
 routing, managed Android lockscreen calls, voice/circles and fullscreen adaptive

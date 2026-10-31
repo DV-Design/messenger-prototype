@@ -1,4 +1,48 @@
-# LastCall Android preview 0.7.0
+# LastCall Android preview 0.7.1
+
+- Download: https://lienad.ru/messenger/download/LastCall-0.7.1.apk
+- Alternate: https://p2p.lienad.ru/download/LastCall-0.7.1.apk
+- Preview alias: https://lienad.ru/messenger/download/messenger-preview.apk
+- Local: `artifacts/LastCall-0.7.1.apk` (ignored binary)
+- Package `dev.messenger.prototype`, version0.7.1, versionCode11, label LastCall
+- ARM64, Android API24 minimum / target36 / compile37; same existing internal test certificate
+- Size:54,949,929 bytes
+- SHA256:`a47c676b25b59ede87ca7cd3ad0fe067f52c2fe58957e342388166c622b1d53a`
+- Signing certificate SHA256:`fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c`
+
+The native release APK is published. Primary, alternate and preview-alias HTTP
+downloads all matched the exact54,949,929bytes and SHA256 above. Update both
+phones in place without deleting identity or history.
+
+The owner explicitly approved exactly one extra QA allocation; cycles1–6 remain
+historical, cycle7/7 ran with base6/effective7, and cycle8 is not authorized.
+Cycle7 PASS covered81mobile/10monitor tests plus mobile tsc/lint0 errors; the full
+340-unit/11-browser/1-TURN-skip result stays attributed to cycle4, and no full
+core/server/e2e rerun is claimed. See the
+[cycle7 report](../docs/reports/testing/2026-10/claude-qa-cycle-7.md).
+
+`msg-el9` is fixed: `call-push-model` normalizes only the known null `dataString`
+wrapper before strict5/7 key counting, does not mutate input, checks raw size, and
+still rejects unknown/non-null/conflicting fields. Faithful installed
+`RemoteMessageSerializer` fixtures fail before and pass after.
+
+Real Android17/API37.2 own-AVD acceptance passed on the same
+`qa_native_071_1031` in-place upgrade. A true FCM cold start under PIN showed the
+owned `LastCallCallActivity` at7.984s with the caller still connecting; native
+answer reached active at16.527s after a deliberate15s RTC gate; direct
+bidirectional RTP advanced from1429in/1489out to2443in/2502out over20s and was
+still active at66.16s. Cancel without answer removed UI in1.637s, with no native
+UI or AudioService and no microphone. The emulator audio output was disabled
+(`fake Chrome audio` + `-no-audio`), so heard intelligibility is not claimed.
+See [native 0.7.1 report](../docs/reports/debugging/2026-10/native-071-cycle7.md).
+
+Limits: physical Pixel/Vivo voice/video quality, Russian carriers/handover, DPI,
+OEM battery behavior and iOS/APNs/CallKit remain unverified. Cold ring at about
+8s is not a universal instant-delivery promise. No DPI-invisibility claim.
+
+---
+
+# Historical LastCall Android preview 0.7.0
 
 - Download: https://lienad.ru/messenger/download/LastCall-0.7.0.apk
 - Alternate: https://p2p.lienad.ru/download/LastCall-0.7.0.apk
@@ -9,9 +53,9 @@
 - SHA256:`ad39f92a0542ea5b90e05a3678a5475c1a8cddab2342f961a0f280da5757582f`
 - Signing certificate SHA256:`fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c`
 
-The native release APK is published. Actual downloads from the primary URL,
-alternate URL and current-preview alias all matched the exact54,909,341bytes and
-SHA256 above. Update both peers in place without
+This historical 0.7.0 release was published. Actual downloads from the primary
+URL, alternate URL and current-preview alias all matched the exact54,909,341bytes
+and SHA256 above at that time. Update both peers in place without
 deleting their installation identity or history; old strict receipt schemas are
 not a downgrade-compatibility promise.
 
@@ -58,23 +102,20 @@ iOS/APNs/CallKit remain separate acceptance work. No universal instant-delivery
 or DPI-invisibility claim. See [phone tasks](../docs/TESTING-RU.md),
 [wake contract](../docs/WAKE-CONTRACT.md) and [outbox contract](../docs/OUTBOX-CONTRACT.md).
 
-## Unpublished candidate 0.7.1 / code11 — native FAIL, do not distribute
+## Rejected/unaccepted historical 0.7.1 candidates — never distribute
 
-- Local only: `artifacts/LastCall-0.7.1.apk` (ignored binary); **no public download**
-- Package `dev.messenger.prototype`, version0.7.1, versionCode11, label LastCall
-- ARM64, Android API24 minimum / target36; same internal test signing certificate
-- Size:54,949,881 bytes
-- SHA256:`3d36731251871053711e48e0a9464a9259ffdd0024397d041cc412a253dd2122`
-- Signing certificate SHA256:`fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c`
-- Packaged gate PASS: `nativeFcmConfigured=true`, version0.7.1, code11
-- **Not published and not accepted.** Independent QA stopped at6/6
-  (`paused_limit`). Actual Android17 cold FCM started a process but showed no
-  owned incoming UI within27s. Confirmed root cause: the installed SDK serializer
-  appends `dataString:null`; the strict parser expects5/7 keys and rejects the
-  actual6/8-key shape (`msg-el9`). No 0.7.1 link is advertised.
-- Evidence: ignored positive log `.tmp/current/native-071/release-fixed.log`,
-  [native report](../docs/reports/debugging/2026-10/native-071.md),
-  [cycle6](../docs/reports/testing/2026-10/claude-qa-cycle-6.md).
+- **Pre-extension candidate** `e9c201...`: packaged `nativeFcmConfigured=false`;
+  never published. Local ignored path: `.tmp/current/native-071/rejected-no-fcm.apk`.
+- **Pre-extension candidate** SHA256
+  `3d36731251871053711e48e0a9464a9259ffdd0024397d041cc412a253dd2122`,
+  54,949,881 bytes: packaged FCM/version/code passed, but actual Android17 cold
+  FCM showed no owned incoming UI within27s because the installed SDK serializer
+  appended `dataString:null` and the strict5/7 parser rejected the6/8-key shape
+  (`msg-el9`). It was never published. The old local file is now
+  `.tmp/current/native-071-cycle7/prior-cycle6.apk`.
+- These hashes remain **unaccepted history**, separate from the published
+  `a47c676b...` build above. See the historical
+  [FAIL report](../docs/reports/debugging/2026-10/native-071.md).
 
 ---
 

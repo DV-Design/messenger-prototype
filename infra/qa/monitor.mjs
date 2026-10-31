@@ -8,7 +8,8 @@ const HTML_FILE = new URL('./monitor.html', import.meta.url);
 const STATE_FILE = path.join('docs', 'qa', 'claude-qa-state.json');
 const LOG_DIR = path.join('.tmp', 'current', 'claude-qa');
 const AGENT = 'lastcall-release-tester';
-const MAX_CYCLES = 6;
+// Explicit operator extension for the user-approved single seventh allocation.
+const MAX_CYCLES = process.env.LASTCALL_QA_MAX_CYCLES === '7' ? 7 : 6;
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
 const STALE_MS = 60_000;
 const HOST = '127.0.0.1';
@@ -82,7 +83,7 @@ const CYCLE_STATUS = {
 
 const STOP_REASONS = {
   paused_no_progress: 'Нет новых данных для следующей попытки.',
-  paused_limit: 'Достигнут предел шести циклов.',
+  paused_limit: 'Достигнут разрешённый предел циклов.',
   paused_access: 'Для продолжения нужен доступ.',
   blocked_auth: 'Тесты не начались: нужна авторизация.',
   paused_user: 'Остановка по запросу пользователя.',
@@ -321,7 +322,7 @@ function projectStatus({ state, activeCycle, logs, now }) {
   const browser = browserLog.totals.available ? browserLog.totals : storedBrowser ?? emptyTotals();
 
   if (run.status === 'passed') {
-    if (!unit.available || !browser.available) return unknownStatus(now, 'results_unavailable');
+    if (!unit.available || (!browser.available && active?.browser_tests_status !== 'not_run')) return unknownStatus(now, 'results_unavailable');
     if (unit.failed > 0 || browser.failed > 0) return unknownStatus(now, 'results_inconsistent');
   }
 

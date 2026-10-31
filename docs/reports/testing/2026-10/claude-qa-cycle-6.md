@@ -30,6 +30,12 @@ performs scoped native checks.
 PASS for this allocated scope. STOP at6/6; no automatic future tester allocation
 and no cycle7. No test weakening, product fixes or recursive agents in review.
 
+Follow-up (documentation only): the owner later explicitly approved one extra
+cycle. Main separately completed real Android17 native acceptance for the fixed
+and published `a47c676...` build; see the
+[cycle7 native report](../../debugging/2026-10/native-071-cycle7.md). The cycle6
+result above is unchanged and does not claim the tester ran native checks.
+
 ## Subsequent main native acceptance
 
 The narrow independent review above passed, but the later main Android17 cold-call

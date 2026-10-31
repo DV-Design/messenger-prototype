@@ -1,12 +1,19 @@
-# LastCall 0.7.1/code11 — final native cold-call failure report
+# LastCall 0.7.1/code11 — historical native cold-call failure report
 
-Date: 2026-10-31. Status: **FAIL; final candidate unpublished; overall QA paused at
-6/6 (`paused_limit`, `requires_user_resume=true`)**. Public 0.7.0/code10 remains
-the current release. No 0.7.1 publication, download or acceptance is claimed.
+> **Historical note:** this is the rejected **pre-extension** candidate
+> (`3d3673...`). It is now fixed and superseded by the published
+> `a47c676...` build. See the [cycle7 native PASS](native-071-cycle7.md). This
+> report retains the FAILED hash/build exactly as measured.
 
-## Final candidate identity
+Date: 2026-10-31. Status: **FAIL at the time; candidate unpublished; QA paused at
+6/6 (`paused_limit`, `requires_user_resume=true`)**. The later explicit owner
+approval added cycle7, which fixed `msg-el9`, passed native acceptance and
+published a different APK. Public0.7.0/code10 was current at the time of this
+report.
 
-- Local only: `artifacts/LastCall-0.7.1.apk`; no public URL.
+## Historical candidate identity
+
+- Local historical file, never published: `.tmp/current/native-071-cycle7/prior-cycle6.apk`.
 - Size:54949881 bytes.
 - SHA256:`3d36731251871053711e48e0a9464a9259ffdd0024397d041cc412a253dd2122`.
 - Certificate:`fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c`.
@@ -62,18 +69,18 @@ rejects the actual SDK shapes:
 - Raw hand-built invite and terminal payloads are accepted; the actual
   SDK-shaped invite and terminal payloads are both rejected.
 
-`msg-el9` is OPEN for this actual SDK wrapper bug. No fix was applied after the
-six-cycle limit.
+`msg-el9` was OPEN at the time of this FAIL. The owner later approved one extra
+allocation; cycle7 fixed and closed it.
 
-## Required next work (needs explicit user quota extension)
+## Required next work at the time (later completed in cycle7)
 
 - Normalize **only** the known null `dataString` SDK wrapper field before strict
   validation; keep rejecting unknown or conflicting fields.
 - Add fixtures generated from the installed serializer, not hand-built payloads.
 - Rebuild through the guarded `build:apk` helper and retest real cold FCM answer
   and cancel on the same Android17 environment.
-- Do not start cycle7 automatically. `msg-d1e` and `msg-si6` remain in progress;
-  build guard `msg-c5v` is closed.
+- No automatic cycle7 was taken at this checkpoint. The later explicit approval
+  added cycle7; the published build is `a47c676...`.
 
 ## QA context
 

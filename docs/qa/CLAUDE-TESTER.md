@@ -43,6 +43,20 @@ reproduction/evidence, attempted fixes, what remains unverified, saved artifacts
 and the exact input needed to continue. User must explicitly resume a paused
 run. A fresh quota is not inferred from a generic "continue".
 
+## Explicit one-cycle extension (2026-10-31)
+
+After the recorded pause at6/6, Codex explicitly asked for one further cycle to
+fix the confirmed SDK wrapper failure, rebuild and verify real locked-screen
+incoming calls. The user replied «Делай». This authorizes only allocation7;
+cycle8 is not authorized. The existing run/history is preserved, base cap6 and
+effective cap7 recorded in cycle_extensions. All earlier no-progress and
+read-only tester rules remain. This explicit authorization overrides only the
+six-cycle stop in the preceding default protocol. The local monitor runs with
+LASTCALL_QA_MAX_CYCLES=7 for this approved extension; its default remains6.
+A scoped pass explicitly records browser_tests_status=not_run when browser tests
+were not allocated. The panel leaves their totals unavailable and never labels
+that allocation as a full browser pass.
+
 ## Authentication checkpoint
 
 Cycle1 was blocked before tests because provider authentication was absent from

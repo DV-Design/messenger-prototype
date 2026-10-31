@@ -25,8 +25,11 @@ const time = (value: unknown): number => typeof value === 'string' && /^[0-9]{10
 export function parseCallPush(payload: unknown, now = Date.now()): CallPush | null {
   try {
     const records = candidates(payload); if (!records.length) return null;
-    const parsed = records.map(data => {
-      if (utf8(JSON.stringify(data)) > 4096) throw new Error('Oversized call data');
+    const parsed = records.map(raw => {
+      if (utf8(JSON.stringify(raw)) > 4096) throw new Error('Oversized call data');
+      // Expo Android RemoteMessageSerializer appends dataString=null when the FCM data has no "body".
+      // Strip only that known transport null before strict key validation; never mutate the input.
+      const { dataString, ...rest } = raw, data = dataString === null ? rest : raw;
       if (data.kind === 'lastcall-call') {
         if (Object.keys(data).length !== 5 || data.intentKind !== 'call' || !hex(data.intentId, 32) || typeof data.callInvite !== 'string') throw new Error('Invalid invitation');
         const expiresAt = time(data.expiresAt); if (expiresAt <= now || expiresAt > now + 35_000 || !Number.isFinite(expiresAt)) throw new Error('Expired invitation');

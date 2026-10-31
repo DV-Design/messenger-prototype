@@ -1,22 +1,26 @@
-# LastCall 0.7.1/code11 — authenticated call invite and stable video candidate
+# LastCall 0.7.1/code11 — authenticated call invite and stable video release
 
-Date: 2026-10-31. Status: **built but unpublished and not accepted; QA paused at
-6/6 (`paused_limit`)**. Public 0.7.0/code10 remains the only download. The final
-candidate is54949881 bytes, SHA256
-`3d36731251871053711e48e0a9464a9259ffdd0024397d041cc412a253dd2122`, certificate
+Date: 2026-10-31. Status: **published 0.7.1/code11; native Android17 acceptance
+PASSED**. Published APK: `artifacts/LastCall-0.7.1.apk`,54949929 bytes, SHA256
+`a47c676b25b59ede87ca7cd3ad0fe067f52c2fe58957e342388166c622b1d53a`, certificate
 `fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c`, packaged
-FCM=true/version0.7.1/code11/min24/target36. Cycle4 executed the complete commands
-but its worker response timed out at280s and was BLOCKED, not PASS; cycle5 was a
-narrow read-only source-review PASS and cycle6 a narrow build/types/final-APK PASS.
-Actual Android17 cold FCM created a new process but no owned incoming UI appeared
-within27s. Confirmed read-only PoC: the installed SDK serializer appends
-`dataString:null` and the strict parser rejects the actual6/8-key SDK shape
-(`msg-el9`); no fix was applied after the limit. See
-[cycle4](../../testing/2026-10/claude-qa-cycle-4.md),
-[cycle5](../../testing/2026-10/claude-qa-cycle-5.md),
-[cycle6](../../testing/2026-10/claude-qa-cycle-6.md) and
-[native-071](native-071.md). This report records implemented source behavior and
-controlled browser evidence, not phone or store acceptance.
+FCM=true/version0.7.1/code11/min24/target36/compile37. Primary, alternate and
+preview downloads matched exactly.
+
+Cycles1–6 remain historical. The owner explicitly approved exactly one extra
+allocation (`«Делай»`); cycle7/7 ran with base6/effective7 and no cycle8. Cycle7
+PASS covered81 mobile/10 monitor tests plus mobile tsc/lint0 errors; full
+core/server/e2e was not rerun. `msg-el9` was fixed and closed: only the known
+null `dataString` wrapper is normalized before strict5/7 validation, input is not
+mutated, raw size gates first, and unknown/non-null/conflicting fields still fail.
+Real Android17 cold FCM under PIN showed the owned call UI at7.984s, native
+answer/audio at16.527s after a deliberate15s RTC gate, direct bidirectional RTP
+at66s from call start, and cancel without answer removing UI in1.637s with no AudioService or
+microphone. Emulator audio was disabled, so heard intelligibility is not claimed.
+See [cycle7](../../testing/2026-10/claude-qa-cycle-7.md),
+[native-071-cycle7](native-071-cycle7.md), and the historical
+[pre-extension FAIL](native-071.md). Physical Pixel/Vivo, carriers/handover, DPI
+and iOS/APNs remain unverified.
 
 ## Call invitation architecture
 
@@ -105,13 +109,18 @@ conditions.
   authenticated-TURN skip, types/builds/Android+iOS JS exports and lint with0
   errors; its final worker response timed out and was BLOCKED. Cycle5 reviewed a
   bounded source scope PASS; cycle6 checked the build helper/types and final APK
-  PASS without a full rerun.
-- The final APK is local/unpublished at `artifacts/LastCall-0.7.1.apk` with the
-  exact size/SHA256/certificate above. Packaged FCM/version/code passed, but this
-  is not publication or acceptance.
-- Native Android17 cold FCM FAILED: no owned incoming UI within27s; the confirmed
-  cause is the SDK `dataString:null` wrapper versus the strict6/8-key parser
-  (`msg-el9`). No fix was applied after the6/6 limit.
+  PASS without a full rerun. Cycle7 was the explicitly approved extra allocation:
+  PASS on81 mobile/10 monitor tests and mobile tsc/lint, no full gate or native run.
+- The published APK is `artifacts/LastCall-0.7.1.apk` with the exact
+  size/SHA256/certificate above. Primary, alternate and preview downloads matched.
+- `msg-el9` was fixed and closed: the known null `dataString` wrapper is normalized
+  before strict5/7 validation, with input immutability, raw-size checking and
+  rejection of unknown/non-null/conflicting fields. The pre-extension `3d...`
+  candidate and its native FAIL remain historical in
+  [native-071](native-071.md).
+- Real Android17 native acceptance passed: cold PIN ring7.984s, answer16.527s,
+  direct RTP past66s, cancel1.637s. Emulator audio was disabled, so heard voice
+  quality is not claimed.
 - Physical Android/OEM battery policy, Russian carriers/handover, API24–25,
   denied full-screen access, heard voice quality, native video under constrained
   links and iOS/APNs/CallKit remain unverified. Force-stop blocks Android push

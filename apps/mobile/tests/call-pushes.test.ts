@@ -22,6 +22,32 @@ test('bounded call parser supports actual Expo raw/headless/receipt/response/ser
     { ...terminal(now), serverEpoch: '../secret' }, { ...terminal(now), expiresAt: String(now + 30001) }, { data, notification: { data: { ...data, intentId: 'cc'.repeat(16) } } }, { data, huge: 'x'.repeat(13000) }]) assert.equal(parseCallPush(malformed, now), null);
   const cycle: Record<string, unknown> = {}; cycle.data = cycle; assert.equal(parseCallPush(cycle), null);
 });
+// Faithful shape of Expo SDK 58 RemoteMessageSerializer.toBundle on Android: toBundle(Map) always
+// appends dataString = data.getOrDefault("body", null), and toBundle(Notification) is null for
+// data-only FCM messages. Call pushes have no notification body, so dataString is null.
+const serialized = (data: Record<string, unknown>) => ({
+  collapseKey: null, data: { ...data, dataString: null }, from: '1234567890', messageId: '0:1%fixture',
+  messageType: null, notification: null, originalPriority: 2, priority: 2, sentTime: Date.now(), to: '/topics/calls', ttl: 2419200,
+});
+test('serialized SDK dataString:null transport field is normalized without accepting extras or non-null values', () => {
+  const now = Date.now(), invite = payload(now), state = terminal(now);
+  const sdkInvite = serialized(invite), sdkState = serialized(state);
+  for (const wrapped of [{ ...invite, dataString: null }, sdkInvite.data, sdkInvite,
+    { data: sdkInvite, notification: null }, { notification: { data: sdkInvite.data, notification: null } },
+    { request: { content: { data: sdkInvite } } }, { request: { content: { data: sdkInvite.data } } }]) {
+    assert.equal(parseCallPush(wrapped, now)?.type, 'invitation'); assert.equal(isCallPushPayload(wrapped), true);
+  }
+  for (const wrapped of [{ ...state, dataString: null }, sdkState.data, sdkState, { data: sdkState }, { notification: { data: sdkState, notification: null } }]) {
+    assert.equal(parseCallPush(wrapped, now)?.type, 'state'); assert.equal(isCallPushPayload(wrapped), true);
+  }
+  assert.deepEqual(parseCallPush(sdkInvite, now), parseCallPush(invite, now));
+  assert.deepEqual(parseCallPush(sdkState, now), parseCallPush(state, now));
+  const before = JSON.stringify(sdkInvite); parseCallPush(sdkInvite, now); assert.equal(JSON.stringify(sdkInvite), before);
+  for (const malformed of [{ ...invite, dataString: null, extra: 'x' }, { ...state, dataString: null, extra: 'x' },
+    { ...invite, dataString: JSON.stringify(invite) }, { ...state, dataString: JSON.stringify(state) },
+    { data: sdkInvite, notification: { data: sdkState.data } },
+    { data: sdkInvite.data, notification: { data: { ...sdkState.data } } }]) assert.equal(parseCallPush(malformed, now), null);
+});
 test('new capability needs native preparation and registered background task; denied FSI retains CallStyle fallback', () => {
   for (const background of [false, true]) for (const native of [false, true]) assert.equal(callInviteCapability(background, native), background && native);
   const deniedFullscreen = { supported: true, notifications: true, channel: true, fullScreen: false };

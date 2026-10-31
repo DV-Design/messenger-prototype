@@ -1,27 +1,40 @@
 # Direct-first wake and bounded Android background sync
 
-## Candidate 0.7.1/code11 — not published or accepted yet
+## Published 0.7.1/code11 — 2026-10-31
 
-0.7.0/code10 remains the available public build. The independent six-cycle QA is
-stopped at6/6 (`paused_limit`); there is no automatic cycle7. Cycle4 executed the
-full commands but its worker response timed out at280s and returned BLOCKED, not
-PASS: 340 unit tests (80 mobile/71 server/189 core),11 browser PASS/1
-authenticated-TURN skip, types/builds/Android+iOS JS exports PASS, lint0 errors plus
-the existing VoiceNote warning. Cycle5 was a narrow read-only source-review PASS;
-cycle6 a narrow build-helper/types/final-APK PASS without a full rerun. The final
-candidate APK (`artifacts/LastCall-0.7.1.apk`, SHA256
-`3d36731251871053711e48e0a9464a9259ffdd0024397d041cc412a253dd2122`,54949881
-bytes) is **not published and not accepted**. Final Android17 cold FCM started a
-process but showed no owned incoming UI within27s. The confirmed root cause is the
-installed `expo-notifications` `RemoteMessageSerializer.toBundle(Map)` adding
-`dataString:null`; the strict call parser expects5/7 keys and rejects the actual
-6/8 SDK keys. No fix was applied after the limit (tracked as `msg-el9`). See
-[cycle4](reports/testing/2026-10/claude-qa-cycle-4.md),
-[cycle5](reports/testing/2026-10/claude-qa-cycle-5.md),
-[cycle6](reports/testing/2026-10/claude-qa-cycle-6.md) and the
-[native 0.7.1 report](reports/debugging/2026-10/native-071.md).
+Published `artifacts/LastCall-0.7.1.apk` is54949929 bytes, SHA256
+`a47c676b25b59ede87ca7cd3ad0fe067f52c2fe58957e342388166c622b1d53a`, same
+certificate, min24/target36/compile37, ARM64. Primary, alternate and preview HTTP
+downloads all matched the exact bytes/hash.
 
-Candidate call setup separates an authenticated encrypted invitation from media:
+After explicit owner approval of exactly one extra allocation (`«Делай»`), cycle7
+retained cycles1–6, used base6/effective7 and did not authorize cycle8. The
+independent tester PASS covered81 mobile and10 monitor tests plus mobile
+tsc/lint0 errors; it did not rerun full core/server/e2e or native. The full340
+unit/11 browser PASS/1 TURN skip remains attributed to cycle4. `msg-el9` was fixed
+and closed: `call-push-model` normalizes only the known null `dataString` before
+strict5/7 key counting, does not mutate input, checks raw size, and still rejects
+unknown/non-null/conflicting fields; faithful installed-serializer fixtures fail
+before and pass after.
+
+Real native acceptance passed on the same own Android17/API37.2 AVD and
+`qa_native_071_1031` in-place upgrade. A PIN-locked old PID2836 was confirmed by
+cmdline and SIGKILLed (not force-stop), then absent. True FCM started PID4884;
+the owned `LastCallCallActivity` was top at7.984 s with keyguard true and the
+caller still outgoing/connecting. Before answer only CallUi+VoiceConnection ran,
+no AudioService. Native answer reached active at16.527 s after a deliberate15 s
+RTC gate; only AudioService+VoiceConnection remained. Direct bidirectional RTP
+advanced from1429in/1489out to2443in/2502out over20 s, and the final sample at
+66.16 s (past the original30 s deadline) was still active. Second call with RTC
+blocked20 s rang at7.077 s; cancel without answer removed UI in1.637 s with no
+native UI/AudioService or microphone. Emulator audio was disabled (`fake Chrome
+audio`+`-no-audio`), so heard intelligibility is not claimed. See
+[cycle7](reports/testing/2026-10/claude-qa-cycle-7.md) and the
+[native 0.7.1 report](reports/debugging/2026-10/native-071-cycle7.md). The
+historical [native-071](reports/debugging/2026-10/native-071.md) keeps the
+rejected pre-extension FAIL.
+
+Call setup separates an authenticated encrypted invitation from media:
 
 - The caller tries directly first; after 2.5 s without an answer, bounded server/FCM
   metadata may carry an XChaCha20-Poly1305 invitation derived from the pinned-pair
@@ -45,9 +58,9 @@ Android 14+ adds a separate full-screen special-access step. Opening
 `ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT` is not a grant; JS re-reads the real state
 only after app leave/return (60 s failure keeps prior truth). A separate upgrade marker
 prevents the old four permission prompts from repeating. Without access, Android may
-show only a banner/notification. See the [candidate report](reports/debugging/2026-10/call-invite-071.md).
+show only a banner/notification. See the [call-invite report](reports/debugging/2026-10/call-invite-071.md).
 
-## Status: published 0.7.0/code10, 2026-10-30
+## Historical status: published 0.7.0/code10, 2026-10-30
 
 Published 0.7.0 changes Android calls to LastCall-owned incoming UI, extends
 the typed-call setup window and wakes a suspended recipient even when its RTC
