@@ -23,3 +23,6 @@ google-services*.json
 *.jks
 *.keystore
 keystore.properties
+
+# Store build environment; never commit real identifiers/passwords
+.env.store

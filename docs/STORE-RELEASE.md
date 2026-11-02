@@ -3,6 +3,20 @@
 Статус: черновик подготовки. Ничего не отправлено в магазины; нужны аккаунты
 разработчика, финальные идентификаторы, ключи подписи и юридическая проверка.
 
+## Состояние инструментов на этой машине
+
+Установлено: Node.js 24.22, npm 11.19, EAS CLI 27.2, Firebase CLI 15.34,
+bundletool 1.18, watchman, CocoaPods 1.17, JDK 21, Android SDK/build-tools 37,
+apkanalyzer/aapt2/apksigner. `node`, `java`, `keytool` добавлены в
+`~/.local/bin`. Android AAB уже собирался с тестовым upload-ключом.
+
+Не установлено и не может быть установлено автоматически:
+- **Xcode** (нужен Apple ID, Mac App Store, 10+ ГБ): без него нет
+  `xcodebuild`, iOS-сборки и `pod install` для iOS;
+- аккаунты Google Play Console и Apple Developer Program;
+- APNs-ключ и настройки push для iOS;
+- финальные package/bundle ID и Firebase-приложения под них.
+
 ## Что уже готово в репозитории
 
 - Отдельный store-режим сборки: `LASTCALL_DISTRIBUTION=store`.
@@ -26,18 +40,17 @@
    с этим package ID в Firebase-проекте LastCall и скачайте новый
    `google-services.json`; старый файл привязан к `dev.messenger.prototype` и
    Gradle откажется собирать store AAB с чужим package.
-2. Создайте upload-keystore вне репозитория:
+2. Upload-keystore уже создан локально:
+   `~/.config/lastcall/keystores/lastcall-upload.jks` (PKCS12), alias
+   `lastcall-upload`; пароли — в `lastcall-upload.properties` (0600).
+   **Сразу сделайте шифрованный офлайн-бэкап обоих файлов.** Для сборки:
    ```sh
-   mkdir -p ~/.config/lastcall/keystores
-   keytool -genkeypair -v -keystore ~/.config/lastcall/keystores/upload.jks \
-     -alias upload -keyalg RSA -keysize 4096 -validity 10000
-   chmod 600 ~/.config/lastcall/keystores/upload.jks
+   set -a; . ~/.config/lastcall/keystores/lastcall-upload.properties; set +a
    ```
-   В JDK 21 keystore по умолчанию PKCS12: `-keypass` должен совпадать с
-   `-storepass` (или создайте JKS через `-storetype JKS`). Иначе Gradle
-   `signReleaseBundle` завершится ошибкой чтения ключа. Сохраните пароли и
-   keystore в защищённом офлайн-бэкапе. Включите Play App
-   Signing; этот ключ — upload key, не ключ подписи Google Play.
+   В JDK 21 keystore PKCS12: key password совпадает с store password. Если
+   keystore утерян, Play App Signing позволяет заменить upload key; не
+   публикуйте файл и не коммитьте properties. Этот ключ — upload key, не ключ
+   подписи Google Play.
 3. Соберите AAB:
    ```sh
    cd apps/mobile
@@ -77,7 +90,13 @@
 ## iOS: App Store
 
 **На этой машине нет Xcode**, поэтому нативная iOS-сборка здесь невозможна.
-Нужен Mac с Xcode либо EAS Build с аккаунтом Expo и Apple Developer.
+Установите Xcode из Mac App Store, затем:
+```sh
+sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+sudo xcodebuild -runFirstLaunch
+```
+Либо используйте EAS Build с аккаунтом Expo и Apple Developer. Выполните
+`eas login` и `firebase login` — сейчас CLI не авторизованы.
 
 Обязательные шаги до отправки:
 
