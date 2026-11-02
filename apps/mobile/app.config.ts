@@ -6,11 +6,8 @@ const googleServicesFile = process.env.MESSENGER_GOOGLE_SERVICES_FILE;
 // Direct sideload builds keep the in-app APK updater. Store builds must use
 // Google Play/App Store updates and never request REQUEST_INSTALL_PACKAGES.
 const distribution = process.env.LASTCALL_DISTRIBUTION === 'store' ? 'store' : 'direct';
-const androidPackage = process.env.LASTCALL_ANDROID_PACKAGE ?? 'dev.messenger.prototype';
-const iosBundleIdentifier = process.env.LASTCALL_IOS_BUNDLE_ID ?? 'dev.messenger.prototype';
-if (distribution === 'store' && (!process.env.LASTCALL_ANDROID_PACKAGE || !process.env.LASTCALL_IOS_BUNDLE_ID)) {
-  throw new Error('Store builds require LASTCALL_ANDROID_PACKAGE and LASTCALL_IOS_BUNDLE_ID.');
-}
+const androidPackage = process.env.LASTCALL_ANDROID_PACKAGE ?? (distribution === 'store' ? 'ru.lastcall.app' : 'dev.messenger.prototype');
+const iosBundleIdentifier = process.env.LASTCALL_IOS_BUNDLE_ID ?? (distribution === 'store' ? 'ru.lastcall.app' : 'dev.messenger.prototype');
 const config: ExpoConfig = {
   name: 'LastCall',
   slug: 'messenger-prototype',

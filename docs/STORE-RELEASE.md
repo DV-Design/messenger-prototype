@@ -35,8 +35,11 @@ apkanalyzer/aapt2/apksigner. `node`, `java`, `keytool` добавлены в
 ## Android: Google Play
 
 1. Создайте Google Play Console, аккаунт организации/разработчика. Заведите
-   приложение с **финальным** package ID (например `ru.lastcall.app`).
-   Это значение нельзя изменить после публикации. Зарегистрируйте Android app
+   приложение с **финальным** package ID `ru.lastcall.app` (подтверждён
+   владельцем). Это значение нельзя изменить после публикации. Store-сборка
+   использует его по умолчанию; direct-канал остаётся
+   `dev.messenger.prototype`, чтобы не ломать обновления уже установленных
+   тестовых сборок. Зарегистрируйте Android app
    с этим package ID в Firebase-проекте LastCall и скачайте новый
    `google-services.json`; старый файл привязан к `dev.messenger.prototype` и
    Gradle откажется собирать store AAB с чужим package.
