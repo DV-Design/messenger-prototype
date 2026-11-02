@@ -1,3 +1,22 @@
+# LastCall 1.0.2 / code16: E2E content, verified updates, server hardening (published)
+
+Status: **1.0.2/code16 is published** with the existing test certificate. Both
+peers must update before exchanging content; there is no plaintext fallback.
+Independent QA and native acceptance on physical phones remain pending.
+
+- [X] Session-level E2E content encryption for text/files/voice/circles/application frames (ephemeral X25519 + Ed25519-signed hello + HKDF + XChaCha20-Poly1305, replay rejection)
+  → Artifacts: [cipher](packages/core/src/content-crypto.ts), [session](packages/core/src/session.ts), [tests](packages/core/src/content-crypto.test.ts), [session tests](packages/core/src/content-session.test.ts)
+- [X] Safety number for direct chats and call verification code; persist verified contacts in encrypted state
+  → Artifacts: [modal](apps/mobile/src/components/SafetyCode.tsx), [chat](apps/mobile/src/app/chat/[id].tsx), [call overlay](apps/mobile/src/components/CallOverlay.tsx), [state](packages/core/src/messenger.ts)
+- [X] Signed update manifest, in-app APK download, SHA-256 verification and system installer
+  → Artifacts: [signer](infra/sign-update-manifest.mjs), [manifest](infra/public/latest.json), [client](apps/mobile/src/updates.ts), [notice](apps/mobile/src/components/UpdateNotice.tsx)
+- [X] Trust X-Forwarded-For only from configured proxies; per-IP limits and IPv6 /64 aggregation
+  → Artifacts: [client-ip](apps/server/src/client-ip.ts), [server](apps/server/src/server.ts), [config](infra/compose.public.yaml), [tests](apps/server/test/client-ip.test.ts)
+- [X] Clear plaintext preview/share caches; update Expo/RN/React and remove high advisories
+  → Artifacts: [attachments](apps/mobile/src/attachments.ts), [layout](apps/mobile/src/app/_layout.tsx), [package](apps/mobile/package.json)
+- [X] Publish 1.0.2: tests, APK, SHA256, signed manifest and metadata
+  → Artifacts: [release record](artifacts/README.md), [APK](https://p2p.lienad.ru/download/LastCall-1.0.2.apk), 55 077 273 bytes, SHA256 `fbc3169483a469664f2fd6e7e9912b3f4a0853a16bab73524f37934d8e1777be`
+
 # LastCall 1.0.1 / code15: first release (published)
 
 Status: **1.0.1/code15 is published** with the existing test certificate. The

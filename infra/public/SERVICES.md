@@ -1,14 +1,15 @@
 # Optional FCM and authenticated ICE configuration
 
-## 1.0.1/code15 published test release
+## 1.0.2/code16 published test release
 
-Client-only release. Download: `download/LastCall-1.0.1.apk` at
-https://p2p.lienad.ru and https://lienad.ru/messenger/download/LastCall-1.0.1.apk
-(54,995,081 bytes, SHA256 `a7d1f61d08ba13bc1dda168c831d58ea041ca3468a181c5af9a557c318aca41e`). Versioned 0.7.2 remains available for
-rollback. Independent native acceptance and physical-phone evidence are
-**PENDING** and are not claimed. Client update checks use the static
+Client-only release. Download: `download/LastCall-1.0.2.apk` at
+https://p2p.lienad.ru and https://lienad.ru/messenger/download/LastCall-1.0.2.apk
+(55,077,273 bytes, SHA256 `fbc3169483a469664f2fd6e7e9912b3f4a0853a16bab73524f37934d8e1777be`). Versioned 1.0.1 and 0.7.2 remain available
+for rollback. Independent native acceptance and physical-phone evidence are
+**PENDING** and are not claimed. Client update checks use the static, Ed25519-signed
 `download/latest.json` manifest; no signaling or profile endpoint is involved.
-Publish the manifest atomically with each APK.
+Publish the manifest atomically with each APK. Both peers must run 1.0.2 before
+exchanging content; the application-layer E2E layer fails closed.
 
 New-profile default endpoint becomes `https://p2p.lienad.ru`. Existing profiles
 keep their explicitly stored server URL, so contacts and history stay in the
@@ -22,14 +23,11 @@ tap and return on tap, while call answer controls never auto-hide; front/rear
 camera switch during a call on the same video track; continuous single-file
 Android circle recording with in-recording camera switch while retaining 30s /
 5MiB / cancel / background stop; audio routing that reports the observed output
-and clears stale errors after a late success. Incoming video no longer shows the
-local camera when a device sends streamless remote tracks. FCM token and
-background wake registration no longer require notification permission; only
-previews remain permission-gated. iOS has no PiP and no audio chooser; APNs is
+and clears stale errors after a late success. Incoming video no longer shows the local camera when a device sends streamless remote tracks. FCM token and background wake registration no longer require notification permission; only previews remain permission-gated. Text, files, voice notes and circles use the mandatory session E2E layer; calls remain SRTP with an identity/call safety code. Server clients behind the configured Caddy proxy are isolated by the forwarded client IP, with IPv6 aggregated to /64. iOS has no PiP and no audio chooser; APNs is
 not configured. Physical Bluetooth/headset and heard-audio acceptance remain on
 phones.
 
-QA: full `npm run check` (390 unit tests) and 11 browser E2E tests passed on the
+QA: full `npm run check` (414 unit tests) and 11 browser E2E tests passed on the
 released tree; one authenticated-TURN test skipped. Independent native QA and
 physical-phone acceptance are pending. Prior 0.7.2 run is archived unchanged at
 `docs/qa/runs/lastcall-072-media-audio-2026-10-31.json`.

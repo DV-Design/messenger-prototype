@@ -92,10 +92,13 @@ reproduced negative DNS cache on some resolvers; it uses normal DNS and TLS.
   index.html and tasks.txt at root. Build probe with relative asset paths.
 - `download/latest.json` is the static client update manifest. Replace it
   atomically with each APK. It carries `android.version`, `versionCode`, an
-  HTTPS APK URL on the official hosts, SHA256 and optional alternate URL/notes.
-  The app compares versionCode on launch/foreground and only offers the APK for
-  download; it never installs automatically. No signaling or profile data is
-  involved, so this stays a static file with no server-side work.
+  HTTPS APK URL on the official hosts, SHA256, optional alternate URL/notes, and
+  an Ed25519 `signature`. Sign it with `node infra/sign-update-manifest.mjs`
+  using the offline key at `~/.config/lastcall/update-signing.key` (0600; keep
+  an encrypted backup outside the repo). The app rejects unsigned or tampered
+  manifests, downloads the APK in-app, verifies SHA-256 and opens the Android
+  installer. No signaling or profile data is involved, so this stays a static
+  file with no server-side work.
 
 Caddy imports `proxy/sites/*.caddy` read-only. Copy the route fragment inside
 `lienad.ru.caddy` before its fallback handle; it is not a standalone site. Validate

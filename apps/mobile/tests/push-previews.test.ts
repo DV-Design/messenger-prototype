@@ -72,7 +72,7 @@ test('native presented ID covers crash gap; a failed schedule is retryable', asy
 });
 const sender = { userId: 'b'.repeat(64), publicKey: 'c'.repeat(64), username: 'sender', displayName: 'Имя из сохранённого профиля', online: true, lastSeen: now };
 const message = (id: string) => ({ id, text: 'Authenticated P2P', from: sender.userId, timestamp: now, status: 'received' as const, conversationId: 'dm:chat' });
-function snapshot(status: MessengerSnapshot['status'], ids: string[]): MessengerSnapshot { return { status, contacts: [sender], conversations: [{ id: 'dm:chat', kind: 'direct', title: 'Contact', memberIds: ['own', sender.userId], messages: ids.map(message), files: [], unread: 1, updatedAt: now }] }; }
+function snapshot(status: MessengerSnapshot['status'], ids: string[]): MessengerSnapshot { return { status, contacts: [sender], verifiedContacts: [], conversations: [{ id: 'dm:chat', kind: 'direct', title: 'Contact', memberIds: ['own', sender.userId], messages: ids.map(message), files: [], unread: 1, updatedAt: now }] }; }
 test('empty/restore/ready snapshots baseline old history; only fresh authenticated received IDs become notification candidates', () => {
   const tracker = new IncomingMessageTracker();
   assert.deepEqual(tracker.next(snapshot('idle', [])), []);

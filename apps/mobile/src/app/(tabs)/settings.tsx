@@ -9,7 +9,7 @@ import { Avatar, Button, Icon, ScreenHeader, connectionLabel } from '../../compo
 import { changeServer, errorText, reconnect, useMessenger } from '../../runtime';
 import { formatMediaDiagnostics, sanitizeDiagnostic } from '../../diagnostics';
 import { usePushStatus } from '../../components/PushBridge';
-import { checkForUpdate, openUpdate, useUpdateState } from '../../updates';
+import { checkForUpdate, downloadAndInstallUpdate, useUpdateState } from '../../updates';
 import { colors, styles } from '../../styles';
 export default function Settings() {
   const { profile, identity, snapshot, error, busy } = useMessenger();
@@ -28,6 +28,7 @@ export default function Settings() {
   const [localError, setLocalError] = useState('');
   const [copied, setCopied] = useState(false);
   const [reportCopied, setReportCopied] = useState(false);
+  const [updating, setUpdating] = useState(false);
   async function save() {
     setLocalError('');
     try { await changeServer(server); } catch (cause) { setLocalError(errorText(cause)); }
@@ -69,8 +70,12 @@ export default function Settings() {
           <View style={styles.content}>
             {availableUpdate ? <>
               {!!availableUpdate.notes && <Text style={styles.body}>{availableUpdate.notes}</Text>}
-              <Button title={`Скачать ${availableUpdate.version}`} onPress={() => void openUpdate(availableUpdate).catch(() => setLocalError('Не удалось открыть загрузку обновления.'))} />
-              <Text style={styles.info}>Скачайте APK и установите поверх приложения. Профиль, ключ, контакты и история сохранятся.</Text>
+              <Button title={updating ? 'Скачиваем и проверяем…' : `Скачать и установить ${availableUpdate.version}`} busy={updating} onPress={() => {
+                if (updating) return;
+                setUpdating(true); setLocalError('');
+                void downloadAndInstallUpdate(availableUpdate).catch(() => setLocalError('Не удалось скачать или проверить обновление. Повторите позже.')).finally(() => setUpdating(false));
+              }} />
+              <Text style={styles.info}>APK скачается в приложении и будет сверен по SHA-256; затем откроется системный установщик Android. Профиль, ключ, контакты и история сохранятся.</Text>
             </> : <Button title="Проверить обновления" secondary busy={updateState.status === 'checking'} onPress={() => void checkForUpdate(true)} />}
             {updateState.status === 'current' && <Text style={styles.info}>Установлена последняя опубликованная версия.</Text>}
             {!!updateState.error && <Text accessibilityRole="alert" style={styles.error}>{updateState.error}</Text>}

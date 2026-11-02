@@ -109,6 +109,7 @@ printf 'build:apk: [2/3] Gradle JS bundle (release)\n'
   ./gradlew :app:createBundleReleaseJsAndAssets \
     --rerun-tasks \
     -PreactNativeArchitectures=arm64-v8a \
+    -Pexpo.camera.barcode-scanner-enabled=false \
     --no-daemon
 )
 
@@ -117,6 +118,7 @@ printf 'build:apk: [3/3] Gradle assembleRelease\n'
   cd "$ANDROID_DIR"
   ./gradlew :app:assembleRelease \
     -PreactNativeArchitectures=arm64-v8a \
+    -Pexpo.camera.barcode-scanner-enabled=false \
     --no-daemon
 )
 

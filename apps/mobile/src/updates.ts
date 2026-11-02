@@ -1,11 +1,15 @@
 import { useSyncExternalStore } from 'react';
-import { Linking, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import Constants from 'expo-constants';
+import { File, Paths } from 'expo-file-system';
+import * as IntentLauncher from 'expo-intent-launcher';
+import { verifyUpdateSignature } from '@messenger/core';
 import {
   parseUpdateManifest,
   updateAvailable,
   updateDownloadUrls,
   UPDATE_MANIFEST_URLS,
+  UPDATE_SIGNING_PUBLIC_KEY,
   type AndroidUpdate,
   type UpdateManifest,
 } from './update-model';
@@ -57,6 +61,7 @@ async function fetchManifest(url: string): Promise<UpdateManifest> {
     if (text.length > MAX_MANIFEST_LENGTH) throw new Error('Update manifest is too large.');
     const manifest = parseUpdateManifest(JSON.parse(text));
     if (!manifest) throw new Error('Update manifest is invalid.');
+    if (!manifest.signature || !verifyUpdateSignature(UPDATE_SIGNING_PUBLIC_KEY, { ...manifest.android, publishedAt: manifest.publishedAt }, manifest.signature)) throw new Error('Update manifest signature is invalid.');
     return manifest;
   } finally {
     clearTimeout(timer);
@@ -114,10 +119,41 @@ export function dismissUpdate(): void {
   publish({ ...state, dismissedVersionCode: state.update.versionCode });
 }
 
-export async function openUpdate(update: AndroidUpdate): Promise<void> {
+/**
+ * Downloads the official APK, verifies the manifest SHA-256 and hands the
+ * verified file to Android's package installer. Installation still requires
+ * the user's confirmation; nothing is silent.
+ */
+export async function downloadAndInstallUpdate(update: AndroidUpdate): Promise<void> {
+  if (Platform.OS !== 'android') throw new Error('Установка обновлений доступна только на Android.');
+  const file = new File(Paths.cache, `LastCall-${update.version}.apk`);
+  let verified = false;
   let failure: unknown;
   for (const url of updateDownloadUrls(update)) {
-    try { await Linking.openURL(url); return; } catch (cause) { failure = cause; }
+    try {
+      const downloaded = await File.downloadFileAsync(url, file, { idempotent: true });
+      const digest = (await downloaded.digest('SHA-256')).toLowerCase();
+      if (digest !== update.sha256) throw new Error('SHA-256 обновления не совпадает.');
+      verified = true;
+      break;
+    } catch (cause) {
+      failure = cause;
+      try { if (file.exists) file.delete(); } catch { /* A stale cache file is not an install source. */ }
+    }
   }
-  throw failure instanceof Error ? failure : new Error('Не удалось открыть загрузку обновления.');
+  if (!verified) throw failure instanceof Error ? failure : new Error('Не удалось скачать обновление.');
+  if (!file.contentUri) throw new Error('Не удалось открыть установщик Android.');
+  try {
+    await IntentLauncher.startActivityAsync('android.intent.action.INSTALL_PACKAGE', {
+      data: file.contentUri,
+      type: 'application/vnd.android.package-archive',
+      flags: 1,
+    });
+  } catch {
+    await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+      data: file.contentUri,
+      type: 'application/vnd.android.package-archive',
+      flags: 1,
+    });
+  }
 }

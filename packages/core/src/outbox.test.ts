@@ -15,7 +15,7 @@ describe('seven-day sender-held outbox',()=>{
   vi.useFakeTimers();vi.setSystemTime(1000000000);const a=tracked();const id=await a.client.addContact(user(bob,'bob'));const bytes=new Uint8Array([11,22,33]);await a.client.sendFile(id,{name:'secret.txt',mime:'text/plain',data:bytes});await a.client.sendText(id,'secret text');
   expect(a.store.sealed).not.toContain('secret text');expect([...a.store.blobs.values()][0]).not.toContain('secret.txt');const before=a.client.getSnapshot().conversations[0]!;const deadline=before.files[0]!.expiresAt;expect(deadline).toBe(Date.now()+OUTBOX_TTL_MS);a.client.disconnect();
   vi.setSystemTime(Date.now()+6*24*3600000);const restored=tracked(alice,a.store);await restored.client.addContact(user(bob,'bob'));const state=restored.client.getSnapshot().conversations[0]!;expect(state.files[0]!.expiresAt).toBe(deadline);expect(state.files[0]!.deliveryStatus).toBe('pending');expect(await restored.client.getFileData(id,state.files[0]!.id)).toEqual(bytes);expect(state.messages[0]!.status).toBe('pending');
-  const payload=openLocalState(alice,a.store.sealed!) as any;expect(payload.version).toBe(3);expect(payload.conversations[0].files[0]).not.toHaveProperty('data');
+  const payload=openLocalState(alice,a.store.sealed!) as any;expect(payload.version).toBe(4);expect(payload.conversations[0].files[0]).not.toHaveProperty('data');
  });
  it('expires exactly at seven days, stops outbox, and deletes blob only after metadata commit',async()=>{
   vi.useFakeTimers();vi.setSystemTime(1000000000);const a=tracked();const id=await a.client.addContact(user(bob,'bob'));await a.client.sendText(id,'expires');await a.client.sendFile(id,{name:'expires',mime:'',data:new Uint8Array([1])});

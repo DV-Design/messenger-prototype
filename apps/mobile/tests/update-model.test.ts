@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { officialUpdateUrl, parseUpdateManifest, updateAvailable, updateDownloadUrls } from '../src/update-model';
+import { verifyUpdateSignature } from '@messenger/core';
+import { officialUpdateUrl, parseUpdateManifest, updateAvailable, updateDownloadUrls, UPDATE_SIGNING_PUBLIC_KEY } from '../src/update-model';
 
 const sha = 'a'.repeat(64);
 const primary = 'https://p2p.lienad.ru/download/LastCall-1.0.2.apk';
@@ -85,9 +86,13 @@ test('offers only a strictly newer versionCode', () => {
   assert.equal(updateAvailable(0, parsed), undefined);
 });
 
-test('checked-in latest.json is a valid manifest for a newer build', () => {
+test('checked-in latest.json is a valid, signed manifest for a newer build', () => {
   const parsed = parseUpdateManifest(JSON.parse(readFileSync(new URL('../../../infra/public/latest.json', import.meta.url), 'utf8')));
   assert.ok(parsed);
+  assert.ok(parsed.signature);
+  const fields = { ...parsed.android, publishedAt: parsed.publishedAt };
+  assert.equal(verifyUpdateSignature(UPDATE_SIGNING_PUBLIC_KEY, fields, parsed.signature), true);
+  assert.equal(verifyUpdateSignature(UPDATE_SIGNING_PUBLIC_KEY, { ...fields, notes: 'tampered' }, parsed.signature), false);
   assert.equal(updateAvailable(parsed.android.versionCode, parsed), undefined);
   assert.equal(updateAvailable(parsed.android.versionCode - 1, parsed)?.version, parsed.android.version);
 });

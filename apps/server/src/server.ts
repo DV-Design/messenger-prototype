@@ -4,6 +4,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { clientFrameSchema } from '@messenger/core';
 import { Directory } from './directory.js';
 import { createFcmPushProvider } from './providers.js';
+import { clientIp, rateKey } from './client-ip.js';
 import type { ServiceOptions } from './services.js';
 
 export interface ServerOptions extends ServiceOptions {
@@ -28,6 +29,7 @@ export interface ServerOptions extends ServiceOptions {
   directoryDbPath?: string;
   directoryMaxUsers?: number;
   directoryChallengeTtlMs?: number;
+  trustedProxyCidrs?: string[];
 }
 type Role = 'initiator' | 'responder';
 interface Peer {
@@ -59,6 +61,7 @@ export function createSignalingServer(options: ServerOptions = {}) {
     rateWindowMs: options.rateWindowMs ?? 10_000, requestLimit: options.requestLimit ?? 120,
     heartbeatMs: options.heartbeatMs ?? 30_000, joinTimeoutMs: options.joinTimeoutMs ?? 15_000,
     turnTtlSeconds: options.turnTtlSeconds ?? 600,
+    trustedProxyCidrs: options.trustedProxyCidrs ?? [],
   };
   if (config.turnTtlSeconds < 60 || config.turnTtlSeconds > 3600) throw new Error('TURN TTL must be 60–3600 seconds');
   const peers = new Map<WebSocket, Peer>();
@@ -87,7 +90,8 @@ export function createSignalingServer(options: ServerOptions = {}) {
     reject: (ws, code, message, close, requestId) => { const peer = peers.get(ws); if (peer) reject(peer, code, message, close, requestId); },
   });
   const originAllowed = (request: IncomingMessage) => request.headers.origin === undefined || allowed.has(request.headers.origin);
-  const ipOf = (request: IncomingMessage) => request.socket.remoteAddress ?? 'unknown'; // Do not trust X-Forwarded-For.
+  // Headers are trusted only when the direct peer is in an explicitly configured proxy allowlist.
+  const ipOf = (request: IncomingMessage) => rateKey(clientIp(request.socket.remoteAddress ?? '', request.headers['x-forwarded-for'], config.trustedProxyCidrs));
   function acceptRequest(request: IncomingMessage) {
     const now = Date.now();
     const ip = ipOf(request);
@@ -283,5 +287,6 @@ export function optionsFromEnv(env: NodeJS.ProcessEnv = process.env): ServerOpti
     maxRooms: numberEnv(env, 'MAX_ROOMS', 64, 1, 100_000),
     requestLimit: numberEnv(env, 'REQUEST_LIMIT', 120, 1, 100_000),
     rateWindowMs: numberEnv(env, 'RATE_WINDOW_MS', 10_000, 100, 60_000),
+    trustedProxyCidrs: list('TRUSTED_PROXY_CIDRS'),
   };
 }

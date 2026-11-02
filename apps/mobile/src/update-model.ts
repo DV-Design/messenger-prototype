@@ -8,6 +8,9 @@ export const UPDATE_MANIFEST_URLS = [
   'https://lienad.ru/messenger/download/latest.json',
 ] as const;
 
+/** Public half of the offline manifest-signing key; private key never ships. */
+export const UPDATE_SIGNING_PUBLIC_KEY = '9f75c929c0548afebe55e4ab4193f22245a81cd898aeb1d275e04b746059fe93';
+
 const MAX_VERSION_LENGTH = 40;
 const MAX_NOTES_LENGTH = 400;
 const MAX_URL_LENGTH = 2048;
@@ -26,6 +29,8 @@ export interface AndroidUpdate {
 export interface UpdateManifest {
   android: AndroidUpdate;
   publishedAt?: string;
+  /** Ed25519 signature of the canonical manifest fields; required by the app. */
+  signature?: string;
 }
 
 function isOfficialHost(host: string, pathname: string) {
@@ -77,9 +82,16 @@ export function parseUpdateManifest(value: unknown): UpdateManifest | undefined 
     publishedAt = root.publishedAt;
   }
 
+  let signature: string | undefined;
+  if (root.signature !== undefined) {
+    if (typeof root.signature !== 'string' || !/^[0-9a-f]{128}$/i.test(root.signature)) return;
+    signature = root.signature.toLowerCase();
+  }
+
   return {
     android: { version, versionCode, url, ...(alternateUrl ? { alternateUrl } : {}), sha256, ...(notes ? { notes } : {}) },
     ...(publishedAt ? { publishedAt } : {}),
+    ...(signature ? { signature } : {}),
   };
 }
 

@@ -7,6 +7,10 @@ export const MAX_FILES = 4;
 const hex = (length: number) => z.string().regex(new RegExp(`^[0-9a-f]{${length}}$`));
 export const roomIdSchema = hex(64);
 export const peerIdSchema = hex(32);
+export const contentHelloSchema = z.object({version:z.literal(1),sessionId:hex(32),publicKey:hex(64),signature:hex(128)}).strict();
+export const sealedContentSchema = z.object({kind:z.literal('sealed'),version:z.literal(1),sequence:z.number().int().positive().max(Number.MAX_SAFE_INTEGER),nonce:hex(48),ciphertext:z.string().min(32).max(90 * 1024).regex(/^(?:[0-9a-f]{2})+$/)}).strict();
+export type ContentHello = z.infer<typeof contentHelloSchema>;
+export type SealedContent = z.infer<typeof sealedContentSchema>;
 export const sealedEnvelopeSchema = z.object({version:z.literal(1),nonce:hex(48),ciphertext:z.string().min(32).max(90 * 1024).regex(/^(?:[0-9a-f]{2})+$/)}).strict();
 export const clientFrameSchema = z.discriminatedUnion('type', [
   z.object({type:z.literal('join'), roomId:roomIdSchema, peerId:peerIdSchema,resumeToken:hex(64).optional()}).strict(),
@@ -38,8 +42,9 @@ export const signalBodySchema = z.discriminatedUnion('kind',[
 ]);
 export type SignalBody = z.infer<typeof signalBodySchema>;
 export const dataFrameSchema = z.discriminatedUnion('kind',[
-  z.object({kind:z.literal('ready'),nonce:id}).strict(),
-  z.object({kind:z.literal('ready-ack'),nonce:id}).strict(),
+  z.object({kind:z.literal('ready'),nonce:id,content:contentHelloSchema.optional()}).strict(),
+  z.object({kind:z.literal('ready-ack'),nonce:id,content:contentHelloSchema.optional()}).strict(),
+  sealedContentSchema,
   z.object({kind:z.literal('text-ack'),id,conversationId}).strict(),
   z.object({kind:z.literal('application'),id,body:z.string().max(16000)}).strict(),
   z.object({kind:z.literal('text'),id,conversationId,text:z.string().min(1).max(MAX_TEXT_CHARS),metadata,timestamp:z.number().finite().nonnegative()}).strict(),

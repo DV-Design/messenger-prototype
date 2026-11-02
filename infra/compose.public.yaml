@@ -14,10 +14,12 @@ services:
       DIRECTORY_DB_PATH: /data/directory.sqlite
       DIRECTORY_MAX_USERS: 10000
       MAX_CONNECTIONS: 256
-      MAX_CONNECTIONS_PER_IP: 256
+      MAX_CONNECTIONS_PER_IP: 32
       MAX_ROOMS: 256
       REQUEST_LIMIT: 1200
       RATE_WINDOW_MS: 60000
+      # The signaling container is reachable only through the Caddy proxy network.
+      TRUSTED_PROXY_CIDRS: 172.18.0.0/16
       # Explicit public STUN choice: these providers observe discovery IP addresses.
       STUN_URLS: stun:stun.l.google.com:19302,stun:stun.cloudflare.com:3478
       # TURN credentials are issued only over authenticated directory requests.

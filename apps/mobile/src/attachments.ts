@@ -50,7 +50,7 @@ export function pruneMediaCache() {
   for (const directory of [new Directory(Paths.cache), new Directory(Paths.cache, 'Audio'), new Directory(Paths.cache, 'ExpoAudio'), new Directory(Paths.cache, 'Camera')]) {
     try {
       if (!directory.exists) continue;
-      for (const item of directory.list()) if (item instanceof File && (/^lastcall-(?:voice-|circle-|media-play-)/.test(item.name) || directory.name === 'Camera' && /\.(?:mp4|mov)$/i.test(item.name))) deleteMediaCache(item.uri);
+      for (const item of directory.list()) if (item instanceof File && (/^lastcall-(?:voice-|circle-|media-play-|share-|preview-)/.test(item.name) || directory.name === 'Camera' && /\.(?:mp4|mov)$/i.test(item.name))) deleteMediaCache(item.uri);
     } catch { /* Cache may be concurrently evicted by the OS. */ }
   }
 }
@@ -67,7 +67,7 @@ export async function shareFile(item: MessengerFile) {
   if (!data) throw new Error('Файл больше не хранится на этом устройстве.');
   if (!(await Sharing.isAvailableAsync())) throw new Error('На устройстве недоступно меню сохранения файлов.');
   const safeName = item.name.replace(/[^\p{L}\p{N}._ -]/gu, '_').slice(0, 100) || 'file';
-  const file = new File(Paths.cache, `${item.id.replace(/[^a-zA-Z0-9-]/g, '')}-${safeName}`);
+  const file = new File(Paths.cache, `lastcall-share-${item.id.replace(/[^a-zA-Z0-9-]/g, '')}-${safeName}`);
   await file.write(data);
   try { await Sharing.shareAsync(file.uri, { mimeType: item.mime, dialogTitle: 'Сохранить или открыть файл' }); }
   finally { if (file.exists) file.delete(); }

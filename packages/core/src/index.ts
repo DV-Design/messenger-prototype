@@ -10,3 +10,5 @@ export * from './push-preview.js';
 
 export * from './call-control.js';
 export * from './call-push.js';
+export * from './content-crypto.js';
+export * from './update-signature.js';

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AppState, Modal, Platform, Text, View } from 'react-native';
 import { useMessenger } from '../runtime';
-import { dismissUpdate, maybeAutoCheck, openUpdate, useUpdateState } from '../updates';
+import { dismissUpdate, downloadAndInstallUpdate, maybeAutoCheck, useUpdateState } from '../updates';
 import { colors, styles } from '../styles';
 import { Button, Icon } from './ui';
 
@@ -13,6 +13,7 @@ export function UpdateNotice() {
   const { profile, snapshot } = useMessenger();
   const updateState = useUpdateState();
   const [failure, setFailure] = useState<{ versionCode: number; text: string }>();
+  const [installing, setInstalling] = useState(false);
   const enabled = Platform.OS === 'android' && !!profile;
 
   useEffect(() => {
@@ -30,11 +31,14 @@ export function UpdateNotice() {
 
   const error = failure && failure.versionCode === available.versionCode ? failure.text : '';
   async function download() {
+    if (installing) return;
+    setInstalling(true); setFailure(undefined);
     try {
-      await openUpdate(available);
-      setFailure(undefined);
+      await downloadAndInstallUpdate(available);
     } catch {
-      setFailure({ versionCode: available.versionCode, text: 'Не удалось открыть загрузку. Откройте p2p.lienad.ru в браузере.' });
+      setFailure({ versionCode: available.versionCode, text: 'Не удалось скачать или проверить обновление. Повторите позже.' });
+    } finally {
+      setInstalling(false);
     }
   }
 
@@ -45,10 +49,10 @@ export function UpdateNotice() {
         <Text accessibilityRole="header" style={{ color: colors.text, fontSize: 21, fontWeight: '700', textAlign: 'center' }}>Доступно обновление</Text>
         <Text style={styles.body}>LastCall {available.version} уже вышла. Сейчас установлена {updateState.currentVersion || 'предыдущая версия'}.</Text>
         {!!available.notes && <Text style={styles.info}>{available.notes}</Text>}
-        <Text style={styles.info}>Скачайте APK и установите поверх приложения: профиль, ключ, контакты и история сохранятся.</Text>
+        <Text style={styles.info}>APK скачается в приложении, SHA-256 сверится с манифестом, затем откроется системный установщик. Профиль, ключ, контакты и история сохранятся.</Text>
         {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
-        <Button title={`Скачать ${available.version}`} onPress={() => void download()} />
-        <Button title="Позже" secondary onPress={dismissUpdate} />
+        <Button title={installing ? 'Скачиваем и проверяем…' : `Скачать и установить ${available.version}`} busy={installing} onPress={() => void download()} />
+        <Button title="Позже" secondary disabled={installing} onPress={dismissUpdate} />
       </View>
     </View>
   </Modal>;

@@ -1,10 +1,11 @@
 import {type CallInvitation} from './call-control.js';
 import { iceServersSchema } from './services.js';
-import { endpointUrl } from './directory.js';
+import { endpointUrl, userIdFromPublicKey, validateDeviceIdentity, type DeviceIdentity } from './directory.js';
+import { ContentCipher, createContentHello, verifyContentHello } from './content-crypto.js';
 import { audioPolicy } from './audio.js';
 import { AdaptiveVideoPolicy, type VideoTarget } from './video.js';
 import { bytesToHex, hexToBytes, randomChecked, secureRandomBytes, SignalingCipher, type RandomBytes } from './crypto.js';
-import { dataFrameSchema, FILE_CHUNK_BYTES, MAX_FILE_BYTES, MAX_FILES, MAX_TEXT_CHARS, MAX_WIRE_BYTES, serverFrameSchema, type ClientFrame, type DataFrame, type SignalBody } from './protocol.js';
+import { dataFrameSchema, FILE_CHUNK_BYTES, MAX_FILE_BYTES, MAX_FILES, MAX_TEXT_CHARS, MAX_WIRE_BYTES, roomIdSchema, serverFrameSchema, type ClientFrame, type ContentHello, type DataFrame, type SignalBody } from './protocol.js';
 
 export interface ChatMessage {id:string;text:string;from:'self'|'peer';timestamp:number;conversationId?:string;metadata?:string;status?:'sent'|'delivered'|'received';}
 export interface SharedFile {id:string;name:string;mime:string;size:number;from:'self'|'peer';status:'sending'|'receiving'|'complete'|'error';receivedBytes:number;data?:Uint8Array;conversationId?:string;metadata?:string;}
@@ -13,7 +14,7 @@ export interface SessionSnapshot {
   callId?:string;callVideo?:boolean;callExpiresAt?:number;callRinging?:boolean;setup?:'invitation';
   messages:ChatMessage[];callState:'idle'|'outgoing'|'incoming'|'active';muted:boolean;
   localStream?:MediaStream;remoteStream?:MediaStream;route:'unknown'|'direct'|'relay';
-  recovering?:boolean;
+  recovering?:boolean;contentE2E?:boolean;
   stats:{rttMs?:number;audioBitrateKbps?:number;packetsLost?:number;jitterMs?:number;videoBitrateKbps?:number;videoFramesPerSecond?:number;videoWidth?:number;videoHeight?:number;videoEncodeMs?:number;videoQualityLimitation?:'none'|'cpu'|'bandwidth'|'other';videoCodec?:string;remoteVideoCodec?:string;remoteVideoFramesPerSecond?:number;videoFramesDecoded?:number;videoFramesDropped?:number;videoFreezeCount?:number;videoFreezeSeconds?:number;remoteVideoWidth?:number;remoteVideoHeight?:number};files:SharedFile[];
 }
 export interface PeerSessionOptions {
@@ -21,6 +22,8 @@ export interface PeerSessionOptions {
   randomBytes?:RandomBytes;rtcFactory?:(config:RTCConfiguration)=>RTCPeerConnection;
   getUserMedia?:(constraints:MediaStreamConstraints)=>Promise<MediaStream>;
   createMediaStream?:(tracks:MediaStreamTrack[])=>MediaStream;
+  /** Enables the signed ephemeral content layer; both values are required together. */
+  contentIdentity?:DeviceIdentity;remoteIdentityPublicKey?:string;
   onChange?:(snapshot:SessionSnapshot)=>void;
   onMessage?:(message:ChatMessage)=>boolean|void|Promise<boolean|void>;
   onApplication?:(payload:unknown)=>void|Promise<void>;
@@ -29,7 +32,7 @@ export interface PeerSessionOptions {
 }
 const initialSnapshot=():SessionSnapshot=>({status:'idle',messages:[],callState:'idle',muted:false,route:'unknown',stats:{},files:[]});
 interface PendingTransfer {id:string;resolve:()=>void;reject:(e:Error)=>void;timer:ReturnType<typeof setTimeout>;ended:boolean;}
-const MAX_DATA_FRAME=32*1024;
+const MAX_DATA_FRAME=96*1024;
 // One maximum-size transfer (hex encoded), plus bounded control traffic.
 const MAX_RECEIVE_FRAMES=512;
 const MAX_RECEIVE_BYTES=12*1024*1024;
@@ -38,12 +41,13 @@ const BUFFER_LOW=64*1024;
 const REQUEST_TIMEOUT=120000;
 // Experimental, authenticated application capability; never passed to the native SDP engine.
 const DATA_READY_ATTRIBUTE='a=x-lastcall-data-ready:1';
+const CONTENT_E2E_ATTRIBUTE='a=x-lastcall-content-e2e:1';
 const DATA_READY_TIMEOUT=5000;
 const DATA_READY_RETRY=250;
-function readySdp(sdp:string):string{
-  const lines=sdp.split(/\r?\n/).filter(line=>line!==DATA_READY_ATTRIBUTE);
+function readySdp(sdp:string,content:boolean):string{
+  const lines=sdp.split(/\r?\n/).filter(line=>line!==DATA_READY_ATTRIBUTE&&line!==CONTENT_E2E_ATTRIBUTE);
   const media=lines.findIndex(line=>line.startsWith('m='));
-  lines.splice(media<0?Math.max(0,lines.length-1):media,0,DATA_READY_ATTRIBUTE);
+  lines.splice(media<0?Math.max(0,lines.length-1):media,0,...(content?[CONTENT_E2E_ATTRIBUTE,DATA_READY_ATTRIBUTE]:[DATA_READY_ATTRIBUTE]));
   return lines.join('\r\n');
 }
 export class PeerSession {
@@ -60,6 +64,15 @@ export class PeerSession {
   private remoteDataReady=false;
   private localDataReady=false;
   private dataReady=false;
+  private readyAcknowledged=false;
+  private contentConfigured=false;
+  private remoteContentE2E=false;
+  private contentRemoteUserId?:string;
+  private contentPrivateKey?:Uint8Array;
+  private contentLocalHello?:ContentHello;
+  private contentRemoteHello?:ContentHello;
+  private contentCipher?:ContentCipher;
+  private lastFileProgress=0;
   private readyNonce?:string;
   private readyRetry?:ReturnType<typeof setInterval>;
   private readyDeadline?:ReturnType<typeof setTimeout>;
@@ -108,6 +121,14 @@ export class PeerSession {
     const base=new URL(options.serverUrl);
     if(!['http:','https:'].includes(base.protocol)||base.username||base.password||base.search||base.hash) throw new Error('serverUrl must be an http(s) base URL without credentials, query or fragment');
     this.options=options;this.random=options.randomBytes??secureRandomBytes;
+    const {contentIdentity,remoteIdentityPublicKey}=options;
+    if(!!contentIdentity!==!!remoteIdentityPublicKey) throw new Error('contentIdentity and remoteIdentityPublicKey must be supplied together');
+    if(contentIdentity&&remoteIdentityPublicKey){
+      validateDeviceIdentity(contentIdentity);roomIdSchema.parse(remoteIdentityPublicKey);
+      const remoteUserId=userIdFromPublicKey(remoteIdentityPublicKey);
+      if(remoteUserId===contentIdentity.userId)throw new Error('Cannot create a content session with self');
+      this.contentConfigured=true;this.contentRemoteUserId=remoteUserId;
+    }
     this.peerId=this.id();this.resumeToken=bytesToHex(randomChecked(this.random,32));this.cipher=new SignalingCipher(options.invite,this.peerId,this.random);this.roomId=this.cipher.roomId;
   }
   private id(){return bytesToHex(randomChecked(this.random,16));}
@@ -125,7 +146,7 @@ export class PeerSession {
   private wsSend(frame:ClientFrame){if(this.socket?.readyState!==1)throw new Error('Signaling connection is unavailable');this.socket.send(JSON.stringify(frame));}
   private signal(body:SignalBody){
     if(!this.remoteId)throw new Error('Remote peer identity unavailable');
-    if(body.kind==='description')body={...body,description:{...body.description,sdp:readySdp(body.description.sdp)}};
+    if(body.kind==='description')body={...body,description:{...body.description,sdp:readySdp(body.description.sdp,this.contentConfigured)}};
     if(this.state.recovering&&(!this.socketJoined||this.socket?.readyState!==1)){if(this.signalBacklog.length>=128)throw new Error('Signaling recovery queue capacity exceeded');this.signalBacklog.push(body);return;}
     this.wsSend({type:'signal',payload:this.cipher.seal(body,this.remoteId)});
     if(body.kind==='description'){this.localDataReady=true;if(this.channel?.readyState==='open')this.channelOpened(this.channel);}
@@ -256,23 +277,67 @@ export class PeerSession {
     if(this.channel&&this.channel!==channel){channel.close();return;}this.channel=channel;channel.bufferedAmountLowThreshold=BUFFER_LOW;
     // RN can expose an already-open channel. Install its message listener before
     // announcing readiness; native transport-open does not prove remote JS is listening.
-    channel.onmessage=event=>{if(this.channel!==channel)return;try{if(typeof event.data!=='string'||event.data.length>MAX_DATA_FRAME)throw new Error('Oversized data frame');const frame=dataFrameSchema.parse(JSON.parse(event.data));if(frame.kind==='ready'||frame.kind==='ready-ack')this.handleReady(frame,channel);else this.enqueueData(frame,event.data.length,channel);}catch(e){this.report(e);}};
+    channel.onmessage=event=>{if(this.channel!==channel)return;try{if(typeof event.data!=='string'||event.data.length>MAX_DATA_FRAME)throw new Error('Oversized data frame');const frame=dataFrameSchema.parse(JSON.parse(event.data));if(frame.kind==='ready'||frame.kind==='ready-ack'){this.handleReady(frame,channel);return;}
+      if(frame.kind==='sealed'){
+        if(!this.contentConfigured||!this.contentCipher)throw new Error('Unexpected encrypted content');
+        let inner:DataFrame;
+        try{inner=dataFrameSchema.parse(this.contentCipher.open(frame));}catch{this.failTransport('Encrypted content authentication failed');return;}
+        if(inner.kind==='ready'||inner.kind==='ready-ack'||inner.kind==='sealed')throw new Error('Invalid encrypted control frame');
+        this.enqueueData(inner,event.data.length,channel);return;
+      }
+      if(this.contentConfigured&&frame.kind!=='text-ack'&&frame.kind!=='file-ack')throw new Error('Unencrypted content rejected');
+      this.enqueueData(frame,event.data.length,channel);}catch(e){this.report(e);}};
     channel.onopen=()=>this.channelOpened(channel);
     channel.onclose=()=>{if(this.channel===channel){this.resetReady();this.resetReceiveQueue();this.failTransfers();if(this.hadConnected)this.beginRecovery();else{this.stopCall();this.change({status:'disconnected'});}}};
     channel.onerror=()=>this.report(new Error('Data channel error'));
     if(channel.readyState==='open')this.channelOpened(channel);
   }
   private channelReady(){return this.channel?.readyState==='open'&&(!this.remoteDataReady||this.dataReady);}
-  private resetReady(){clearInterval(this.readyRetry);clearTimeout(this.readyDeadline);this.readyRetry=undefined;this.readyDeadline=undefined;this.readyNonce=undefined;this.dataReady=false;this.readyFrames=0;this.readyWindow=0;}
+  private resetContent(){
+    this.contentCipher?.dispose();this.contentCipher=undefined;
+    this.contentPrivateKey?.fill(0);this.contentPrivateKey=undefined;
+    this.contentLocalHello=undefined;this.contentRemoteHello=undefined;
+  }
+  private resetReady(){clearInterval(this.readyRetry);clearTimeout(this.readyDeadline);this.readyRetry=undefined;this.readyDeadline=undefined;this.readyNonce=undefined;this.dataReady=false;this.readyAcknowledged=false;this.readyFrames=0;this.readyWindow=0;this.resetContent();}
+  private contentHello():ContentHello|undefined{
+    if(!this.contentConfigured||!this.remoteContentE2E)return undefined;
+    if(!this.contentLocalHello){
+      const created=createContentHello(this.options.contentIdentity!,this.contentRemoteUserId!,this.random);
+      this.contentLocalHello=created.hello;this.contentPrivateKey=created.privateKey;
+    }
+    return this.contentLocalHello;
+  }
+  private readyFrame(kind:'ready'|'ready-ack',nonce:string):DataFrame{
+    const content=this.contentHello();
+    return content?{kind,nonce,content}:{kind,nonce};
+  }
+  private acceptContent(hello:ContentHello|undefined){
+    if(!this.contentConfigured||!this.remoteContentE2E)return;
+    if(!hello)throw new Error('Peer omitted the end-to-end encryption handshake');
+    if(!verifyContentHello(hello,this.options.remoteIdentityPublicKey!,this.contentRemoteUserId!,this.options.contentIdentity!.userId))throw new Error('End-to-end encryption handshake failed');
+    this.contentRemoteHello=hello;this.deriveContent();
+  }
+  private deriveContent(){
+    if(this.contentCipher||!this.contentConfigured||!this.remoteContentE2E||!this.contentLocalHello||!this.contentRemoteHello||!this.contentPrivateKey)return;
+    const cipher=ContentCipher.derive({localHello:this.contentLocalHello,remoteHello:this.contentRemoteHello,ephemeralPrivateKey:this.contentPrivateKey,localUserId:this.options.contentIdentity!.userId,remoteUserId:this.contentRemoteUserId!,random:this.random});
+    this.contentPrivateKey.fill(0);this.contentPrivateKey=undefined;this.contentCipher=cipher;
+    this.change({contentE2E:true});this.maybeDataReady();
+  }
+  private maybeDataReady(){
+    if(this.dataReady||!this.readyAcknowledged||!this.channel)return;
+    if(this.contentConfigured&&this.remoteContentE2E&&!this.contentCipher)return;
+    this.dataReady=true;clearInterval(this.readyRetry);clearTimeout(this.readyDeadline);this.readyRetry=undefined;this.readyDeadline=undefined;
+    this.channelOpened(this.channel);
+  }
   private channelOpened(channel:RTCDataChannel){
     if(this.channel!==channel||channel.readyState!=='open')return;
     if(this.remoteDataReady&&!this.dataReady){
       if(!this.localDataReady)return;
       if(this.readyNonce)return;
       const nonce=this.id();this.readyNonce=nonce;
-      this.readyRetry=setInterval(()=>{if(this.channel===channel&&channel.readyState==='open'&&!this.dataReady)try{this.dataSend({kind:'ready',nonce});}catch{this.failTransport('application readiness failed');}},DATA_READY_RETRY);
+      this.readyRetry=setInterval(()=>{if(this.channel===channel&&channel.readyState==='open'&&!this.dataReady)try{this.dataSend(this.readyFrame('ready',nonce));}catch{this.failTransport('application readiness failed');}},DATA_READY_RETRY);
       this.readyDeadline=setTimeout(()=>{if(this.channel===channel&&!this.dataReady)this.failTransport('application readiness timed out');},DATA_READY_TIMEOUT);
-      this.dataSend({kind:'ready',nonce});return;
+      try{this.dataSend(this.readyFrame('ready',nonce));}catch{this.failTransport('application readiness failed');}return;
     }
     if(this.hadConnected){this.recovered();return;}
     this.hadConnected=true;clearTimeout(this.transportTimer);this.transportTimer=undefined;this.change({status:'connected',error:undefined});this.recovered();
@@ -282,9 +347,12 @@ export class PeerSession {
     const now=Date.now();if(now-this.readyWindow>=DATA_READY_TIMEOUT){this.readyWindow=now;this.readyFrames=0;}
     if(++this.readyFrames>64){this.failTransport('application readiness rate exceeded');return;}
     if(frame.kind==='ready'){
-      this.dataSend({kind:'ready-ack',nonce:frame.nonce});this.channelOpened(channel);
-    }else if(frame.nonce===this.readyNonce&&!this.dataReady){
-      this.dataReady=true;clearInterval(this.readyRetry);clearTimeout(this.readyDeadline);this.readyRetry=undefined;this.readyDeadline=undefined;this.channelOpened(channel);
+      try{this.acceptContent(frame.content);this.dataSend(this.readyFrame('ready-ack',frame.nonce));}
+      catch(error){this.failTransport(error instanceof Error?error.message:'End-to-end encryption handshake failed');return;}
+      this.channelOpened(channel);
+    }else if(frame.nonce===this.readyNonce&&!this.readyAcknowledged){
+      try{this.acceptContent(frame.content);}catch(error){this.failTransport(error instanceof Error?error.message:'End-to-end encryption handshake failed');return;}
+      this.readyAcknowledged=true;this.maybeDataReady();
     }
   }
   private async negotiate(){
@@ -305,9 +373,14 @@ export class PeerSession {
       if(body.description.type==='answer'&&pc.signalingState!=='have-local-offer')throw new Error('Unexpected SDP answer');
       const lines=body.description.sdp.split(/\r?\n/);const media=lines.findIndex(line=>line.startsWith('m='));
       const capability=lines.slice(0,media<0?undefined:media).includes(DATA_READY_ATTRIBUTE);
+      const contentCapability=lines.slice(0,media<0?undefined:media).includes(CONTENT_E2E_ATTRIBUTE);
       // Parse before awaiting native SDP: it may emit datachannel/open during the await.
-      if(!pc.remoteDescription)this.remoteDataReady=capability;
-      await pc.setRemoteDescription({...body.description,sdp:lines.filter(line=>line!==DATA_READY_ATTRIBUTE).join('\r\n')});if(this.pc!==pc)return;
+      if(!pc.remoteDescription){
+        this.remoteDataReady=capability;this.remoteContentE2E=this.contentConfigured&&contentCapability;
+        // No plaintext fallback: a peer without the marker must update first.
+        if(this.contentConfigured&&!contentCapability){this.failTransport('peer does not support end-to-end content encryption; update both apps');return;}
+      }
+      await pc.setRemoteDescription({...body.description,sdp:lines.filter(line=>line!==DATA_READY_ATTRIBUTE&&line!==CONTENT_E2E_ATTRIBUTE).join('\r\n')});if(this.pc!==pc)return;
       for(const candidate of this.pendingCandidates.splice(0))await pc.addIceCandidate(candidate);
       if(body.description.type==='offer'){const answer=await pc.createAnswer();if(this.pc!==pc)return;await pc.setLocalDescription(answer);if(this.pc!==pc)return;this.signal({kind:'description',description:{type:'answer',sdp:pc.localDescription?.sdp??answer.sdp??''}});}
       else if(this.offerAgain)await this.offer();
@@ -317,6 +390,7 @@ export class PeerSession {
     }else if(body.kind==='renegotiate'){if(body.iceRestart)this.restartPending=true;await this.offer();
     }else if(body.kind==='call-invite'){
       for(const [id,expiry] of this.endedCallIds)if(Date.now()>=expiry)this.endedCallIds.delete(id);if((this.endedCallIds.get(body.callId)??0)>Date.now()){this.signal({kind:'call-end',callId:body.callId});return;}
+      if(this.contentConfigured&&(body.issuedAt===undefined||body.expiresAt===undefined)){this.signal({kind:'call-end',callId:body.callId});return;}
       if(body.expiresAt!==undefined&&(Date.now()>=body.expiresAt||body.issuedAt!>Date.now()+5000)){this.signal({kind:'call-end',callId:body.callId});return;}
       if(this.callId===body.callId&&this.state.callState==='incoming'){if(body.expiresAt!==undefined)this.signal({kind:'call-ringing',callId:body.callId});return;}
       if(this.state.callState!=='idle'){this.signal({kind:'call-end',callId:body.callId});return;}
@@ -369,7 +443,7 @@ export class PeerSession {
     if(this.state.status!=='connected'||this.state.callState!=='idle')throw new Error('A connected, idle session is required');
     if(invitation&&(invitation.expiresAt-invitation.issuedAt!==30000||Date.now()>=invitation.expiresAt||invitation.issuedAt>Date.now()+5000||!/^[a-f0-9]{32}$/.test(invitation.callId)))throw new Error('Invalid or expired call invitation');
     const callId=invitation?.callId??this.id();this.callId=callId;this.callVideo=video;this.change({callState:'outgoing',callExpiresAt:invitation?.expiresAt,callRinging:false});
-    try{await this.acquireMedia(video);if(this.callId!==callId)throw new Error('Call cancelled');if(invitation&&Date.now()>=invitation.expiresAt)throw new Error('Call invitation expired');this.signal({kind:'call-invite',callId,video,...(invitation?{issuedAt:invitation.issuedAt,expiresAt:invitation.expiresAt}:{})});this.armCallTimeout(invitation?.expiresAt);}catch(error){if(this.callId===callId)this.stopCall();throw error;}
+    try{await this.acquireMedia(video);if(this.callId!==callId)throw new Error('Call cancelled');if(invitation&&Date.now()>=invitation.expiresAt)throw new Error('Call invitation expired');const issuedAt=invitation?.issuedAt??Date.now(),expiresAt=invitation?.expiresAt??issuedAt+30000;this.signal({kind:'call-invite',callId,video,issuedAt,expiresAt});this.armCallTimeout(expiresAt);}catch(error){if(this.callId===callId)this.stopCall();throw error;}
   }
   async acceptCall():Promise<void>{
     if(this.mediaPending)throw new Error('Media permission request is already pending');
@@ -396,7 +470,20 @@ export class PeerSession {
     this.change({callState:'idle',callExpiresAt:undefined,callRinging:undefined,muted:false,localStream:undefined,remoteStream:undefined});
   }
   setMuted(muted:boolean):void{this.state.localStream?.getAudioTracks().forEach(track=>{track.enabled=!muted;});this.change({muted});}
-  private dataSend(frame:DataFrame){const channel=this.channel;if(channel?.readyState!=='open'||(!this.channelReady()&&!['ready','ready-ack','text-ack','file-ack'].includes(frame.kind)))throw new Error('Peer data channel is not connected or application-ready');const text=JSON.stringify(frame);if(text.length>MAX_DATA_FRAME)throw new Error('Data frame exceeds limit');channel.send(text);}
+  private wireSend(frame:DataFrame){
+    const channel=this.channel;
+    if(channel?.readyState!=='open'||(!this.channelReady()&&!['ready','ready-ack','text-ack','file-ack'].includes(frame.kind)))throw new Error('Peer data channel is not connected or application-ready');
+    const text=JSON.stringify(frame);if(text.length>MAX_DATA_FRAME)throw new Error('Data frame exceeds limit');channel.send(text);
+  }
+  private dataSend(frame:DataFrame){
+    if(frame.kind==='sealed'||frame.kind==='ready'||frame.kind==='ready-ack'||frame.kind==='text-ack'||frame.kind==='file-ack'){this.wireSend(frame);return;}
+    if(this.contentConfigured){
+      if(!this.remoteContentE2E)throw new Error('Peer does not support end-to-end content encryption; update both apps');
+      if(!this.contentCipher)throw new Error('End-to-end encrypted content is not ready');
+      this.wireSend(this.contentCipher.seal(frame));return;
+    }
+    this.wireSend(frame);
+  }
   async sendText(text:string,metadata:{messageId?:string;conversationId?:string;metadata?:string;timestamp?:number}={}):Promise<void>{
     if(!text.trim()||text.length>MAX_TEXT_CHARS)throw new Error(`Text must contain 1–${MAX_TEXT_CHARS} characters`);
     if((this.channel?.bufferedAmount??0)>BUFFER_HIGH)throw new Error('Data channel busy; retry after transfer');
@@ -481,7 +568,8 @@ export class PeerSession {
       const incoming=this.incoming;
       if(!incoming||incoming.id!==frame.id||incoming.offset!==frame.offset||incoming.offset+frame.hex.length/2>incoming.bytes.length){this.failIncoming();throw new Error('Invalid file chunk ordering or bounds');}
       const chunk=hexToBytes(frame.hex);incoming.bytes.set(chunk,incoming.offset);incoming.offset+=chunk.length;
-      const file=this.state.files.find(x=>x.id===frame.id);if(file)file.receivedBytes=incoming.offset;this.emit();
+      const file=this.state.files.find(x=>x.id===frame.id);if(file)file.receivedBytes=incoming.offset;
+      const now=Date.now();if(now-this.lastFileProgress>=100||incoming.offset===incoming.bytes.length){this.lastFileProgress=now;this.emit();}
     }else if(frame.kind==='file-end'){
       const incoming=this.incoming;if(!incoming||incoming.id!==frame.id||incoming.offset!==incoming.bytes.length){this.failIncoming();throw new Error('Incomplete file');}
       clearTimeout(incoming.timer);const file=this.state.files.find(x=>x.id===frame.id&&x.from==='peer');
@@ -602,7 +690,7 @@ export class PeerSession {
     }catch{/* Stats are optional and must not break the call. */}finally{this.statsBusy=false;}
   }
   private cleanupPeer(){
-    this.resetReady();this.remoteDataReady=false;this.localDataReady=false;
+    this.resetReady();this.remoteDataReady=false;this.localDataReady=false;this.remoteContentE2E=false;
     clearTimeout(this.recoveryTimer);this.recoveryTimer=undefined;clearTimeout(this.resumeTimer);this.resumeTimer=undefined;this.hadConnected=false;this.restartPending=false;this.signalBacklog=[];this.state.recovering=false;
     this.resetReceiveQueue();
     clearTimeout(this.transportTimer);this.transportTimer=undefined;clearInterval(this.statsTimer);this.statsTimer=undefined;this.stopCall();this.failTransfers();

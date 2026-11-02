@@ -2,9 +2,10 @@ import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { Redirect, router, useIsFocused, useLocalSearchParams } from 'expo-router';
 import { AppState, FlatList, KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import type { MessengerMessage } from '@messenger/core';
+import { safetyNumber, type MessengerMessage } from '@messenger/core';
 import { pickDocument, pickMedia, shareFile } from '../../attachments';
 import { AttachmentCard } from '../../components/AttachmentCard';
+import { SafetyCode } from '../../components/SafetyCode';
 import { Avatar, Empty, Icon, IconButton, lastSeen, time } from '../../components/ui';
 import { client, errorText, useMessenger } from '../../runtime';
 import { colors, styles } from '../../styles';
@@ -24,6 +25,7 @@ export default function Chat() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [recording, setRecording] = useState<MediaKind>();
+  const [safetyOpen, setSafetyOpen] = useState(false);
   const list = useRef<ComponentRef<typeof FlatList<ChatTimelineEntry>>>(null);
   const unread = conversation?.unread ?? 0;
   const focused = useIsFocused();
@@ -46,6 +48,8 @@ export default function Chat() {
   const timeline = chatTimeline(conversation.messages, conversation.files);
   const peer = snapshot.contacts.find(item => conversation.memberIds.includes(item.userId) && item.userId !== identity?.userId);
   const group = conversation.kind === 'group';
+  const safety = peer && identity ? safetyNumber(identity.publicKey, peer.publicKey) : '';
+  const peerVerified = !!peer && snapshot.verifiedContacts.includes(peer.userId);
   const canCall = !group && !snapshot.activeCall && !recording && (snapshot.status === 'online' || conversation.session?.status === 'connected');
   const notice = transportNotice({ directory: snapshot.status, group, peerOnline: peer?.online, session: conversation.session,
     pending: conversation.messages.filter(item => item.from === identity?.userId && waitingForDelivery(item)).length
@@ -81,10 +85,12 @@ export default function Chat() {
   return <SafeAreaView style={styles.whiteScreen} edges={['top', 'bottom']}>
     <View style={styles.chatHeader}><IconButton name="chevron-back" label="Назад к чатам" onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)')} />
       <Avatar name={conversation.title} id={conversation.id} group={group} size={41} /><View style={[styles.flex, { marginLeft: 7 }]}><Text numberOfLines={1} style={styles.chatName}>{conversation.title}</Text><Text numberOfLines={1} style={[styles.chatStatus, !group && peer?.online && { color: colors.accent }]}>{group ? `${conversation.memberIds.length} участников` : lastSeen(!!peer?.online, peer?.lastSeen ?? 0)}</Text></View>
+      {!group && peer && <IconButton name={peerVerified ? 'shield-checkmark-outline' : 'shield-outline'} label="Код безопасности" onPress={() => setSafetyOpen(true)} />}
       <IconButton name="call-outline" label={group ? 'Групповые звонки недоступны' : 'Аудиозвонок'} disabled={!canCall || busy} onPress={() => void action(() => client().startCall(conversation.id, false))} />
       <IconButton name="videocam-outline" label={group ? 'Групповые видеозвонки недоступны' : 'Видеозвонок'} disabled={!canCall || busy} onPress={() => void action(() => client().startCall(conversation.id, true))} />
     </View>
     <Pressable accessibilityRole="button" accessibilityLabel="Состояние доставки. Открыть настройки соединения" onPress={() => router.push('/(tabs)/settings')} style={{ paddingHorizontal: 15, paddingVertical: 9, backgroundColor: notice.warning ? '#FFF2D8' : '#EDF5F1' }}><Text style={[styles.info, { color: notice.warning ? '#7B5924' : '#4E7161' }]}>{notice.text}</Text></Pressable>
+    {!group && peer && !peerVerified && <Pressable accessibilityRole="button" accessibilityLabel="Проверить код безопасности собеседника" onPress={() => setSafetyOpen(true)} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 15, paddingVertical: 8, backgroundColor: '#FFF6E4' }}><Icon name="shield-outline" size={17} color="#7B5924" /><Text style={[styles.info, { flex: 1, color: '#7B5924' }]}>Ключ собеседника не сверен. Сверьте код безопасности.</Text><Icon name="chevron-forward" size={17} color="#7B5924" /></Pressable>}
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={styles.conversation}>
         {group && <Text style={[styles.info, { textAlign: 'center', paddingVertical: 8, paddingHorizontal: 15 }]}>Группа до 8 участников · звонки в группах пока недоступны</Text>}
@@ -111,5 +117,6 @@ export default function Chat() {
       </View>
     </KeyboardAvoidingView>
     {!!recording && focused && <MediaComposer key={`${id}:${recording}`} kind={recording} conversationId={conversation.id} blocked={!!snapshot.activeCall} onClose={() => setRecording(undefined)} />}
+    {!group && peer && identity && <SafetyCode visible={safetyOpen} title={peer.displayName} code={safety} verified={peerVerified} sessionReady={!!conversation.session?.contentE2E} onClose={() => setSafetyOpen(false)} onVerify={() => void action(async () => { await client().markContactVerified(peer.userId); setSafetyOpen(false); })} />}
   </SafeAreaView>;
 }
