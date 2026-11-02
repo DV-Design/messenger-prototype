@@ -9,11 +9,19 @@ import { Avatar, Button, Icon, ScreenHeader, connectionLabel } from '../../compo
 import { changeServer, errorText, reconnect, useMessenger } from '../../runtime';
 import { formatMediaDiagnostics, sanitizeDiagnostic } from '../../diagnostics';
 import { usePushStatus } from '../../components/PushBridge';
+import { checkForUpdate, openUpdate, useUpdateState } from '../../updates';
 import { colors, styles } from '../../styles';
 export default function Settings() {
   const { profile, identity, snapshot, error, busy } = useMessenger();
   const pushStatus = usePushStatus();
   const callStatus = useSystemCallStatus();
+  const updateState = useUpdateState();
+  const availableUpdate = updateState.status === 'available' ? updateState.update : undefined;
+  const updateStatusText = updateState.status === 'checking' ? 'Проверяем обновления…'
+    : availableUpdate ? `Доступна версия ${availableUpdate.version}`
+      : updateState.status === 'current' ? 'Установлена последняя версия'
+        : updateState.status === 'error' ? 'Не удалось проверить'
+          : 'Проверка ещё не выполнялась';
   const [showServer, setShowServer] = useState(false);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [server, setServer] = useState(profile?.serverUrl ?? '');
@@ -52,6 +60,24 @@ export default function Settings() {
       {!!(localError || error || snapshot.error) && <Text style={[styles.error, { marginHorizontal: 16, marginTop: 16 }]}>{localError || error || snapshot.error}</Text>}
       <Text style={styles.sectionTitle}>УВЕДОМЛЕНИЯ</Text><View style={[styles.section, styles.content]}><Text style={styles.body}>{pushStatus}</Text><Button title="Настроить доступы" secondary onPress={() => router.push('/permissions')} /></View>
       {Platform.OS === 'android' && <><Text style={styles.sectionTitle}>СИСТЕМНЫЕ ЗВОНКИ</Text><View style={[styles.section, styles.content]}><Text style={styles.body}>{callStatus}</Text><Text style={styles.info}>На Android 8+ LastCall сам регистрирует телефонный аккаунт и показывает собственный экран входящего; вручную включать его в приложении «Телефон» не нужно. Экран появляется после проверки защищённого приглашения на звонок; подключение собеседника может продолжаться после ответа. На Android 14+ разрешите полноэкранные уведомления, иначе звонок останется обычным уведомлением. Микрофон включается только после ответа. На Android 7 используется собственное уведомление и экран LastCall без телефонного приложения.</Text><Button title="Открыть настройки звонков" secondary onPress={() => void enableSystemCalls().catch(cause => setLocalError(errorText(cause)))} /></View></>}
+      {Platform.OS === 'android' && <><Text style={styles.sectionTitle}>ОБНОВЛЕНИЯ</Text>
+        <View style={[styles.section, { marginTop: 0 }]}>
+          <View style={styles.listRow}>
+            <Icon name="cloud-download-outline" color={availableUpdate ? colors.accent : colors.secondary} />
+            <View style={styles.rowBody}><Text style={styles.rowName}>LastCall · {updateState.currentVersion}</Text><Text style={styles.rowText}>{updateStatusText}</Text></View>
+          </View>
+          <View style={styles.content}>
+            {availableUpdate ? <>
+              {!!availableUpdate.notes && <Text style={styles.body}>{availableUpdate.notes}</Text>}
+              <Button title={`Скачать ${availableUpdate.version}`} onPress={() => void openUpdate(availableUpdate).catch(() => setLocalError('Не удалось открыть загрузку обновления.'))} />
+              <Text style={styles.info}>Скачайте APK и установите поверх приложения. Профиль, ключ, контакты и история сохранятся.</Text>
+            </> : <Button title="Проверить обновления" secondary busy={updateState.status === 'checking'} onPress={() => void checkForUpdate(true)} />}
+            {updateState.status === 'current' && <Text style={styles.info}>Установлена последняя опубликованная версия.</Text>}
+            {!!updateState.error && <Text accessibilityRole="alert" style={styles.error}>{updateState.error}</Text>}
+            <Text style={styles.info}>Проверка идёт через официальный сайт LastCall и не использует сервер вашего профиля.</Text>
+          </View>
+        </View>
+      </>}
       <Text style={styles.sectionTitle}>О ПРИЛОЖЕНИИ</Text>
       <View style={[styles.section, { marginTop: 0, padding: 18, gap: 13 }]}><Text style={styles.rowName}>LastCall · {Constants.expoConfig?.version}</Text>
         <Text style={styles.body}>Сервер хранит профиль и помогает находить собеседников. Текст, файлы и звонки идут по защищённому соединению между участниками; при необходимости WebRTC использует TURN.</Text>

@@ -6,7 +6,9 @@ Client-only release. Download: `download/LastCall-1.0.1.apk` at
 https://p2p.lienad.ru and https://lienad.ru/messenger/download/LastCall-1.0.1.apk
 (54,995,081 bytes, SHA256 `a7d1f61d08ba13bc1dda168c831d58ea041ca3468a181c5af9a557c318aca41e`). Versioned 0.7.2 remains available for
 rollback. Independent native acceptance and physical-phone evidence are
-**PENDING** and are not claimed.
+**PENDING** and are not claimed. Client update checks use the static
+`download/latest.json` manifest; no signaling or profile endpoint is involved.
+Publish the manifest atomically with each APK.
 
 New-profile default endpoint becomes `https://p2p.lienad.ru`. Existing profiles
 keep their explicitly stored server URL, so contacts and history stay in the

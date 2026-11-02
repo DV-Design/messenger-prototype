@@ -90,6 +90,12 @@ reproduced negative DNS cache on some resolvers; it uses normal DNS and TLS.
   existing proxy; private credentials must never be copied there.
 - Versioned Android APKs in `download/`; diagnostic probe in `diagnostics/`;
   index.html and tasks.txt at root. Build probe with relative asset paths.
+- `download/latest.json` is the static client update manifest. Replace it
+  atomically with each APK. It carries `android.version`, `versionCode`, an
+  HTTPS APK URL on the official hosts, SHA256 and optional alternate URL/notes.
+  The app compares versionCode on launch/foreground and only offers the APK for
+  download; it never installs automatically. No signaling or profile data is
+  involved, so this stays a static file with no server-side work.
 
 Caddy imports `proxy/sites/*.caddy` read-only. Copy the route fragment inside
 `lienad.ru.caddy` before its fallback handle; it is not a standalone site. Validate
