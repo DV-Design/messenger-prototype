@@ -166,25 +166,26 @@ function digestFor(parts: string[]) {
   return sha256(encoder.encode(JSON.stringify(parts)));
 }
 
-/** Stable 12-group safety number for out-of-band key verification. */
-export function safetyNumber(firstPublicKey: string, secondPublicKey: string): string {
+/** Stable emoji list for out-of-band key verification; never reorder it. */
+export const SAFETY_EMOJI = ['🐶','🐱','🦊','🐻','🐼','🦁','🐯','🐨','🐸','🐵','🦄','🐙','🦋','🐢','🐳','🐬','🦉','🦅','🐝','🐞','🌵','🌲','🌻','🌈','⭐','🔥','💧','🍎','🍋','🍇','🍒','🍉'] as const;
+
+function emojiCode(digest: Uint8Array, count: number): string {
+  return Array.from({ length: count }, (_, index) => SAFETY_EMOJI[digest[index]! % SAFETY_EMOJI.length]).join(' ');
+}
+
+/** Up to five stable emoji for out-of-band key verification. */
+export function safetyEmoji(firstPublicKey: string, secondPublicKey: string): string {
   roomIdSchema.parse(firstPublicKey);
   roomIdSchema.parse(secondPublicKey);
   const keys = [firstPublicKey, secondPublicKey].sort();
-  const digest = digestFor(['lastcall/safety-number/v1', ...keys]);
-  const groups: string[] = [];
-  for (let index = 0; index < 24; index += 2) groups.push(String(((digest[index]! << 8) | digest[index + 1]!) % 100000).padStart(5, '0'));
-  return groups.join(' ');
+  return emojiCode(digestFor(['lastcall/safety-number/v1', ...keys]), 5);
 }
 
-/** Short per-call code; both sides derive the same value from the call and identities. */
-export function callSafetyCode(firstPublicKey: string, secondPublicKey: string, callId: string): string {
+/** Up to five emoji; both sides derive the same value from the call and identities. */
+export function callSafetyEmoji(firstPublicKey: string, secondPublicKey: string, callId: string): string {
   roomIdSchema.parse(firstPublicKey);
   roomIdSchema.parse(secondPublicKey);
   peerIdSchema.parse(callId);
   const keys = [firstPublicKey, secondPublicKey].sort();
-  const digest = digestFor(['lastcall/call-safety/v1', ...keys, callId]);
-  const value = ((digest[0]! << 24) | (digest[1]! << 16) | (digest[2]! << 8) | digest[3]!) >>> 0;
-  const code = String(value % 1_000_000).padStart(6, '0');
-  return `${code.slice(0, 3)} ${code.slice(3)}`;
+  return emojiCode(digestFor(['lastcall/call-safety/v1', ...keys, callId]), 5);
 }

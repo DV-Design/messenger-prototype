@@ -7,6 +7,20 @@
       "env": { "MESSENGER_ALLOW_LOCAL_HTTP": "1" },
       "android": { "buildType": "apk" }
     },
-    "preview": { "distribution": "internal", "android": { "buildType": "apk" } }
-  }
+    "preview": { "distribution": "internal", "android": { "buildType": "apk" } },
+    "direct": {
+      "distribution": "internal",
+      "env": { "LASTCALL_DISTRIBUTION": "direct" }
+    },
+    "store": {
+      "distribution": "store",
+      "env": { "LASTCALL_DISTRIBUTION": "store" }
+    },
+    "production": {
+      "distribution": "store",
+      "autoIncrement": true,
+      "env": { "LASTCALL_DISTRIBUTION": "store" }
+    }
+  },
+  "submit": { "production": {} }
 }

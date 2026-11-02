@@ -50,6 +50,14 @@ export async function saveProfile(profile: LocalProfile): Promise<void> {
   await SecureStore.setItemAsync(PROFILE_KEY, JSON.stringify(profile), secretOptions);
 }
 
+export async function deleteLocalAccount(): Promise<void> {
+  try {
+    const directory = new Directory(Paths.document, 'messenger-v2');
+    if (directory.exists) directory.delete();
+  } catch { /* Local files are best-effort after the server account is gone. */ }
+  await SecureStore.deleteItemAsync(IDENTITY_KEY);
+  await SecureStore.deleteItemAsync(PROFILE_KEY);
+}
 export async function sealedStateAdapter(identity: DeviceIdentity, serverUrl: string) {
   validateDeviceIdentity(identity);
   const serverHash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, serverUrl);

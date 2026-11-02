@@ -58,6 +58,19 @@ export class DirectoryServices {
     if(!columns.some(column=>column.name==='call_invite_v1'))this.db.exec('ALTER TABLE push_tokens ADD COLUMN call_invite_v1 INTEGER NOT NULL DEFAULT 0 CHECK(call_invite_v1 IN (0,1))');
     if(!columns.some(column=>column.name==='message_preview'))this.db.exec('ALTER TABLE push_tokens ADD COLUMN message_preview INTEGER NOT NULL DEFAULT 0 CHECK(message_preview IN (0,1))');
   }
+  /** Removes every server-side identity-linked service record; content is never stored. */
+  deleteAccount(userId: string) {
+    this.checkOpen();
+    this.transaction(() => {
+      this.db.prepare('DELETE FROM push_consent WHERE recipient_id = ? OR sender_id = ?').run(userId, userId);
+      this.db.prepare('DELETE FROM push_tokens WHERE user_id = ?').run(userId);
+      this.db.prepare('DELETE FROM verified_phones WHERE user_id = ?').run(userId);
+      this.db.prepare('DELETE FROM wake_last_attempt WHERE recipient_id = ?').run(userId);
+      this.db.prepare('DELETE FROM wake_call_last_attempt WHERE recipient_id = ?').run(userId);
+      this.db.prepare('DELETE FROM service_quotas WHERE quota_key = ?').run(userId);
+      this.db.prepare('DELETE FROM sms_last_attempt WHERE quota_key = ?').run(userId);
+    });
+  }
   capabilities(userId: string,callInviteV1=false): ServiceCapabilities {
     return { ...(callInviteV1?{callInviteV1:true,serverEpoch:this.calls.epoch}:{}),phoneVerification: Boolean(this.options.smsProvider && this.secret), push: Boolean(this.options.pushProvider), relay: this.ice().some(server => (Array.isArray(server.urls) ? server.urls : [server.urls]).some(url => /^turns?:/.test(url))), phoneVerified: Boolean(this.options.enableLegacyPhoneServices && this.verified(userId)) };
   }

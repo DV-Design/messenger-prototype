@@ -18,3 +18,8 @@ google-services*.json
 *firebase-admin*.json
 *gserviceaccount*.json
 .beads.gate.lock
+
+# Android signing material must stay outside the repository
+*.jks
+*.keystore
+keystore.properties

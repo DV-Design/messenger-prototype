@@ -47,6 +47,12 @@ export class SharedWakeRuntime<T extends ManagedWakeClient> {
   ensure(create: () => Promise<T | null>): Promise<T | null> {
     return this.serial(async () => { if (!this.current) this.current = await create(); return this.current; });
   }
+  clear(): Promise<void> {
+    return this.serial(async () => {
+      const previous = this.current; this.current = null;
+      if (previous) await previous.disconnectAndFlush();
+    });
+  }
   replace(create: () => Promise<T>): Promise<T> {
     return this.serial(async () => {
       const previous = this.current; this.current = null;

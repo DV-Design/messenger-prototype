@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AppState, Modal, Platform, Text, View } from 'react-native';
 import { useMessenger } from '../runtime';
-import { dismissUpdate, downloadAndInstallUpdate, maybeAutoCheck, useUpdateState } from '../updates';
+import { directUpdates, dismissUpdate, downloadAndInstallUpdate, maybeAutoCheck, useUpdateState } from '../updates';
 import { colors, styles } from '../styles';
 import { Button, Icon } from './ui';
 
@@ -14,7 +14,7 @@ export function UpdateNotice() {
   const updateState = useUpdateState();
   const [failure, setFailure] = useState<{ versionCode: number; text: string }>();
   const [installing, setInstalling] = useState(false);
-  const enabled = Platform.OS === 'android' && !!profile;
+  const enabled = directUpdates && Platform.OS === 'android' && !!profile;
 
   useEffect(() => {
     if (!enabled) return;

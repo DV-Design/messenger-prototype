@@ -1,15 +1,15 @@
 import { useState } from 'react';
 import { router } from 'expo-router';
-import { Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Alert, Linking, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import Constants from 'expo-constants';
 import { enableSystemCalls, useSystemCallStatus } from '../../system-calls';
 import { Avatar, Button, Icon, ScreenHeader, connectionLabel } from '../../components/ui';
-import { changeServer, errorText, reconnect, useMessenger } from '../../runtime';
+import { changeServer, deleteAccount, errorText, reconnect, useMessenger } from '../../runtime';
 import { formatMediaDiagnostics, sanitizeDiagnostic } from '../../diagnostics';
 import { usePushStatus } from '../../components/PushBridge';
-import { checkForUpdate, downloadAndInstallUpdate, useUpdateState } from '../../updates';
+import { checkForUpdate, directUpdates, downloadAndInstallUpdate, useUpdateState } from '../../updates';
 import { colors, styles } from '../../styles';
 export default function Settings() {
   const { profile, identity, snapshot, error, busy } = useMessenger();
@@ -29,6 +29,7 @@ export default function Settings() {
   const [copied, setCopied] = useState(false);
   const [reportCopied, setReportCopied] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   async function save() {
     setLocalError('');
     try { await changeServer(server); } catch (cause) { setLocalError(errorText(cause)); }
@@ -61,7 +62,7 @@ export default function Settings() {
       {!!(localError || error || snapshot.error) && <Text style={[styles.error, { marginHorizontal: 16, marginTop: 16 }]}>{localError || error || snapshot.error}</Text>}
       <Text style={styles.sectionTitle}>УВЕДОМЛЕНИЯ</Text><View style={[styles.section, styles.content]}><Text style={styles.body}>{pushStatus}</Text><Button title="Настроить доступы" secondary onPress={() => router.push('/permissions')} /></View>
       {Platform.OS === 'android' && <><Text style={styles.sectionTitle}>СИСТЕМНЫЕ ЗВОНКИ</Text><View style={[styles.section, styles.content]}><Text style={styles.body}>{callStatus}</Text><Text style={styles.info}>На Android 8+ LastCall сам регистрирует телефонный аккаунт и показывает собственный экран входящего; вручную включать его в приложении «Телефон» не нужно. Экран появляется после проверки защищённого приглашения на звонок; подключение собеседника может продолжаться после ответа. На Android 14+ разрешите полноэкранные уведомления, иначе звонок останется обычным уведомлением. Микрофон включается только после ответа. На Android 7 используется собственное уведомление и экран LastCall без телефонного приложения.</Text><Button title="Открыть настройки звонков" secondary onPress={() => void enableSystemCalls().catch(cause => setLocalError(errorText(cause)))} /></View></>}
-      {Platform.OS === 'android' && <><Text style={styles.sectionTitle}>ОБНОВЛЕНИЯ</Text>
+      {directUpdates && Platform.OS === 'android' && <><Text style={styles.sectionTitle}>ОБНОВЛЕНИЯ</Text>
         <View style={[styles.section, { marginTop: 0 }]}>
           <View style={styles.listRow}>
             <Icon name="cloud-download-outline" color={availableUpdate ? colors.accent : colors.secondary} />
@@ -83,6 +84,20 @@ export default function Settings() {
           </View>
         </View>
       </>}
+      <Text style={styles.sectionTitle}>АККАУНТ</Text>
+      <View style={styles.section}><View style={styles.content}>
+        <Text style={styles.body}>Удаление аккаунта удалит профиль и push-согласия на сервере, ключ устройства, контакты и историю на этом телефоне. Восстановить их будет нельзя.</Text>
+        <Button danger title={deleting ? 'Удаляем…' : 'Удалить аккаунт'} busy={deleting} onPress={() => Alert.alert(
+          'Удалить аккаунт?',
+          'Профиль, ключ, контакты и история будут удалены. Действие необратимо.',
+          [{ text: 'Отмена', style: 'cancel' }, { text: 'Удалить', style: 'destructive', onPress: () => {
+            if (deleting) return;
+            setDeleting(true); setLocalError('');
+            void deleteAccount().catch(cause => setLocalError(errorText(cause))).finally(() => setDeleting(false));
+          } }],
+        )} />
+        {!!localError && <Text accessibilityRole="alert" style={styles.error}>{localError}</Text>}
+      </View></View>
       <Text style={styles.sectionTitle}>О ПРИЛОЖЕНИИ</Text>
       <View style={[styles.section, { marginTop: 0, padding: 18, gap: 13 }]}><Text style={styles.rowName}>LastCall · {Constants.expoConfig?.version}</Text>
         <Text style={styles.body}>Сервер хранит профиль и помогает находить собеседников. Текст, файлы и звонки идут по защищённому соединению между участниками; при необходимости WebRTC использует TURN.</Text>
@@ -90,6 +105,7 @@ export default function Settings() {
         <Text style={styles.body}>Android-уведомления работают, только если Firebase настроен в сборке и на сервере и вы дали разрешение. Доставка текста требует доступности отправителя. После принудительной остановки приложения Android push не работает до ручного открытия. Системные входящие звонки Android используют собственный аккаунт LastCall, который регистрируется автоматически. iOS push/CallKit и групповые звонки пока недоступны.</Text>
         <Text style={styles.info}>Прямое соединение раскрывает IP собеседнику. Эта предварительная версия не прошла независимый аудит, не использует Double Ratchet и не обещает невидимость для DPI. При удалении приложения ключ и локальная история могут быть утрачены.</Text>
       </View>
+      <View style={styles.section}><Pressable style={styles.listRow} accessibilityRole="link" onPress={() => void Linking.openURL('https://p2p.lienad.ru/privacy.html').catch(() => setLocalError('Не удалось открыть политику конфиденциальности.'))}><Icon name="document-text-outline" /><Text style={[styles.rowName, styles.flex]}>Политика конфиденциальности</Text><Icon name="chevron-forward" size={18} color={colors.secondary} /></Pressable></View>
       <View style={styles.section}><Pressable style={styles.listRow} accessibilityRole="button" onPress={() => setShowDiagnostics(!showDiagnostics)}><Icon name="pulse-outline" /><Text style={[styles.rowName, styles.flex]}>Диагностика</Text><Icon name={showDiagnostics ? 'chevron-up' : 'chevron-forward'} size={18} color={colors.secondary} /></Pressable>
         {showDiagnostics && <View style={styles.content}><Text selectable style={styles.info}>Ключ профиля: {identity?.userId}</Text>
           {snapshot.conversations.filter(item => item.kind === 'direct').map(item => <View key={item.id} style={{ gap: 5 }}><Text style={styles.rowName}>{item.title}</Text><Text style={styles.info}>Соединение: {item.session?.status ?? 'не установлено'} · {item.session?.route === 'direct' ? 'P2P напрямую' : item.session?.route === 'relay' ? 'через TURN' : 'маршрут не определён'}</Text>{formatMediaDiagnostics(item.session?.stats).map(line => <Text key={line} style={styles.info}>{line}</Text>)}</View>)}

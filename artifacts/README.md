@@ -1,31 +1,33 @@
-# LastCall Android 1.0.2 (published test release)
+# LastCall Android 1.0.3 (published test release)
 
 Status: **published**. Built and verified locally; independent native acceptance
 on physical phones remains pending and is not claimed.
 
-- Download: https://p2p.lienad.ru/download/LastCall-1.0.2.apk
-- Alternate: https://lienad.ru/messenger/download/LastCall-1.0.2.apk
-- Local: `artifacts/LastCall-1.0.2.apk` (ignored binary)
-- Package `dev.messenger.prototype`, version1.0.2, versionCode16, label LastCall
+- Download: https://p2p.lienad.ru/download/LastCall-1.0.3.apk
+- Alternate: https://lienad.ru/messenger/download/LastCall-1.0.3.apk
+- Local: `artifacts/LastCall-1.0.3.apk` (ignored binary)
+- Package `dev.messenger.prototype`, version1.0.3, versionCode17, label LastCall
 - ARM64, Android API24 minimum / target36 / compile37; same existing internal test certificate
-- Size: 55,077,273 bytes
-- SHA256: `fbc3169483a469664f2fd6e7e9912b3f4a0853a16bab73524f37934d8e1777be`
+- Size: 55,083,537 bytes
+- SHA256: `4e8c457afff0467206bfa160083b4148db0ffe13a647fedcd089d5c5b57243a8`
 - Signing certificate SHA256: `fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c` (same existing test certificate)
 
 `npm run build:apk` passed native release assembly, forced JavaScript bundle
 regeneration and packaged `nativeFcmConfigured=true`, version1.0.2/code16 gates.
-This release adds the mandatory application-layer E2E content layer (ephemeral
-X25519, Ed25519-signed hello, HKDF, XChaCha20-Poly1305), safety/call codes,
-signed update-manifest verification, in-app APK download with SHA-256 and the
-Android installer, and per-IP proxy-aware server limits. `npm run check` passed
-414 unit tests (210 core, 128 mobile, 76 server), typecheck, lint (0 errors, one
+This release adds emoji safety/call codes, a recorded-circle preview with
+retake, the CameraX 1.6.2 persistent-recording camera-switch fix, in-app account
+deletion and store-ready build mode, on top of the 1.0.2 E2E content layer,
+signed update-manifest verification, in-app APK download with SHA-256 and
+per-IP proxy-aware server limits. `npm run check` passed 416 unit tests
+(210 core, 129 mobile, 77 server), typecheck, lint (0 errors, one
 pre-existing VoiceNote warning) and Android+iOS JS exports; `npm run test:e2e`
 passed 11 browser tests with 1 authenticated-TURN skip.
 
 New-profile default server is `https://p2p.lienad.ru`; an existing profile keeps
 its explicitly stored server so contacts/history namespaces do not change.
-Previous 1.0.1/code15 and 0.7.2 remain available for rollback. Both peers must
-update to 1.0.2 before exchanging content; there is no plaintext fallback.
+Previous 1.0.2/code16, 1.0.1/code15 and 0.7.2 remain available for rollback.
+Both peers must update to 1.0.3 before exchanging content; there is no plaintext
+fallback.
 
 [Phone tasks](../docs/TESTING-RU.md).
 

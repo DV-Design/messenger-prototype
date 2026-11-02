@@ -14,6 +14,7 @@ import {
   type UpdateManifest,
 } from './update-model';
 
+export const directUpdates = Constants.expoConfig?.extra?.directUpdates === true;
 const CHECK_INTERVAL = 6 * 60 * 60 * 1000;
 const FETCH_TIMEOUT = 8_000;
 const MAX_MANIFEST_LENGTH = 16 * 1024;
@@ -78,7 +79,7 @@ async function loadManifest(): Promise<UpdateManifest> {
 
 export function checkForUpdate(manual = false): Promise<void> {
   if (pending) return pending;
-  if (Platform.OS !== 'android') return Promise.resolve();
+  if (!directUpdates || Platform.OS !== 'android') return Promise.resolve();
   if (currentVersionCode < 1) {
     if (manual) publish({ ...state, status: 'error', error: 'Не удалось определить версию установленного приложения.' });
     return Promise.resolve();
@@ -108,7 +109,7 @@ export function checkForUpdate(manual = false): Promise<void> {
 
 /** One lightweight static-manifest request per launch, then at most every 6 hours. */
 export function maybeAutoCheck(): Promise<void> {
-  if (Platform.OS !== 'android' || currentVersionCode < 1) return Promise.resolve();
+  if (!directUpdates || Platform.OS !== 'android' || currentVersionCode < 1) return Promise.resolve();
   if (Date.now() - lastCheckAt < CHECK_INTERVAL) return Promise.resolve();
   if (state.status === 'checking' || state.status === 'available') return Promise.resolve();
   return checkForUpdate(false);
@@ -125,6 +126,7 @@ export function dismissUpdate(): void {
  * the user's confirmation; nothing is silent.
  */
 export async function downloadAndInstallUpdate(update: AndroidUpdate): Promise<void> {
+  if (!directUpdates) throw new Error('Обновления устанавливаются через магазин приложений.');
   if (Platform.OS !== 'android') throw new Error('Установка обновлений доступна только на Android.');
   const file = new File(Paths.cache, `LastCall-${update.version}.apk`);
   let verified = false;

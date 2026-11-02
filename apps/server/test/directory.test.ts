@@ -212,6 +212,15 @@ describe('immutable installation registration and directory synchronization', ()
     expect(await reverse.next('error')).toMatchObject({ code: 'auth-failed' });
   });
 
+  it('deletes the profile and service consent so the username can be reused', async () => {
+    const { url } = await start(); const a = await authenticated(url, 'alice');
+    const id = requestId(); a.client.send({ type: 'delete-account', requestId: id });
+    expect(await a.client.next('account-deleted')).toMatchObject({ requestId: id });
+    expect(await resolveDeviceProfile(url, a.identity)).toBeNull();
+    const b = await authenticated(url, 'alice');
+    expect(b.identity.userId).not.toBe(a.identity.userId);
+  });
+
   it('expires profile-resolution challenges and denies unauthenticated catalog reads', async () => {
     const { url } = await start({ directoryChallengeTtlMs: 20 });
     const client = new Client(url); const c = await client.next('challenge'); const identity = createDeviceIdentity();

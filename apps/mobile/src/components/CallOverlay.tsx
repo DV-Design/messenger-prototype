@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { BackHandler, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RTCView, type MediaStream as NativeMediaStream } from 'react-native-webrtc';
-import { callSafetyCode } from '@messenger/core';
+import { callSafetyEmoji } from '@messenger/core';
 import { client, errorText, useMessenger } from '../runtime';
 import { answerCurrentSystemCall } from '../system-calls';
 import { useCallAudioRoutes } from '../call-audio';
@@ -96,7 +96,7 @@ function CallPanel() {
   const conversation = snapshot.conversations.find(item => item.id === call.conversationId);
   const name = contact?.displayName ?? conversation?.title ?? 'Собеседник';
   const status = callState === 'incoming' ? (call.session.callVideo ? 'Входящий видеозвонок' : 'Входящий вызов') : callState === 'outgoing' ? 'Вызов…' : 'Разговор';
-  const safetyCode = identity && contact && callId ? callSafetyCode(identity.publicKey, contact.publicKey, callId) : '';
+  const safetyCode = identity && contact && callId ? callSafetyEmoji(identity.publicKey, contact.publicKey, callId) : '';
   const landscape = width > height;
   const selectedAudio = audio.routes.find(route => route.selected);
   const audioIcon = selectedAudio?.kind === 'bluetooth' ? 'bluetooth' : selectedAudio?.kind === 'earpiece' ? 'ear' : selectedAudio?.kind === 'wired' ? 'headset' : 'volume-high';
@@ -134,7 +134,7 @@ function CallPanel() {
         {/* Removed from the tree, not merely transparent, while hidden or in PiP. */}
         {!pipActive && controlsVisible && <>
           <View style={[styles.callVideoHeader, { paddingTop: insets.top + 12, paddingLeft: insets.left + 20, paddingRight: insets.right + 12 }]}>
-            <View style={styles.callVideoHeading}><Text numberOfLines={1} style={styles.callVideoName}>{name}</Text><Text style={styles.callSubtitle}>{status}</Text>{!!safetyCode && <Text style={styles.callSubtitle}>Код сверки: {safetyCode}</Text>}</View>
+            <View style={styles.callVideoHeading}><Text numberOfLines={1} style={styles.callVideoName}>{name}</Text><Text style={styles.callSubtitle}>{status}</Text>{!!safetyCode && <Text style={[styles.callSubtitle, { fontSize: 22 }]}>Код сверки: {safetyCode}</Text>}</View>
             <IconButton name="chevron-down" label="Свернуть звонок" color={colors.white} onPress={() => { controls.interact(); void minimize(); }} />
           </View>
           <View style={[styles.callVideoFooter, { paddingBottom: insets.bottom + 16, paddingLeft: insets.left + 16, paddingRight: insets.right + 16 }]}>
@@ -143,7 +143,7 @@ function CallPanel() {
         </>}
       </Pressable> : <SafeAreaView style={styles.callScreen}>
         <View style={{ position: 'absolute', right: 15, top: insets.top + 10 }}><IconButton name="chevron-down" label="Свернуть звонок" color={colors.white} onPress={() => void minimize()} /></View>
-        <Avatar name={name} id={call.peerId} size={94} /><Text style={styles.callName}>{name}</Text><Text style={styles.callSubtitle}>{status}</Text>{!!safetyCode && <Text style={styles.callSubtitle}>Код сверки: {safetyCode}</Text>}
+        <Avatar name={name} id={call.peerId} size={94} /><Text style={styles.callName}>{name}</Text><Text style={styles.callSubtitle}>{status}</Text>{!!safetyCode && <Text style={[styles.callSubtitle, { fontSize: 22 }]}>Код сверки: {safetyCode}</Text>}
         {!!notice && <Text style={styles.error}>{notice}</Text>}{controlsStrip}
       </SafeAreaView>}
       {menuVisible && <View style={StyleSheet.absoluteFill}>

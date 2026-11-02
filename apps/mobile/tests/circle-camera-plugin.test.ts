@@ -65,6 +65,14 @@ test('unknown source and version fail closed, without touching installed source'
   assert.equal(sha(installedSource), installedBefore, 'installed source must not be mutated');
 });
 
+test('CameraX pin upgrades only the known baseline and is idempotent', () => {
+  const source = `android { def camerax_version = "${plugin.CAMERAX_BASELINE}" }`;
+  const upgraded = plugin.upgradeBuildGradle(source);
+  assert.ok(upgraded.includes(`def camerax_version = "${plugin.CAMERAX_TARGET}"`));
+  assert.equal(plugin.upgradeBuildGradle(upgraded), upgraded);
+  assert.throws(() => plugin.upgradeBuildGradle('android { def camerax_version = "9.9.9" }'), /unknown CameraX pin/);
+});
+
 test('patch keeps the privacy and opt-in corrections', () => {
   const patch = readFileSync(patchPath, 'utf8');
   for (const anchor of [

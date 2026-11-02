@@ -117,6 +117,17 @@ export class Directory {
         return;
       }
       if (!connection.userId || this.online.get(connection.userId) !== connection) return this.options.reject(ws, 'not-authenticated', 'Authenticate before using the directory', true);
+      if (frame.type === 'delete-account') {
+        const userId = connection.userId;
+        this.services.deleteAccount(userId);
+        this.online.delete(userId);
+        this.notify(userId);
+        this.db.prepare('DELETE FROM directory_users WHERE user_id = ?').run(userId);
+        this.connections.delete(ws);
+        this.options.send(ws, { type: 'account-deleted', requestId: frame.requestId });
+        ws.close(1000, 'Account deleted');
+        return;
+      }
       if (frame.type === 'list-users') {
         const rows = this.db.prepare('SELECT * FROM directory_users WHERE username > ? ORDER BY username LIMIT 101').all(frame.cursor ?? '') as ProfileRow[];
         const page = rows.slice(0, 100);

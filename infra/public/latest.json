@@ -1,12 +1,12 @@
 {
   "android": {
-    "version": "1.0.2",
-    "versionCode": 16,
-    "url": "https://p2p.lienad.ru/download/LastCall-1.0.2.apk",
-    "alternateUrl": "https://lienad.ru/messenger/download/LastCall-1.0.2.apk",
-    "sha256": "fbc3169483a469664f2fd6e7e9912b3f4a0853a16bab73524f37934d8e1777be",
-    "notes": "Прикладное E2E-шифрование сообщений, файлов, голосовых и кружков; коды безопасности; проверяемое обновление в приложении."
+    "version": "1.0.3",
+    "versionCode": 17,
+    "url": "https://p2p.lienad.ru/download/LastCall-1.0.3.apk",
+    "alternateUrl": "https://lienad.ru/messenger/download/LastCall-1.0.3.apk",
+    "sha256": "4e8c457afff0467206bfa160083b4148db0ffe13a647fedcd089d5c5b57243a8",
+    "notes": "Предпросмотр кружка, исправление записи при смене камеры, эмодзи-коды безопасности, удаление аккаунта и store-подготовка."
   },
-  "publishedAt": "2026-11-02T14:54:36Z",
-  "signature": "3287fc166f269319829e80f1b6f35436c11a1170b425d22af94a0a5d041ee11a7734fcaf00b6a8257d1a20074b47d3fb474210effca35407227d73db639a1b00"
+  "publishedAt": "2026-11-02T15:53:18Z",
+  "signature": "dea6088a8309e9c3a111f6d8aa4aa9a3f7012b288c6f12bc387e9a1065785764d0000732c955c9465173888de7a1034c7bec246567d92f237cf1241cb5999905"
 }

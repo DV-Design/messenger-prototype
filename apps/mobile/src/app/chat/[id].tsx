@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { Redirect, router, useIsFocused, useLocalSearchParams } from 'expo-router';
 import { AppState, FlatList, KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { safetyNumber, type MessengerMessage } from '@messenger/core';
+import { safetyEmoji, type MessengerMessage } from '@messenger/core';
 import { pickDocument, pickMedia, shareFile } from '../../attachments';
 import { AttachmentCard } from '../../components/AttachmentCard';
 import { SafetyCode } from '../../components/SafetyCode';
@@ -48,7 +48,7 @@ export default function Chat() {
   const timeline = chatTimeline(conversation.messages, conversation.files);
   const peer = snapshot.contacts.find(item => conversation.memberIds.includes(item.userId) && item.userId !== identity?.userId);
   const group = conversation.kind === 'group';
-  const safety = peer && identity ? safetyNumber(identity.publicKey, peer.publicKey) : '';
+  const safety = peer && identity ? safetyEmoji(identity.publicKey, peer.publicKey) : '';
   const peerVerified = !!peer && snapshot.verifiedContacts.includes(peer.userId);
   const canCall = !group && !snapshot.activeCall && !recording && (snapshot.status === 'online' || conversation.session?.status === 'connected');
   const notice = transportNotice({ directory: snapshot.status, group, peerOnline: peer?.online, session: conversation.session,

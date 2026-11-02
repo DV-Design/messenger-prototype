@@ -1,6 +1,6 @@
 import {describe,expect,it} from 'vitest';
 import {createDeviceIdentity} from './directory.js';
-import {ContentCipher,callSafetyCode,createContentHello,safetyNumber,verifyContentHello} from './content-crypto.js';
+import {ContentCipher,SAFETY_EMOJI,callSafetyEmoji,createContentHello,safetyEmoji,verifyContentHello} from './content-crypto.js';
 
 const alice=createDeviceIdentity(n=>new Uint8Array(n).fill(11));const bob=createDeviceIdentity(n=>new Uint8Array(n).fill(12));
 function counter(seed=0){let value=seed;return (length:number)=>{value++;const result=new Uint8Array(length);result[0]=value&0xff;result[1]=(value>>8)&0xff;return result;};}
@@ -62,15 +62,15 @@ describe('sealed content',()=>{
     expect(()=>a.seal({kind:'text',text:'closed'})).toThrow(/closed/i);
   });
 });
-describe('verification codes',()=>{
-  it('produces a stable order-independent safety number and call code',()=>{
-    const number=safetyNumber(alice.publicKey,bob.publicKey);
-    expect(number).toBe(safetyNumber(bob.publicKey,alice.publicKey));
-    expect(number.split(' ')).toHaveLength(12);
-    expect(number).toMatch(/^(?:\d{5} ){11}\d{5}$/);
+describe('emoji verification codes',()=>{
+  it('produces a stable order-independent five-emoji safety code and call code',()=>{
+    const code=safetyEmoji(alice.publicKey,bob.publicKey);
+    expect(code).toBe(safetyEmoji(bob.publicKey,alice.publicKey));
+    expect(code.split(' ')).toHaveLength(5);
+    for (const emoji of code.split(' ')) expect(SAFETY_EMOJI).toContain(emoji);
     const callId='ab'.repeat(16);
-    expect(callSafetyCode(alice.publicKey,bob.publicKey,callId)).toBe(callSafetyCode(bob.publicKey,alice.publicKey,callId));
-    expect(callSafetyCode(alice.publicKey,bob.publicKey,callId)).toMatch(/^\d{3} \d{3}$/);
-    expect(callSafetyCode(alice.publicKey,bob.publicKey,'cd'.repeat(16))).not.toBe(callSafetyCode(alice.publicKey,bob.publicKey,callId));
+    expect(callSafetyEmoji(alice.publicKey,bob.publicKey,callId)).toBe(callSafetyEmoji(bob.publicKey,alice.publicKey,callId));
+    expect(callSafetyEmoji(alice.publicKey,bob.publicKey,callId).split(' ')).toHaveLength(5);
+    expect(callSafetyEmoji(alice.publicKey,bob.publicKey,'cd'.repeat(16))).not.toBe(callSafetyEmoji(alice.publicKey,bob.publicKey,callId));
   });
 });

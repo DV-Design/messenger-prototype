@@ -1,3 +1,19 @@
+# LastCall 1.0.3 / code17: circle preview, camera continuity, emoji codes, store prep (published)
+
+Status: **1.0.3/code17 is published** as a direct test build. Store publication is
+prepared but not submitted; iOS/APNs and physical-device acceptance remain open.
+
+- [X] Recorded-circle preview with playback and retake; CameraX 1.6.2 persistent-recording switch fix
+  → Artifacts: [composer](apps/mobile/src/components/MediaComposer.tsx), [camera plugin](apps/mobile/plugins/withPersistentCircleCamera.cjs), [test](apps/mobile/tests/circle-camera-plugin.test.ts)
+- [X] Five-emoji safety codes for chats and calls
+  → Artifacts: [crypto](packages/core/src/content-crypto.ts), [safety modal](apps/mobile/src/components/SafetyCode.tsx), [call UI](apps/mobile/src/components/CallOverlay.tsx)
+- [X] In-app account deletion and privacy policy
+  → Artifacts: [server](apps/server/src/directory.ts), [services](apps/server/src/services.ts), [settings](apps/mobile/src/app/(tabs)/settings.tsx), [privacy](docs/PRIVACY-RU.md)
+- [X] Store build mode, signing injection, store assets and release checklist
+  → Artifacts: [config](apps/mobile/app.config.ts), [signing plugin](apps/mobile/plugins/withReleaseSigning.cjs), [store guide](docs/STORE-RELEASE.md), [assets](store/)
+- [X] Publish direct 1.0.3: APK, signed latest.json and metadata
+  → Artifacts: [release record](artifacts/README.md), [APK](https://p2p.lienad.ru/download/LastCall-1.0.3.apk), 55 083 537 bytes, SHA256 `4e8c457afff0467206bfa160083b4148db0ffe13a647fedcd089d5c5b57243a8`
+
 # LastCall 1.0.2 / code16: E2E content, verified updates, server hardening (published)
 
 Status: **1.0.2/code16 is published** with the existing test certificate. Both

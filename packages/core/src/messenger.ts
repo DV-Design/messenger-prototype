@@ -165,6 +165,7 @@ export class MessengerClient {
   async startPhoneVerification(phone:string):Promise<PhoneChallenge>{return (await this.requestFrame({type:'phone-start',phone:normalizePhone(phone,'RU')},'phone-challenge')).challenge;}
   async verifyPhone(challengeId:string,code:string):Promise<void>{await this.requestFrame({type:'phone-verify',challengeId,code},'phone-verified');if(this.services)this.services={...this.services,phoneVerified:true};}
   async discoverPhones(hashes:string[]):Promise<PhoneMatch[]>{return (await this.requestFrame({type:'phone-discover',hashes},'phone-matches')).matches;}
+  async deleteAccount():Promise<void>{await this.requestFrame({type:'delete-account'},'account-deleted');this.stopped=true;}
   async registerPushToken(token:string,backgroundSync=false,messagePreview=false,callInviteV1=false):Promise<void>{if(typeof backgroundSync!=='boolean'||typeof messagePreview!=='boolean'||typeof callInviteV1!=='boolean')throw new Error('Invalid push capability mode');await this.requestFrame({type:'push-register',token,...(backgroundSync?{backgroundSync:true}:{}),...(messagePreview?{messagePreview:true}:{}),...(callInviteV1?{callInviteV1:true}:{})},'push-registered');}
   /** Decrypt notification copy without inserting chat history or acknowledging delivery. */
   openPushPreview(envelope:string,intent:WakeIntent):Promise<OpenedPushPreview>{this.assertActive();return this.track(this.openPushPreviewWork(envelope,intent));}

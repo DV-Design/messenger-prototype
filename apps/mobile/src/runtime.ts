@@ -4,7 +4,7 @@ import * as Network from 'expo-network';
 import { MessengerClient, resolveDeviceProfile, type DeviceIdentity, type DirectoryUser, type MessengerSnapshot } from '@messenger/core';
 import { nativeRtc, validateServerUrl } from './native';
 import { CanonicalProfileStore, profileSignature, registrationCandidate } from './registration-model';
-import { DEFAULT_SERVER, loadIdentity, loadExistingIdentity, loadProfile, saveProfile, sealedStateAdapter, type LocalProfile } from './storage';
+import { DEFAULT_SERVER, deleteLocalAccount, loadIdentity, loadExistingIdentity, loadProfile, saveProfile, sealedStateAdapter, type LocalProfile } from './storage';
 import { monitorNetworkRecovery, shouldForceNetworkResume } from './network-recovery';
 import { SharedWakeRuntime, type WakeLease } from './wake-model';
 
@@ -163,6 +163,22 @@ export function client(): MessengerClient {
   const manager = managers.peek();
   if (!manager) throw new Error('Сначала подтвердите регистрацию на сервере.');
   return manager;
+}
+export async function deleteAccount(): Promise<void> {
+  if (state.busy || !state.profile) return;
+  publish({ busy: true, error: undefined });
+  try {
+    await managers.peek()?.deleteAccount();
+    await managers.clear();
+    await deleteLocalAccount();
+    generation++;
+    const identity = await loadIdentity();
+    profiles = new CanonicalProfileStore(saveProfile);
+    publish({ busy: false, ready: true, profile: null, identity, registration: 'unregistered', snapshot: empty, error: undefined });
+  } catch (error) {
+    publish({ busy: false, error: errorText(error) });
+    throw error;
+  }
 }
 export async function registerProfile(displayName: string, username: string): Promise<void> {
   if (state.busy || state.profile || state.registration !== 'unregistered') return;
