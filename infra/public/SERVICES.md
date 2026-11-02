@@ -1,6 +1,38 @@
 # Optional FCM and authenticated ICE configuration
 
-## 0.7.2/code12 published 2026-10-31
+## 1.0.1/code15 published test release
+
+Client-only release. Download: `download/LastCall-1.0.1.apk` at
+https://p2p.lienad.ru and https://lienad.ru/messenger/download/LastCall-1.0.1.apk
+(54,995,081 bytes, SHA256 `a7d1f61d08ba13bc1dda168c831d58ea041ca3468a181c5af9a557c318aca41e`). Versioned 0.7.2 remains available for
+rollback. Independent native acceptance and physical-phone evidence are
+**PENDING** and are not claimed.
+
+New-profile default endpoint becomes `https://p2p.lienad.ru`. Existing profiles
+keep their explicitly stored server URL, so contacts and history stay in the
+same namespace. No server redeploy is required solely for this default change or
+for the client features below; keep the existing FCM/TURN env ordering if the
+signaling container is recreated.
+
+Features: Android 8+ native picture-in-picture for live video (above other apps,
+no overlay permission); active-video controls auto-hide after 5 seconds or on
+tap and return on tap, while call answer controls never auto-hide; front/rear
+camera switch during a call on the same video track; continuous single-file
+Android circle recording with in-recording camera switch while retaining 30s /
+5MiB / cancel / background stop; audio routing that reports the observed output
+and clears stale errors after a late success. Incoming video no longer shows the
+local camera when a device sends streamless remote tracks. FCM token and
+background wake registration no longer require notification permission; only
+previews remain permission-gated. iOS has no PiP and no audio chooser; APNs is
+not configured. Physical Bluetooth/headset and heard-audio acceptance remain on
+phones.
+
+QA: full `npm run check` (390 unit tests) and 11 browser E2E tests passed on the
+released tree; one authenticated-TURN test skipped. Independent native QA and
+physical-phone acceptance are pending. Prior 0.7.2 run is archived unchanged at
+`docs/qa/runs/lastcall-072-media-audio-2026-10-31.json`.
+
+## Historical 0.7.2/code12 published 2026-10-31
 
 APK: `download/LastCall-0.7.2.apk`;54,979,729bytes, SHA256
 `d5d0839ad0004c6476710e2ad4369c67f322d0c87ad418f1d1689a82bd73a951`; unchanged signing certificate.

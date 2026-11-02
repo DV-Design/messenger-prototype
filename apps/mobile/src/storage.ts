@@ -3,7 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import { Directory, File, Paths } from 'expo-file-system';
 import { createDeviceIdentity, validateDeviceIdentity, MAX_LOCAL_STATE_BYTES, MAX_SEALED_ATTACHMENT_BYTES, type DeviceIdentity } from '@messenger/core';
 
-export const DEFAULT_SERVER = process.env.EXPO_PUBLIC_SIGNALING_URL ?? 'https://lienad.ru/messenger';
+export const DEFAULT_SERVER = process.env.EXPO_PUBLIC_SIGNALING_URL ?? 'https://p2p.lienad.ru';
 export type LocalProfile = { username: string; displayName: string; serverUrl: string };
 const IDENTITY_KEY = 'messenger.device.v2';
 const PROFILE_KEY = 'messenger.profile.v2';

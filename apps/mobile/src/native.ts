@@ -1,5 +1,5 @@
 import * as Crypto from 'expo-crypto';
-import { mediaDevices, RTCPeerConnection as NativePeerConnection } from 'react-native-webrtc';
+import { MediaStream as NativeMediaStream, mediaDevices, RTCPeerConnection as NativePeerConnection } from 'react-native-webrtc';
 import { PeerSession } from '@messenger/core';
 
 type SessionOptions = ConstructorParameters<typeof PeerSession>[0];
@@ -8,10 +8,11 @@ type NativeConstraints = Parameters<typeof mediaDevices.getUserMedia>[0];
 
 // Native WebRTC implements the browser EventTarget API, but its public TypeScript
 // types differ from lib.dom for MediaStream and event overloads.
-export const nativeRtc: Pick<SessionOptions, 'rtcFactory' | 'getUserMedia' | 'randomBytes'> = {
+export const nativeRtc: Pick<SessionOptions, 'rtcFactory' | 'getUserMedia' | 'randomBytes' | 'createMediaStream'> = {
   randomBytes: length => Crypto.getRandomBytes(length),
   rtcFactory: configuration => new NativePeerConnection(configuration as NativeConfiguration) as unknown as RTCPeerConnection,
   getUserMedia: async constraints => await mediaDevices.getUserMedia(constraints as NativeConstraints) as unknown as MediaStream,
+  createMediaStream: tracks => new NativeMediaStream(tracks as unknown as ConstructorParameters<typeof NativeMediaStream>[0]) as unknown as MediaStream,
 };
 
 export function validateServerUrl(input: string): string {

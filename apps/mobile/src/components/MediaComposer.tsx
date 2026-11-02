@@ -25,6 +25,7 @@ export function MediaComposer({ kind, conversationId, blocked, onClose }: { kind
   const [seconds, setSeconds] = useState(0);
   const [error, setError] = useState('');
   const [cameraReady, setCameraReady] = useState(false);
+  const [facing, setFacing] = useState<'front' | 'back'>('front');
   const current = useRef(client()).current;
   const scope = useRef(createMediaScope()).current;
   const nonce = useRef(Array.from(Crypto.getRandomBytes(16), byte => byte.toString(16).padStart(2, '0')).join('')).current;
@@ -44,6 +45,17 @@ export function MediaComposer({ kind, conversationId, blocked, onClose }: { kind
   const cancelled = useRef(false);
   function update(next: Phase) { phaseRef.current = next; if (scope.active) setPhase(next); }
   function permitted() { scope.assert(); if (blockedRef.current || client() !== current || AppState.currentState !== 'active') throw new Error('Запись прервана. Откройте её снова после звонка.'); }
+  function flipCamera() {
+    if (kind !== 'circle') return;
+    const currentPhase = phaseRef.current;
+    // Android keeps the same recording across a lens rebind (native patch).
+    // iOS only supports choosing the lens before capture.
+    const allowed = Platform.OS === 'android' ? ['ready', 'recording', 'stopping'].includes(currentPhase) : currentPhase === 'ready';
+    if (!allowed) return;
+    try { permitted(); } catch { return; }
+    setCameraReady(false);
+    setFacing(value => (value === 'front' ? 'back' : 'front'));
+  }
   async function resetAudio() { if (!blockedRef.current) await setAudioModeAsync({ allowsRecording: false, allowsBackgroundRecording: false, shouldPlayInBackground: false }).catch(() => {}); }
   async function finish(uri: string, duration: number) {
     original.current = uri;
@@ -159,15 +171,16 @@ export function MediaComposer({ kind, conversationId, blocked, onClose }: { kind
   }
   return <Modal visible animationType="slide" onRequestClose={() => { if (phaseRef.current !== 'sending') cancelRef.current(); }} presentationStyle="pageSheet"><SafeAreaView style={[styles.whiteScreen, { padding: 22, gap: 20, justifyContent: 'center' }]}>
     <Text style={[styles.title, { textAlign: 'center' }]}>{kind === 'voice' ? 'Голосовое сообщение' : 'Видеокружок'}</Text>
-    <Text style={[styles.info, { textAlign: 'center' }]}>{kind === 'voice' ? 'До 2 минут · запись только на этом экране' : 'До 30 секунд · фронтальная камера'} · до 5 МиБ</Text>
+    <Text style={[styles.info, { textAlign: 'center' }]}>{kind === 'voice' ? 'До 2 минут · запись только на этом экране' : Platform.OS === 'android' ? 'До 30 секунд · камеру можно переключить во время записи' : 'До 30 секунд · камеру можно выбрать до записи'} · до 5 МиБ</Text>
     <View style={{ minHeight: 250, justifyContent: 'center', alignItems: 'center' }}>
       {draft && (phase === 'preview' || phase === 'sending') ? kind === 'voice' ? <VoiceNote uri={draft.uri} /> : <VideoNote uri={draft.uri} /> : kind === 'circle' && ['ready', 'recording', 'stopping'].includes(phase) ?
-        <View style={{ width: 250, height: 250, borderRadius: 125, overflow: 'hidden', backgroundColor: '#182832' }}><CameraView ref={camera} style={{ width: 250, height: 250 }} facing="front" mode="video" videoQuality={Platform.OS === 'ios' ? '4:3' : '480p'} videoBitrate={600_000} mirror onCameraReady={() => setCameraReady(true)} onMountError={event => { recordingAttempt.current++; try { camera.current?.stopRecording(); } catch {} setError(event.message); update('failed'); }} /></View> : kind === 'voice' && ['recording', 'stopping'].includes(phase) ? <RecordingWaveform recorder={recorder} active={phase === 'recording'} /> : <Icon name={kind === 'voice' ? 'mic-circle-outline' : 'videocam-outline'} size={92} />}
+        <View style={{ width: 250, height: 250, borderRadius: 125, overflow: 'hidden', backgroundColor: '#182832' }}><CameraView ref={camera} style={{ width: 250, height: 250 }} facing={facing} mode="video" videoQuality={Platform.OS === 'ios' ? '4:3' : '480p'} videoBitrate={600_000} mirror={Platform.OS === 'android' || facing === 'front'} onCameraReady={() => setCameraReady(true)} onMountError={event => { recordingAttempt.current++; try { camera.current?.stopRecording(); } catch {} setError(event.message); update('failed'); }} /></View> : kind === 'voice' && ['recording', 'stopping'].includes(phase) ? <RecordingWaveform recorder={recorder} active={phase === 'recording'} /> : <Icon name={kind === 'voice' ? 'mic-circle-outline' : 'videocam-outline'} size={92} />}
     </View>
     {['recording', 'stopping'].includes(phase) && <Text style={{ textAlign: 'center', color: '#B03939', fontSize: 25, fontVariant: ['tabular-nums'] }}>● {mediaTime(seconds)} / {mediaTime(MEDIA_SECONDS[kind])}</Text>}
     {!!error && <Text style={styles.error}>{error}</Text>}
     {phase === 'idle' && <Text style={[styles.info, { textAlign: 'center' }]}>Если Android запросит доступ, разрешите его и откройте запись снова. Уход с этого экрана отменяет запись.</Text>}
     {phase === 'preview' || phase === 'sending' ? <Button title="Отправить" busy={phase === 'sending'} onPress={() => void send()} /> : phase === 'recording' || phase === 'stopping' ? <Button title="Остановить" busy={phase === 'stopping'} onPress={() => void stop.current()} /> : <Button title={kind === 'circle' && phase === 'idle' ? 'Включить камеру' : 'Начать запись'} busy={phase === 'preparing'} disabled={phase === 'failed' || phase === 'ready' && !cameraReady} onPress={() => void start()} />}
+    {kind === 'circle' && (Platform.OS === 'android' ? ['ready', 'recording'].includes(phase) : phase === 'ready') && <Button title={facing === 'front' ? 'Задняя камера' : 'Фронтальная камера'} secondary busy={!cameraReady} disabled={!cameraReady} onPress={flipCamera} />}
     {phase === 'sending' && <Text style={styles.info}>Сохраняем зашифрованное сообщение для доставки…</Text>}
     <Button title={draft ? 'Удалить и закрыть' : 'Отмена'} secondary disabled={phase === 'sending'} onPress={() => cancelRef.current()} />
   </SafeAreaView></Modal>;

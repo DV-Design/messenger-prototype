@@ -27,9 +27,13 @@ export class CallAudioController {
   private observation = 0;
   private query = 0;
   private deadline = 0;
+  private selection = 0;
+  private requestedId?: string;
+  private routeError?: string;
   constructor(private port: CallAudioPort, private publish: (state: CallAudioState) => void, private now = Date.now) {}
   setCall(callId = '') {
-    this.generation++; this.observation++; this.query++;
+    this.generation++; this.observation++; this.query++; this.selection++;
+    this.requestedId = undefined; this.routeError = undefined;
     this.update({ callId, active: false, routes: [] });
   }
   private update(state: CallAudioState) { this.state = state; this.publish(state); }
@@ -38,24 +42,31 @@ export class CallAudioController {
     if (!incoming || incoming.callId !== this.state.callId) return;
     this.observation++;
     let pendingId = this.state.pendingId;
-    let error = this.state.error;
-    if (!incoming.active) { pendingId = undefined; error = undefined; }
+    // A read failure is transient. A route failure persists until that requested
+    // output really becomes selected (including success arriving after timeout).
+    if (!incoming.active) { pendingId = undefined; this.requestedId = undefined; this.routeError = undefined; }
+    if (this.requestedId && incoming.routes.some(route => route.id === this.requestedId && route.selected)) {
+      pendingId = undefined; this.requestedId = undefined; this.routeError = undefined;
+    }
     if (pendingId) {
       const pending = incoming.routes.find(route => route.id === pendingId);
-      if (pending?.selected) { pendingId = undefined; error = undefined; }
-      else if (!pending || this.now() >= this.deadline) { pendingId = undefined; error = pending ? 'Не удалось переключить звук. Попробуйте ещё раз.' : 'Аудиоустройство отключено.'; }
+      if (!pending || this.now() >= this.deadline) { pendingId = undefined; this.routeError = pending ? 'Не удалось переключить звук. Попробуйте ещё раз.' : 'Аудиоустройство отключено.'; }
     }
-    this.update({ ...incoming, pendingId, error });
+    this.update({ ...incoming, pendingId, error: this.routeError });
   }
   async refresh() {
     const { callId } = this.state;
     if (!callId) return;
-    const generation = this.generation, observation = this.observation, query = ++this.query;
+    const generation = this.generation, observation = this.observation, selection = this.selection, query = ++this.query;
     try {
       const value = await this.port.get(callId);
-      if (generation === this.generation && observation === this.observation && query === this.query) this.observe(value);
+      if (generation === this.generation && observation === this.observation && selection === this.selection && query === this.query) this.observe(value);
     } catch {
-      if (generation === this.generation && observation === this.observation && query === this.query) this.update({ ...this.state, pendingId: this.now() >= this.deadline ? undefined : this.state.pendingId, error: 'Не удалось получить список аудиоустройств.' });
+      if (generation === this.generation && observation === this.observation && selection === this.selection && query === this.query) {
+        const timedOut = !!this.state.pendingId && this.now() >= this.deadline;
+        if (timedOut) this.routeError = 'Не удалось переключить звук. Попробуйте ещё раз.';
+        this.update({ ...this.state, pendingId: timedOut ? undefined : this.state.pendingId, error: this.routeError ?? 'Не удалось получить список аудиоустройств.' });
+      }
     }
   }
   async select(routeId: string) {
@@ -63,13 +74,18 @@ export class CallAudioController {
     if (!this.state.active || !route || route.selected || this.state.pendingId) return;
     const { callId } = this.state;
     const generation = this.generation, observation = this.observation;
+    const selection = ++this.selection;
+    this.requestedId = routeId; this.routeError = undefined;
     this.deadline = this.now() + 8000;
     this.update({ ...this.state, pendingId: routeId, error: undefined });
     try {
       const value = await this.port.select(callId, routeId);
-      if (generation === this.generation && observation === this.observation) this.observe(value);
+      if (generation === this.generation && selection === this.selection && observation === this.observation) this.observe(value);
     } catch {
-      if (generation === this.generation && this.state.pendingId === routeId) this.update({ ...this.state, pendingId: undefined, error: 'Не удалось переключить звук. Попробуйте ещё раз.' });
+      if (generation === this.generation && selection === this.selection && this.requestedId === routeId) {
+        this.routeError = 'Не удалось переключить звук. Попробуйте ещё раз.';
+        this.update({ ...this.state, pendingId: undefined, error: this.routeError });
+      }
     }
   }
 }

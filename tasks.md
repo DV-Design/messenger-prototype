@@ -1,3 +1,23 @@
+# LastCall 1.0.1 / code15: first release (published)
+
+Status: **1.0.1/code15 is published** with the existing test certificate. The
+1.0.0 candidate and rc2 builds are superseded and were never final releases.
+Independent QA and native acceptance on physical phones remain pending and are
+not claimed. Prior 0.7.2 run is archived unchanged; no history reset.
+
+- [X] Keep live video visible with native Android PiP and timed call controls (msg-huh)
+  → Artifacts: [PiP plugin](apps/mobile/plugins/withLastCallPip.cjs), [PiP sources](apps/mobile/plugins/pip/), [PiP bridge](apps/mobile/src/call-pip.ts), [PiP model](apps/mobile/src/call-pip-model.ts), [controls model](apps/mobile/src/video-controls-model.ts), [panel](apps/mobile/src/components/CallOverlay.tsx), [PiP checks](apps/mobile/tests/with-last-call-pip.test.ts), [call UI checks](apps/mobile/tests/call-ui.test.ts)
+- [X] Switch front/rear call camera and record a continuous Android circle across the switch (msg-unx)
+  → Artifacts: [expo-camera patch](apps/mobile/patches/expo-camera+58.0.14+persistent-circle-camera.patch), [patch plugin](apps/mobile/plugins/withPersistentCircleCamera.cjs), [call camera](apps/mobile/src/call-camera.ts), [call camera model](apps/mobile/src/call-camera-model.ts), [composer](apps/mobile/src/components/MediaComposer.tsx), [patch checks](apps/mobile/tests/circle-camera-plugin.test.ts)
+- [X] Fix failed call-audio switches and stale errors after successful routing (msg-kfr)
+  → Artifacts: [audio bridge](apps/mobile/src/call-audio.ts), [audio model](apps/mobile/src/call-audio-model.ts), [native routes](apps/mobile/plugins/calls/LastCallAudioRoutes.java), [route checks](apps/mobile/tests/call-audio.test.ts), [call UI](apps/mobile/src/components/CallOverlay.tsx)
+- [X] Fix incoming video showing the local camera for streamless remote tracks (msg-4s6)
+  → Artifacts: [session](packages/core/src/session.ts), [client wiring](packages/core/src/messenger.ts), [native factory](apps/mobile/src/native.ts), [panel guard](apps/mobile/src/components/CallOverlay.tsx), [checks](packages/core/src/video.test.ts)
+- [X] Register FCM wake and background sync without notification permission (msg-vtd)
+  → Artifacts: [token](apps/mobile/src/notifications.ts), [push bridge](apps/mobile/src/components/PushBridge.tsx), [background task](apps/mobile/src/background-notifications.ts)
+- [X] Publish first LastCall 1.0.1 with default endpoint p2p.lienad.ru (msg-oq0)
+  → Artifacts: [release record](artifacts/README.md), [APK](https://p2p.lienad.ru/download/LastCall-1.0.1.apk), [phone tasks](docs/TESTING-RU.md), 54 995 081 bytes, SHA256 `a7d1f61d08ba13bc1dda168c831d58ea041ca3468a181c5af9a557c318aca41e`
+
 # LastCall 0.7.2: voice waveform, mixed timeline and Android call audio (published 2026-10-31)
 
 - [X] Real live microphone waveform with bounded history; recording/cancel lifecycle (msg-cmg)

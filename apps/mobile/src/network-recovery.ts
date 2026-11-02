@@ -1,5 +1,16 @@
 export type ConnectionState = { type?: string; isConnected?: boolean; isInternetReachable?: boolean };
 type Subscription = { remove(): void };
+type LiveCall = { activeCall?: { session: { callState?: string; status?: string } } };
+
+/**
+ * A foreground resume must not be forged into a route change while an active
+ * call already runs on a connected transport. Real reachability changes still
+ * recover because the signature check is independent of `force`.
+ */
+export function shouldForceNetworkResume(live: LiveCall | undefined): boolean {
+  const session = live?.activeCall?.session;
+  return !(session?.callState === 'active' && session.status === 'connected');
+}
 
 /** Recover on real reachable transitions, without treating a network gap as logout. */
 export function monitorNetworkRecovery(options: {
@@ -44,7 +55,7 @@ export function monitorNetworkRecovery(options: {
   const subscription = options.listen(state => { ++generation; accept(state, false); });
   void read(false);
   return {
-    resume: () => read(true),
+    resume: (force = true) => read(force),
     stop: () => { active = false; ++generation; pending = false; subscription.remove(); },
   };
 }

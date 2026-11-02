@@ -41,7 +41,10 @@ export function listenForWake(onOpen: () => void, onToken: (token: string) => vo
   return () => { received.remove(); response.remove(); rotation.remove(); resume.remove(); };
 }
 export async function nativePushToken(): Promise<string | null> {
-  if (!pushConfigured || !(await Notifications.getPermissionsAsync()).granted) return null;
+  // Data-only FCM wake does not require POST_NOTIFICATIONS. Requiring the
+  // notification permission here prevented background message sync entirely
+  // when the user denied it; previews are gated separately.
+  if (!pushConfigured) return null;
   await prepareNotificationChannel();
   const token = await Notifications.getDevicePushTokenAsync();
   if (token.type !== 'android' || typeof token.data !== 'string') throw new Error('Эта сборка поддерживает только Android FCM.');

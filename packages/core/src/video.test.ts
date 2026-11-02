@@ -119,3 +119,31 @@ describe('session video sender integration',()=>{
   media.mockClear();media.mockRejectedValue({name:'NotAllowedError'});await expect(internal.acquireMedia(true)).rejects.toMatchObject({name:'NotAllowedError'});expect(media).toHaveBeenCalledTimes(1);
  });
 });
+
+describe('remote video stream fallback',()=>{
+ it('creates a remote stream from a streamless track instead of exposing the local camera',()=>{
+  const tracks:any[]=[];
+  const remote={getTracks:()=>tracks,addTrack:(track:any)=>{tracks.push(track);}};
+  const pc:any={close:vi.fn(),getSenders:()=>[]};
+  const session=new PeerSession({invite:'ab'.repeat(32),serverUrl:'https://example.test',rtcFactory:()=>pc,createMediaStream:(initial:any[])=>{tracks.push(...initial);return remote as unknown as MediaStream;}});
+  const internal=session as any;internal.role='responder';internal.makePeer([]);
+  const video={id:'video-1',kind:'video',readyState:'live'};
+  pc.ontrack({streams:[],track:video});
+  expect(session.getSnapshot().remoteStream).toBe(remote);
+  expect(tracks).toEqual([video]);
+  const audio={id:'audio-1',kind:'audio',readyState:'live'};
+  pc.ontrack({streams:[],track:audio});
+  expect(session.getSnapshot().remoteStream).toBe(remote);
+  expect(tracks).toEqual([video,audio]);
+  session.disconnect();
+ });
+ it('keeps an incoming stream when the device supplies one',()=>{
+  const tracks:any[]=[];const remote={getTracks:()=>tracks,addTrack:(track:any)=>{tracks.push(track);}};
+  const create=vi.fn(()=>remote as unknown as MediaStream);const pc:any={close:vi.fn(),getSenders:()=>[]};
+  const session=new PeerSession({invite:'ab'.repeat(32),serverUrl:'https://example.test',rtcFactory:()=>pc,createMediaStream:create});
+  const internal=session as any;internal.role='responder';internal.makePeer([]);
+  const video={id:'video-1',kind:'video',readyState:'live'};pc.ontrack({streams:[remote],track:video});
+  expect(session.getSnapshot().remoteStream).toBe(remote);expect(create).not.toHaveBeenCalled();expect(tracks).toEqual([video]);
+  session.disconnect();
+ });
+});

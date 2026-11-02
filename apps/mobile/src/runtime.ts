@@ -5,7 +5,7 @@ import { MessengerClient, resolveDeviceProfile, type DeviceIdentity, type Direct
 import { nativeRtc, validateServerUrl } from './native';
 import { CanonicalProfileStore, profileSignature, registrationCandidate } from './registration-model';
 import { DEFAULT_SERVER, loadIdentity, loadExistingIdentity, loadProfile, saveProfile, sealedStateAdapter, type LocalProfile } from './storage';
-import { monitorNetworkRecovery } from './network-recovery';
+import { monitorNetworkRecovery, shouldForceNetworkResume } from './network-recovery';
 import { SharedWakeRuntime, type WakeLease } from './wake-model';
 
 const empty: MessengerSnapshot = { status: 'idle', contacts: [], conversations: [] };
@@ -146,7 +146,11 @@ export function boot(): Promise<void> {
     },
   });
   resumeSubscription = AppState.addEventListener('change', value => {
-    if (value === 'active') void networkRecovery?.resume();
+    if (value !== 'active') return;
+    // Read reachability on every foreground, but do not force a synthetic
+    // network change over an already-connected live call; changed signatures
+    // and the core recovery watchdog still recover real route changes.
+    void networkRecovery?.resume(shouldForceNetworkResume(managers.peek()?.getSnapshot()));
   });
   return bootPromise;
 }

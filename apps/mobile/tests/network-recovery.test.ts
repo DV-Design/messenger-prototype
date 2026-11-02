@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { monitorNetworkRecovery, type ConnectionState } from '../src/network-recovery';
+import { monitorNetworkRecovery, shouldForceNetworkResume, type ConnectionState } from '../src/network-recovery';
 
 const wifi: ConnectionState = { type: 'WIFI', isConnected: true, isInternetReachable: true };
 const mobile: ConnectionState = { type: 'CELLULAR', isConnected: true, isInternetReachable: true };
@@ -44,4 +44,37 @@ test('recovery is serialized, bursts collapse and a failed attempt can retry on 
   await recovery.resume(); await tick(); assert.equal(calls, 3);
   listener(gap); await recovery.resume(); await tick(); assert.equal(calls, 4);
   recovery.stop();
+});
+
+test('a healthy live call resumes without forcing a synthetic route change', async () => {
+  let listener: (state: ConnectionState) => void = () => {};
+  let current = wifi; let calls = 0;
+  const recovery = monitorNetworkRecovery({ read: async () => current, listen: fn => { listener = fn; return { remove() {} }; }, onReachable: () => { calls++; } });
+  await tick(); assert.equal(calls, 1);
+  // Foreground on the same healthy Wi-Fi: no extra renegotiation.
+  await recovery.resume(false); await tick(); assert.equal(calls, 1);
+  // A real route change while foregrounding is still recovered.
+  current = mobile; await recovery.resume(false); await tick(); assert.equal(calls, 2);
+  await recovery.resume(false); await tick(); assert.equal(calls, 2);
+  recovery.stop();
+});
+
+test('default forced resume still retries healthy routes and skips unreachable ones', async () => {
+  let listener: (state: ConnectionState) => void = () => {};
+  let current = wifi; let calls = 0;
+  const recovery = monitorNetworkRecovery({ read: async () => current, listen: fn => { listener = fn; return { remove() {} }; }, onReachable: () => { calls++; } });
+  await tick(); assert.equal(calls, 1);
+  // No active call / failed prior attempt: resume() keeps forcing and retrying.
+  await recovery.resume(); await tick(); assert.equal(calls, 2);
+  current = gap; await recovery.resume(); await tick(); assert.equal(calls, 2);
+  current = wifi; await recovery.resume(); await tick(); assert.equal(calls, 3);
+  recovery.stop();
+});
+
+test('only an active call on a connected transport relaxes resume', () => {
+  assert.equal(shouldForceNetworkResume(undefined), true);
+  assert.equal(shouldForceNetworkResume({ activeCall: { session: { callState: 'idle', status: 'connected' } } }), true);
+  assert.equal(shouldForceNetworkResume({ activeCall: { session: { callState: 'active', status: 'connecting' } } }), true);
+  assert.equal(shouldForceNetworkResume({ activeCall: { session: { callState: 'incoming', status: 'connected' } } }), true);
+  assert.equal(shouldForceNetworkResume({ activeCall: { session: { callState: 'active', status: 'connected' } } }), false);
 });

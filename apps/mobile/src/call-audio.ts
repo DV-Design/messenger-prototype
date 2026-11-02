@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AppState, NativeEventEmitter, NativeModules, Platform } from 'react-native';
+import RNCallKeep from 'react-native-callkeep';
 import { CallAudioController, type CallAudioState } from './call-audio-model';
 
 interface NativeCallAudio {
@@ -22,11 +23,14 @@ export function useCallAudioRoutes(callId?: string) {
     if (!callId) return;
     const events = new NativeEventEmitter(NativeModules.LastCallAudio);
     const event = events.addListener('LastCallAudioRoutes', value => controller.observe(value));
+    const telecom = RNCallKeep.addEventListener('didChangeAudioRoute', value => {
+      if (value.callUUID?.replaceAll('-', '') === callId) void controller.refresh();
+    });
     const appState = AppState.addEventListener('change', value => { if (value === 'active') void controller.refresh(); });
     void controller.refresh();
-    // Also observes legacy SCO changes and service startup before the first native event arrives.
+    // Also observes Telecom availability and service startup before the first native event arrives.
     const refresh = setInterval(() => void controller.refresh(), 750);
-    return () => { clearInterval(refresh); event.remove(); appState.remove(); controller.setCall(); };
+    return () => { clearInterval(refresh); event.remove(); telecom.remove(); appState.remove(); controller.setCall(); };
   }, [callId, controller]);
   return { ...state, supported, select: (routeId: string) => controller.select(routeId) };
 }

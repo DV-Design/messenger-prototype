@@ -68,6 +68,25 @@ the local monitor runs at the default6, with prior cycle logs archived separatel
 previous run's one-cycle extension does not carry over. A session restart never
 creates a new run. New scope and user authorization are required, as here.
 
+## First 1.0.0 candidate run (2026-10-31)
+
+The user named the same candidate first release1.0.0/code13 and moved the
+new-profile default endpoint to `https://p2p.lienad.ru`; the active allocation
+and run are unchanged. Durable counter: [claude-qa-state.json](claude-qa-state.json),
+run_id `lastcall-073-video-pip-routes-2026-10-31`, max6.
+
+- cycle1/6 failed native packaging preflight: the generated manifest lost the PiP
+  flag because config-plugin mod callbacks execute in reverse order. The build was
+  interrupted before APK publication; no independent tester was invoked.
+- cycle2/6 developing: same candidate, with `withLastCallPip.cjs` placed before
+  `expo-video` so the generated manifest retains `supportsPictureInPicture`. Root
+  must read the actual generated manifest before starting a native build.
+
+The prior 0.7.2 run remains archived unchanged in
+[runs/lastcall-072-media-audio-2026-10-31.json](runs/lastcall-072-media-audio-2026-10-31.json).
+No history reset and no extra allocation are inferred. Root fills actual
+SHA/QA/native results and publishes last.
+
 ## Authentication checkpoint
 
 Cycle1 was blocked before tests because provider authentication was absent from

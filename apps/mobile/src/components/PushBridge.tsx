@@ -1,4 +1,5 @@
 import { useEffect, useSyncExternalStore } from 'react';
+import * as Notifications from 'expo-notifications';
 import { client, reconnect, useMessenger } from '../runtime';
 import { listenForWake, nativePushToken, onPushRefresh, pushConfigured, pushUnavailable } from '../notifications';
 import { prepareMessagePreviews } from '../push-previews';
@@ -28,15 +29,21 @@ export function PushBridge() {
         if (!services.push) { publish('Уведомления не настроены на сервере'); return; }
         const token = rotatedToken ?? await nativePushToken();
         if (!active || current !== client()) return;
-        if (!token) { publish('Разрешите уведомления в доступах приложения'); return; }
+        if (!token) { publish('Не удалось получить FCM-токен. Проверьте Firebase и Google Play Services.'); return; }
         const backgroundSync = await ensureBackgroundNotifications();
         if (!active || current !== client()) return;
-        const messagePreview = backgroundSync && await prepareMessagePreviews();
+        const notificationsAllowed = (await Notifications.getPermissionsAsync()).granted;
+        const messagePreview = backgroundSync && notificationsAllowed && await prepareMessagePreviews();
         if (!active || current !== client()) return;
         const callInviteV1 = callInviteCapability(backgroundSync, backgroundSync && await prepareCallInvitePush());
         if (!active || current !== client()) return;
         await current.registerPushToken(token, backgroundSync, messagePreview, callInviteV1); success = true;
-        if (active) { if (rotatedToken === token) rotatedToken = undefined; publish('FCM зарегистрирован. Реальная доставка зависит от сети и Android.'); }
+        if (active) {
+          if (rotatedToken === token) rotatedToken = undefined;
+          publish(notificationsAllowed
+            ? 'FCM зарегистрирован. Реальная доставка зависит от сети и Android.'
+            : 'Фоновые сообщения включены. Уведомления отключены в доступах приложения.');
+        }
       } catch { if (active) publish('Не удалось зарегистрировать FCM. Проверьте сеть, Firebase и Google Play Services.'); }
       finally { running = false; if (active && success && rotatedToken) { const retryToken = rotatedToken; rotatedToken = undefined; queueMicrotask(() => { rotatedToken = retryToken; void register(); }); } }
     }

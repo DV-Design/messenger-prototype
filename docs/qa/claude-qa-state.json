@@ -1,47 +1,60 @@
 {
-  "run_id": "lastcall-072-media-audio-2026-10-31",
+  "run_id": "lastcall-073-video-pip-routes-2026-10-31",
   "max_cycles": 6,
-  "cycles_started": 1,
-  "status": "completed_pass",
+  "cycles_started": 4,
+  "status": "developing",
   "agent": "lastcall-release-tester",
-  "prior_run": "docs/qa/runs/lastcall-060-qa-2026-10-30.json",
-  "authorization": "User clarified limit is per distinct run and explicitly permitted agents again for new voice waveform/chat chronology/call audio route work. New run, not a reset of the completed0.7.1 history.",
+  "prior_run": "docs/qa/runs/lastcall-072-media-audio-2026-10-31.json",
+  "authorization": "New explicit user-requested scope after completed0.7.2 release: above-app live video/PiP, timed controls, camera switching plus reported audio routing failures. Standing owner limit is six allocations per distinct run. Previous run preserved unchanged. User subsequently names same candidate first release1.0.0 and changes default endpoint to https://p2p.lienad.ru; existing allocation unchanged.",
   "stop_on_same_failure_without_new_evidence": 2,
   "cycles": [
     {
       "cycle": 1,
-      "allocation": "lastcall-072-media-audio-2026-10-31:1",
-      "candidate_base_commit": "5666d31",
-      "candidate_version": "0.7.2/code12",
-      "status": "passed",
-      "scope": "New requested work: real live voice waveform, chronological mixed chat/media/file timeline including queued-file timestamps, Android call speaker/earpiece/connectedBluetooth routing. One bounded independent pass after implementation.",
-      "apk_sha256": "d5d0839ad0004c6476710e2ad4369c67f322d0c87ad418f1d1689a82bd73a951",
-      "exit_code": 0,
-      "session_id": "e6525745-e283-49af-acf3-153f3814413a",
-      "unit_tests": {
-        "passed": 363,
-        "failed": 0,
-        "skipped": 0
-      },
-      "browser_tests": {
-        "passed": 11,
-        "failed": 0,
-        "skipped": 1
-      },
-      "report": "docs/reports/testing/2026-10/media-audio/claude-qa-cycle-1.md",
-      "finding": "No actionable confirmed regressions; physical BT/native audio acceptance remains separate."
+      "allocation": "lastcall-073-video-pip-routes-2026-10-31:1",
+      "candidate_base_commit": "90a1c43",
+      "candidate_version": "1.0.0/code13",
+      "status": "failed",
+      "scope": "Native Android live-call PiP, video control auto-hide/tap, call+circle camera switch, actual native audio ownership/false error fixes.",
+      "finding": "Native packaging preflight: expo-video supportsPictureInPicture=false removed final MainActivity PiP flag because mod callbacks execute in reverse order. First native build interrupted before APK publication; no independent tester invoked.",
+      "native_build": "interrupted_manifest_preflight"
+    },
+    {
+      "cycle": 2,
+      "allocation": "lastcall-073-video-pip-routes-2026-10-31:2",
+      "candidate_base_commit": "90a1c43",
+      "candidate_version": "1.0.0/code13",
+      "status": "failed",
+      "scope": "Same release scope, place PiP config plugin before expo-video so final generated manifest retains supportsPictureInPicture; verify actual prebuild before native build.",
+      "native_build": "compile_failed",
+      "finding": "Kotlin compile: generated MainActivity used nonexistent PictureInPictureUiState.isTransitioning. Installedandroid37.0 android.jar javap confirms isTransitioningToPip(). No independenttester invoked."
+    },
+    {
+      "cycle": 3,
+      "allocation": "lastcall-073-video-pip-routes-2026-10-31:3",
+      "candidate_base_commit": "90a1c43",
+      "candidate_version": "1.0.0/code13",
+      "status": "failed",
+      "scope": "Same release scope; use exact installedAndroid37.0 PictureInPictureUiState.isTransitioningToPip getter, with corrected PiP manifest plugin order. Native build+one bounded independentQA planned.",
+      "native_build": "passed",
+      "apk_sha256": "3bf81dfa8e2f8fba0da6503659223dc091993ae1f59377713eda157b9aba14d7",
+      "candidate_url": "https://p2p.lienad.ru/download/LastCall-1.0.0-candidate.apk",
+      "finding": "NativeAPK PiP/livevideo/camera/5scontrols initiallypass; returningtoforegroundforcednetworkrecoverywithunchangedWiFi and10s timeout endedhealthycall. Independenttester notyetinvoked. CandidatepublishedatuserexplicitparallelAPKrequest, notacceptedrelease."
+    },
+    {
+      "cycle": 4,
+      "allocation": "lastcall-073-video-pip-routes-2026-10-31:4",
+      "candidate_base_commit": "90a1c43",
+      "candidate_version": "1.0.0/code14",
+      "status": "developing",
+      "scope": "Same release plus confirmedPiP foreground-resume forcednetwork-reset regression; preserve healthyactivecalls while retaining actual network transition/retry recovery."
     }
   ],
   "requires_user_resume": false,
-  "last_verdict": "PASS",
-  "skill_loading_verified": {
-    "systematic-debugging": "READ_FALLBACK",
-    "run-quality-gate": "READ_FALLBACK",
-    "webapp-testing": "READ_FALLBACK"
-  },
+  "last_verdict": null,
+  "skill_loading_verified": {},
   "activity": {
-    "cycle": 1,
-    "stage": "review",
-    "updated_at": "2026-10-31T12:40:40.692174+00:00"
+    "cycle": 4,
+    "stage": "build",
+    "updated_at": "2026-10-31T18:00:18.876500+00:00"
   }
 }

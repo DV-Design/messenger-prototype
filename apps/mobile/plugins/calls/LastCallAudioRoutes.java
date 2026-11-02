@@ -10,11 +10,14 @@ import android.media.AudioManager;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.telecom.CallAudioState;
+import android.telecom.Connection;
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.WritableArray;
 import com.facebook.react.bridge.WritableMap;
 import java.util.ArrayList;
 import java.util.List;
+import io.wazo.callkeep.VoiceConnectionService;
 
 /** One call-scoped owner for WebRTC communication routing, including outgoing calls without Telecom. */
 final class LastCallAudioRoutes {
@@ -35,6 +38,14 @@ final class LastCallAudioRoutes {
   }
   private static boolean matches(String id) { return owner != null && owner.equals(canonical(id)); }
 
+  private static Connection telecomConnection() {
+    if (Build.VERSION.SDK_INT < 26 || owner == null) return null;
+    // Incoming CallKeep UUIDs are hyphenated; outgoing app calls have no Telecom connection.
+    String uuid = owner.substring(0, 8) + "-" + owner.substring(8, 12) + "-" + owner.substring(12, 16) + "-" + owner.substring(16, 20) + "-" + owner.substring(20);
+    Connection connection = VoiceConnectionService.getConnection(uuid);
+    return connection != null ? connection : VoiceConnectionService.getConnection(owner);
+  }
+
   static void begin(Context context, String id) {
     if (matches(id)) return;
     if (owner != null) end(owner);
@@ -43,7 +54,11 @@ final class LastCallAudioRoutes {
     if (audio == null) return;
     owner = next; previousSpeaker = audio.isSpeakerphoneOn();
     // MODE_NORMAL below removes this process's own mode request; Android retains other clients' requests.
-    try { audio.setMode(AudioManager.MODE_IN_COMMUNICATION); ownsMode = true; } catch (RuntimeException ignored) {}
+    // Telecom owns incoming-call mode/routing. Competing app requests can be accepted
+    // by AudioManager but never become effective while Telecom controls the mode.
+    if (telecomConnection() == null) {
+      try { audio.setMode(AudioManager.MODE_IN_COMMUNICATION); ownsMode = true; } catch (RuntimeException ignored) {}
+    }
     devices = new AudioDeviceCallback() {
       @Override public void onAudioDevicesAdded(AudioDeviceInfo[] value) { changed(); }
       @Override public void onAudioDevicesRemoved(AudioDeviceInfo[] value) { changed(); }
@@ -113,6 +128,12 @@ final class LastCallAudioRoutes {
     WritableMap result = Arguments.createMap(); WritableArray routes = Arguments.createArray();
     result.putString("callId", canonical(id)); result.putBoolean("active", matches(id));
     if (matches(id)) {
+      Connection connection = telecomConnection();
+      if (connection != null) {
+        if (connection.getState() == Connection.STATE_DISCONNECTED) result.putBoolean("active", false);
+        else telecomRoutes(connection.getCallAudioState(), routes);
+        result.putArray("routes", routes); return result;
+      }
       AudioDeviceInfo selected = Build.VERSION.SDK_INT >= 31 ? audio.getCommunicationDevice() : null;
       List<AudioDeviceInfo> list = available();
       boolean wired = list.stream().anyMatch(device -> "wired".equals(kind(device)));
@@ -130,8 +151,30 @@ final class LastCallAudioRoutes {
     }
     result.putArray("routes", routes); return result;
   }
+  private static void telecomRoutes(CallAudioState state, WritableArray routes) {
+    if (state == null) return; // Android has not reported supported/current routes yet.
+    int[] masks = { CallAudioState.ROUTE_EARPIECE, CallAudioState.ROUTE_SPEAKER, CallAudioState.ROUTE_BLUETOOTH, CallAudioState.ROUTE_WIRED_HEADSET };
+    String[] kinds = { "earpiece", "speaker", "bluetooth", "wired" };
+    for (int i = 0; i < masks.length; i++) {
+      if ((state.getSupportedRouteMask() & masks[i]) == 0) continue;
+      WritableMap route = Arguments.createMap(); route.putString("id", Integer.toString(masks[i]));
+      route.putString("kind", kinds[i]); route.putBoolean("selected", state.getRoute() == masks[i]); routes.pushMap(route);
+    }
+  }
   static WritableMap select(String id, String deviceId) {
     if (!matches(id)) throw new IllegalStateException("Call audio is no longer active");
+    Connection connection = telecomConnection();
+    if (connection != null) {
+      int route = Integer.parseInt(deviceId);
+      CallAudioState state = connection.getCallAudioState();
+      if (connection.getState() == Connection.STATE_DISCONNECTED || state == null ||
+          (route != CallAudioState.ROUTE_EARPIECE && route != CallAudioState.ROUTE_SPEAKER && route != CallAudioState.ROUTE_BLUETOOTH && route != CallAudioState.ROUTE_WIRED_HEADSET) ||
+          (state.getSupportedRouteMask() & route) == 0) throw new IllegalStateException("Call audio route is unavailable");
+      // CallKeep4.6 uses this API. Its existing Connection exposes CallAudioState,
+      // not API34 endpoint callbacks. Never compete with Telecom via AudioManager.
+      connection.setAudioRoute(route);
+      return snapshot(id); // A request is not proof that Android changed the actual route.
+    }
     AudioDeviceInfo target = null;
     for (AudioDeviceInfo device : available()) if (Integer.toString(device.getId()).equals(deviceId) && kind(device) != null) { target = device; break; }
     if (target == null) throw new IllegalStateException("Audio device disconnected");

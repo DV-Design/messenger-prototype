@@ -80,3 +80,68 @@ test('observation failures still release a timed-out request; stale rejection ca
   controller.setCall(b); controller.observe(snapshot(b)); selection.reject(new Error('old call ended')); await selecting;
   assert.equal(controller.state.error, undefined); assert.equal(controller.state.callId, b);
 });
+
+test('late observed success clears a timeout error, while an unrelated fallback does not', async () => {
+  let now = 0;
+  const controller = new CallAudioController({ get: async () => snapshot(), select: async () => snapshot() }, () => {}, () => now);
+  controller.setCall(a); controller.observe(snapshot()); await controller.select('3');
+  now = 8001; controller.observe(snapshot());
+  assert.equal(controller.state.pendingId, undefined); assert.ok(controller.state.error);
+  controller.observe(snapshot(a, '2')); assert.ok(controller.state.error);
+  controller.observe(snapshot(a, '3'));
+  assert.equal(controller.state.error, undefined);
+  assert.equal(controller.state.routes.find(route => route.selected)?.id, '3');
+});
+
+test('a healthy observation clears a transient query error without hiding a failed route request', async () => {
+  const controller = new CallAudioController({ get: async () => { throw new Error('busy'); }, select: async () => { throw new Error('declined'); } }, () => {});
+  controller.setCall(a); controller.observe(snapshot()); await controller.refresh();
+  assert.ok(controller.state.error);
+  controller.observe(snapshot()); assert.equal(controller.state.error, undefined);
+  await controller.select('2'); assert.ok(controller.state.error);
+  await controller.refresh(); controller.observe(snapshot()); assert.ok(controller.state.error);
+  controller.observe(snapshot(a, '2')); assert.equal(controller.state.error, undefined);
+});
+
+test('a stale same-call rejection cannot fail a retry of the same output', async () => {
+  let now = 0, count = 0;
+  const old = deferred<unknown>(), retry = deferred<unknown>();
+  const controller = new CallAudioController({ get: async () => snapshot(), select: () => ++count === 1 ? old.promise : retry.promise }, () => {}, () => now);
+  controller.setCall(a); controller.observe(snapshot()); const first = controller.select('2');
+  now = 8001; controller.observe(snapshot());
+  const second = controller.select('2');
+  old.reject(new Error('old request failed')); await first;
+  assert.equal(controller.state.pendingId, '2'); assert.equal(controller.state.error, undefined);
+  retry.resolve(snapshot(a, '2')); await second;
+  assert.equal(controller.state.pendingId, undefined); assert.equal(controller.state.error, undefined);
+});
+
+test('another device of the same kind is not confirmation of a disconnected requested device', async () => {
+  const controller = new CallAudioController({ get: async () => snapshot(), select: async () => snapshot() }, () => {});
+  controller.setCall(a); controller.observe(snapshot()); await controller.select('3');
+  const replacement = snapshot(); replacement.routes[2] = { id: '4', kind: 'bluetooth', selected: true }; replacement.routes[0]!.selected = false;
+  controller.observe(replacement);
+  assert.equal(controller.state.pendingId, undefined); assert.match(controller.state.error!, /отключено/);
+  controller.observe(replacement); assert.ok(controller.state.error);
+});
+
+test('a query started before a new selection cannot overwrite its error or pending state', async () => {
+  const query = deferred<unknown>(), selection = deferred<unknown>();
+  const controller = new CallAudioController({ get: () => query.promise, select: () => selection.promise }, () => {});
+  controller.setCall(a); controller.observe(snapshot());
+  const refreshing = controller.refresh(), selecting = controller.select('2');
+  query.reject(new Error('stale read failed')); await refreshing;
+  assert.equal(controller.state.error, undefined); assert.equal(controller.state.pendingId, '2');
+  selection.resolve(snapshot(a, '2')); await selecting;
+  assert.equal(controller.state.error, undefined); assert.equal(controller.state.pendingId, undefined);
+});
+
+test('timeout during a read failure remains visible until the requested route is observed', async () => {
+  let now = 0;
+  const controller = new CallAudioController({ get: async () => { throw new Error('busy'); }, select: async () => snapshot() }, () => {}, () => now);
+  controller.setCall(a); controller.observe(snapshot()); await controller.select('3');
+  now = 8001; await controller.refresh();
+  assert.equal(controller.state.pendingId, undefined); assert.ok(controller.state.error);
+  controller.observe(snapshot()); assert.ok(controller.state.error);
+  controller.observe(snapshot(a, '3')); assert.equal(controller.state.error, undefined);
+});

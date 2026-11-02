@@ -20,6 +20,7 @@ export interface PeerSessionOptions {
   serverUrl:string;invite:string;relayOnly?:boolean;iceServers?:RTCIceServer[];expectPeer?:boolean;getIceServers?:()=>Promise<RTCIceServer[]>;
   randomBytes?:RandomBytes;rtcFactory?:(config:RTCConfiguration)=>RTCPeerConnection;
   getUserMedia?:(constraints:MediaStreamConstraints)=>Promise<MediaStream>;
+  createMediaStream?:(tracks:MediaStreamTrack[])=>MediaStream;
   onChange?:(snapshot:SessionSnapshot)=>void;
   onMessage?:(message:ChatMessage)=>boolean|void|Promise<boolean|void>;
   onApplication?:(payload:unknown)=>void|Promise<void>;
@@ -54,6 +55,7 @@ export class PeerSession {
   private cipher:SignalingCipher;
   private socket?:WebSocket;
   private pc?:RTCPeerConnection;
+  private remoteMedia?:MediaStream;
   private channel?:RTCDataChannel;
   private remoteDataReady=false;
   private localDataReady=false;
@@ -221,13 +223,26 @@ export class PeerSession {
     clearTimeout(this.recoveryTimer);this.recoveryTimer=undefined;this.change({status:'connected',recovering:false,error:undefined});
   }
   private makePeer(iceServers:RTCIceServer[]){
-    const pc=(this.options.rtcFactory??(config=>new RTCPeerConnection(config)))({iceServers,iceTransportPolicy:this.options.relayOnly?'relay':'all'});this.pc=pc;
+    const pc=(this.options.rtcFactory??(config=>new RTCPeerConnection(config)))({iceServers,iceTransportPolicy:this.options.relayOnly?'relay':'all'});this.pc=pc;this.remoteMedia=undefined;
     pc.onicecandidate=event=>{if(this.pc!==pc||!event.candidate)return;
       const c=event.candidate;try{this.signal({kind:'candidate',candidate:{candidate:c.candidate,sdpMid:c.sdpMid,sdpMLineIndex:c.sdpMLineIndex,usernameFragment:c.usernameFragment}});}catch(e){this.report(e);}};
     pc.onnegotiationneeded=()=>{if(this.pc===pc)void this.serial(()=>this.negotiate()).catch(()=>{});};
     pc.ondatachannel=event=>{if(this.pc===pc)this.attachChannel(event.channel);};
     pc.ontrack=event=>{if(this.pc!==pc)return;
-      const stream=event.streams[0];if(stream)this.change({remoteStream:stream});
+      // Some devices expose streamless tracks. Relying only on event.streams[0]
+      // leaves remoteStream undefined there, so the UI falls back to the local
+      // camera. Build/reuse a remote stream from the track itself.
+      let stream=this.remoteMedia??event.streams?.[0];
+      if(stream){
+        if(!stream.getTracks().some(track=>track.id===event.track.id)){
+          try{stream.addTrack(event.track);}catch{/* Receiver track may already be owned elsewhere. */}
+        }
+      }else{
+        const create=this.options.createMediaStream??(typeof MediaStream!=='undefined'?(tracks:MediaStreamTrack[])=>new MediaStream(tracks):undefined);
+        if(!create)return;
+        stream=create([event.track]);
+      }
+      this.remoteMedia=stream;this.change({remoteStream:stream});
     };
     pc.onconnectionstatechange=()=>{if(this.pc!==pc)return;
       if(pc.connectionState==='failed'||pc.connectionState==='disconnected'){if(this.hadConnected)this.beginRecovery();else if(pc.connectionState==='failed')this.failTransport('ICE/data channel failed');}
@@ -377,6 +392,7 @@ export class PeerSession {
     // local sender tracks are stopped above and pc.close() releases receivers.
     const pc=this.pc;const senders=pc?.getSenders().filter(sender=>sender.track);
     if(pc&&senders?.length)void this.serial(async()=>{if(this.pc!==pc)return;for(const sender of senders){try{pc.removeTrack(sender);}catch{}}await this.negotiate();}).catch(()=>{});
+    this.remoteMedia=undefined;
     this.change({callState:'idle',callExpiresAt:undefined,callRinging:undefined,muted:false,localStream:undefined,remoteStream:undefined});
   }
   setMuted(muted:boolean):void{this.state.localStream?.getAudioTracks().forEach(track=>{track.enabled=!muted;});this.change({muted});}

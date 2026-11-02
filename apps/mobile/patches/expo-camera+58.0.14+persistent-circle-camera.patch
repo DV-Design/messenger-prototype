@@ -1,0 +1,134 @@
+--- a/android/src/main/java/expo/modules/camera/ExpoCameraView.kt
++++ b/android/src/main/java/expo/modules/camera/ExpoCameraView.kt
+@@ -38,6 +38,7 @@
+ import androidx.camera.core.resolutionselector.ResolutionStrategy
+ import androidx.camera.lifecycle.ProcessCameraProvider
+ import androidx.camera.lifecycle.awaitInstance
++import androidx.camera.video.ExperimentalPersistentRecording
+ import androidx.camera.video.FallbackStrategy
+ import androidx.camera.video.FileOutputOptions
+ import androidx.camera.video.QualitySelector
+@@ -48,6 +49,9 @@
+ import androidx.camera.view.PreviewView
+ import androidx.core.app.ActivityCompat
+ import androidx.core.content.ContextCompat
++import androidx.lifecycle.Lifecycle
++import androidx.lifecycle.LifecycleEventObserver
++import androidx.lifecycle.LifecycleOwner
+ import expo.modules.camera.analyzers.BarcodeAnalyzer
+ import expo.modules.camera.analyzers.toByteArray
+ import expo.modules.camera.common.BarcodeScannedEvent
+@@ -124,6 +128,8 @@
+ 
+   var camera: Camera? = null
+   private var activeRecording: Recording? = null
++  private var persistentVideoCapture: VideoCapture<Recorder>? = null
++  private var recordingLifecycleObserver: LifecycleEventObserver? = null
+ 
+   private var cameraProvider: ProcessCameraProvider? = null
+   private var imageCaptureUseCase: ImageCapture? = null
+@@ -350,6 +356,7 @@
+     }
+   }
+ 
++  @androidx.annotation.OptIn(ExperimentalPersistentRecording::class)
+   fun record(options: RecordingOptions, promise: Promise, cacheDirectory: File) {
+     val file = FileSystemUtils.generateOutputFile(cacheDirectory, "Camera", ".mp4")
+     val fileOutputOptions = FileOutputOptions.Builder(file)
+@@ -373,6 +380,7 @@
+             withAudioEnabled()
+           }
+         }
++        .asPersistentRecording()
+         .start(ContextCompat.getMainExecutor(context)) { event ->
+           when (event) {
+             is VideoRecordEvent.Pause -> {
+@@ -384,6 +392,7 @@
+             is VideoRecordEvent.Start -> {
+               isRecording = true
+               lastRecordingProgressTimestamp = 0L
++              observeRecordingLifecycle()
+             }
+             is VideoRecordEvent.Status -> {
+               val now = SystemClock.uptimeMillis()
+@@ -399,6 +408,9 @@
+               }
+             }
+             is VideoRecordEvent.Finalize -> {
++              activeRecording = null
++              isRecording = false
++              removeRecordingLifecycleObserver()
+               when (event.error) {
+                 VideoRecordEvent.Finalize.ERROR_FILE_SIZE_LIMIT_REACHED,
+                 VideoRecordEvent.Finalize.ERROR_DURATION_LIMIT_REACHED,
+@@ -428,9 +440,35 @@
+       )
+   }
+ 
++  private fun observeRecordingLifecycle() {
++    removeRecordingLifecycleObserver()
++    // The app may already be stopped before the async Start event arrives; in
++    // that case registering an observer will not replay ON_STOP, so close now.
++    if (!currentActivity.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
++      stopRecording()
++      return
++    }
++    val observer = object : LifecycleEventObserver {
++      override fun onStateChanged(source: LifecycleOwner, event: Lifecycle.Event) {
++        if (event == Lifecycle.Event.ON_STOP) {
++          stopRecording()
++        }
++      }
++    }
++    recordingLifecycleObserver = observer
++    currentActivity.lifecycle.addObserver(observer)
++  }
++
++  private fun removeRecordingLifecycleObserver() {
++    recordingLifecycleObserver?.let { currentActivity.lifecycle.removeObserver(it) }
++    recordingLifecycleObserver = null
++  }
++
+   fun stopRecording() {
+     isRecording = false
++    removeRecordingLifecycleObserver()
+     activeRecording?.close()
++    activeRecording = null
+   }
+ 
+   fun toggleRecording() {
+@@ -529,7 +567,13 @@
+     val selectedCameraInfo = cameraSelector
+       .filter(cameraProvider.availableCameraInfos)
+       .firstOrNull()
+-    val videoCapture = createVideoCapture(selectedCameraInfo)
++    // Reuse the same VideoCapture while a persistent recording is active so a
++    // lens switch keeps one recorder and one output file.
++    val videoCapture = if (activeRecording != null) {
++      persistentVideoCapture ?: createVideoCapture(selectedCameraInfo).also { persistentVideoCapture = it }
++    } else {
++      createVideoCapture(selectedCameraInfo).also { persistentVideoCapture = it }
++    }
+     releaseBarcodeAnalyzer()
+     imageAnalysisUseCase = if (shouldScanBarcodes) {
+       createImageAnalyzer()
+@@ -716,6 +760,7 @@
+   }
+ 
+   fun pausePreview() {
++    stopRecording()
+     previewPaused = true
+     cameraProvider?.unbindAll()
+   }
+@@ -895,9 +940,11 @@
+   }
+ 
+   fun cleanupCamera() {
++    stopRecording()
+     orientationEventListener.disable()
+     cancelCoroutineScope()
+     cameraProvider?.unbindAll()
++    persistentVideoCapture = null
+     releaseBarcodeAnalyzer()
+     glSurfaceTexture?.release()
+   }

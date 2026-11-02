@@ -7,7 +7,7 @@ const config: ExpoConfig = {
   name: 'LastCall',
   slug: 'messenger-prototype',
   icon: './assets/lastcall-icon.png',
-  version: '0.7.2',
+  version: '1.0.1',
   scheme: 'messenger-preview',
   orientation: 'default',
   userInterfaceStyle: 'light',
@@ -15,7 +15,7 @@ const config: ExpoConfig = {
   ios: {
     supportsTablet: true,
     bundleIdentifier: 'dev.messenger.prototype',
-    buildNumber: '12',
+    buildNumber: '15',
     infoPlist: {
       // Local-network HTTP is only for an explicitly configured development server.
       NSAppTransportSecurity: process.env.MESSENGER_ALLOW_LOCAL_HTTP === '1'
@@ -26,7 +26,7 @@ const config: ExpoConfig = {
   },
   android: {
     package: 'dev.messenger.prototype',
-    versionCode: 12,
+    versionCode: 15,
     allowBackup: false,
     adaptiveIcon: { foregroundImage: './assets/lastcall-icon.png', backgroundColor: '#FFFFFF' },
     ...(googleServicesFile ? { googleServicesFile } : {}),
@@ -37,6 +37,7 @@ const config: ExpoConfig = {
   },
   extra: { nativeFcmConfigured: !!googleServicesFile },
   plugins: [
+    './plugins/withLastCallPip.cjs',
     'expo-router',
     ['expo-audio', { microphonePermission: 'Микрофон нужен для звонков и записи голосовых сообщений.', enableBackgroundRecording: false, enableBackgroundPlayback: false }],
     ['expo-camera', { cameraPermission: 'Камера нужна для видеозвонков и записи видеокружков.', microphonePermission: 'Микрофон нужен для звонков и записи сообщений.', recordAudioAndroid: true }],
@@ -47,6 +48,7 @@ const config: ExpoConfig = {
     ['expo-secure-store', { configureAndroidBackup: false }],
     './plugins/withLocalNetworking.cjs',
     './plugins/withLastCallCalls.cjs',
+    './plugins/withPersistentCircleCamera.cjs',
     './plugins/withLastCallNotifications.cjs',
     './plugins/withWebRtc155Release.cjs',
     ['@config-plugins/react-native-webrtc', {
