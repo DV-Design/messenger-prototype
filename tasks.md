@@ -14,11 +14,12 @@ Status: Play Console draft app created (app ID 4973089023189492670), store listi
   → Artifacts: [en](store/screenshots/en/), [ru](store/screenshots/ru/)
 - [X] Upload AAB to Play Console internal testing and fill Data safety/content rating
   → Internal release `LastCall 1.0.8 internal`, published unreviewed 2026-11-03
-- [ ] Add internal testers and 12 closed-testers, run 14-day closed test
-  → Requires tester Google accounts (`store/PLAY-TESTING.md`)
-- [ ] Record foreground-service demo videos (camera, microphone, phone call) and finish active-services declaration
-  → Required before review submission; Full-screen intent declaration is saved.
-- [ ] Add Russian store listing translation and resolve AI-assets disclosure
+- [X] Record foreground-service demo videos and finish active-services declaration
+  → [camera](https://p2p.lienad.ru/demo/lastcall-foreground-camera.mp4), [microphone](https://p2p.lienad.ru/demo/lastcall-foreground-microphone.mp4), [phone call](https://p2p.lienad.ru/demo/lastcall-foreground-phone-call.mp4)
+- [X] Add internal tester `populizator@googlemail.com`
+- [ ] Configure closed-testing countries, release and 12 testers; run 14 days
+  → User will add testers (`store/PLAY-TESTING.md`)
+- [ ] Add Russian store listing translation (AI-assets disclosure confirmed as not AI)
 
 # LastCall 1.0.7 / code21: segmented circle camera switch (published, verified)
 

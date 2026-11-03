@@ -147,14 +147,20 @@ first, install from Play, then run `docs/TESTING-RU.md`.
 - Privacy, ads, app access, IARC rating, target audience (18+), Data safety,
   advertising ID, government, financial and health declarations saved.
 - Full-screen intent declaration saved (calls, default grant requested).
+- Active-services declaration saved with demo videos:
+  - https://p2p.lienad.ru/demo/lastcall-foreground-camera.mp4
+  - https://p2p.lienad.ru/demo/lastcall-foreground-microphone.mp4
+  - https://p2p.lienad.ru/demo/lastcall-foreground-phone-call.mp4
+- Internal tester list `LastCall internal` contains
+  `populizator@googlemail.com`.
 - Upload key fingerprint matches Play App Signing (`AD:52:…:47:81`).
 
 ## Remaining blockers
 
-- Active-services declaration needs three public demo-video links: background
-  camera, background microphone and VoIP/phone-call foreground service.
-- Internal/closed tester lists are empty. Add testers; personal accounts need
-  12 testers opted in for 14 continuous days before production access.
+- Closed-testing countries and the Alpha closed track release are not configured
+  yet. Personal accounts need 12 testers opted in for 14 continuous days before
+  production access; internal testing has one tester (`populizator@googlemail.com`).
+  The user will add the remaining testers.
 - Russian (`ru-RU`) store listing translation and confirmation that the icon /
   feature graphic are not AI-generated (AI-assets declaration).
 - Review submission is disabled until the active-services declaration and
