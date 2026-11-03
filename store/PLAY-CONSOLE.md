@@ -137,11 +137,28 @@ first, install from Play, then run `docs/TESTING-RU.md`.
 - Keep the upload keystore and passwords backed up offline; losing the upload key
   requires a Play App Signing upload-key reset.
 
+## Current Play Console state (2026-11-03)
+
+- Developer account `5535707229234088478`, app `4973089023189492670`
+  (`ru.lastcall.app`).
+- Internal testing release `LastCall 1.0.8 internal` published, unreviewed.
+- English (en-US) default listing saved with icon, feature graphic and six
+  1080×1920 screenshots; category Communication; contact email/site filled.
+- Privacy, ads, app access, IARC rating, target audience (18+), Data safety,
+  advertising ID, government, financial and health declarations saved.
+- Full-screen intent declaration saved (calls, default grant requested).
+- Upload key fingerprint matches Play App Signing (`AD:52:…:47:81`).
+
 ## Remaining blockers
 
-- Final Firebase Android app for `ru.lastcall.app` and matching
-  `google-services.json`.
-- Real screenshots and localized listing review.
-- Legal review of privacy policy, terms, community guidelines and data safety.
-- Physical-device acceptance of the store build.
-- Play Console account access and app creation/upload.
+- Active-services declaration needs three public demo-video links: background
+  camera, background microphone and VoIP/phone-call foreground service.
+- Internal/closed tester lists are empty. Add testers; personal accounts need
+  12 testers opted in for 14 continuous days before production access.
+- Russian (`ru-RU`) store listing translation and confirmation that the icon /
+  feature graphic are not AI-generated (AI-assets declaration).
+- Review submission is disabled until the active-services declaration and
+  testers are handled; the internal build remains unreviewed.
+- Legal review of privacy policy, terms, community guidelines and Data safety.
+- Physical-device acceptance of the Play-installed build.
+- Account identity verification with Google must complete.

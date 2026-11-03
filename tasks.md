@@ -1,6 +1,6 @@
 # LastCall 1.0.8 / code22: Google Play compliance (in progress)
 
-Status: store preparation. 1.0.7 camera fix confirmed on Vivo X200 Ultra. 1.0.8 adds Play-required UGC blocking/reporting, terms acceptance and store packaging; not submitted.
+Status: Play Console draft app created (app ID 4973089023189492670), store listing and app-content declarations filled, and 1.0.8/code22 published to the **internal testing** track as unreviewed. Testers are not added yet. Active-services declaration needs three demo video links; closed testing needs 12 testers for 14 days.
 
 - [X] Add persisted local blocking and enforce it on calls/notifications
   → Artifacts: [core](packages/core/src/messenger.ts), [chat menu](apps/mobile/src/components/SafetyMenu.tsx), [settings](apps/mobile/src/app/(tabs)/settings.tsx)
@@ -12,8 +12,13 @@ Status: store preparation. 1.0.7 camera fix confirmed on Vivo X200 Ultra. 1.0.8 
   → Artifacts: [AAB](artifacts/README.md), 41,617,435 bytes, SHA256 `436b90a56289e6070f6d88a99b2a7187ec8dcd42351a641385b29bdedd8c635f`
 - [X] Capture English/Russian emulator screenshots at 1080×1920 from store build
   → Artifacts: [en](store/screenshots/en/), [ru](store/screenshots/ru/)
-- [ ] Upload to Play Console internal testing and complete Data safety/content rating
-  → Requires personal-account closed testing with 12 testers for 14 days (`store/PLAY-TESTING.md`)
+- [X] Upload AAB to Play Console internal testing and fill Data safety/content rating
+  → Internal release `LastCall 1.0.8 internal`, published unreviewed 2026-11-03
+- [ ] Add internal testers and 12 closed-testers, run 14-day closed test
+  → Requires tester Google accounts (`store/PLAY-TESTING.md`)
+- [ ] Record foreground-service demo videos (camera, microphone, phone call) and finish active-services declaration
+  → Required before review submission; Full-screen intent declaration is saved.
+- [ ] Add Russian store listing translation and resolve AI-assets disclosure
 
 # LastCall 1.0.7 / code21: segmented circle camera switch (published, verified)
 
