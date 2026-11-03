@@ -15,6 +15,7 @@
     "dev:probe": "npm run dev -w @messenger/probe",
     "dev:mobile": "npm run start -w @messenger/mobile",
     "build:apk": "bash infra/build-android-release.sh",
+    "build:aab": "bash infra/build-android-store.sh",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",

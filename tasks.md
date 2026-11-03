@@ -9,8 +9,11 @@ Status: store preparation. 1.0.7 camera fix confirmed on Vivo X200 Ultra. 1.0.8 
 - [X] Build store AAB `ru.lastcall.app` 1.0.8/code22 with upload key and fixed namespace
   → Artifacts: [namespace plugin](apps/mobile/plugins/withLastCallNamespace.cjs), [store guide](store/PLAY-CONSOLE.md)
 - [ ] Add Firebase Android app `ru.lastcall.app`, rebuild final AAB with FCM
-- [ ] Capture real English/Russian screenshots from the final store build
+  → Blocked on Firebase Console app creation (`store/FIREBASE-SETUP.md`)
+- [X] Capture English/Russian emulator screenshots at 1080×1920 from store build
+  → Artifacts: [en](store/screenshots/en/), [ru](store/screenshots/ru/)
 - [ ] Upload to Play Console internal testing and complete Data safety/content rating
+  → Requires personal-account closed testing with 12 testers for 14 days (`store/PLAY-TESTING.md`)
 
 # LastCall 1.0.7 / code21: segmented circle camera switch (published, verified)
 

@@ -45,6 +45,13 @@ apkanalyzer/aapt2/apksigner. `node`, `java`, `keytool` добавлены в
   feature graphic: `store/feature-graphic.png`.
 - Черновики описаний: `store/listing-en.md`, `store/listing-ru.md`; ответы для
   Play Console и Data safety: `store/PLAY-CONSOLE.md`.
+- Скриншоты 1080×1920 для en-US и ru-RU из store-сборки на эмуляторе:
+  `store/screenshots/en/`, `store/screenshots/ru/`; после финальной сборки с FCM
+  переснять настройки, если изменится блок уведомлений.
+- Скрипт воспроизводимой store-сборки: `npm run build:aab` с проверкой
+  packaged-констант, отсутствия REQUEST_INSTALL_PACKAGES и подписи upload-ключом.
+- Firebase и тестовая раскатка: `store/FIREBASE-SETUP.md`,
+  `store/PLAY-TESTING.md`.
 
 ## Android: Google Play
 
