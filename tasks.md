@@ -1,6 +1,20 @@
-# LastCall 1.0.7 / code21: segmented circle camera switch (published)
+# LastCall 1.0.8 / code22: Google Play compliance (in progress)
 
-Status: test candidate. Segment recording plus a local Media3 merge replaces reliance on one persistent CameraX recording surviving a lens rebind. Verification on the affected Vivo X200 Ultra is pending.
+Status: store preparation. 1.0.7 camera fix confirmed on Vivo X200 Ultra. 1.0.8 adds Play-required UGC blocking/reporting, terms acceptance and store packaging; not submitted.
+
+- [X] Add persisted local blocking and enforce it on calls/notifications
+  → Artifacts: [core](packages/core/src/messenger.ts), [chat menu](apps/mobile/src/components/SafetyMenu.tsx), [settings](apps/mobile/src/app/(tabs)/settings.tsx)
+- [X] Add authenticated server-side report metadata storage and community/terms pages
+  → Artifacts: [server](apps/server/src/services.ts), [server handler](apps/server/src/directory.ts), [guidelines](infra/public/community.html), [terms](infra/public/terms.html)
+- [X] Build store AAB `ru.lastcall.app` 1.0.8/code22 with upload key and fixed namespace
+  → Artifacts: [namespace plugin](apps/mobile/plugins/withLastCallNamespace.cjs), [store guide](store/PLAY-CONSOLE.md)
+- [ ] Add Firebase Android app `ru.lastcall.app`, rebuild final AAB with FCM
+- [ ] Capture real English/Russian screenshots from the final store build
+- [ ] Upload to Play Console internal testing and complete Data safety/content rating
+
+# LastCall 1.0.7 / code21: segmented circle camera switch (published, verified)
+
+Status: verified on the affected Vivo X200 Ultra. Segment recording plus a local Media3 merge replaces reliance on one persistent CameraX recording surviving a lens rebind.
 
 - [X] Record a separate circle segment around each lens switch and merge them into one MP4
   → Artifacts: [composer](apps/mobile/src/components/MediaComposer.tsx), [merge wrapper](apps/mobile/src/video-merge.ts), [native module](apps/mobile/modules/lastcall-video/)

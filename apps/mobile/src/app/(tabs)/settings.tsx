@@ -7,7 +7,7 @@ import Constants from 'expo-constants';
 import type { Conversation } from '@messenger/core';
 import { enableSystemCalls, useSystemCallStatus } from '../../system-calls';
 import { Avatar, Button, Icon, ScreenHeader, connectionLabel } from '../../components/ui';
-import { changeServer, deleteAccount, errorText, reconnect, useMessenger } from '../../runtime';
+import { changeServer, client, deleteAccount, errorText, reconnect, useMessenger } from '../../runtime';
 import { formatMediaDiagnostics, sanitizeDiagnostic } from '../../diagnostics';
 import { usePushStatus } from '../../components/PushBridge';
 import { checkForUpdate, directUpdates, downloadAndInstallUpdate, useUpdateState } from '../../updates';
@@ -103,6 +103,20 @@ export default function Settings() {
           </View>
         </View>
       </>}
+      <Text style={styles.sectionTitle}>{t('BLOCKED CONTACTS')}</Text>
+      <View style={styles.section}><View style={styles.content}>
+        {snapshot.blockedContacts.length === 0 ? <Text style={styles.body}>{t('No blocked contacts.')}</Text> : snapshot.blockedContacts.map(userId => {
+          const contact = snapshot.contacts.find(item => item.userId === userId);
+          return <View key={userId} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <Text numberOfLines={1} style={[styles.rowName, styles.flex]}>{contact?.displayName ?? userId}</Text>
+            <Button title={t('Unblock')} secondary onPress={() => void (async () => {
+              setLocalError('');
+              try { await client().unblockContact(userId); } catch (cause) { setLocalError(errorText(cause)); }
+            })()} />
+          </View>;
+        })}
+        {!!localError && <Text accessibilityRole="alert" style={styles.error}>{localError}</Text>}
+      </View></View>
       <Text style={styles.sectionTitle}>{t('ACCOUNT')}</Text>
       <View style={styles.section}><View style={styles.content}>
         <Text style={styles.body}>{t('Deleting the account removes the profile and push consents on the server, plus the device key, contacts and history on this phone. This cannot be undone.')}</Text>
@@ -125,6 +139,7 @@ export default function Settings() {
         <Text style={styles.info}>{t('A direct connection reveals your IP to the peer. This preview has not passed an independent audit, does not use Double Ratchet and does not promise DPI invisibility. Removing the app can lose the key and local history.')}</Text>
       </View>
       <View style={styles.section}><Pressable style={styles.listRow} accessibilityRole="link" onPress={() => void Linking.openURL('https://p2p.lienad.ru/privacy.html').catch(() => setLocalError(t('Could not open the privacy policy.')))}><Icon name="document-text-outline" /><Text style={[styles.rowName, styles.flex]}>{t('Privacy policy')}</Text><Icon name="chevron-forward" size={18} color={colors.secondary} /></Pressable></View>
+      <View style={styles.section}><Pressable style={styles.listRow} accessibilityRole="link" onPress={() => void Linking.openURL('https://p2p.lienad.ru/community.html').catch(() => setLocalError(t('Could not open community guidelines.')))}><Icon name="people-outline" /><Text style={[styles.rowName, styles.flex]}>{t('Community guidelines')}</Text><Icon name="chevron-forward" size={18} color={colors.secondary} /></Pressable></View>
       <View style={styles.section}><Pressable style={styles.listRow} accessibilityRole="button" onPress={() => setShowDiagnostics(!showDiagnostics)}><Icon name="pulse-outline" /><Text style={[styles.rowName, styles.flex]}>{t('Diagnostics')}</Text><Icon name={showDiagnostics ? 'chevron-up' : 'chevron-forward'} size={18} color={colors.secondary} /></Pressable>
         {showDiagnostics && <View style={styles.content}><Text selectable style={styles.info}>{t('Profile key: {key}', { key: identity?.userId ?? '' })}</Text>
           {snapshot.conversations.filter(item => item.kind === 'direct').map(item => <View key={item.id} style={{ gap: 5 }}><Text style={styles.rowName}>{item.title}</Text><Text style={styles.info}>{t('Connection: {status} · {route}', { status: item.session?.status ?? t('not established'), route: routeLabel(item) })}</Text>{formatMediaDiagnostics(item.session?.stats).map(line => <Text key={line} style={styles.info}>{line}</Text>)}</View>)}

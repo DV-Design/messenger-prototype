@@ -5,7 +5,7 @@ import { ed25519, x25519 } from '@noble/curves/ed25519.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { hkdf } from '@noble/hashes/hkdf.js';
 import { bytesToHex, hexToBytes, randomChecked, secureRandomBytes, type RandomBytes } from './crypto.js';
-import { peerIdSchema, roomIdSchema } from './protocol.js';
+import { conversationIdSchema, peerIdSchema, roomIdSchema } from './protocol.js';
 export interface DeviceIdentity { privateKey:string;publicKey:string;userId:string; }
 const utf8=(value:string)=>new TextEncoder().encode(value);
 export const usernameSchema=z.string().regex(/^[a-z0-9_]{3,24}$/);
@@ -87,6 +87,7 @@ export const directoryClientFrameSchema=z.discriminatedUnion('type',[
   z.object({type:z.literal('watch'),userIds:z.array(roomIdSchema).max(200)}).strict(),
   z.object({type:z.literal('connect'),to:roomIdSchema}).strict(),
   z.object({type:z.literal('delete-account'),requestId:peerIdSchema}).strict(),
+  z.object({type:z.literal('report'),requestId:peerIdSchema,targetId:roomIdSchema,targetKind:z.enum(['user','group']),conversationId:conversationIdSchema.optional(),reason:z.enum(['spam','harassment','illegal','other']),details:z.string().max(500).optional()}).strict(),
 ]);
 export const directoryServerFrameSchema=z.discriminatedUnion('type',[
   z.object({type:z.literal('call-state'),requestId:peerIdSchema.optional(),...callStateSchema.shape}).strict(),
@@ -105,6 +106,7 @@ export const directoryServerFrameSchema=z.discriminatedUnion('type',[
   z.object({type:z.literal('presence'),user:directoryUserSchema}).strict(),
   z.object({type:z.literal('connect'),from:directoryUserSchema}).strict(),
   z.object({type:z.literal('account-deleted'),requestId:peerIdSchema}).strict(),
+  z.object({type:z.literal('report-received'),requestId:peerIdSchema}).strict(),
   z.object({type:z.literal('error'),code:z.string().max(100),message:z.string().max(1000),requestId:peerIdSchema.optional()}).strict(),
 ]);
 export type DirectoryClientFrame=z.infer<typeof directoryClientFrameSchema>;

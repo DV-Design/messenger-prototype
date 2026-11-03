@@ -6,7 +6,7 @@ const first = 'ab'.repeat(16); const second = 'cd'.repeat(16);
 const tick = () => new Promise<void>(resolve => setImmediate(resolve));
 function deferred() { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done; }); return { promise, resolve }; }
 function fixture() {
-  let snapshot: MessengerSnapshot = { status: 'online', contacts: [], conversations: [], verifiedContacts: [] };
+  let snapshot: MessengerSnapshot = { status: 'online', contacts: [], conversations: [], verifiedContacts: [], blockedContacts: [] };
   const events: string[] = []; let accepts = 0; let ended = 0; let pins = 0;
   const manager = { getSnapshot: () => snapshot, acceptCall: async () => { accepts++; if (snapshot.activeCall) snapshot.activeCall.session.callState = 'active'; }, endCall: () => { ended++; snapshot = { ...snapshot, activeCall: undefined }; }, setMuted: (muted: boolean) => events.push(`mute:${muted}`) };
   const port = { present: async (id: string) => { events.push(`ring:${id}`); return true; }, showUi: (id: string) => { events.push(`ui:${id}`); return true; }, dismiss: (id: string) => events.push(`dismiss:${id}`), activate: (id: string) => events.push(`active:${id}`), end: (id: string) => events.push(`end:${id}`), startAudio: async (id: string) => { events.push(`audio:${id}`); }, stopAudio: (id: string) => { events.push(`stop:${id}`); }, retain: () => { pins++; return () => { pins--; }; } };

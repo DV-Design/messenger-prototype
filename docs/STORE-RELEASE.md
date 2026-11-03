@@ -1,7 +1,13 @@
 # LastCall — подготовка к Google Play и App Store
 
-Статус: черновик подготовки. Ничего не отправлено в магазины; нужны аккаунты
-разработчика, финальные идентификаторы, ключи подписи и юридическая проверка.
+Статус: идёт подготовка Android-публикации. Google Play Console зарегистрирован,
+финальный package `ru.lastcall.app` закреплён, upload-ключ создан, store AAB
+1.0.8/code22 собирается и проходит проверку упакованных констант. Добавлены
+обязательные для Play механики UGC: блокировка, жалоба через сервер и принятие
+условий/правил до регистрации. Ничего не загружено в магазин. Остались
+Firebase-приложение под `ru.lastcall.app`, финальный AAB с FCM, скриншоты,
+юридическая проверка и загрузка в Play Console. iOS по-прежнему заблокирован
+отсутствием Xcode и APNs.
 
 ## Состояние инструментов на этой машине
 
@@ -13,9 +19,10 @@ apkanalyzer/aapt2/apksigner. `node`, `java`, `keytool` добавлены в
 Не установлено и не может быть установлено автоматически:
 - **Xcode** (нужен Apple ID, Mac App Store, 10+ ГБ): без него нет
   `xcodebuild`, iOS-сборки и `pod install` для iOS;
-- аккаунты Google Play Console и Apple Developer Program;
+- аккаунт Apple Developer Program;
 - APNs-ключ и настройки push для iOS;
-- финальные package/bundle ID и Firebase-приложения под них.
+- Firebase-приложение под финальный `ru.lastcall.app` (Google Play Console уже
+  зарегистрирован, package ID закреплён).
 
 ## Что уже готово в репозитории
 
@@ -28,9 +35,16 @@ apkanalyzer/aapt2/apksigner. `node`, `java`, `keytool` добавлены в
   (профиль, push-согласия, ключ, контакты и история).
 - Политика конфиденциальности: `docs/PRIVACY-RU.md` и публичная страница
   https://p2p.lienad.ru/privacy.html.
+- Правила сообщества: https://p2p.lienad.ru/community.html;
+  условия использования: https://p2p.lienad.ru/terms.html. Условия принимаются
+  обязательной галочкой до регистрации.
+- Блокировка контактов/участников групп и жалоба через меню «Безопасность» в
+  каждом чате; жалобы хранятся на сервере как метаданные (без содержимого
+  переписки), идентификатор заявителя обезличивается при удалении аккаунта.
 - Иконки для магазинов: `store/icon-512.png`, `store/icon-1024.png`,
   feature graphic: `store/feature-graphic.png`.
-- Черновик описания: `store/listing-ru.md`.
+- Черновики описаний: `store/listing-en.md`, `store/listing-ru.md`; ответы для
+  Play Console и Data safety: `store/PLAY-CONSOLE.md`.
 
 ## Android: Google Play
 
@@ -60,9 +74,9 @@ apkanalyzer/aapt2/apksigner. `node`, `java`, `keytool` добавлены в
    export LASTCALL_DISTRIBUTION=store
    export LASTCALL_ANDROID_PACKAGE=ru.lastcall.app
    export LASTCALL_IOS_BUNDLE_ID=ru.lastcall.app
-   export LASTCALL_RELEASE_KEYSTORE="$HOME/.config/lastcall/keystores/upload.jks"
+   export LASTCALL_RELEASE_KEYSTORE="$HOME/.config/lastcall/keystores/lastcall-upload.jks"
    export LASTCALL_KEYSTORE_PASSWORD='...'
-   export LASTCALL_KEY_ALIAS=upload
+   export LASTCALL_KEY_ALIAS=lastcall-upload
    export LASTCALL_KEY_PASSWORD='...'
    export MESSENGER_GOOGLE_SERVICES_FILE="$HOME/.config/lastcall/google-services.json"
    npx expo prebuild --platform android --no-install
@@ -89,6 +103,13 @@ apkanalyzer/aapt2/apksigner. `node`, `java`, `keytool` добавлены в
    должно; `POST_NOTIFICATIONS`, `CAMERA`, `RECORD_AUDIO`, интернет — ожидаемы.
 7. Загрузите AAB во внутренний тест, проверьте установку/обновление из Play,
    затем promoted testing → production. Публикация не автоматизирована.
+   Для **личного** аккаунта Play, созданного после 13.11.2023, перед production
+   нужен closed testing с не менее 12 тестировщиками, принявшими приглашение,
+   в течение 14 непрерывных дней. Для организации это правило не действует;
+   тип аккаунта нужно подтвердить в Play Console.
+8. Проверьте, что сервер обновлён до сборки с обработкой жалоб (`report` /
+   `report-received`). Без этого кнопка жалобы в store-клиенте получит ошибку;
+   блокировка работает локально и от сервера не зависит.
 
 ## iOS: App Store
 

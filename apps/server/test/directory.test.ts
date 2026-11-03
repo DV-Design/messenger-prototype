@@ -260,6 +260,23 @@ describe('immutable installation registration and directory synchronization', ()
     expect((await stale.listUsers()).users.find(user => user.userId === identity.userId)?.username).toBe('reader');
   });
 
+  it('stores authenticated UGC reports as metadata and anonymizes the reporter on account deletion', async () => {
+    const path = mkdtempSync(join(tmpdir(), 'lastcall-reports-')); tempDirs.push(path); const directoryDbPath = join(path, 'directory.sqlite');
+    const { url } = await start({ directoryDbPath });
+    const a = await authenticated(url, 'alice'), b = await authenticated(url, 'bob');
+    a.client.send({ type: 'report', requestId: requestId(), targetId: b.identity.userId, targetKind: 'user', reason: 'spam', details: 'bulk advertising' });
+    expect(await a.client.next('report-received')).toMatchObject({ type: 'report-received' });
+    const db = new DatabaseSync(directoryDbPath);
+    try {
+      expect(db.prepare('SELECT reporter_id, target_id, target_kind, reason, details, status FROM moderation_reports').get()).toEqual({ reporter_id: a.identity.userId, target_id: b.identity.userId, target_kind: 'user', reason: 'spam', details: 'bulk advertising', status: 'new' });
+      a.client.send({ type: 'report', requestId: requestId(), targetId: a.identity.userId, targetKind: 'user', reason: 'other' });
+      expect(await a.client.next('error')).toMatchObject({ code: 'invalid-target' });
+      a.client.send({ type: 'delete-account', requestId: requestId() });
+      expect(await a.client.next('account-deleted')).toMatchObject({ type: 'account-deleted' });
+      expect(db.prepare('SELECT reporter_id FROM moderation_reports').get()).toEqual({ reporter_id: 'deleted' });
+    } finally { db.close(); }
+  });
+
   it('folds Russian and compatibility names while keeping SQL wildcards literal and 48-character queries valid', async () => {
     const { url } = await start();
     const reader = await authenticated(url, 'reader'); const name = new Client(url);

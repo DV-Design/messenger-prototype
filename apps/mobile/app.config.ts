@@ -12,7 +12,7 @@ const config: ExpoConfig = {
   name: 'LastCall',
   slug: 'messenger-prototype',
   icon: './assets/lastcall-icon.png',
-  version: '1.0.7',
+  version: '1.0.8',
   scheme: 'messenger-preview',
   orientation: 'default',
   userInterfaceStyle: 'light',
@@ -21,7 +21,7 @@ const config: ExpoConfig = {
   ios: {
     supportsTablet: true,
     bundleIdentifier: iosBundleIdentifier,
-    buildNumber: '21',
+    buildNumber: '22',
     infoPlist: {
       // Local-network HTTP is only for an explicitly configured development server.
       NSAppTransportSecurity: process.env.MESSENGER_ALLOW_LOCAL_HTTP === '1'
@@ -33,7 +33,7 @@ const config: ExpoConfig = {
   },
   android: {
     package: androidPackage,
-    versionCode: 21,
+    versionCode: 22,
     allowBackup: false,
     adaptiveIcon: { foregroundImage: './assets/lastcall-icon.png', backgroundColor: '#FFFFFF' },
     ...(googleServicesFile ? { googleServicesFile } : {}),
@@ -44,6 +44,7 @@ const config: ExpoConfig = {
   },
   extra: { nativeFcmConfigured: !!googleServicesFile, distribution, directUpdates: distribution === 'direct' },
   plugins: [
+    './plugins/withLastCallNamespace.cjs',
     ['expo-localization', { supportedLocales: { ios: ['en', 'ru'], android: ['en', 'ru'] } }],
     './plugins/withLastCallPip.cjs',
     'expo-router',

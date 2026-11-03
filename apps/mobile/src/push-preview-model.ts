@@ -104,10 +104,11 @@ export class IncomingMessageTracker {
   next(snapshot: MessengerSnapshot): { kind: 'message' | 'file'; conversationId: string; senderId: string; messageId: string; text: string; displayName: string }[] {
     const result: ReturnType<IncomingMessageTracker['next']> = [];
     const current = new Set<string>();
+    const blocked = new Set(snapshot.blockedContacts);
     for (const conversation of snapshot.conversations) for (const message of conversation.messages) {
       if (message.status !== 'received') continue;
       const key = notificationIdentity('', message.from, conversation.id, message.id); current.add(key);
-      if (this.online && !this.seen.has(key)) {
+      if (this.online && !this.seen.has(key) && !blocked.has(message.from)) {
         const sender = snapshot.contacts.find(contact => contact.userId === message.from);
         if (sender && conversation.memberIds.includes(sender.userId)) result.push({ kind: 'message', conversationId: conversation.id, senderId: sender.userId, messageId: message.id, text: message.text, displayName: sender.displayName });
       }
@@ -115,7 +116,7 @@ export class IncomingMessageTracker {
     for (const conversation of snapshot.conversations) for (const file of conversation.files) {
       if (file.deliveryStatus !== 'received' || file.status !== 'complete' || !file.blobKey) continue;
       const key = notificationIdentity('', file.senderId, conversation.id, file.id, 'file'); current.add(key);
-      if (this.online && !this.seen.has(key)) {
+      if (this.online && !this.seen.has(key) && !blocked.has(file.senderId)) {
         const sender = snapshot.contacts.find(contact => contact.userId === file.senderId);
         if (sender && conversation.memberIds.includes(sender.userId)) result.push({ kind: 'file', conversationId: conversation.id, senderId: sender.userId, messageId: file.id, text: t('File: {name}', { name: file.name }), displayName: sender.displayName });
       }

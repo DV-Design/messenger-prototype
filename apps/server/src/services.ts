@@ -51,6 +51,18 @@ export class DirectoryServices {
       CREATE TABLE IF NOT EXISTS sms_last_attempt (scope TEXT NOT NULL, quota_key TEXT NOT NULL, attempted_at INTEGER NOT NULL, PRIMARY KEY(scope, quota_key)) STRICT;
       CREATE TABLE IF NOT EXISTS wake_last_attempt (recipient_id TEXT PRIMARY KEY, attempted_at INTEGER NOT NULL) STRICT;
       CREATE TABLE IF NOT EXISTS wake_call_last_attempt (recipient_id TEXT PRIMARY KEY, attempted_at INTEGER NOT NULL) STRICT;
+      CREATE TABLE IF NOT EXISTS moderation_reports (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        created_at INTEGER NOT NULL,
+        reporter_id TEXT NOT NULL,
+        target_id TEXT NOT NULL,
+        target_kind TEXT NOT NULL CHECK(target_kind IN ('user','group')),
+        conversation_id TEXT,
+        reason TEXT NOT NULL CHECK(reason IN ('spam','harassment','illegal','other')),
+        details TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'new' CHECK(status IN ('new','reviewed','actioned','dismissed'))
+      ) STRICT;
+      CREATE INDEX IF NOT EXISTS moderation_reports_status ON moderation_reports(status, created_at);
     `);
     // Existing 0.3-0.5 token rows default to the original visible notification path.
     const columns=this.db.prepare('PRAGMA table_info(push_tokens)').all() as Array<{name:string}>;
@@ -69,7 +81,18 @@ export class DirectoryServices {
       this.db.prepare('DELETE FROM wake_call_last_attempt WHERE recipient_id = ?').run(userId);
       this.db.prepare('DELETE FROM service_quotas WHERE quota_key = ?').run(userId);
       this.db.prepare('DELETE FROM sms_last_attempt WHERE quota_key = ?').run(userId);
+      // Reports are moderation records; remove the reporter identity but keep the complaint.
+      this.db.prepare("UPDATE moderation_reports SET reporter_id = 'deleted' WHERE reporter_id = ?").run(userId);
     });
+  }
+  /** Stores report metadata only; message content never reaches this table. */
+  fileReport(reporterId: string, targetId: string, targetKind: 'user' | 'group', conversationId: string | undefined, reason: 'spam' | 'harassment' | 'illegal' | 'other', details: string | undefined) {
+    this.checkOpen();
+    if (targetId === reporterId) throw new ServiceError('invalid-target', 'Cannot report yourself');
+    if (targetKind === 'user' && !this.lookup(targetId)) throw new ServiceError('invalid-target', 'Reported user was not found');
+    this.reserve([{ scope: 'moderation-report', key: reporterId, limit: 20 }]);
+    this.db.prepare('INSERT INTO moderation_reports (created_at, reporter_id, target_id, target_kind, conversation_id, reason, details) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(this.now(), reporterId, targetId, targetKind, conversationId ?? null, reason, details ?? '');
   }
   capabilities(userId: string,callInviteV1=false): ServiceCapabilities {
     return { ...(callInviteV1?{callInviteV1:true,serverEpoch:this.calls.epoch}:{}),phoneVerification: Boolean(this.options.smsProvider && this.secret), push: Boolean(this.options.pushProvider), relay: this.ice().some(server => (Array.isArray(server.urls) ? server.urls : [server.urls]).some(url => /^turns?:/.test(url))), phoneVerified: Boolean(this.options.enableLegacyPhoneServices && this.verified(userId)) };

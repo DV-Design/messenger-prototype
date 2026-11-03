@@ -128,6 +128,11 @@ export class Directory {
         ws.close(1000, 'Account deleted');
         return;
       }
+      if (frame.type === 'report') {
+        this.services.fileReport(connection.userId, frame.targetId, frame.targetKind, frame.conversationId, frame.reason, frame.details);
+        this.options.send(ws, { type: 'report-received', requestId: frame.requestId });
+        return;
+      }
       if (frame.type === 'list-users') {
         const rows = this.db.prepare('SELECT * FROM directory_users WHERE username > ? ORDER BY username LIMIT 101').all(frame.cursor ?? '') as ProfileRow[];
         const page = rows.slice(0, 100);

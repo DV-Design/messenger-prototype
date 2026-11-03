@@ -11,7 +11,10 @@ import { intlLocale, t } from '../../i18n';
 export default function Chats() {
   const { snapshot, identity } = useMessenger();
   const [query, setQuery] = useState('');
-  const conversations = [...snapshot.conversations].sort((a, b) => b.updatedAt - a.updatedAt).filter(item => item.title.toLocaleLowerCase(intlLocale).includes(query.toLocaleLowerCase(intlLocale)));
+  const blocked = new Set(snapshot.blockedContacts);
+  const conversations = [...snapshot.conversations].sort((a, b) => b.updatedAt - a.updatedAt)
+    .filter(item => item.kind === 'group' || !item.memberIds.some(id => id !== identity?.userId && blocked.has(id)))
+    .filter(item => item.title.toLocaleLowerCase(intlLocale).includes(query.toLocaleLowerCase(intlLocale)));
   return <SafeAreaView style={styles.whiteScreen} edges={['top']}>
     <ScreenHeader title={t('Chats')} subtitle={snapshot.status === 'online' ? undefined : snapshot.status === 'connecting' ? t('Connecting…') : t('Waiting for network…')} action={<IconButton name="create-outline" label={t('New chat')} onPress={() => router.push('/(tabs)/contacts')} />} />
     <View style={styles.search}><Icon name="search" color={colors.secondary} size={19} /><TextInput style={styles.searchInput} placeholder={t('Search')} placeholderTextColor={colors.secondary} value={query} onChangeText={setQuery} accessibilityLabel={t('Search chats')} /></View>
@@ -19,7 +22,7 @@ export default function Chats() {
       ListEmptyComponent={<Empty icon="chatbubbles-outline" title={query ? t('Nothing found') : t('Your conversations')} text={query ? t('Try another chat name.') : t('Find a friend by @username and start a conversation.')} />}
       renderItem={({ item }) => {
         const peer = snapshot.contacts.find(contact => item.memberIds.includes(contact.userId) && contact.userId !== identity?.userId);
-        const latest = chatTimeline(item.messages, item.files).at(-1);
+        const latest = chatTimeline(item.messages.filter(message => !blocked.has(message.from)), item.files.filter(file => !blocked.has(file.senderId))).at(-1);
         const message = latest?.kind === 'message' ? latest.item : undefined;
         const file = latest?.kind === 'attachment' ? latest.item : undefined;
         const kind = file && mediaKind(file.name, file.mime);

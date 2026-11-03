@@ -9,7 +9,7 @@ import { DEFAULT_SERVER, deleteLocalAccount, loadIdentity, loadExistingIdentity,
 import { monitorNetworkRecovery, shouldForceNetworkResume } from './network-recovery';
 import { SharedWakeRuntime, type WakeLease } from './wake-model';
 
-const empty: MessengerSnapshot = { status: 'idle', contacts: [], conversations: [], verifiedContacts: [] };
+const empty: MessengerSnapshot = { status: 'idle', contacts: [], conversations: [], verifiedContacts: [], blockedContacts: [] };
 type Runtime = { ready: boolean; busy: boolean; registration: 'checking' | 'unregistered' | 'unavailable' | 'bound'; profile: LocalProfile | null; identity?: DeviceIdentity; snapshot: MessengerSnapshot; error?: string };
 let state: Runtime = { ready: false, busy: false, registration: 'checking', profile: null, snapshot: empty };
 const listeners = new Set<() => void>();

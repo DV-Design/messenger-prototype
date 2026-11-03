@@ -57,7 +57,7 @@ test('new capability needs native preparation and registered background task; de
 function fixture(now = Date.now()) {
   const events: string[] = [];
   const pending: PendingIncomingCall = { callerId: alice.userId, callId, conversationId, video: false, issuedAt: now, expiresAt: now + 30000, serverEpoch: epoch, state: 'ringing', revision: 1 };
-  let snapshot: MessengerSnapshot = { status: 'offline', contacts: [], conversations: [], verifiedContacts: [], self: { ...bob, username: 'bob', displayName: 'Bob', online: false, lastSeen: 0 } };
+  let snapshot: MessengerSnapshot = { status: 'offline', contacts: [], conversations: [], verifiedContacts: [], blockedContacts: [], self: { ...bob, username: 'bob', displayName: 'Bob', online: false, lastSeen: 0 } };
   const manager = {
     getSnapshot: () => snapshot,
     connect: async () => { events.push('directory'); },
