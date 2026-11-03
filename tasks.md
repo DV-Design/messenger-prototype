@@ -1,10 +1,21 @@
-# LastCall 1.0.6 / code20: camera-switch candidate (published)
+# LastCall 1.0.7 / code21: segmented circle camera switch (published)
 
-Status: test candidate. CameraX 1.7.0-rc01 and pause/resume around the persistent-recording rebind target the Vivo X200 Ultra stop-on-switch bug. Verification on the affected device is pending.
+Status: test candidate. Segment recording plus a local Media3 merge replaces reliance on one persistent CameraX recording surviving a lens rebind. Verification on the affected Vivo X200 Ultra is pending.
+
+- [X] Record a separate circle segment around each lens switch and merge them into one MP4
+  → Artifacts: [composer](apps/mobile/src/components/MediaComposer.tsx), [merge wrapper](apps/mobile/src/video-merge.ts), [native module](apps/mobile/modules/lastcall-video/)
+- [X] Verify native merge on an Android API36 emulator with differently sized H.264/AAC clips
+  → Artifacts: [instrumentation test](apps/mobile/modules/lastcall-video/android/src/androidTest/java/ru/lastcall/video/CircleMergerTest.kt)
+- [X] Publish test candidate 1.0.7/code21
+  → Artifacts: [APK](https://p2p.lienad.ru/download/LastCall-1.0.7.apk), 54,155,814 bytes, SHA256 `c771d655edbaa0373848ae5d45d83f755baa520e9976d286186bbfab9bebe3b1`
+
+# LastCall 1.0.6 / code20: camera-switch candidate (published, superseded)
+
+Status: superseded by 1.0.7. CameraX 1.7.0-rc01, pause/resume and rebind without an explicit `unbindAll` still stopped on the affected device.
 
 - [X] Add CameraX 1.7.0-rc01 force-resolution and pause/resume persistent recording around rebind
   → Artifacts: [patch](apps/mobile/patches/expo-camera+58.0.14+persistent-circle-camera.patch), [plugin](apps/mobile/plugins/withPersistentCircleCamera.cjs), [JS guard](apps/mobile/src/components/MediaComposer.tsx)
-- [X] Publish test candidate 1.0.5/code19
+- [X] Publish test candidate 1.0.6/code20
   → Artifacts: [APK](https://p2p.lienad.ru/download/LastCall-1.0.6.apk), 54,017,237 bytes, SHA256 `d9bdd0f02ac3b38cc710ed140ac1a9a72e8245331ea53c3e896cb4a582191450`
 
 # LastCall 1.0.4 / code18: English-primary localization (published)

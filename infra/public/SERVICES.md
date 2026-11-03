@@ -1,10 +1,10 @@
 # Optional FCM and authenticated ICE configuration
 
-## 1.0.6/code20 camera-fix candidate
+## 1.0.7/code21 camera-fix candidate
 
-Client-only release. Download: `download/LastCall-1.0.6.apk` at
-https://p2p.lienad.ru and https://lienad.ru/messenger/download/LastCall-1.0.6.apk
-(54,017,237 bytes, SHA256 `d9bdd0f02ac3b38cc710ed140ac1a9a72e8245331ea53c3e896cb4a582191450`). Versioned 1.0.4, 1.0.3 and 1.0.2 remain available
+Client-only release. Download: `download/LastCall-1.0.7.apk` at
+https://p2p.lienad.ru and https://lienad.ru/messenger/download/LastCall-1.0.7.apk
+(54,155,814 bytes, SHA256 `c771d655edbaa0373848ae5d45d83f755baa520e9976d286186bbfab9bebe3b1`). Versioned 1.0.6, 1.0.4, 1.0.3 and 1.0.2 remain available
 for rollback. Independent native acceptance and physical-phone evidence are
 **PENDING** and are not claimed. Client update checks use the static, Ed25519-signed
 `download/latest.json` manifest; no signaling or profile endpoint is involved.
@@ -20,9 +20,10 @@ signaling container is recreated.
 Features: Android 8+ native picture-in-picture for live video (above other apps,
 no overlay permission); active-video controls auto-hide after 5 seconds or on
 tap and return on tap, while call answer controls never auto-hide; front/rear
-camera switch during a call on the same video track; continuous single-file
-Android circle recording with in-recording camera switch while retaining 30s /
-5MiB / cancel / background stop; audio routing that reports the observed output
+camera switch during a call on the same video track; Android circle recording
+that starts a new segment on each lens switch and merges the segments into one
+MP4 locally with Media3 Transformer before preview while retaining 30s / 5MiB /
+cancel / background stop; audio routing that reports the observed output
 and clears stale errors after a late success. Incoming video no longer shows the local camera when a device sends streamless remote tracks. FCM token and background wake registration no longer require notification permission; only previews remain permission-gated. Text, files, voice notes and circles use the mandatory session E2E layer; calls remain SRTP with an identity/call safety code. Server clients behind the configured Caddy proxy are isolated by the forwarded client IP, with IPv6 aggregated to /64. iOS has no PiP and no audio chooser; APNs is
 not configured. Physical Bluetooth/headset and heard-audio acceptance remain on
 phones.

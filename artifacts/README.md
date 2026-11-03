@@ -1,32 +1,33 @@
-# LastCall Android 1.0.6 (camera-fix candidate)
+# LastCall Android 1.0.7 (camera-fix candidate)
 
 Status: **published**. Built and verified locally; independent native acceptance
 on physical phones remains pending and is not claimed.
 
-- Download: https://p2p.lienad.ru/download/LastCall-1.0.6.apk
-- Alternate: https://lienad.ru/messenger/download/LastCall-1.0.6.apk
-- Local: `artifacts/LastCall-1.0.6.apk` (ignored binary)
-- Package `dev.messenger.prototype`, version1.0.6, versionCode20, label LastCall
+- Download: https://p2p.lienad.ru/download/LastCall-1.0.7.apk
+- Alternate: https://lienad.ru/messenger/download/LastCall-1.0.7.apk
+- Local: `artifacts/LastCall-1.0.7.apk` (ignored binary)
+- Package `dev.messenger.prototype`, version1.0.7, versionCode21, label LastCall
 - ARM64, Android API24 minimum / target36 / compile37; same existing internal test certificate
-- Size: 54,017,237 bytes
-- SHA256: `d9bdd0f02ac3b38cc710ed140ac1a9a72e8245331ea53c3e896cb4a582191450`
+- Size: 54,155,814 bytes
+- SHA256: `c771d655edbaa0373848ae5d45d83f755baa520e9976d286186bbfab9bebe3b1`
 - Signing certificate SHA256: `fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c` (same existing test certificate)
 
+Android circle recording now records a new segment after each lens switch and
+merges the segments locally into one MP4 with Media3 Transformer, normalizing
+rotation and differing front/back frame sizes. The native merge was exercised on
+an Android API36 emulator with two differently sized H.264/AAC clips.
+
 `npm run build:apk` passed native release assembly, forced JavaScript bundle
-regeneration and packaged `nativeFcmConfigured=true`, version1.0.2/code16 gates.
-This release adds emoji safety/call codes, a recorded-circle preview with
-retake, the CameraX 1.6.2 persistent-recording camera-switch fix, in-app account
-deletion and store-ready build mode, on top of the 1.0.2 E2E content layer,
-signed update-manifest verification, in-app APK download with SHA-256 and
-per-IP proxy-aware server limits. `npm run check` passed 420 unit tests
-(210 core, 133 mobile, 77 server), typecheck, lint (0 errors, one
-pre-existing VoiceNote warning) and Android+iOS JS exports; `npm run test:e2e`
-passed 11 browser tests with 1 authenticated-TURN skip.
+regeneration and packaged `nativeFcmConfigured=true`, version1.0.7/code21 gates.
+`npm run check` passed 420 unit tests (210 core, 133 mobile, 77 server),
+typecheck, lint (0 errors, one pre-existing VoiceNote warning) and Android+iOS
+JS exports; `npm run test:e2e` passed 11 browser tests with 1
+authenticated-TURN skip.
 
 New-profile default server is `https://p2p.lienad.ru`; an existing profile keeps
 its explicitly stored server so contacts/history namespaces do not change.
-Previous 1.0.4/code18, 1.0.3/code17 and 1.0.2/code16 remain available for rollback.
-Both peers must update to 1.0.6 before exchanging content; there is no plaintext
+Previous 1.0.6/code20, 1.0.4/code18, 1.0.3/code17 and 1.0.2/code16 remain available for rollback.
+Both peers must update to 1.0.7 before exchanging content; there is no plaintext
 fallback.
 
 [Phone tasks](../docs/TESTING-RU.md).
