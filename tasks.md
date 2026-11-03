@@ -1,11 +1,11 @@
-# LastCall 1.0.5 / code19: camera-switch candidate (published)
+# LastCall 1.0.6 / code20: camera-switch candidate (published)
 
 Status: test candidate. CameraX 1.7.0-rc01 and pause/resume around the persistent-recording rebind target the Vivo X200 Ultra stop-on-switch bug. Verification on the affected device is pending.
 
 - [X] Add CameraX 1.7.0-rc01 force-resolution and pause/resume persistent recording around rebind
   → Artifacts: [patch](apps/mobile/patches/expo-camera+58.0.14+persistent-circle-camera.patch), [plugin](apps/mobile/plugins/withPersistentCircleCamera.cjs), [JS guard](apps/mobile/src/components/MediaComposer.tsx)
 - [X] Publish test candidate 1.0.5/code19
-  → Artifacts: [APK](https://p2p.lienad.ru/download/LastCall-1.0.5.apk), 54,017,233 bytes, SHA256 `cb7b3e3edc8c04e668d2acf92b556c1e1d8c03bd8d15e3b38fda601105327bee`
+  → Artifacts: [APK](https://p2p.lienad.ru/download/LastCall-1.0.6.apk), 54,017,237 bytes, SHA256 `d9bdd0f02ac3b38cc710ed140ac1a9a72e8245331ea53c3e896cb4a582191450`
 
 # LastCall 1.0.4 / code18: English-primary localization (published)
 

@@ -18,7 +18,7 @@ const RELATIVE_SOURCE = 'android/src/main/java/expo/modules/camera/ExpoCameraVie
 const RELATIVE_BUILD_GRADLE = 'android/build.gradle';
 const PATCH_NAME = 'expo-camera+58.0.14+persistent-circle-camera.patch';
 const ORIGINAL_SHA256 = 'f212cf1f9509e3c52a31fc82bfa8f20f0a29c8266b9ed41b399a626087061abd';
-const PATCHED_SHA256 = '0f5e76a273806d7b993509ce2897115de2d04adabbc37c2d8bd0198eb000288e';
+const PATCHED_SHA256 = 'fbc18b6a0b058741895eea5a1a971f75de06dc14c16135e87bd0c5509add8ec5';
 const CAMERAX_BASELINES = ['1.6.0', '1.6.2'];
 // CameraX 1.7.0-rc01 includes the persistent-recording camera-switch fixes.
 const CAMERAX_TARGET = '1.7.0-rc01';

@@ -1,12 +1,12 @@
 {
   "android": {
-    "version": "1.0.5",
-    "versionCode": 19,
-    "url": "https://p2p.lienad.ru/download/LastCall-1.0.5.apk",
-    "alternateUrl": "https://lienad.ru/messenger/download/LastCall-1.0.5.apk",
-    "sha256": "cb7b3e3edc8c04e668d2acf92b556c1e1d8c03bd8d15e3b38fda601105327bee",
-    "notes": "Кандидат исправления смены камеры в видеокружке: CameraX 1.7.0-rc01 и pause/resume persistent recording."
+    "version": "1.0.6",
+    "versionCode": 20,
+    "url": "https://p2p.lienad.ru/download/LastCall-1.0.6.apk",
+    "alternateUrl": "https://lienad.ru/messenger/download/LastCall-1.0.6.apk",
+    "sha256": "d9bdd0f02ac3b38cc710ed140ac1a9a72e8245331ea53c3e896cb4a582191450",
+    "notes": "Кандидат смены камеры в кружке: CameraX 1.7, pause/resume и rebind без явного unbindAll при активной записи."
   },
-  "publishedAt": "2026-11-03T11:33:35Z",
-  "signature": "6dc29cef61872f5a91de8370150bfe454f8d6fdf8e1bfa712a20b1d7d88f38eec7d347df44d4883b3b63c707b259f4752f1840946e8bd7ac698d13d7c8698e0b"
+  "publishedAt": "2026-11-03T11:43:10Z",
+  "signature": "ccb2af82ef7d639ed4bb45143df09945f80d55e06a3b85fdcfddab07c5b03637b2a00ddd1cd5155bbc471e070a9af4739116428de44edc6815390fbff865e500"
 }

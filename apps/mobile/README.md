@@ -1,9 +1,9 @@
 # LastCall · Android и iOS
 
-Тестовый кандидат **1.0.5 / Android versionCode 19**:
-[APK 1.0.5](https://p2p.lienad.ru/download/LastCall-1.0.5.apk),
-[резерв](https://lienad.ru/messenger/download/LastCall-1.0.5.apk).
-Файл: 54 017 233 байт, SHA256 `cb7b3e3edc8c04e668d2acf92b556c1e1d8c03bd8d15e3b38fda601105327bee`.
+Тестовый кандидат **1.0.6 / Android versionCode 20**:
+[APK 1.0.5](https://p2p.lienad.ru/download/LastCall-1.0.6.apk),
+[резерв](https://lienad.ru/messenger/download/LastCall-1.0.6.apk).
+Файл: 54 017 237 байт, SHA256 `d9bdd0f02ac3b38cc710ed140ac1a9a72e8245331ea53c3e896cb4a582191450`.
 Прежняя [1.0.3](https://p2p.lienad.ru/download/LastCall-1.0.3.apk),
 [1.0.2](https://p2p.lienad.ru/download/LastCall-1.0.2.apk) и
 [0.7.2](https://lienad.ru/messenger/download/LastCall-0.7.2.apk) остаются
@@ -17,9 +17,9 @@ Package ID `dev.messenger.prototype`, ключ подписи и обновле�
 версии без удаления данных сохраняются. Это тестовый выпуск с прежним тестовым
 сертификатом; независимая нативная приёмка на физических телефонах продолжается.
 
-## Изменения 1.0.5
+## Изменения 1.0.6
 
-- Кандидат исправления обрыва записи кружка при переключении камеры: CameraX 1.7.0-rc01, pause/resume persistent recording перед rebind и запрет аварийной остановки JS при временной ошибке mount. Проверка на Vivo X200 Ultra ожидается.
+- Кандидат исправления обрыва записи кружка при переключении камеры: CameraX 1.7.0-rc01, pause/resume persistent recording и rebind без явного `unbindAll` при активной записи; JS не завершает запись при временной ошибке mount. Проверка на Vivo X200 Ultra ожидается.
 
 - Английский интерфейс по умолчанию; русский выбирается, если основной язык телефона — русский. Локализованы экраны, ошибки, JS-уведомления и нативные строки звонка/уведомлений Android.
 - iOS/Android permission strings получили английские значения по умолчанию и русские локали.
