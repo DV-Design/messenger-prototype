@@ -65,8 +65,8 @@ Then verify inside
 - `base/manifest/AndroidManifest.xml`: no `REQUEST_INSTALL_PACKAGES`.
 - `base/resources/.../google_app_id` (or the packaged google-services resource)
   exists.
-- The AAB is signed by the upload key certificate
-  `fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c`.
+- The AAB is signed by the upload key certificate `CN=LastCall Upload`,
+  SHA256 `ad52a7b387b27104a2055cce8823df51421a1a331d7d34c2533177e6dec24781`.
 
 Do not upload an AAB with `nativeFcmConfigured=false`; push, including incoming
 call invitations, will not work in the store package.

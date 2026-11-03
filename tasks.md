@@ -8,8 +8,8 @@ Status: store preparation. 1.0.7 camera fix confirmed on Vivo X200 Ultra. 1.0.8 
   → Artifacts: [server](apps/server/src/services.ts), [server handler](apps/server/src/directory.ts), [guidelines](infra/public/community.html), [terms](infra/public/terms.html)
 - [X] Build store AAB `ru.lastcall.app` 1.0.8/code22 with upload key and fixed namespace
   → Artifacts: [namespace plugin](apps/mobile/plugins/withLastCallNamespace.cjs), [store guide](store/PLAY-CONSOLE.md)
-- [ ] Add Firebase Android app `ru.lastcall.app`, rebuild final AAB with FCM
-  → Blocked on Firebase Console app creation (`store/FIREBASE-SETUP.md`)
+- [X] Add Firebase Android app `ru.lastcall.app`, rebuild final AAB with FCM
+  → Artifacts: [AAB](artifacts/README.md), 41,617,435 bytes, SHA256 `436b90a56289e6070f6d88a99b2a7187ec8dcd42351a641385b29bdedd8c635f`
 - [X] Capture English/Russian emulator screenshots at 1080×1920 from store build
   → Artifacts: [en](store/screenshots/en/), [ru](store/screenshots/ru/)
 - [ ] Upload to Play Console internal testing and complete Data safety/content rating

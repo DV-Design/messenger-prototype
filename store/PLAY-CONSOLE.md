@@ -4,6 +4,13 @@ Use with `store/listing-en.md` and `store/listing-ru.md`. Values are drafts for 
 1.0.8 store build (`ru.lastcall.app`, versionCode 22); legal review is still
 required. Nothing here has been submitted.
 
+Final AAB: 41,617,435 bytes, SHA256
+`436b90a56289e6070f6d88a99b2a7187ec8dcd42351a641385b29bdedd8c635f`,
+upload certificate SHA256
+`ad52a7b387b27104a2055cce8823df51421a1a331d7d34c2533177e6dec24781`.
+Firebase Android app `LastCall Play` is registered; the client config is outside
+the repository at `~/.config/lastcall/google-services-play.json`.
+
 ## App identity
 
 - Package: `ru.lastcall.app`

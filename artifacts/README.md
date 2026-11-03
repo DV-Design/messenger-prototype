@@ -1,3 +1,19 @@
+# LastCall 1.0.8 Google Play AAB (ready for internal testing)
+
+Built with `npm run build:aab`, store distribution, Firebase client for
+`ru.lastcall.app`, and the LastCall upload key. Not uploaded to Play yet.
+
+- Local: `artifacts/LastCall-1.0.8-store.aab` (ignored binary)
+- Package `ru.lastcall.app`, version1.0.8, versionCode22
+- Size: 41,617,435 bytes
+- SHA256: `436b90a56289e6070f6d88a99b2a7187ec8dcd42351a641385b29bdedd8c635f`
+- Upload certificate: `CN=LastCall Upload, O=LastCall, C=RU`
+  SHA256 `ad52a7b387b27104a2055cce8823df51421a1a331d7d34c2533177e6dec24781`
+- Packaged `nativeFcmConfigured=true`, `distribution=store`,
+  `directUpdates=false`; `REQUEST_INSTALL_PACKAGES` absent.
+
+---
+
 # LastCall Android 1.0.7 (camera-fix candidate)
 
 Status: **published**. Built and verified locally; independent native acceptance
