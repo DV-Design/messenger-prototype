@@ -1,3 +1,4 @@
+import { t } from './i18n';
 import type { MediaStreamTrack } from 'react-native-webrtc';
 
 export type CallCameraTrack = Pick<MediaStreamTrack, 'remote' | 'kind' | 'readyState' | 'getSettings' | 'getConstraints' | 'applyConstraints'>;
@@ -35,7 +36,7 @@ export class CallCameraController {
       if (actual !== desired) throw new Error('Camera did not switch');
       this.update({ available: true, busy: false, facing: actual });
     } catch {
-      if (generation === this.generation) this.update({ available: track.readyState === 'live', busy: false, facing: facing(track), error: 'Не удалось переключить камеру. Попробуйте ещё раз.' });
+      if (generation === this.generation) this.update({ available: track.readyState === 'live', busy: false, facing: facing(track), error: t('Could not switch the camera. Try again.') });
     }
   }
   dispose() { this.generation++; this.track = undefined; this.callId = ''; }

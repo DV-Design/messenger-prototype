@@ -6,7 +6,8 @@ import { prepareMessagePreviews } from '../push-previews';
 import { ensureBackgroundNotifications } from '../background-notifications';
 import { prepareCallInvitePush } from '../system-calls';
 import { callInviteCapability } from '../call-push-model';
-let status = pushConfigured ? 'Ожидаем подключения к серверу' : pushUnavailable;
+import { t } from '../i18n';
+let status = pushConfigured ? t('Waiting for the server connection') : pushUnavailable;
 const listeners = new Set<() => void>();
 const publish = (value: string) => { status = value; listeners.forEach(listener => listener()); };
 export const usePushStatus = () => useSyncExternalStore(listener => { listeners.add(listener); return () => { listeners.delete(listener); }; }, () => status);
@@ -19,17 +20,17 @@ export function PushBridge() {
     let rotatedToken: string | undefined;
     async function register() {
       if (running || !active) return;
-      if (client().getSnapshot().status !== 'online') { publish('Ожидаем подключения к серверу'); return; }
+      if (client().getSnapshot().status !== 'online') { publish(t('Waiting for the server connection')); return; }
       running = true;
       const current = client();
       let success = false;
       try {
         const services = await current.getServices();
         if (!active || current !== client()) return;
-        if (!services.push) { publish('Уведомления не настроены на сервере'); return; }
+        if (!services.push) { publish(t('Notifications are not configured on the server')); return; }
         const token = rotatedToken ?? await nativePushToken();
         if (!active || current !== client()) return;
-        if (!token) { publish('Не удалось получить FCM-токен. Проверьте Firebase и Google Play Services.'); return; }
+        if (!token) { publish(t('Could not get the FCM token. Check Firebase and Google Play Services.')); return; }
         const backgroundSync = await ensureBackgroundNotifications();
         if (!active || current !== client()) return;
         const notificationsAllowed = (await Notifications.getPermissionsAsync()).granted;
@@ -41,10 +42,10 @@ export function PushBridge() {
         if (active) {
           if (rotatedToken === token) rotatedToken = undefined;
           publish(notificationsAllowed
-            ? 'FCM зарегистрирован. Реальная доставка зависит от сети и Android.'
-            : 'Фоновые сообщения включены. Уведомления отключены в доступах приложения.');
+            ? t('FCM registered. Actual delivery depends on the network and Android.')
+            : t('Background messages are enabled. Notifications are disabled in app permissions.'));
         }
-      } catch { if (active) publish('Не удалось зарегистрировать FCM. Проверьте сеть, Firebase и Google Play Services.'); }
+      } catch { if (active) publish(t('Could not register FCM. Check the network, Firebase and Google Play Services.')); }
       finally { running = false; if (active && success && rotatedToken) { const retryToken = rotatedToken; rotatedToken = undefined; queueMicrotask(() => { rotatedToken = retryToken; void register(); }); } }
     }
     const stopWake = listenForWake(() => { void reconnect().then(register); }, token => { rotatedToken = token; void register(); });

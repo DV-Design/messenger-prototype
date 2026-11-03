@@ -1,17 +1,19 @@
+import { t } from './i18n';
+
 type Delivery = { status?: string; deliveryStatus?: string; recipientIds?: string[]; deliveredTo?: string[]; readBy?: string[] };
 
 /** Only authenticated recipient receipts count; transport send success does not. */
 export function deliveryLabel(item: Delivery, group: boolean): string {
   const status = item.deliveryStatus ?? item.status;
-  if (status === 'expired') return 'Не доставлено за 7 дней';
-  if (status === 'received') return 'Получено';
+  if (status === 'expired') return t('Not delivered within 7 days');
+  if (status === 'received') return t('Received');
   const recipients = [...new Set(item.recipientIds ?? [])];
   const delivered = recipients.filter(id => item.deliveredTo?.includes(id)).length;
   const read = recipients.filter(id => item.readBy?.includes(id)).length;
-  if (group && recipients.length) return `Доставлено ${delivered} из ${recipients.length} · Прочитано ${read} из ${recipients.length}`;
-  if (deliveryStage(item) === 'read') return 'Прочитано';
-  if (status === 'delivered') return 'Доставлено';
-  return status === 'sent' ? 'Ожидает подтверждения' : 'Ожидает доставки · до 7 дней';
+  if (group && recipients.length) return t('Delivered {delivered} of {total} · Read {read} of {total}', { delivered, total: recipients.length, read });
+  if (deliveryStage(item) === 'read') return t('Read');
+  if (status === 'delivered') return t('Delivered');
+  return status === 'sent' ? t('Awaiting confirmation') : t('Awaiting delivery · up to 7 days');
 }
 
 export function waitingForDelivery(item: Delivery): boolean {

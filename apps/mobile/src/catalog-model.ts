@@ -1,3 +1,4 @@
+import { t } from './i18n';
 import type { DirectoryPage, DirectoryUser } from '@messenger/core';
 export const catalogQuery = (query: string) => query.normalize('NFKC').trim().replace(/^@/, '').toLowerCase().slice(0, 48);
 type API = { listUsers(cursor?: string): Promise<DirectoryPage>; search(query: string): Promise<DirectoryUser[]> };
@@ -28,7 +29,7 @@ export class CatalogController {
       const users = new Map((append ? this.state.users : []).map(user => [user.userId, user]));
       for (const user of page.users) if (user.userId !== this.ownId) users.set(user.userId, user);
       this.publish({ users: [...users.values()], nextCursor: 'nextCursor' in page ? page.nextCursor : undefined, updatedAt: Date.now() });
-    } catch { if (epoch === this.generation) this.publish({ error: 'Не удалось обновить каталог. Проверьте соединение с сервером.' }); }
+    } catch { if (epoch === this.generation) this.publish({ error: t('Could not refresh the directory. Check the server connection.') }); }
     finally { if (epoch === this.generation) this.publish({ busy: false }); }
   }
 }

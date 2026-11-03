@@ -1,3 +1,4 @@
+import { t } from './i18n';
 import { useEffect, useSyncExternalStore } from 'react';
 import { AppState } from 'react-native';
 import * as Network from 'expo-network';
@@ -21,21 +22,21 @@ let profiles = new CanonicalProfileStore(saveProfile);
 let networkRecovery: ReturnType<typeof monitorNetworkRecovery> | undefined;
 let resumeSubscription: ReturnType<typeof AppState.addEventListener> | undefined;
 const publish = (update: Partial<Runtime>) => { state = { ...state, ...update }; listeners.forEach(listener => listener()); };
-export const errorText = (error: unknown) => error instanceof Error ? error.message : 'Не удалось выполнить действие. Попробуйте ещё раз.';
+export const errorText = (error: unknown) => error instanceof Error ? error.message : t('Could not complete the action. Try again.');
 function canonicalProfile(serverUrl: string, user: DirectoryUser): LocalProfile {
-  if (user.userId !== state.identity?.userId) throw new Error('Сервер вернул другой ключ устройства.');
+  if (user.userId !== state.identity?.userId) throw new Error(t('The server returned a different device key.'));
   return { serverUrl, username: user.username, displayName: user.displayName };
 }
 function acceptCanonical(serverUrl: string, user: DirectoryUser) {
   const profile = canonicalProfile(serverUrl, user);
   if (!state.profile || profileSignature(state.profile) !== profileSignature(profile)) {
     publish({ profile, registration: 'bound' });
-    void profiles.remember(profile).catch(() => publish({ error: 'Профиль подтверждён сервером, но не сохранён на устройстве. Повторите подключение. Ключ и история сохранены.' }));
+    void profiles.remember(profile).catch(() => publish({ error: t('The server confirmed the profile but it was not saved on this device. Reconnect. The key and history are preserved.') }));
   }
   return profile;
 }
 async function buildManager(profile: LocalProfile, signal?: AbortSignal): Promise<MessengerClient> {
-  if (!state.identity) throw new Error('Ключ устройства ещё не загружен.');
+  if (!state.identity) throw new Error(t('The device key is not loaded yet.'));
   const persistence = await sealedStateAdapter(state.identity, profile.serverUrl);
   if (signal?.aborted) throw new Error('Wake expired');
   const current = ++generation;
@@ -161,7 +162,7 @@ export function useMessenger() {
 }
 export function client(): MessengerClient {
   const manager = managers.peek();
-  if (!manager) throw new Error('Сначала подтвердите регистрацию на сервере.');
+  if (!manager) throw new Error(t('Confirm registration on the server first.'));
   return manager;
 }
 export async function deleteAccount(): Promise<void> {
@@ -183,15 +184,15 @@ export async function deleteAccount(): Promise<void> {
 export async function registerProfile(displayName: string, username: string): Promise<void> {
   if (state.busy || state.profile || state.registration !== 'unregistered') return;
   const proposed = { displayName: displayName.trim(), username: username.trim().replace(/^@/, '').toLowerCase(), serverUrl: validateServerUrl(DEFAULT_SERVER) };
-  if (!proposed.displayName || proposed.displayName.length > 48) throw new Error('Имя должно содержать от 1 до 48 символов.');
-  if (!/^[a-z0-9_]{3,24}$/.test(proposed.username)) throw new Error('Логин: 3–24 латинские буквы, цифры или _.');
-  if (!state.identity) throw new Error('Ключ устройства ещё не загружен.');
+  if (!proposed.displayName || proposed.displayName.length > 48) throw new Error(t('The name must contain 1–48 characters.'));
+  if (!/^[a-z0-9_]{3,24}$/.test(proposed.username)) throw new Error(t('Username: 3–24 Latin letters, digits or _.'));
+  if (!state.identity) throw new Error(t('The device key is not loaded yet.'));
   const identity = state.identity;
   publish({ busy: true, error: undefined });
   try {
     const profile = await registrationCandidate(proposed, () => resolveDeviceProfile(proposed.serverUrl, identity));
     await connectCanonical(profile);
-    if (!state.profile) throw new Error('Сервер не подтвердил профиль.');
+    if (!state.profile) throw new Error(t('The server did not confirm the profile.'));
     await profiles.remember(state.profile);
   } catch (error) {
     // A connection may have registered the key before its ACK/save was lost.

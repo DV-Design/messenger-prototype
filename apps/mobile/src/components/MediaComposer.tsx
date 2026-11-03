@@ -10,6 +10,7 @@ import { deleteMediaCache, pruneMediaCache, sendRecordedMedia } from '../attachm
 import { createMediaScope, MAX_MEDIA_BYTES, MEDIA_SECONDS, mediaMetadata, mediaPermission, mediaTime, validateMedia, type MediaKind } from '../media-model';
 import { stopMediaPlayback } from '../media-playback';
 import { styles } from '../styles';
+import { t } from '../i18n';
 import { Button, Icon } from './ui';
 import { VoiceNote } from './VoiceNote';
 import { VideoNote } from './VideoNote';
@@ -45,7 +46,7 @@ export function MediaComposer({ kind, conversationId, blocked, onClose }: { kind
   const recorder = useAudioRecorder(VOICE_OPTIONS, status => finishVoice.current(status));
   const cancelled = useRef(false);
   function update(next: Phase) { phaseRef.current = next; if (scope.active) setPhase(next); }
-  function permitted() { scope.assert(); if (blockedRef.current || client() !== current || AppState.currentState !== 'active') throw new Error('Запись прервана. Откройте её снова после звонка.'); }
+  function permitted() { scope.assert(); if (blockedRef.current || client() !== current || AppState.currentState !== 'active') throw new Error(t('Recording interrupted. Open it again after the call.')); }
   function flipCamera() {
     if (kind !== 'circle' || switchingCamera.current) return;
     const currentPhase = phaseRef.current;
@@ -92,7 +93,7 @@ export function MediaComposer({ kind, conversationId, blocked, onClose }: { kind
       discarding.current = true;
       const abandoned = original.current ?? recorder.uri; original.current = abandoned;
       update('stopping');
-      void recorder.stop().catch(() => {}).finally(() => { deleteMediaCache(abandoned); if (scope.active) { setError(status.error || 'Запись прервана системой.'); update('failed'); } void resetAudio(); });
+      void recorder.stop().catch(() => {}).finally(() => { deleteMediaCache(abandoned); if (scope.active) { setError(status.error || t('Recording stopped by the system.')); update('failed'); } void resetAudio(); });
     } else if (status.isFinished && status.url) {
       if (!scope.active) { deleteMediaCache(status.url); return; }
       // stop() and its native status event can both report the same file.
@@ -146,17 +147,17 @@ export function MediaComposer({ kind, conversationId, blocked, onClose }: { kind
         if (!cameraReady) return;
         started.current = Date.now(); setSeconds(0); update('recording');
         const result = await camera.current!.recordAsync({ maxDuration: MEDIA_SECONDS.circle, maxFileSize: MAX_MEDIA_BYTES, ...(Platform.OS === 'ios' ? { codec: 'avc1' as const } : {}) });
-        if (!result?.uri) throw new Error('Камера не сохранила запись.');
+        if (!result?.uri) throw new Error(t('The camera did not save the recording.'));
         if (attempt !== recordingAttempt.current) { deleteMediaCache(result.uri); return; }
         await finish(result.uri, Math.min(MEDIA_SECONDS.circle, (Date.now() - started.current) / 1000));
         return;
       }
       update('preparing');
       const mic = await mediaPermission(() => AudioModule.getRecordingPermissionsAsync(), () => AudioModule.requestRecordingPermissionsAsync(), permitted); permitted();
-      if (!mic.granted) throw new Error('Разрешите микрофон в настройках телефона.');
+      if (!mic.granted) throw new Error(t('Allow microphone access in phone settings.'));
       if (kind === 'circle') {
         const permission = await mediaPermission(() => Camera.getCameraPermissionsAsync(), () => Camera.requestCameraPermissionsAsync(), permitted); permitted();
-        if (!permission.granted) throw new Error('Разрешите камеру в настройках телефона.');
+        if (!permission.granted) throw new Error(t('Allow camera access in phone settings.'));
         setCameraReady(false); update('ready'); return;
       }
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true, shouldPlayInBackground: false, allowsBackgroundRecording: false, interruptionMode: 'doNotMix' }); permitted();
@@ -178,24 +179,24 @@ export function MediaComposer({ kind, conversationId, blocked, onClose }: { kind
     } catch (cause) { if (scope.active) { setError(errorText(cause)); update('preview'); } }
   }
   return <Modal visible animationType="slide" onRequestClose={() => { if (phaseRef.current !== 'sending') cancelRef.current(); }} presentationStyle="pageSheet"><SafeAreaView style={[styles.whiteScreen, { padding: 22, gap: 20, justifyContent: 'center' }]}>
-    <Text style={[styles.title, { textAlign: 'center' }]}>{kind === 'voice' ? 'Голосовое сообщение' : 'Видеокружок'}</Text>
-    <Text style={[styles.info, { textAlign: 'center' }]}>{kind === 'voice' ? 'До 2 минут · запись только на этом экране' : Platform.OS === 'android' ? 'До 30 секунд · камеру можно переключить во время записи' : 'До 30 секунд · камеру можно выбрать до записи'} · до 5 МиБ</Text>
+    <Text style={[styles.title, { textAlign: 'center' }]}>{kind === 'voice' ? t('Voice message') : t('Video circle')}</Text>
+    <Text style={[styles.info, { textAlign: 'center' }]}>{kind === 'voice' ? t('Up to 2 minutes · recording only on this screen') : Platform.OS === 'android' ? t('Up to 30 seconds · you can switch the camera while recording') : t('Up to 30 seconds · choose the camera before recording')} · {t('up to 5 MiB')}</Text>
     <View style={{ minHeight: 250, justifyContent: 'center', alignItems: 'center' }}>
-      {draft && (phase === 'preview' || phase === 'sending') ? kind === 'voice' ? <VoiceNote uri={draft.uri} /> : <View style={{ alignItems: 'center', gap: 8 }}><Text style={styles.info}>Предпросмотр — нажмите, чтобы воспроизвести</Text><VideoNote uri={draft.uri} autoPlay /></View> : kind === 'circle' && ['ready', 'recording', 'stopping'].includes(phase) ?
+      {draft && (phase === 'preview' || phase === 'sending') ? kind === 'voice' ? <VoiceNote uri={draft.uri} /> : <View style={{ alignItems: 'center', gap: 8 }}><Text style={styles.info}> {t('Preview — tap to play')}</Text><VideoNote uri={draft.uri} autoPlay /></View> : kind === 'circle' && ['ready', 'recording', 'stopping'].includes(phase) ?
         <View style={{ width: 250, height: 250, borderRadius: 125, overflow: 'hidden', backgroundColor: '#182832' }}><CameraView ref={camera} style={{ width: 250, height: 250 }} facing={facing} mode="video" videoQuality={Platform.OS === 'ios' ? '4:3' : '480p'} videoBitrate={600_000} mirror={Platform.OS === 'android' || facing === 'front'} onCameraReady={() => setCameraReady(true)} onMountError={event => {
           // A lens rebind can report a transient mount error. Do not abort an
           // active persistent recording; let the native recordAsync settle.
-          if (phaseRef.current === 'recording') { setError('Камера переключается; запись продолжается.'); return; }
+          if (phaseRef.current === 'recording') { setError(t('Switching camera; recording continues.')); return; }
           recordingAttempt.current++; try { camera.current?.stopRecording(); } catch {} setError(event.message); update('failed');
         }} /></View> : kind === 'voice' && ['recording', 'stopping'].includes(phase) ? <RecordingWaveform recorder={recorder} active={phase === 'recording'} /> : <Icon name={kind === 'voice' ? 'mic-circle-outline' : 'videocam-outline'} size={92} />}
     </View>
     {['recording', 'stopping'].includes(phase) && <Text style={{ textAlign: 'center', color: '#B03939', fontSize: 25, fontVariant: ['tabular-nums'] }}>● {mediaTime(seconds)} / {mediaTime(MEDIA_SECONDS[kind])}</Text>}
     {!!error && <Text style={styles.error}>{error}</Text>}
-    {phase === 'idle' && <Text style={[styles.info, { textAlign: 'center' }]}>Если Android запросит доступ, разрешите его и откройте запись снова. Уход с этого экрана отменяет запись.</Text>}
-    {phase === 'preview' || phase === 'sending' ? <Button title="Отправить" busy={phase === 'sending'} onPress={() => void send()} /> : phase === 'recording' || phase === 'stopping' ? <Button title="Остановить" busy={phase === 'stopping'} onPress={() => void stop.current()} /> : <Button title={kind === 'circle' && phase === 'idle' ? 'Включить камеру' : 'Начать запись'} busy={phase === 'preparing'} disabled={phase === 'failed' || phase === 'ready' && !cameraReady} onPress={() => void start()} />}
-    {kind === 'circle' && (Platform.OS === 'android' ? ['ready', 'recording'].includes(phase) : phase === 'ready') && <Button title={facing === 'front' ? 'Задняя камера' : 'Фронтальная камера'} secondary busy={!cameraReady} disabled={!cameraReady} onPress={flipCamera} />}
-    {phase === 'preview' && kind === 'circle' && <Button title="Перезаписать" secondary onPress={retake} />}
-    {phase === 'sending' && <Text style={styles.info}>Сохраняем зашифрованное сообщение для доставки…</Text>}
-    <Button title={draft ? 'Удалить и закрыть' : 'Отмена'} secondary disabled={phase === 'sending'} onPress={() => cancelRef.current()} />
+    {phase === 'idle' && <Text style={[styles.info, { textAlign: 'center' }]}> {t('If Android asks for access, allow it and open recording again. Leaving this screen cancels recording.')}</Text>}
+    {phase === 'preview' || phase === 'sending' ? <Button title={t('Send')} busy={phase === 'sending'} onPress={() => void send()} /> : phase === 'recording' || phase === 'stopping' ? <Button title={t('Stop')} busy={phase === 'stopping'} onPress={() => void stop.current()} /> : <Button title={kind === 'circle' && phase === 'idle' ? t('Turn on camera') : t('Start recording')} busy={phase === 'preparing'} disabled={phase === 'failed' || phase === 'ready' && !cameraReady} onPress={() => void start()} />}
+    {kind === 'circle' && (Platform.OS === 'android' ? ['ready', 'recording'].includes(phase) : phase === 'ready') && <Button title={facing === 'front' ? t('Rear camera') : t('Front camera')} secondary busy={!cameraReady} disabled={!cameraReady} onPress={flipCamera} />}
+    {phase === 'preview' && kind === 'circle' && <Button title={t('Retake')} secondary onPress={retake} />}
+    {phase === 'sending' && <Text style={styles.info}> {t('Saving the encrypted message for delivery…')}</Text>}
+    <Button title={draft ? t('Delete and close') : t('Cancel')} secondary disabled={phase === 'sending'} onPress={() => cancelRef.current()} />
   </SafeAreaView></Modal>;
 }

@@ -25,7 +25,7 @@ test('cancel during an asynchronous native read prevents a later send', async ()
   const read = new Promise<Uint8Array>(resolve => { finish = resolve; });
   const work = readMediaForSend(voice, 100, () => read, scope).then(() => { sends++; });
   scope.cancel(); finish(new Uint8Array(100));
-  await assert.rejects(work, /отменена/); assert.equal(sends, 0); assert.equal(scope.active, false); scope.cancel(); assert.throws(scope.assert);
+  await assert.rejects(work, /cancelled/i); assert.equal(sends, 0); assert.equal(scope.active, false); scope.cancel(); assert.throws(scope.assert);
 });
 test('cancelled or invalid metadata does not read native bytes', async () => {
   let reads = 0; const read = async () => { reads++; return new Uint8Array(10); };
@@ -59,10 +59,10 @@ test('microphone/camera access granted by initial setup never reopens Android pe
 
 test('a first permission prompt or Home cancels capture; only a fresh explicit attempt may use the grant', async () => {
   const scope = createMediaScope(); let captures = 0; let granted = false;
-  await assert.rejects(mediaPermission(async () => ({ granted }), async () => { scope.cancel(); granted = true; return { granted }; }, scope.assert).then(() => { captures++; }), /отменена/);
+  await assert.rejects(mediaPermission(async () => ({ granted }), async () => { scope.cancel(); granted = true; return { granted }; }, scope.assert).then(() => { captures++; }), /cancelled/i);
   assert.equal(captures, 0); const fresh = createMediaScope();
   const result = await mediaPermission(async () => ({ granted }), async () => { throw new Error('must not prompt twice'); }, fresh.assert); assert.equal(result.granted, true);
-  const home = createMediaScope(); await assert.rejects(mediaPermission(async () => { home.cancel(); return { granted: false }; }, async () => { throw new Error('must not prompt after Home'); }, home.assert), /отменена/);
+  const home = createMediaScope(); await assert.rejects(mediaPermission(async () => { home.cancel(); return { granted: false }; }, async () => { throw new Error('must not prompt after Home'); }, home.assert), /cancelled/i);
 });
 
 test('blocked denied access is returned without another permission Activity', async () => {

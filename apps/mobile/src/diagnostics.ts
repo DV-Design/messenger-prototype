@@ -1,12 +1,14 @@
+import { t } from './i18n';
+
 /** Diagnostics are manually shared; never include private app content. */
 export function sanitizeDiagnostic(value: string | undefined, privateValues: readonly string[]): string {
   let result = value ?? '—';
   for (const item of [...new Set(privateValues.filter(Boolean))].sort((a, b) => b.length - a.length)) {
     const escaped = item.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    result = result.replace(new RegExp(escaped, 'giu'), '[скрыто]');
+    result = result.replace(new RegExp(escaped, 'giu'), t('[hidden]'));
   }
   return result.replace(/\b[a-f0-9]{32,}\b/gi, '[id]')
-    .replace(/\+?\d[\d ()-]{7,}\d/g, '[номер]')
+    .replace(/\+?\d[\d ()-]{7,}\d/g, t('[number]'))
     .replace(/@[a-z0-9_]{3,24}/gi, '[@user]').replace(/[\r\n]+/g, ' ').slice(0, 500);
 }
 
@@ -23,12 +25,12 @@ export function formatMediaDiagnostics(stats?: unknown): string[] {
     const w = number(width, '', true), h = number(height, '', true);
     return w === '—' || h === '—' || w === '0' || h === '0' ? '—' : `${w}×${h}`;
   };
-  const limitations: Record<string, string> = { none: 'нет', cpu: 'процессор', bandwidth: 'полоса связи', other: 'другое' };
-  const limitation = typeof values.videoQualityLimitation === 'string' && Object.hasOwn(limitations, values.videoQualityLimitation) ? limitations[values.videoQualityLimitation] : '—';
+  const limitations: Record<string, string> = { none: t('none'), cpu: t('processor'), bandwidth: t('network bandwidth'), other: t('other') };
+  const limitation = typeof values.videoQualityLimitation === 'string' && Object.hasOwn(limitations, values.videoQualityLimitation) ? (limitations[values.videoQualityLimitation] ?? '—') : '—';
   return [
-    `RTT ${number('rttMs', 'мс')} · аудио ${number('audioBitrateKbps', 'кбит/с')} · jitter ${number('jitterMs', 'мс')} · потери ${number('packetsLost', '', true)}`,
-    `Видео отправка: ${codec('videoCodec')} · ${dimensions('videoWidth', 'videoHeight')} · ${number('videoFramesPerSecond', 'кадр/с')} · ${number('videoBitrateKbps', 'кбит/с')}`,
-    `Видео приём: ${codec('remoteVideoCodec')} · ${dimensions('remoteVideoWidth', 'remoteVideoHeight')} · ${number('remoteVideoFramesPerSecond', 'кадр/с')} · декодировано ${number('videoFramesDecoded', '', true)} · пропущено ${number('videoFramesDropped', '', true)}`,
-    `Зависания: ${number('videoFreezeCount', '', true)} · всего ${number('videoFreezeSeconds', 'с')} · кодирование ${number('videoEncodeMs', 'мс/кадр')} · ограничение: ${limitation}`,
+    t('RTT {rtt} · audio {audio} · jitter {jitter} · loss {loss}', { rtt: number('rttMs', t('ms')), audio: number('audioBitrateKbps', t('kbps')), jitter: number('jitterMs', t('ms')), loss: number('packetsLost', '', true) }),
+    t('Video send: {codec} · {dimensions} · {fps} · {bitrate}', { codec: codec('videoCodec'), dimensions: dimensions('videoWidth', 'videoHeight'), fps: number('videoFramesPerSecond', t('fps')), bitrate: number('videoBitrateKbps', t('kbps')) }),
+    t('Video receive: {codec} · {dimensions} · {fps} · decoded {decoded} · dropped {dropped}', { codec: codec('remoteVideoCodec'), dimensions: dimensions('remoteVideoWidth', 'remoteVideoHeight'), fps: number('remoteVideoFramesPerSecond', t('fps')), decoded: number('videoFramesDecoded', '', true), dropped: number('videoFramesDropped', '', true) }),
+    t('Freezes: {count} · total {seconds} · encode {encode} · limitation: {limit}', { count: number('videoFreezeCount', '', true), seconds: number('videoFreezeSeconds', t('s')), encode: number('videoEncodeMs', t('ms/frame')), limit: limitation }),
   ];
 }

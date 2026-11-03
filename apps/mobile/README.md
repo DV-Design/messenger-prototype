@@ -1,13 +1,13 @@
 # LastCall · Android и iOS
 
-Опубликован **1.0.3 / Android versionCode 17**:
-[APK 1.0.3](https://p2p.lienad.ru/download/LastCall-1.0.3.apk),
-[резерв](https://lienad.ru/messenger/download/LastCall-1.0.3.apk).
-Файл: 55 083 537 байт, SHA256 `4e8c457afff0467206bfa160083b4148db0ffe13a647fedcd089d5c5b57243a8`.
-Прежняя [1.0.2](https://p2p.lienad.ru/download/LastCall-1.0.2.apk),
-[1.0.1](https://p2p.lienad.ru/download/LastCall-1.0.1.apk) и
+Опубликован **1.0.4 / Android versionCode 18**:
+[APK 1.0.4](https://p2p.lienad.ru/download/LastCall-1.0.4.apk),
+[резерв](https://lienad.ru/messenger/download/LastCall-1.0.4.apk).
+Файл: 53 967 857 байт, SHA256 `ecc82e53fdbe835e42d9cdceff67b2b436fb16477d5d13fc829a40aa5b7c566e`.
+Прежняя [1.0.3](https://p2p.lienad.ru/download/LastCall-1.0.3.apk),
+[1.0.2](https://p2p.lienad.ru/download/LastCall-1.0.2.apk) и
 [0.7.2](https://lienad.ru/messenger/download/LastCall-0.7.2.apk) остаются
-доступными для отката. Оба собеседника должны обновиться до 1.0.3: новый
+доступными для отката. Оба собеседника должны обновиться до 1.0.4: новый
 прикладной E2E-слой не откатывается к открытому контенту.
 
 Сервер по умолчанию для **новых профилей** — `https://p2p.lienad.ru`.
@@ -17,7 +17,10 @@ Package ID `dev.messenger.prototype`, ключ подписи и обновле�
 версии без удаления данных сохраняются. Это тестовый выпуск с прежним тестовым
 сертификатом; независимая нативная приёмка на физических телефонах продолжается.
 
-## Изменения 1.0.3
+## Изменения 1.0.4
+
+- Английский интерфейс по умолчанию; русский выбирается, если основной язык телефона — русский. Локализованы экраны, ошибки, JS-уведомления и нативные строки звонка/уведомлений Android.
+- iOS/Android permission strings получили английские значения по умолчанию и русские локали.
 
 - Эмодзи-код безопасности в чате и звонке вместо длинной цифровой последовательности.
 - Предпросмотр записанного кружка с воспроизведением и «Перезаписать»; CameraX 1.6.2 и защита persistent-записи от обрыва при смене камеры.

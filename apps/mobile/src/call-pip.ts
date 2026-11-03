@@ -1,3 +1,4 @@
+import { t } from './i18n';
 import { useEffect, useRef, useState } from 'react';
 import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
 import { CallPipObserver, emptyCallPip, type CallPipSnapshot } from './call-pip-model';
@@ -59,7 +60,7 @@ export function useCallPip(options: {
     current.setCall(callId);
     if (native) {
       void current.request(() => native.getState()).catch(() => {
-        setFailure({ text: 'Состояние «картинки в картинке» недоступно', seen: current.state });
+        setFailure({ text: t('Picture-in-picture state is unavailable'), seen: current.state });
       });
     }
     return () => {
@@ -79,7 +80,7 @@ export function useCallPip(options: {
       return;
     }
     void current.request(() => native.configure(callId, true, width, height)).catch(() => {
-      setFailure({ text: '«Картинка в картинке» недоступна: проверьте разрешение в настройках', seen: current.state });
+      setFailure({ text: t('Picture-in-picture is unavailable: check permission in settings'), seen: current.state });
     });
   }, [callId, enabled, width, height]);
 
@@ -87,14 +88,14 @@ export function useCallPip(options: {
     const native = nativeCallPip();
     const current = observer.current;
     if (!native || !callId || !current || !snapshot.supported || !snapshot.allowed) {
-      setFailure({ text: snapshot.supported === false ? '«Картинка в картинке» не поддерживается на этом устройстве' : '«Картинка в картинке» недоступна: проверьте разрешение в настройках', seen: current?.state ?? snapshot });
+      setFailure({ text: snapshot.supported === false ? t('Picture-in-picture is not supported on this device') : t('Picture-in-picture is unavailable: check permission in settings'), seen: current?.state ?? snapshot });
       return false;
     }
     try {
       await current.request(() => native.enter(callId));
       return true;
     } catch {
-      setFailure({ text: 'Не удалось открыть «картинку в картинке»', seen: current.state });
+      setFailure({ text: t('Could not open picture-in-picture'), seen: current.state });
       return false;
     }
   }

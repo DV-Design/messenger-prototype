@@ -1,3 +1,4 @@
+import { t } from './i18n';
 import { AppState, Platform } from 'react-native';
 import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
@@ -11,10 +12,10 @@ import { processCallPush } from './call-pushes';
 export { processMessagePreview };
 export const pushConfigured = Platform.OS === 'android' && Constants.expoConfig?.extra?.nativeFcmConfigured === true;
 export const pushUnavailable = Platform.OS === 'ios'
-  ? 'Push на iOS пока не настроен: нужны подпись приложения и APNs.'
-  : 'Push не настроен в этой сборке: отсутствует клиентская конфигурация Firebase.';
+  ? t('Push on iOS is not configured yet: app signing and APNs are required.')
+  : t('Push is not configured in this build: Firebase client configuration is missing.');
 export async function prepareNotificationChannel() {
-  if (Platform.OS === 'android') await Notifications.setNotificationChannelAsync('lastcall-messages', { name: 'Сообщения LastCall', importance: AndroidImportance.HIGH });
+  if (Platform.OS === 'android') await Notifications.setNotificationChannelAsync('lastcall-messages', { name: t('LastCall messages'), importance: AndroidImportance.HIGH });
 }
 export async function notificationPermission(request = false): Promise<Access> {
   if (Platform.OS !== 'android' && Platform.OS !== 'ios') return { status: 'unavailable', canAskAgain: false };
@@ -47,7 +48,7 @@ export async function nativePushToken(): Promise<string | null> {
   if (!pushConfigured) return null;
   await prepareNotificationChannel();
   const token = await Notifications.getDevicePushTokenAsync();
-  if (token.type !== 'android' || typeof token.data !== 'string') throw new Error('Эта сборка поддерживает только Android FCM.');
+  if (token.type !== 'android' || typeof token.data !== 'string') throw new Error(t('This build supports Android FCM only.'));
   return token.data;
 }
 const refreshListeners = new Set<() => void>();

@@ -1,3 +1,4 @@
+import { t } from './i18n';
 import type { MessengerClient, MessengerSnapshot } from '@messenger/core';
 type Manager = Pick<MessengerClient, 'getSnapshot' | 'acceptCall' | 'endCall' | 'setMuted'>;
 export function nativeCallUuid(id: string): string {
@@ -18,12 +19,12 @@ export function callSettingsTarget(status: CallUiStatus | undefined): 'full-scre
   return 'notifications';
 }
 export function callStatusText(enabled: boolean, status?: CallUiStatus): string {
-  if (!status?.supported) return 'Системный экран звонка доступен на Android 8+. В этой версии звонок открывается внутри приложения.';
-  if (!enabled) return 'Не удалось включить системные входящие звонки. Экран звонка внутри приложения остаётся доступен.';
-  if (!status.notifications) return 'Разрешите уведомления LastCall, иначе входящий звонок не появится на заблокированном экране.';
-  if (!status.channel) return 'Включите канал «Входящие звонки LastCall» в настройках уведомлений.';
-  if (!status.fullScreen) return 'Разрешите полноэкранные уведомления LastCall (Android 14+). Без них звонок показывается как уведомление.';
-  return 'Системные входящие звонки включены. Телефонный аккаунт LastCall регистрируется автоматически.';
+  if (!status?.supported) return t('The system call screen is available on Android 8+. In this version calls open inside the app.');
+  if (!enabled) return t('Could not enable system incoming calls. The in-app call screen remains available.');
+  if (!status.notifications) return t('Allow LastCall notifications; otherwise an incoming call cannot appear on the lock screen.');
+  if (!status.channel) return t('Enable the “LastCall incoming calls” channel in notification settings.');
+  if (!status.fullScreen) return t('Allow LastCall full-screen notifications (Android 14+). Without them calls appear as notifications.');
+  return t('System incoming calls are enabled. The LastCall phone account is registered automatically.');
 }
 interface NativeCallPort {
   present(uuid: string, name: string, video: boolean, expiresAt: number): Promise<boolean>;

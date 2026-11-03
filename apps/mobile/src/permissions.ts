@@ -1,3 +1,4 @@
+import { t } from './i18n';
 import { Alert, AppState, NativeModules, PermissionsAndroid, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as SecureStore from 'expo-secure-store';
@@ -33,9 +34,9 @@ export async function requestPermission(kind: PermissionKind): Promise<Access> {
       read: () => readPermission(kind),
       explain: async () => {
         await SecureStore.setItemAsync(CALL_SETUP_KEY, 'attempted');
-        return new Promise<boolean>(resolve => Alert.alert('Полноэкранные звонки',
-          'Чтобы входящий звонок LastCall мог открываться поверх экрана блокировки, разрешите полноэкранные уведомления в настройках Android. Это отдельный доступ. Без него останется уведомление со звонком. Микрофон включается только после ответа.',
-          [{ text: 'Позже', style: 'cancel', onPress: () => resolve(false) }, { text: 'Открыть настройки', onPress: () => resolve(true) }],
+        return new Promise<boolean>(resolve => Alert.alert(t('Full-screen calls'),
+          t('To let an incoming LastCall call open over the lock screen, allow full-screen notifications in Android settings. This is a separate permission. Without it, the call stays a notification. The microphone is enabled only after you answer.'),
+          [{ text: t('Later'), style: 'cancel', onPress: () => resolve(false) }, { text: t('Open settings'), onPress: () => resolve(true) }],
           { cancelable: true, onDismiss: () => resolve(false) }));
       },
       open: async () => !!(await callPermissions?.openFullScreenCallSettings?.()),

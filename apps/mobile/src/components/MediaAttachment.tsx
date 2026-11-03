@@ -7,6 +7,7 @@ import { deleteMediaCache, loadFileData, pruneMediaCache } from '../attachments'
 import { MAX_MEDIA_BYTES, type MediaKind } from '../media-model';
 import { styles } from '../styles';
 import { Icon } from './ui';
+import { t } from '../i18n';
 import { VoiceNote } from './VoiceNote';
 import { VideoNote } from './VideoNote';
 import { stopMediaPlayback } from '../media-playback';
@@ -38,16 +39,16 @@ export function MediaAttachment({ file, kind, disabled }: { file: MessengerFile;
     const cached = new File(Paths.cache, `lastcall-media-play-${nonce}.${kind === 'voice' ? 'm4a' : file.mime === 'video/quicktime' ? 'mov' : 'mp4'}`);
     try {
       const bytes = await loadFileData(file);
-      if (!bytes || !bytes.byteLength || bytes.byteLength > MAX_MEDIA_BYTES) throw new Error('Запись больше не хранится на устройстве.');
+      if (!bytes || !bytes.byteLength || bytes.byteLength > MAX_MEDIA_BYTES) throw new Error(t('Recording is no longer stored on this device.'));
       if (attempt !== generation.current) return;
       await cached.write(bytes);
       if (attempt !== generation.current || AppState.currentState !== 'active') { deleteMediaCache(cached.uri); return; }
       temporary.current = cached.uri; setUri(cached.uri);
-    } catch { if (attempt === generation.current) setError('Не удалось открыть запись. Попробуйте ещё раз.'); deleteMediaCache(cached.uri); }
+    } catch { if (attempt === generation.current) setError(t('Could not open the recording. Try again.')); deleteMediaCache(cached.uri); }
     finally { if (attempt === generation.current) { busyRef.current = false; setBusy(false); } }
   }
   return <View>{uri ? kind === 'voice' ? <VoiceNote uri={uri} autoPlay onDone={() => reset.current()} /> : <VideoNote uri={uri} autoPlay onDone={() => reset.current()} /> :
-    <Pressable disabled={disabled || busy} accessibilityRole="button" accessibilityLabel={kind === 'voice' ? 'Прослушать голосовое сообщение' : 'Смотреть видеокружок'} onPress={() => void open()} style={[styles.row, kind === 'circle' && { width: 220, height: 220, borderRadius: 110, backgroundColor: '#D6E6E0', justifyContent: 'center' }]}>{busy ? <ActivityIndicator /> : <Icon name="play-circle" size={44} />}<Text style={styles.fileName}>{kind === 'voice' ? 'Голосовое' : 'Видеокружок'}</Text></Pressable>}
+    <Pressable disabled={disabled || busy} accessibilityRole="button" accessibilityLabel={kind === 'voice' ? t('Play voice message') : t('Watch video circle')} onPress={() => void open()} style={[styles.row, kind === 'circle' && { width: 220, height: 220, borderRadius: 110, backgroundColor: '#D6E6E0', justifyContent: 'center' }]}>{busy ? <ActivityIndicator /> : <Icon name="play-circle" size={44} />}<Text style={styles.fileName}>{kind === 'voice' ? t('Voice message') : t('Video circle')}</Text></Pressable>}
     {!!error && <Text style={styles.fileMeta}>{error}</Text>}
   </View>;
 }

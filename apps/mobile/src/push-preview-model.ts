@@ -1,3 +1,4 @@
+import { t } from './i18n';
 import type { MessengerSnapshot, WakeIntent } from '@messenger/core';
 export const MAX_PREVIEW_ENVELOPE_BYTES = 3000;
 export const MAX_PREVIEW_BODY_BYTES = 800;
@@ -116,7 +117,7 @@ export class IncomingMessageTracker {
       const key = notificationIdentity('', file.senderId, conversation.id, file.id, 'file'); current.add(key);
       if (this.online && !this.seen.has(key)) {
         const sender = snapshot.contacts.find(contact => contact.userId === file.senderId);
-        if (sender && conversation.memberIds.includes(sender.userId)) result.push({ kind: 'file', conversationId: conversation.id, senderId: sender.userId, messageId: file.id, text: `Файл: ${file.name}`, displayName: sender.displayName });
+        if (sender && conversation.memberIds.includes(sender.userId)) result.push({ kind: 'file', conversationId: conversation.id, senderId: sender.userId, messageId: file.id, text: t('File: {name}', { name: file.name }), displayName: sender.displayName });
       }
     }
     this.seen = current;

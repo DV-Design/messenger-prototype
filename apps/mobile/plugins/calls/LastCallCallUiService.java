@@ -1,6 +1,7 @@
 package dev.messenger.prototype.calls;
 
 import android.app.Activity;
+import dev.messenger.prototype.R;
 import android.app.ActivityOptions;
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -196,8 +197,8 @@ public final class LastCallCallUiService extends Service {
     if (Build.VERSION.SDK_INT < 26) return;
     NotificationManager manager = (NotificationManager) context.getSystemService(NOTIFICATION_SERVICE);
     if (manager == null || manager.getNotificationChannel(CHANNEL_ID) != null) return;
-    NotificationChannel channel = new NotificationChannel(CHANNEL_ID, "Входящие звонки LastCall", NotificationManager.IMPORTANCE_HIGH);
-    channel.setDescription("Входящие звонки LastCall");
+    NotificationChannel channel = new NotificationChannel(CHANNEL_ID, context.getString(R.string.lastcall_call_incoming_channel), NotificationManager.IMPORTANCE_HIGH);
+    channel.setDescription(context.getString(R.string.lastcall_call_incoming_desc));
     Uri ringtone = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
     AudioAttributes audio = new AudioAttributes.Builder()
       .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
@@ -290,7 +291,7 @@ public final class LastCallCallUiService extends Service {
       : new NotificationCompat.Builder(this);
     builder.setSmallIcon(getApplicationInfo().icon)
       .setContentTitle("LastCall")
-      .setContentText("Входящий звонок · " + entry.name)
+      .setContentText(getString(R.string.lastcall_call_incoming_text, entry.name))
       .setWhen(entry.startedAt)
       .setShowWhen(true)
       .setCategory(NotificationCompat.CATEGORY_CALL)
@@ -305,8 +306,8 @@ public final class LastCallCallUiService extends Service {
       builder.setStyle(NotificationCompat.CallStyle.forIncomingCall(caller, decline, answer));
       builder.setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE);
     } else {
-      builder.addAction(android.R.drawable.ic_menu_close_clear_cancel, "Отклонить", decline)
-        .addAction(android.R.drawable.ic_menu_call, "Принять", answer);
+      builder.addAction(android.R.drawable.ic_menu_close_clear_cancel, getString(R.string.lastcall_decline), decline)
+        .addAction(android.R.drawable.ic_menu_call, getString(R.string.lastcall_answer), answer);
     }
     return builder.build();
   }

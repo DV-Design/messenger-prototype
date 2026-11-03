@@ -1,6 +1,7 @@
 package dev.messenger.prototype.calls;
 
 import android.app.*;
+import dev.messenger.prototype.R;
 import android.content.*;
 import android.content.pm.ServiceInfo;
 import android.os.*;
@@ -60,11 +61,11 @@ public final class LastCallAudioService extends Service {
     try {
       if (deadline != 0 && deadline <= System.currentTimeMillis()) throw new IllegalStateException("Call expired");
       NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-      if (Build.VERSION.SDK_INT >= 26) manager.createNotificationChannel(new NotificationChannel("lastcall-active-call", "Разговор LastCall", NotificationManager.IMPORTANCE_LOW));
+      if (Build.VERSION.SDK_INT >= 26) manager.createNotificationChannel(new NotificationChannel("lastcall-active-call", getString(R.string.lastcall_call_active_channel), NotificationManager.IMPORTANCE_LOW));
       Intent launch = getPackageManager().getLaunchIntentForPackage(getPackageName());
       PendingIntent open = PendingIntent.getActivity(this, 86, launch, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
       Notification.Builder builder = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, "lastcall-active-call") : new Notification.Builder(this);
-      Notification notification = builder.setSmallIcon(getApplicationInfo().icon).setContentTitle("LastCall · разговор").setContentText(video ? "Камера и микрофон включены для звонка" : "Микрофон включён для принятого звонка").setOngoing(true).setCategory(Notification.CATEGORY_CALL).setContentIntent(open).build();
+      Notification notification = builder.setSmallIcon(getApplicationInfo().icon).setContentTitle(getString(R.string.lastcall_call_active_title)).setContentText(video ? getString(R.string.lastcall_call_active_video_text) : getString(R.string.lastcall_call_active_audio_text)).setOngoing(true).setCategory(Notification.CATEGORY_CALL).setContentIntent(open).build();
       if (Build.VERSION.SDK_INT >= 29) startForeground(851, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL | ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE | (video ? ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA : 0));
       else startForeground(851, notification);
       synchronized (LastCallAudioService.class) {

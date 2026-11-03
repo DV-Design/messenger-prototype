@@ -1,6 +1,7 @@
 package dev.messenger.prototype.pip;
 
 import android.app.Activity;
+import dev.messenger.prototype.R;
 import android.app.AppOpsManager;
 import android.app.KeyguardManager;
 import android.app.PendingIntent;
@@ -74,7 +75,7 @@ public final class LastCallPip {
     if (Build.VERSION.SDK_INT >= 33 && owner != null) {
       Intent close = new Intent(activity, LastCallPipCloseReceiver.class).setAction(CLOSE).setData(Uri.parse("lastcall-pip://close/" + owner)).putExtra("callId", owner);
       PendingIntent action = PendingIntent.getBroadcast(activity, 861, close, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-      builder.setCloseAction(new RemoteAction(Icon.createWithResource(activity, android.R.drawable.ic_menu_close_clear_cancel), "Завершить звонок", "Завершить видеозвонок", action));
+      builder.setCloseAction(new RemoteAction(Icon.createWithResource(activity, android.R.drawable.ic_menu_close_clear_cancel), activity.getString(R.string.lastcall_call_end), activity.getString(R.string.lastcall_call_end_video), action));
     }
     return builder.build();
   }

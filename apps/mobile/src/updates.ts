@@ -1,3 +1,4 @@
+import { t } from './i18n';
 import { useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
@@ -81,7 +82,7 @@ export function checkForUpdate(manual = false): Promise<void> {
   if (pending) return pending;
   if (!directUpdates || Platform.OS !== 'android') return Promise.resolve();
   if (currentVersionCode < 1) {
-    if (manual) publish({ ...state, status: 'error', error: 'Не удалось определить версию установленного приложения.' });
+    if (manual) publish({ ...state, status: 'error', error: t('Could not determine the installed app version.') });
     return Promise.resolve();
   }
   const previousStatus = state.status;
@@ -98,7 +99,7 @@ export function checkForUpdate(manual = false): Promise<void> {
       lastCheckAt = Date.now();
       const fallback = state.update ? 'available' : previousStatus === 'current' ? 'current' : 'idle';
       publish(manual
-        ? { ...state, status: 'error', error: 'Не удалось проверить обновления. Проверьте соединение.' }
+        ? { ...state, status: 'error', error: t('Could not check for updates. Check your connection.') }
         : { ...state, status: fallback, error: undefined });
     } finally {
       pending = undefined;
@@ -126,8 +127,8 @@ export function dismissUpdate(): void {
  * the user's confirmation; nothing is silent.
  */
 export async function downloadAndInstallUpdate(update: AndroidUpdate): Promise<void> {
-  if (!directUpdates) throw new Error('Обновления устанавливаются через магазин приложений.');
-  if (Platform.OS !== 'android') throw new Error('Установка обновлений доступна только на Android.');
+  if (!directUpdates) throw new Error(t('Updates are installed through the app store.'));
+  if (Platform.OS !== 'android') throw new Error(t('Update installation is available only on Android.'));
   const file = new File(Paths.cache, `LastCall-${update.version}.apk`);
   let verified = false;
   let failure: unknown;
@@ -135,7 +136,7 @@ export async function downloadAndInstallUpdate(update: AndroidUpdate): Promise<v
     try {
       const downloaded = await File.downloadFileAsync(url, file, { idempotent: true });
       const digest = (await downloaded.digest('SHA-256')).toLowerCase();
-      if (digest !== update.sha256) throw new Error('SHA-256 обновления не совпадает.');
+      if (digest !== update.sha256) throw new Error(t('The update SHA-256 does not match.'));
       verified = true;
       break;
     } catch (cause) {
@@ -143,8 +144,8 @@ export async function downloadAndInstallUpdate(update: AndroidUpdate): Promise<v
       try { if (file.exists) file.delete(); } catch { /* A stale cache file is not an install source. */ }
     }
   }
-  if (!verified) throw failure instanceof Error ? failure : new Error('Не удалось скачать обновление.');
-  if (!file.contentUri) throw new Error('Не удалось открыть установщик Android.');
+  if (!verified) throw failure instanceof Error ? failure : new Error(t('Could not download the update.'));
+  if (!file.contentUri) throw new Error(t('Could not open the Android installer.'));
   try {
     await IntentLauncher.startActivityAsync('android.intent.action.INSTALL_PACKAGE', {
       data: file.contentUri,

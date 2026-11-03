@@ -1,6 +1,7 @@
 package dev.messenger.prototype.calls;
 
 import android.app.Notification;
+import dev.messenger.prototype.R;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -63,8 +64,8 @@ public final class LastCallCallSetupService extends Service {
   private static void ensureChannel(Context context) {
     NotificationManager manager = (NotificationManager) context.getSystemService(NOTIFICATION_SERVICE);
     if (manager == null || manager.getNotificationChannel(CHANNEL_ID) != null) return;
-    NotificationChannel channel = new NotificationChannel(CHANNEL_ID, "Подключение звонка LastCall", NotificationManager.IMPORTANCE_LOW);
-    channel.setDescription("Подготовка защищённого звонка без доступа к микрофону");
+    NotificationChannel channel = new NotificationChannel(CHANNEL_ID, context.getString(R.string.lastcall_call_setup_channel), NotificationManager.IMPORTANCE_LOW);
+    channel.setDescription(context.getString(R.string.lastcall_call_setup_desc));
     channel.setSound(null, null);
     manager.createNotificationChannel(channel);
   }
@@ -80,7 +81,7 @@ public final class LastCallCallSetupService extends Service {
     NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
       .setSmallIcon(getApplicationInfo().icon)
       .setContentTitle("LastCall")
-      .setContentText("Подключение защищённого звонка")
+      .setContentText(getString(R.string.lastcall_call_setup_text))
       .setCategory(NotificationCompat.CATEGORY_CALL)
       .setPriority(NotificationCompat.PRIORITY_LOW)
       .setOngoing(true)

@@ -1,3 +1,4 @@
+import { t } from './i18n';
 export type MediaKind = 'voice' | 'circle';
 export const MAX_MEDIA_BYTES = 5 * 1024 * 1024;
 export const MEDIA_SECONDS = { voice: 120, circle: 30 } as const;
@@ -7,26 +8,26 @@ export function mediaKind(name: string, mime: string): MediaKind | undefined {
   if (/^lastcall-circle-[a-f0-9]{32}\.mov$/.test(name) && mime === 'video/quicktime') return 'circle';
 }
 export function mediaMetadata(kind: MediaKind, nonce: string, uri: string) {
-  if (!/^[a-f0-9]{32}$/.test(nonce)) throw new Error('Некорректный идентификатор записи.');
+  if (!/^[a-f0-9]{32}$/.test(nonce)) throw new Error(t('Invalid recording identifier.'));
   const mov = kind === 'circle' && uri.toLowerCase().endsWith('.mov');
   return { name: `lastcall-${kind}-${nonce}.${kind === 'voice' ? 'm4a' : mov ? 'mov' : 'mp4'}`, mime: kind === 'voice' ? 'audio/mp4' : mov ? 'video/quicktime' : 'video/mp4' };
 }
 export function validateMedia(size: number, duration: number, kind: MediaKind) {
-  if (!Number.isFinite(size) || size <= 0 || size > MAX_MEDIA_BYTES) throw new Error('Запись должна быть не больше 5 МиБ.');
-  if (!Number.isFinite(duration) || duration < 0.25 || duration > MEDIA_SECONDS[kind] + 0.5) throw new Error('Запись слишком короткая или превышает допустимое время.');
+  if (!Number.isFinite(size) || size <= 0 || size > MAX_MEDIA_BYTES) throw new Error(t('Recording must be 5 MiB or smaller.'));
+  if (!Number.isFinite(duration) || duration < 0.25 || duration > MEDIA_SECONDS[kind] + 0.5) throw new Error(t('Recording is too short or exceeds the allowed duration.'));
 }
 /** Revocation is permanent: late permission/record/read results must never send. */
 export function createMediaScope() {
   let active = true;
-  return { get active() { return active; }, cancel() { active = false; }, assert() { if (!active) throw new Error('Запись отменена.'); } };
+  return { get active() { return active; }, cancel() { active = false; }, assert() { if (!active) throw new Error(t('Recording cancelled.')); } };
 }
 export async function readMediaForSend(metadata: { name: string; mime: string }, size: number, read: () => Promise<Uint8Array>, scope: ReturnType<typeof createMediaScope>) {
   scope.assert();
-  if (!mediaKind(metadata.name, metadata.mime)) throw new Error('Неизвестный формат записи.');
-  if (!Number.isFinite(size) || size <= 0 || size > MAX_MEDIA_BYTES) throw new Error('Запись отсутствует или больше 5 МиБ.');
+  if (!mediaKind(metadata.name, metadata.mime)) throw new Error(t('Unknown recording format.'));
+  if (!Number.isFinite(size) || size <= 0 || size > MAX_MEDIA_BYTES) throw new Error(t('Recording is missing or larger than 5 MiB.'));
   const bytes = await read();
   scope.assert();
-  if (!bytes.byteLength || bytes.byteLength > MAX_MEDIA_BYTES) throw new Error('Запись отсутствует или больше 5 МиБ.');
+  if (!bytes.byteLength || bytes.byteLength > MAX_MEDIA_BYTES) throw new Error(t('Recording is missing or larger than 5 MiB.'));
   return bytes;
 }
 export function mediaTime(seconds: number) {

@@ -1,10 +1,10 @@
 # Optional FCM and authenticated ICE configuration
 
-## 1.0.3/code17 published test release
+## 1.0.4/code18 published test release
 
-Client-only release. Download: `download/LastCall-1.0.3.apk` at
-https://p2p.lienad.ru and https://lienad.ru/messenger/download/LastCall-1.0.3.apk
-(55,083,537 bytes, SHA256 `4e8c457afff0467206bfa160083b4148db0ffe13a647fedcd089d5c5b57243a8`). Versioned 1.0.2, 1.0.1 and 0.7.2 remain available
+Client-only release. Download: `download/LastCall-1.0.4.apk` at
+https://p2p.lienad.ru and https://lienad.ru/messenger/download/LastCall-1.0.4.apk
+(53,967,857 bytes, SHA256 `ecc82e53fdbe835e42d9cdceff67b2b436fb16477d5d13fc829a40aa5b7c566e`). Versioned 1.0.3, 1.0.2 and 0.7.2 remain available
 for rollback. Independent native acceptance and physical-phone evidence are
 **PENDING** and are not claimed. Client update checks use the static, Ed25519-signed
 `download/latest.json` manifest; no signaling or profile endpoint is involved.
@@ -27,7 +27,7 @@ and clears stale errors after a late success. Incoming video no longer shows the
 not configured. Physical Bluetooth/headset and heard-audio acceptance remain on
 phones.
 
-QA: full `npm run check` (416 unit tests) and 11 browser E2E tests passed on the
+QA: full `npm run check` (420 unit tests) and 11 browser E2E tests passed on the
 released tree; one authenticated-TURN test skipped. Independent native QA and
 physical-phone acceptance are pending. Prior 0.7.2 run is archived unchanged at
 `docs/qa/runs/lastcall-072-media-audio-2026-10-31.json`.

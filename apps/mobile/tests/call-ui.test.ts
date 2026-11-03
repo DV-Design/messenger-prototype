@@ -130,7 +130,7 @@ test('camera reports a failed actual-facing confirmation instead of claiming suc
   controller.setTrack('cc'.repeat(16), track);
   await controller.switch();
   assert.equal(controller.state.facing, 'user');
-  assert.match(controller.state.error ?? '', /Не удалось переключить камеру/);
+  assert.match(controller.state.error ?? '', /Could not switch the camera/);
   assert.equal(controller.state.busy, false);
 });
 

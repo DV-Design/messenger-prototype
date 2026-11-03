@@ -1,0 +1,12 @@
+{
+  "ios": {
+    "CFBundleDisplayName": "LastCall",
+    "NSMicrophoneUsageDescription": "Microphone is used for calls and voice messages.",
+    "NSCameraUsageDescription": "Camera is used for video calls you start yourself.",
+    "NSPhotoLibraryUsageDescription": "Choose a photo or video to send to your contact.",
+    "NSLocalNetworkUsageDescription": "Connect to your test server on the local network."
+  },
+  "android": {
+    "app_name": "LastCall"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "ios": {
+    "CFBundleDisplayName": "LastCall",
+    "NSMicrophoneUsageDescription": "Микрофон нужен для звонков и голосовых сообщений.",
+    "NSCameraUsageDescription": "Камера нужна для видеозвонков, которые вы включаете сами.",
+    "NSPhotoLibraryUsageDescription": "Выберите фото или видео для передачи собеседнику.",
+    "NSLocalNetworkUsageDescription": "Подключение к вашему тестовому серверу в локальной сети."
+  },
+  "android": {
+    "app_name": "LastCall"
+  }
+}

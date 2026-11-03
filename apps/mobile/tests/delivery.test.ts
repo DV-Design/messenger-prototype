@@ -5,17 +5,17 @@ import { transportNotice } from '../src/transport-notice';
 
 test('only final recipient receipts contribute to group delivery progress', () => {
   const item = { status: 'sent', recipientIds: ['alice', 'bob', 'alice'], deliveredTo: ['alice', 'alice', 'relay'] };
-  assert.equal(deliveryLabel(item, true), 'Доставлено 1 из 2 · Прочитано 0 из 2');
-  assert.equal(deliveryLabel({ status: 'sent' }, false), 'Ожидает подтверждения');
+  assert.equal(deliveryLabel(item, true), 'Delivered 1 of 2 · Read 0 of 2');
+  assert.equal(deliveryLabel({ status: 'sent' }, false), 'Awaiting confirmation');
   assert.equal(waitingForDelivery(item), true);
-  assert.equal(deliveryLabel({ deliveryStatus: 'expired', recipientIds: ['alice'], deliveredTo: [] }, true), 'Не доставлено за 7 дней');
+  assert.equal(deliveryLabel({ deliveryStatus: 'expired', recipientIds: ['alice'], deliveredTo: [] }, true), 'Not delivered within 7 days');
   assert.equal(waitingForDelivery({ deliveryStatus: 'expired', status: 'complete' }), false);
-  assert.equal(deliveryLabel({ deliveryStatus: 'delivered', status: 'complete' }, false), 'Доставлено');
+  assert.equal(deliveryLabel({ deliveryStatus: 'delivered', status: 'complete' }, false), 'Delivered');
 });
 test('pending files and group sync copy describe sender retention without promising offline delivery', () => {
-  assert.match(transportNotice({ directory: 'online', group: false, peerOnline: false, pending: 1 }).text, /Сообщения и файлы ждут на этом устройстве до 7 дней/);
-  assert.match(transportNotice({ directory: 'online', group: true, pending: 1 }).text, /не все участники подтвердили/);
-  assert.match(transportNotice({ directory: 'online', group: true, pending: 0 }).text, /между телефонами/);
+  assert.match(transportNotice({ directory: 'online', group: false, peerOnline: false, pending: 1 }).text, /Messages and files wait on this device for up to 7 days/);
+  assert.match(transportNotice({ directory: 'online', group: true, pending: 1 }).text, /Not all participants have confirmed/);
+  assert.match(transportNotice({ directory: 'online', group: true, pending: 0 }).text, /phones/);
 });
 
 test('clock, one check and two checks distinguish delivery from reading for messages and files', () => {
@@ -23,7 +23,7 @@ test('clock, one check and two checks distinguish delivery from reading for mess
   assert.equal(deliveryIcon(item), 'time-outline');
   assert.equal(deliveryIcon({ ...item, status: 'delivered' }), 'checkmark');
   assert.equal(deliveryIcon({ ...item, status: 'delivered', readBy: ['a', 'b', 'relay'] }), 'checkmark-done');
-  assert.equal(deliveryLabel({ status: 'delivered', recipientIds: ['a'], readBy: ['a'] }, false), 'Прочитано');
+  assert.equal(deliveryLabel({ status: 'delivered', recipientIds: ['a'], readBy: ['a'] }, false), 'Read');
   assert.equal(deliveryStage({ deliveryStatus: 'expired', recipientIds: ['a'], readBy: ['a'] }), 'expired');
   assert.equal(deliveryIcon({ deliveryStatus: 'delivered', status: 'complete', recipientIds: ['a'], readBy: [] }), 'checkmark');
 });

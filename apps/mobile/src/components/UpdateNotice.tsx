@@ -3,6 +3,7 @@ import { AppState, Modal, Platform, Text, View } from 'react-native';
 import { useMessenger } from '../runtime';
 import { directUpdates, dismissUpdate, downloadAndInstallUpdate, maybeAutoCheck, useUpdateState } from '../updates';
 import { colors, styles } from '../styles';
+import { t } from '../i18n';
 import { Button, Icon } from './ui';
 
 /**
@@ -36,7 +37,7 @@ export function UpdateNotice() {
     try {
       await downloadAndInstallUpdate(available);
     } catch {
-      setFailure({ versionCode: available.versionCode, text: 'Не удалось скачать или проверить обновление. Повторите позже.' });
+      setFailure({ versionCode: available.versionCode, text: t('Could not download or verify the update. Try again later.') });
     } finally {
       setInstalling(false);
     }
@@ -46,13 +47,13 @@ export function UpdateNotice() {
     <View style={{ flex: 1, backgroundColor: '#00000066', justifyContent: 'center', padding: 24 }}>
       <View accessibilityViewIsModal style={{ backgroundColor: colors.white, borderRadius: 22, padding: 22, gap: 14 }}>
         <View style={{ alignSelf: 'center', width: 64, height: 64, borderRadius: 20, backgroundColor: '#E4F1EC', alignItems: 'center', justifyContent: 'center' }}><Icon name="cloud-download-outline" size={31} /></View>
-        <Text accessibilityRole="header" style={{ color: colors.text, fontSize: 21, fontWeight: '700', textAlign: 'center' }}>Доступно обновление</Text>
-        <Text style={styles.body}>LastCall {available.version} уже вышла. Сейчас установлена {updateState.currentVersion || 'предыдущая версия'}.</Text>
+        <Text accessibilityRole="header" style={{ color: colors.text, fontSize: 21, fontWeight: '700', textAlign: 'center' }}> {t('Update available')}</Text>
+        <Text style={styles.body}>{t('LastCall {version} is available. Installed version: {current}.', { version: available.version, current: updateState.currentVersion || t('previous version') })}</Text>
         {!!available.notes && <Text style={styles.info}>{available.notes}</Text>}
-        <Text style={styles.info}>APK скачается в приложении, SHA-256 сверится с манифестом, затем откроется системный установщик. Профиль, ключ, контакты и история сохранятся.</Text>
+        <Text style={styles.info}> {t('The APK is downloaded in the app, its SHA-256 is checked against the manifest, then the system installer opens. Your profile, key, contacts and history are preserved.')}</Text>
         {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
-        <Button title={installing ? 'Скачиваем и проверяем…' : `Скачать и установить ${available.version}`} busy={installing} onPress={() => void download()} />
-        <Button title="Позже" secondary disabled={installing} onPress={dismissUpdate} />
+        <Button title={installing ? t('Downloading and verifying…') : t('Download and install {version}', { version: available.version })} busy={installing} onPress={() => void download()} />
+        <Button title={t('Later')} secondary disabled={installing} onPress={dismissUpdate} />
       </View>
     </View>
   </Modal>;

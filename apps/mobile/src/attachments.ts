@@ -1,3 +1,4 @@
+import { t } from './i18n';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import * as Sharing from 'expo-sharing';
@@ -9,10 +10,10 @@ const MAX_FILE = 5 * 1024 * 1024;
 async function transmit(current: MessengerClient, conversationId: string, uri: string, name: string, mime: string, reportedSize?: number) {
   const file = new File(uri);
   try {
-    if ((reportedSize ?? file.size) > MAX_FILE || file.size > MAX_FILE) throw new Error('Можно передавать файлы не больше 5 МиБ.');
+    if ((reportedSize ?? file.size) > MAX_FILE || file.size > MAX_FILE) throw new Error(t('Files must be 5 MiB or smaller.'));
     const data = await file.bytes();
-    if (data.byteLength > MAX_FILE) throw new Error('Файл больше 5 МиБ.');
-    if (client() !== current) throw new Error('Сервер изменён. Откройте чат ещё раз.');
+    if (data.byteLength > MAX_FILE) throw new Error(t('The file is larger than 5 MiB.'));
+    if (client() !== current) throw new Error(t('The server changed. Open the chat again.'));
     await current.sendFile(conversationId, { name, mime, data });
   } finally {
     // Remove picker-created cache copies, never the user's original document.
@@ -28,7 +29,7 @@ export async function pickDocument(conversationId: string) {
 export async function pickMedia(conversationId: string) {
   const current = client();
   const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (!permission.granted) throw new Error('Разрешите выбор фото и видео в настройках телефона.');
+  if (!permission.granted) throw new Error(t('Allow photo and video access in phone settings.'));
   const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images', 'videos'], allowsMultipleSelection: false });
   const asset = result.assets?.[0];
   if (!result.canceled && asset) await transmit(current, conversationId, asset.uri, asset.fileName ?? (asset.type === 'video' ? 'video.mp4' : 'photo.jpg'), asset.mimeType ?? (asset.type === 'video' ? 'video/mp4' : 'image/jpeg'), asset.fileSize);
@@ -37,7 +38,7 @@ export async function loadFileData(item: MessengerFile): Promise<Uint8Array | nu
   if (item.deliveryStatus === 'expired') return null;
   const current = client();
   const data = item.data ?? await current.getFileData(item.conversationId, item.id, item.senderId);
-  if (client() !== current) throw new Error('Сервер изменён. Откройте чат ещё раз.');
+  if (client() !== current) throw new Error(t('The server changed. Open the chat again.'));
   return data;
 }
 export function deleteMediaCache(uri?: string | null) {
@@ -57,18 +58,18 @@ export function pruneMediaCache() {
 export async function sendRecordedMedia(current: MessengerClient, conversationId: string, draft: { uri: string; name: string; mime: string }, scope: ReturnType<typeof createMediaScope>) {
   const file = new File(draft.uri);
   const data = await readMediaForSend(draft, file.exists ? file.size : 0, () => file.bytes(), scope);
-  if (client() !== current) throw new Error('Сервер изменён. Откройте чат ещё раз.');
+  if (client() !== current) throw new Error(t('The server changed. Open the chat again.'));
   // sendFile seals the local durable outbox before resolving. Cancellation before
   // this boundary never submits; an accepted message stays in the outbox.
   await current.sendFile(conversationId, { name: draft.name, mime: draft.mime, data });
 }
 export async function shareFile(item: MessengerFile) {
   const data = await loadFileData(item);
-  if (!data) throw new Error('Файл больше не хранится на этом устройстве.');
-  if (!(await Sharing.isAvailableAsync())) throw new Error('На устройстве недоступно меню сохранения файлов.');
+  if (!data) throw new Error(t('The file is no longer stored on this device.'));
+  if (!(await Sharing.isAvailableAsync())) throw new Error(t('The file sharing menu is unavailable on this device.'));
   const safeName = item.name.replace(/[^\p{L}\p{N}._ -]/gu, '_').slice(0, 100) || 'file';
   const file = new File(Paths.cache, `lastcall-share-${item.id.replace(/[^a-zA-Z0-9-]/g, '')}-${safeName}`);
   await file.write(data);
-  try { await Sharing.shareAsync(file.uri, { mimeType: item.mime, dialogTitle: 'Сохранить или открыть файл' }); }
+  try { await Sharing.shareAsync(file.uri, { mimeType: item.mime, dialogTitle: t('Save or open file') }); }
   finally { if (file.exists) file.delete(); }
 }

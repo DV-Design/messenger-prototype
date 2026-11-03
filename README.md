@@ -4,25 +4,27 @@ Android/iOS мессенджер с приоритетом прямого P2P.
 Целевая среда — в том числе российские мобильные и домашние сети.
 Боты, каналы и резервные копии исключены из объёма.
 
-## Опубликованный выпуск 1.0.3 / Android code17
+## Опубликованный выпуск 1.0.4 / Android code18
 
-Опубликован **LastCall 1.0.3 / Android code17**:
-[основная загрузка](https://p2p.lienad.ru/download/LastCall-1.0.3.apk),
-[резервная](https://lienad.ru/messenger/download/LastCall-1.0.3.apk).
-Файл: 55 083 537 байт, SHA256 `4e8c457afff0467206bfa160083b4148db0ffe13a647fedcd089d5c5b57243a8`.
-Прежняя [1.0.2/code16](https://p2p.lienad.ru/download/LastCall-1.0.2.apk),
-[1.0.1/code15](https://p2p.lienad.ru/download/LastCall-1.0.1.apk) и
+Опубликован **LastCall 1.0.4 / Android code18**:
+[основная загрузка](https://p2p.lienad.ru/download/LastCall-1.0.4.apk),
+[резервная](https://lienad.ru/messenger/download/LastCall-1.0.4.apk).
+Файл: 53 967 857 байт, SHA256 `ecc82e53fdbe835e42d9cdceff67b2b436fb16477d5d13fc829a40aa5b7c566e`.
+Прежняя [1.0.3/code17](https://p2p.lienad.ru/download/LastCall-1.0.3.apk),
+[1.0.2/code16](https://p2p.lienad.ru/download/LastCall-1.0.2.apk) и
 [0.7.2/code12](https://lienad.ru/messenger/download/LastCall-0.7.2.apk)
 остаются доступными для отката.
 
 Это тестовый выпуск с прежним тестовым сертификатом. Сборка и автоматические
 проверки пройдены; независимая приёмка PiP, камеры, аудио и доставки на
 физических телефонах и в российских сетях продолжается. **Оба собеседника
-должны обновиться до 1.0.3:** новый прикладной E2E-слой не откатывается к
+должны обновиться до 1.0.4:** новый прикладной E2E-слой не откатывается к
 передаче открытого контента.
 
 Что нового:
 
+- Основной язык приложения — английский. Если системный язык телефона русский,
+  интерфейс, уведомления и нативный экран звонка переключаются на русский.
 - Все сообщения, файлы, голосовые и видеокружки дополнительно шифруются
   прикладным E2E-слоем: эфемерные X25519-ключи на соединение, подпись Ed25519,
   HKDF и XChaCha20-Poly1305. Ключи действуют только для конкретной сессии,
@@ -77,9 +79,9 @@ Android/iOS мессенджер с приоритетом прямого P2P.
   preview. Data-only wake не требует `POST_NOTIFICATIONS`; отказ в разрешении
   больше не блокирует синхронизацию закрытого приложения.
 
-Сборка 1.0.3/code17: `npm run build:apk` — PASS, в APK подтверждены
-`nativeFcmConfigured=true` и version1.0.3/code17; `npm run check` — PASS,
-416 unit-тестов (210 core, 129 mobile, 77 server), typecheck, lint без ошибок
+Сборка 1.0.4/code18: `npm run build:apk` — PASS, в APK подтверждены
+`nativeFcmConfigured=true` и version1.0.4/code18; `npm run check` — PASS,
+420 unit-тестов (210 core, 133 mobile, 77 server), typecheck, lint без ошибок
 (одно прежнее предупреждение VoiceNote), iOS/Android JS exports;
 `npm run test:e2e` — 11 PASS / 1 authenticated-TURN skip.
 Предыдущий прогон 0.7.2 сохранён без изменений в
@@ -313,7 +315,7 @@ LastCall: текст и файл 35 байт получили durable ACK при
 Другой участник может дослать их, пока автор офлайн. Подписаны состав группы,
 исходное авторство, содержимое/хеш файла, срок и подтверждения отдельных получателей.
 Копии не продлевают семидневный срок синхронизации. Все участники этой проверки
-должны обновиться до 1.0.3/code17; прежняя 0.7.2/code12
+должны обновиться до 1.0.4/code18; прежняя 0.7.2/code12
 остаётся доступной для отката. [Контракт очереди](docs/OUTBOX-CONTRACT.md).
 
 Часы означают ожидание подтверждения полного сохранения сообщения или вложения;
@@ -485,9 +487,9 @@ npm run check
 npm run test:e2e
 ```
 
-Выпуск 1.0.3/code17: `npm run build:apk` — PASS, packaged
-`nativeFcmConfigured=true` и version1.0.3/code17; `npm run check` — PASS,
-416 unit-тестов (210 core, 129 mobile, 77 server), typecheck, lint без ошибок
+Выпуск 1.0.4/code18: `npm run build:apk` — PASS, packaged
+`nativeFcmConfigured=true` и version1.0.4/code18; `npm run check` — PASS,
+420 unit-тестов (210 core, 133 mobile, 77 server), typecheck, lint без ошибок
 (одно прежнее предупреждение VoiceNote), iOS/Android JS exports;
 `npm run test:e2e` — 11 PASS / 1 authenticated-TURN skip. APK, SHA256 и
 размер опубликованы выше; независимый QA и нативная приёмка на физических

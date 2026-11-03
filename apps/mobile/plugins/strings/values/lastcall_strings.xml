@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="lastcall_call_end">End call</string>
+  <string name="lastcall_call_end_video">End video call</string>
+  <string name="lastcall_notification_channel_preview">LastCall message previews</string>
+  <string name="lastcall_notification_channel_preview_desc">Sender name and message text on the lock screen</string>
+  <string name="lastcall_call_active_channel">LastCall call</string>
+  <string name="lastcall_call_active_title">LastCall · in call</string>
+  <string name="lastcall_call_active_video_text">Camera and microphone are on for the call</string>
+  <string name="lastcall_call_active_audio_text">Microphone is on for the answered call</string>
+  <string name="lastcall_call_setup_channel">LastCall call setup</string>
+  <string name="lastcall_call_setup_desc">Secure call setup without microphone access</string>
+  <string name="lastcall_call_setup_text">Connecting a secure call</string>
+  <string name="lastcall_call_incoming_channel">LastCall incoming calls</string>
+  <string name="lastcall_call_incoming_desc">LastCall incoming calls</string>
+  <string name="lastcall_call_incoming_text">Incoming call · %1$s</string>
+  <string name="lastcall_call_incoming_label">LastCall · incoming call</string>
+  <string name="lastcall_call_video_hint">Video starts after you answer</string>
+  <string name="lastcall_call_audio_hint">Microphone is enabled only after you answer</string>
+  <string name="lastcall_decline">Decline</string>
+  <string name="lastcall_answer">Answer</string>
+  <string name="lastcall_connecting">Connecting…</string>
+  <string name="lastcall_end">End</string>
+</resources>

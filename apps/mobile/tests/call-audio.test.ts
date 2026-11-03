@@ -49,7 +49,7 @@ test('unplugged pending headset clears request; speaker/earpiece fallback follow
   const controller = new CallAudioController({ get: async () => snapshot(), select: async () => snapshot() }, () => {});
   controller.setCall(a); controller.observe(snapshot()); await controller.select('3');
   const unplugged = snapshot(a, '2'); unplugged.routes.pop(); controller.observe(unplugged);
-  assert.equal(controller.state.pendingId, undefined); assert.match(controller.state.error!, /отключено/);
+  assert.equal(controller.state.pendingId, undefined); assert.match(controller.state.error!, /disconnected/i);
   assert.equal(controller.state.routes.find(route => route.selected)?.kind, 'speaker');
   controller.observe({ ...snapshot(), active: false });
   assert.deepEqual(controller.state.routes, []); assert.equal(controller.state.error, undefined);
@@ -121,7 +121,7 @@ test('another device of the same kind is not confirmation of a disconnected requ
   controller.setCall(a); controller.observe(snapshot()); await controller.select('3');
   const replacement = snapshot(); replacement.routes[2] = { id: '4', kind: 'bluetooth', selected: true }; replacement.routes[0]!.selected = false;
   controller.observe(replacement);
-  assert.equal(controller.state.pendingId, undefined); assert.match(controller.state.error!, /отключено/);
+  assert.equal(controller.state.pendingId, undefined); assert.match(controller.state.error!, /disconnected/i);
   controller.observe(replacement); assert.ok(controller.state.error);
 });
 

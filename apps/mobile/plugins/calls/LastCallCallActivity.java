@@ -1,6 +1,7 @@
 package dev.messenger.prototype.calls;
 
 import android.app.Activity;
+import dev.messenger.prototype.R;
 import android.content.Intent;
 import android.graphics.Color;
 import android.os.Build;
@@ -53,7 +54,7 @@ public final class LastCallCallActivity extends Activity {
     root.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
 
     TextView label = new TextView(this);
-    label.setText("LastCall · входящий звонок");
+    label.setText(getString(R.string.lastcall_call_incoming_label));
     label.setTextColor(Color.rgb(156, 163, 175));
     label.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
     label.setGravity(Gravity.CENTER);
@@ -68,7 +69,7 @@ public final class LastCallCallActivity extends Activity {
     root.addView(name);
 
     hint = new TextView(this);
-    hint.setText(entry.video ? "Видеозвонок начнётся после ответа" : "Микрофон включится только после ответа");
+    hint.setText(entry.video ? getString(R.string.lastcall_call_video_hint) : getString(R.string.lastcall_call_audio_hint));
     hint.setTextColor(Color.rgb(156, 163, 175));
     hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
     hint.setGravity(Gravity.CENTER);
@@ -77,13 +78,13 @@ public final class LastCallCallActivity extends Activity {
 
     Button decline = new Button(this);
     declineButton = decline;
-    decline.setText("Отклонить");
+    decline.setText(getString(R.string.lastcall_decline));
     decline.setOnClickListener(view -> decline());
     root.addView(decline, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(56)));
 
     Button answer = new Button(this);
     answerButton = answer;
-    answer.setText("Принять");
+    answer.setText(getString(R.string.lastcall_answer));
     answer.setOnClickListener(view -> answer());
     LinearLayout.LayoutParams answerParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(56));
     answerParams.topMargin = dp(14);
@@ -111,9 +112,9 @@ public final class LastCallCallActivity extends Activity {
   }
 
   private void showConnecting() {
-    if (hint != null) hint.setText("Подключаем…");
-    if (answerButton != null) { answerButton.setText("Подключаем…"); answerButton.setEnabled(false); }
-    if (declineButton != null) declineButton.setText("Завершить");
+    if (hint != null) hint.setText(getString(R.string.lastcall_connecting));
+    if (answerButton != null) { answerButton.setText(getString(R.string.lastcall_connecting)); answerButton.setEnabled(false); }
+    if (declineButton != null) declineButton.setText(getString(R.string.lastcall_end));
   }
 
   private void decline() {

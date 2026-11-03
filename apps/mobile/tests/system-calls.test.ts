@@ -63,12 +63,12 @@ test('a video invitation does not start camera service until explicit answer and
 test('self-managed calls are enabled on Android 26+ without a user phone-account gate and report blocked full-screen UI', () => {
   assert.equal(nativeCallMode(25), 'in-app'); assert.equal(nativeCallMode(26), 'self-managed');
   const ready = { supported: true, notifications: true, channel: true, fullScreen: true };
-  assert.match(callStatusText(true, ready), /включены/);
+  assert.match(callStatusText(true, ready), /enabled/);
   assert.equal(callSettingsTarget(ready), 'none');
   const fsiBlocked = { ...ready, fullScreen: false };
-  assert.match(callStatusText(true, fsiBlocked), /полноэкран/);
+  assert.match(callStatusText(true, fsiBlocked), /full-screen/);
   assert.equal(callSettingsTarget(fsiBlocked), 'full-screen');
-  assert.match(callStatusText(true, { ...ready, notifications: false }), /уведомления/);
+  assert.match(callStatusText(true, { ...ready, notifications: false }), /notifications/);
 });
 
 test('native call UI shows once for the live UUID and rejects stale/unknown actions', async () => {

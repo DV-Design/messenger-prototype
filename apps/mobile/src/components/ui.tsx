@@ -2,6 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import type { ComponentProps, ReactNode } from 'react';
 import { colors, styles } from '../styles';
+import { intlLocale, t } from '../i18n';
 export type IconName = ComponentProps<typeof Ionicons>['name'];
 export function Icon({ name, size = 24, color = colors.accent }: { name: IconName; size?: number; color?: ComponentProps<typeof Ionicons>['color'] | null }) { return <Ionicons name={name} size={size} color={color ?? colors.accent} />; }
 export function IconButton({ name, label, onPress, disabled, color }: { name: IconName; label: string; onPress: () => void; disabled?: boolean; color?: string }) {
@@ -25,7 +26,21 @@ export function Empty({ icon, title, text, children }: { icon: IconName; title: 
 export function ScreenHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
   return <View style={styles.header}><View style={styles.flex}><Text style={styles.title}>{title}</Text>{subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}</View>{action}</View>;
 }
-export const time = (timestamp: number) => new Date(timestamp).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-export const lastSeen = (online: boolean, timestamp: number) => online ? 'в сети' : timestamp ? `был(а) ${new Date(timestamp).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })} в ${time(timestamp)}` : 'не в сети';
-export const connectionLabel = { idle: 'Подключение…', connecting: 'Соединяемся…', online: 'Подключено', offline: 'Ожидание сети', error: 'Нет соединения' };
-export const fileSize = (size: number) => size < 1024 ? `${size} Б` : size < 1024 * 1024 ? `${(size / 1024).toFixed(1)} КБ` : `${(size / 1024 / 1024).toFixed(1)} МБ`;
+export const time = (timestamp: number) => new Date(timestamp).toLocaleTimeString(intlLocale, { hour: '2-digit', minute: '2-digit' });
+export const lastSeen = (online: boolean, timestamp: number) => online
+  ? t('online')
+  : timestamp
+    ? t('last seen {date} at {time}', { date: new Date(timestamp).toLocaleDateString(intlLocale, { day: 'numeric', month: 'short' }), time: time(timestamp) })
+    : t('offline');
+export const connectionLabel = {
+  idle: t('Connecting…'),
+  connecting: t('Connecting to peer…'),
+  online: t('Connected'),
+  offline: t('Waiting for network'),
+  error: t('No connection'),
+};
+export const fileSize = (size: number) => size < 1024
+  ? `${size} ${t('B')}`
+  : size < 1024 * 1024
+    ? `${(size / 1024).toFixed(1)} ${t('KB')}`
+    : `${(size / 1024 / 1024).toFixed(1)} ${t('MB')}`;

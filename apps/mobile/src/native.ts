@@ -1,3 +1,4 @@
+import { t } from './i18n';
 import * as Crypto from 'expo-crypto';
 import { MediaStream as NativeMediaStream, mediaDevices, RTCPeerConnection as NativePeerConnection } from 'react-native-webrtc';
 import { PeerSession } from '@messenger/core';
@@ -21,10 +22,10 @@ export function validateServerUrl(input: string): string {
   const local = host === 'localhost' || host === '::1' || host.endsWith('.local')
     || /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host);
   if (url.username || url.password || url.search || url.hash || !['http:', 'https:'].includes(url.protocol)) {
-    throw new Error('Укажите HTTP(S)-адрес без пароля, параметров и фрагмента.');
+    throw new Error(t('Enter an HTTP(S) address without a password, query or fragment.'));
   }
   if (url.protocol !== 'https:' && !((__DEV__ || process.env.EXPO_PUBLIC_ALLOW_LOCAL_HTTP === '1') && local)) {
-    throw new Error('Нужен HTTPS. Локальный HTTP разрешён только в тестовой сборке.');
+    throw new Error(t('HTTPS is required. Local HTTP is allowed only in a test build.'));
   }
   return url.origin + url.pathname.replace(/\/+$/, '');
 }

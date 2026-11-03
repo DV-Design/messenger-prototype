@@ -13,6 +13,7 @@ import { nativeCallPip, useCallPip } from '../call-pip';
 import { ownsLiveCall } from '../call-pip-model';
 import { VideoControlsController } from '../video-controls-model';
 import { colors, styles } from '../styles';
+import { t } from '../i18n';
 import { Avatar, Icon, IconButton } from './ui';
 
 export function CallOverlay() {
@@ -94,8 +95,8 @@ function CallPanel() {
   if (!call || callState === 'idle') return null;
   const contact = snapshot.contacts.find(item => item.userId === call.peerId);
   const conversation = snapshot.conversations.find(item => item.id === call.conversationId);
-  const name = contact?.displayName ?? conversation?.title ?? 'Собеседник';
-  const status = callState === 'incoming' ? (call.session.callVideo ? 'Входящий видеозвонок' : 'Входящий вызов') : callState === 'outgoing' ? 'Вызов…' : 'Разговор';
+  const name = contact?.displayName ?? conversation?.title ?? t('Contact');
+  const status = callState === 'incoming' ? (call.session.callVideo ? t('Incoming video call') : t('Incoming call')) : callState === 'outgoing' ? t('Calling…') : t('In call');
   const safetyCode = identity && contact && callId ? callSafetyEmoji(identity.publicKey, contact.publicKey, callId) : '';
   const landscape = width > height;
   const selectedAudio = audio.routes.find(route => route.selected);
@@ -113,17 +114,17 @@ function CallPanel() {
   }
   const controlsStrip = <View style={styles.callControls}>
           {callState === 'incoming' ? <>
-            <Pressable accessibilityRole="button" accessibilityLabel="Отклонить вызов" style={styles.callControl} onPress={() => { controls.interact(); client().rejectCall(); }}><View style={[styles.callCircle, { backgroundColor: colors.danger }]}><Icon name="call" color={colors.white} size={28} /></View><Text style={styles.callControlLabel}>Отклонить</Text></Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="Принять вызов" disabled={busy} style={[styles.callControl, busy && styles.disabled]} onPress={() => void accept()}><View style={[styles.callCircle, { backgroundColor: colors.accent }]}><Icon name="call" color={colors.white} size={28} /></View><Text style={styles.callControlLabel}>{busy ? 'Подключаем…' : 'Принять'}</Text></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={t('Decline call')} style={styles.callControl} onPress={() => { controls.interact(); client().rejectCall(); }}><View style={[styles.callCircle, { backgroundColor: colors.danger }]}><Icon name="call" color={colors.white} size={28} /></View><Text style={styles.callControlLabel}> {t('Decline')}</Text></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={t('Answer call')} disabled={busy} style={[styles.callControl, busy && styles.disabled]} onPress={() => void accept()}><View style={[styles.callCircle, { backgroundColor: colors.accent }]}><Icon name="call" color={colors.white} size={28} /></View><Text style={styles.callControlLabel}>{busy ? t('Connecting…') : t('Answer')}</Text></Pressable>
           </> : <>
-            <Pressable accessibilityRole="button" accessibilityLabel={call.session.muted ? 'Включить микрофон' : 'Выключить микрофон'} style={styles.callControl} onPress={() => { controls.interact(); client().setMuted(!call.session.muted); }}><View style={styles.callCircle}><Icon name={call.session.muted ? 'mic-off' : 'mic'} color={colors.white} size={28} /></View><Text style={styles.callControlLabel}>{call.session.muted ? 'Включить' : 'Микрофон'}</Text></Pressable>
-            {activeVideo && camera.state.available && <Pressable accessibilityRole="button" accessibilityLabel="Переключить камеру" disabled={camera.state.busy} style={[styles.callControl, camera.state.busy && styles.disabled]} onPress={() => { controls.interact(); void camera.switchCamera(); }}><View style={styles.callCircle}><Icon name="camera-reverse" color={colors.white} size={28} /></View><Text style={styles.callControlLabel}>{frontCamera ? 'Задняя' : 'Передняя'}</Text></Pressable>}
-            {audio.supported && <Pressable accessibilityRole="button" accessibilityLabel={`Выбрать звук: ${selectedAudio ? audioRouteLabel[selectedAudio.kind] : 'подключаем'}`} accessibilityState={{ disabled: !audio.active || !audio.routes.length }} disabled={!audio.active || !audio.routes.length} style={[styles.callControl, (!audio.active || !audio.routes.length) && styles.disabled]} onPress={() => { controls.interact(); setAudioMenu(true); }}><View style={styles.callCircle}><Icon name={audioIcon} color={colors.white} size={28} /></View><Text style={styles.callControlLabel}>Звук</Text></Pressable>}
-            <Pressable accessibilityRole="button" accessibilityLabel="Завершить звонок" style={styles.callControl} onPress={finish}><View style={[styles.callCircle, { backgroundColor: colors.danger }]}><Icon name="call" color={colors.white} size={28} /></View><Text style={styles.callControlLabel}>Завершить</Text></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={call.session.muted ? t('Unmute microphone') : t('Mute microphone')} style={styles.callControl} onPress={() => { controls.interact(); client().setMuted(!call.session.muted); }}><View style={styles.callCircle}><Icon name={call.session.muted ? 'mic-off' : 'mic'} color={colors.white} size={28} /></View><Text style={styles.callControlLabel}>{call.session.muted ? t('Unmute') : t('Microphone')}</Text></Pressable>
+            {activeVideo && camera.state.available && <Pressable accessibilityRole="button" accessibilityLabel={t('Switch camera')} disabled={camera.state.busy} style={[styles.callControl, camera.state.busy && styles.disabled]} onPress={() => { controls.interact(); void camera.switchCamera(); }}><View style={styles.callCircle}><Icon name="camera-reverse" color={colors.white} size={28} /></View><Text style={styles.callControlLabel}>{frontCamera ? t('Rear') : t('Front')}</Text></Pressable>}
+            {audio.supported && <Pressable accessibilityRole="button" accessibilityLabel={t('Choose audio: {route}', { route: selectedAudio ? audioRouteLabel[selectedAudio.kind] : t('connecting') })} accessibilityState={{ disabled: !audio.active || !audio.routes.length }} disabled={!audio.active || !audio.routes.length} style={[styles.callControl, (!audio.active || !audio.routes.length) && styles.disabled]} onPress={() => { controls.interact(); setAudioMenu(true); }}><View style={styles.callCircle}><Icon name={audioIcon} color={colors.white} size={28} /></View><Text style={styles.callControlLabel}> {t('Audio')}</Text></Pressable>}
+            <Pressable accessibilityRole="button" accessibilityLabel={t('End call')} style={styles.callControl} onPress={finish}><View style={[styles.callCircle, { backgroundColor: colors.danger }]}><Icon name="call" color={colors.white} size={28} /></View><Text style={styles.callControlLabel}> {t('End')}</Text></Pressable>
           </>}
         </View>;
-  const notice = shownError || (camera.state.busy ? 'Переключаем камеру…' : '');
-  const banner = collapsed && <Pressable style={[styles.callBanner, { top: insets.top + 4 }]} onPress={() => setCollapsed(false)} accessibilityRole="button" accessibilityLabel="Вернуться к звонку">
+  const notice = shownError || (camera.state.busy ? t('Switching camera…') : '');
+  const banner = collapsed && <Pressable style={[styles.callBanner, { top: insets.top + 4 }]} onPress={() => setCollapsed(false)} accessibilityRole="button" accessibilityLabel={t('Return to call')}>
       <Icon name="call" color={colors.white} size={19} /><Text style={styles.callBannerText}>{name} · {shownError || status.toLowerCase()}</Text><Icon name="chevron-forward" color={colors.white} size={19} /></Pressable>;
   const panel = <View style={{ flex: 1 }}>
       {video ? <Pressable style={styles.callVideoStage} onPress={() => controls.tap()} accessibilityRole="none">
@@ -134,25 +135,25 @@ function CallPanel() {
         {/* Removed from the tree, not merely transparent, while hidden or in PiP. */}
         {!pipActive && controlsVisible && <>
           <View style={[styles.callVideoHeader, { paddingTop: insets.top + 12, paddingLeft: insets.left + 20, paddingRight: insets.right + 12 }]}>
-            <View style={styles.callVideoHeading}><Text numberOfLines={1} style={styles.callVideoName}>{name}</Text><Text style={styles.callSubtitle}>{status}</Text>{!!safetyCode && <Text style={[styles.callSubtitle, { fontSize: 22 }]}>Код сверки: {safetyCode}</Text>}</View>
-            <IconButton name="chevron-down" label="Свернуть звонок" color={colors.white} onPress={() => { controls.interact(); void minimize(); }} />
+            <View style={styles.callVideoHeading}><Text numberOfLines={1} style={styles.callVideoName}>{name}</Text><Text style={styles.callSubtitle}>{status}</Text>{!!safetyCode && <Text style={[styles.callSubtitle, { fontSize: 22 }]}> {t('Verification code: {code}', { code: safetyCode })}</Text>}</View>
+            <IconButton name="chevron-down" label={t('Minimize call')} color={colors.white} onPress={() => { controls.interact(); void minimize(); }} />
           </View>
           <View style={[styles.callVideoFooter, { paddingBottom: insets.bottom + 16, paddingLeft: insets.left + 16, paddingRight: insets.right + 16 }]}>
             {!!notice && <Text style={styles.error}>{notice}</Text>}{controlsStrip}
           </View>
         </>}
       </Pressable> : <SafeAreaView style={styles.callScreen}>
-        <View style={{ position: 'absolute', right: 15, top: insets.top + 10 }}><IconButton name="chevron-down" label="Свернуть звонок" color={colors.white} onPress={() => void minimize()} /></View>
-        <Avatar name={name} id={call.peerId} size={94} /><Text style={styles.callName}>{name}</Text><Text style={styles.callSubtitle}>{status}</Text>{!!safetyCode && <Text style={[styles.callSubtitle, { fontSize: 22 }]}>Код сверки: {safetyCode}</Text>}
+        <View style={{ position: 'absolute', right: 15, top: insets.top + 10 }}><IconButton name="chevron-down" label={t('Minimize call')} color={colors.white} onPress={() => void minimize()} /></View>
+        <Avatar name={name} id={call.peerId} size={94} /><Text style={styles.callName}>{name}</Text><Text style={styles.callSubtitle}>{status}</Text>{!!safetyCode && <Text style={[styles.callSubtitle, { fontSize: 22 }]}> {t('Verification code: {code}', { code: safetyCode })}</Text>}
         {!!notice && <Text style={styles.error}>{notice}</Text>}{controlsStrip}
       </SafeAreaView>}
       {menuVisible && <View style={StyleSheet.absoluteFill}>
-        <Pressable style={StyleSheet.absoluteFill} accessibilityRole="button" accessibilityLabel="Закрыть выбор звука" onPress={() => setAudioMenu(false)} />
+        <Pressable style={StyleSheet.absoluteFill} accessibilityRole="button" accessibilityLabel={t('Close audio picker')} onPress={() => setAudioMenu(false)} />
         <View style={{ position: 'absolute', left: insets.left + 20, right: insets.right + 20, bottom: insets.bottom + 110, maxHeight: Math.max(120, height - insets.top - insets.bottom - 135), backgroundColor: '#252332', borderRadius: 20, padding: 16 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: colors.white, fontSize: 18, fontWeight: '600' }}>Звук звонка</Text><IconButton name="close" label="Закрыть выбор звука" color={colors.white} onPress={() => setAudioMenu(false)} /></View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: colors.white, fontSize: 18, fontWeight: '600' }}> {t('Call audio')}</Text><IconButton name="close" label={t('Close audio picker')} color={colors.white} onPress={() => setAudioMenu(false)} /></View>
           <ScrollView>
             {audio.routes.map(route => <Pressable key={route.id} accessibilityRole="radio" accessibilityLabel={audioRouteLabel[route.kind]} accessibilityState={{ selected: route.selected, disabled: !!audio.pendingId }} disabled={!!audio.pendingId} onPress={() => void audio.select(route.id)} style={{ minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 12, opacity: audio.pendingId && audio.pendingId !== route.id ? 0.5 : 1 }}>
-              <Icon name={route.selected ? 'radio-button-on' : 'radio-button-off'} color={colors.white} size={23} /><Text style={{ color: colors.white, flex: 1 }}>{audioRouteLabel[route.kind]}{audio.pendingId === route.id ? ' · подключаем…' : ''}</Text>
+              <Icon name={route.selected ? 'radio-button-on' : 'radio-button-off'} color={colors.white} size={23} /><Text style={{ color: colors.white, flex: 1 }}>{audioRouteLabel[route.kind]}{audio.pendingId === route.id ? ` · ${t('connecting…')}` : ''}</Text>
             </Pressable>)}
           </ScrollView>
           {!!audio.error && <Text accessibilityRole="alert" style={[styles.error, { marginTop: 8 }]}>{audio.error}</Text>}

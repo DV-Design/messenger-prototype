@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="lastcall_call_end">Завершить звонок</string>
+  <string name="lastcall_call_end_video">Завершить видеозвонок</string>
+  <string name="lastcall_notification_channel_preview">Текст сообщений LastCall</string>
+  <string name="lastcall_notification_channel_preview_desc">Имя отправителя и текст сообщения на экране блокировки</string>
+  <string name="lastcall_call_active_channel">Разговор LastCall</string>
+  <string name="lastcall_call_active_title">LastCall · разговор</string>
+  <string name="lastcall_call_active_video_text">Камера и микрофон включены для звонка</string>
+  <string name="lastcall_call_active_audio_text">Микрофон включён для принятого звонка</string>
+  <string name="lastcall_call_setup_channel">Подключение звонка LastCall</string>
+  <string name="lastcall_call_setup_desc">Подготовка защищённого звонка без доступа к микрофону</string>
+  <string name="lastcall_call_setup_text">Подключение защищённого звонка</string>
+  <string name="lastcall_call_incoming_channel">Входящие звонки LastCall</string>
+  <string name="lastcall_call_incoming_desc">Входящие звонки LastCall</string>
+  <string name="lastcall_call_incoming_text">Входящий звонок · %1$s</string>
+  <string name="lastcall_call_incoming_label">LastCall · входящий звонок</string>
+  <string name="lastcall_call_video_hint">Видеозвонок начнётся после ответа</string>
+  <string name="lastcall_call_audio_hint">Микрофон включится только после ответа</string>
+  <string name="lastcall_decline">Отклонить</string>
+  <string name="lastcall_answer">Принять</string>
+  <string name="lastcall_connecting">Подключаем…</string>
+  <string name="lastcall_end">Завершить</string>
+</resources>

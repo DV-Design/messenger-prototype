@@ -1,3 +1,16 @@
+# LastCall 1.0.4 / code18: English-primary localization (published)
+
+Status: **1.0.4/code18 is published**. English is the default UI language;
+Russian is selected when the phone's primary locale is Russian. Store submission
+is still pending.
+
+- [X] JS localization with English fallback and Russian device-locale selection
+  → Artifacts: [i18n](apps/mobile/src/i18n.ts), [entry](apps/mobile/index.js), [tests](apps/mobile/tests/i18n.test.ts)
+- [X] Native Android call/notification strings and localized permission metadata
+  → Artifacts: [resources](apps/mobile/plugins/strings/), [plugin](apps/mobile/plugins/withLastCallStrings.cjs), [locale files](apps/mobile/locales/)
+- [X] Publish direct 1.0.4: APK, signed latest.json and metadata
+  → Artifacts: [release record](artifacts/README.md), [APK](https://p2p.lienad.ru/download/LastCall-1.0.4.apk), 53 967 857 bytes, SHA256 `ecc82e53fdbe835e42d9cdceff67b2b436fb16477d5d13fc829a40aa5b7c566e`
+
 # LastCall 1.0.3 / code17: circle preview, camera continuity, emoji codes, store prep (published)
 
 Status: **1.0.3/code17 is published** as a direct test build. Store publication is

@@ -1,3 +1,4 @@
+import { t } from './i18n';
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import { Directory, File, Paths } from 'expo-file-system';
@@ -24,13 +25,13 @@ export async function loadExistingIdentity(): Promise<DeviceIdentity | null> {
   if (saved) {
     const identity = JSON.parse(saved) as DeviceIdentity;
     if (!hex.test(identity.privateKey) || !hex.test(identity.publicKey) || !hex.test(identity.userId)) {
-      throw new Error('Не удалось прочитать ключ устройства. Данные не сброшены.');
+      throw new Error(t('Could not read the device key. Data was not reset.'));
     }
     // Verify the stored seed and identity agree instead of silently replacing it.
     const seed = Uint8Array.from(identity.privateKey.match(/../g)!, part => parseInt(part, 16));
     const verified = createDeviceIdentity(() => seed);
     if (verified.publicKey !== identity.publicKey || verified.userId !== identity.userId) {
-      throw new Error('Проверка ключа устройства не пройдена. Данные не сброшены.');
+      throw new Error(t('Device key verification failed. Data was not reset.'));
     }
     return verified;
   }
@@ -42,7 +43,7 @@ export async function loadProfile(): Promise<LocalProfile | null> {
   const profile = JSON.parse(raw) as LocalProfile;
   if (!/^[a-z0-9_]{3,24}$/.test(profile.username) || typeof profile.displayName !== 'string'
     || !profile.displayName.trim() || profile.displayName.length > 48 || typeof profile.serverUrl !== 'string') {
-    throw new Error('Не удалось прочитать профиль. Данные не сброшены.');
+    throw new Error(t('Could not read the profile. Data was not reset.'));
   }
   return profile;
 }
@@ -73,17 +74,17 @@ export async function sealedStateAdapter(identity: DeviceIdentity, serverUrl: st
     return next;
   };
   const attachment = (key: string, suffix = '.sealed') => {
-    if (typeof key !== 'string' || !hex.test(key)) throw new Error('Некорректный ключ вложения.');
+    if (typeof key !== 'string' || !hex.test(key)) throw new Error(t('Invalid attachment key.'));
     return new File(attachments, `${key}${suffix}`);
   };
   return {
     loadState: async () => {
       if (!target.exists) return null;
-      if (target.size > MAX_SEALED_BYTES) throw new Error('Локальное хранилище превышает допустимый размер.');
+      if (target.size > MAX_SEALED_BYTES) throw new Error(t('Local storage exceeds the allowed size.'));
       return target.text();
     },
     saveState: (sealed: string) => {
-      if (sealed.length > MAX_SEALED_BYTES) return Promise.reject(new Error('Локальное хранилище превышает допустимый размер.'));
+      if (sealed.length > MAX_SEALED_BYTES) return Promise.reject(new Error(t('Local storage exceeds the allowed size.')));
       // Only sealed ciphertext supplied by core reaches the file adapter.
       // SecureStore is the only storage location for the device seed.
       return serialized(async () => {
@@ -94,7 +95,7 @@ export async function sealedStateAdapter(identity: DeviceIdentity, serverUrl: st
     },
     saveAttachment: (key: string, sealed: string) => {
       const destination = attachment(key);
-      if (typeof sealed !== 'string' || sealed.length > MAX_SEALED_ATTACHMENT_BYTES) return Promise.reject(new Error('Зашифрованное вложение превышает допустимый размер.'));
+      if (typeof sealed !== 'string' || sealed.length > MAX_SEALED_ATTACHMENT_BYTES) return Promise.reject(new Error(t('Encrypted attachment exceeds the allowed size.')));
       return serialized(async () => {
         const temporary = attachment(key, '.next');
         await temporary.write(sealed);
@@ -105,9 +106,9 @@ export async function sealedStateAdapter(identity: DeviceIdentity, serverUrl: st
       const source = attachment(key);
       await writes.catch(() => {});
       if (!source.exists) return null;
-      if (source.size > MAX_SEALED_ATTACHMENT_BYTES) throw new Error('Зашифрованное вложение превышает допустимый размер.');
+      if (source.size > MAX_SEALED_ATTACHMENT_BYTES) throw new Error(t('Encrypted attachment exceeds the allowed size.'));
       const sealed = await source.text();
-      if (sealed.length > MAX_SEALED_ATTACHMENT_BYTES) throw new Error('Зашифрованное вложение превышает допустимый размер.');
+      if (sealed.length > MAX_SEALED_ATTACHMENT_BYTES) throw new Error(t('Encrypted attachment exceeds the allowed size.'));
       return sealed;
     },
     deleteAttachment: (key: string) => {

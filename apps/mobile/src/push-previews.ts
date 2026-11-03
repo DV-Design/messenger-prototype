@@ -1,3 +1,4 @@
+import { t } from './i18n';
 import { AppState, NativeModules, Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { AndroidImportance, AndroidNotificationVisibility } from 'expo-notifications';
@@ -33,7 +34,7 @@ export function prepareMessagePreviews(): Promise<boolean> {
   if (Platform.OS !== 'android' || !nativePresenter || typeof nativePresenter.show !== 'function' || typeof nativePresenter.contains !== 'function' || typeof nativePresenter.prepare !== 'function') return Promise.resolve(false);
   if (!prepared) prepared = (async () => {
     await Notifications.setNotificationChannelAsync(MESSAGE_PREVIEW_CHANNEL, {
-      name: 'Текст сообщений LastCall', description: 'Имя отправителя и текст сообщения на экране блокировки',
+      name: t('LastCall message previews'), description: t('Sender name and message text on the lock screen'),
       importance: AndroidImportance.HIGH, lockscreenVisibility: AndroidNotificationVisibility.PUBLIC,
       sound: 'default', enableVibrate: true, showBadge: true,
     });

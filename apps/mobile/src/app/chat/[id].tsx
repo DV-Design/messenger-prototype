@@ -3,6 +3,7 @@ import { Redirect, router, useIsFocused, useLocalSearchParams } from 'expo-route
 import { AppState, FlatList, KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { safetyEmoji, type MessengerMessage } from '@messenger/core';
+import { t } from '../../i18n';
 import { pickDocument, pickMedia, shareFile } from '../../attachments';
 import { AttachmentCard } from '../../components/AttachmentCard';
 import { SafetyCode } from '../../components/SafetyCode';
@@ -44,7 +45,7 @@ export default function Chat() {
     }
   }, [focused, foreground, interacting, id, unread, contentVersion]);
   if (!profile) return <Redirect href="/onboarding" />;
-  if (!conversation) return <SafeAreaView style={styles.whiteScreen}><View style={styles.chatHeader}><IconButton name="chevron-back" label="Назад" onPress={() => router.back()} /></View><Empty icon="chatbubble-outline" title="Чат не найден" text="Он может относиться к другому серверу. Вернитесь к списку чатов." /></SafeAreaView>;
+  if (!conversation) return <SafeAreaView style={styles.whiteScreen}><View style={styles.chatHeader}><IconButton name="chevron-back" label={t('Back')} onPress={() => router.back()} /></View><Empty icon="chatbubble-outline" title={t('Chat not found')} text={t('It may belong to another server. Return to the chat list.')} /></SafeAreaView>;
   const timeline = chatTimeline(conversation.messages, conversation.files);
   const peer = snapshot.contacts.find(item => conversation.memberIds.includes(item.userId) && item.userId !== identity?.userId);
   const group = conversation.kind === 'group';
@@ -72,7 +73,7 @@ export default function Chat() {
   function record(kind: MediaKind) { if (busy || snapshot.activeCall) return; setAttachments(false); setRecording(kind); }
   function renderMessage(item: MessengerMessage) {
     const own = item.from === identity?.userId;
-    const sender = snapshot.contacts.find(contact => contact.userId === item.from)?.displayName ?? 'Участник';
+    const sender = snapshot.contacts.find(contact => contact.userId === item.from)?.displayName ?? t('Member');
     const read = deliveryStage(item) === 'read';
     const expired = item.status === 'expired';
     const label = deliveryLabel(item, group);
@@ -83,37 +84,37 @@ export default function Chat() {
     </View>;
   }
   return <SafeAreaView style={styles.whiteScreen} edges={['top', 'bottom']}>
-    <View style={styles.chatHeader}><IconButton name="chevron-back" label="Назад к чатам" onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)')} />
-      <Avatar name={conversation.title} id={conversation.id} group={group} size={41} /><View style={[styles.flex, { marginLeft: 7 }]}><Text numberOfLines={1} style={styles.chatName}>{conversation.title}</Text><Text numberOfLines={1} style={[styles.chatStatus, !group && peer?.online && { color: colors.accent }]}>{group ? `${conversation.memberIds.length} участников` : lastSeen(!!peer?.online, peer?.lastSeen ?? 0)}</Text></View>
-      {!group && peer && <IconButton name={peerVerified ? 'shield-checkmark-outline' : 'shield-outline'} label="Код безопасности" onPress={() => setSafetyOpen(true)} />}
-      <IconButton name="call-outline" label={group ? 'Групповые звонки недоступны' : 'Аудиозвонок'} disabled={!canCall || busy} onPress={() => void action(() => client().startCall(conversation.id, false))} />
-      <IconButton name="videocam-outline" label={group ? 'Групповые видеозвонки недоступны' : 'Видеозвонок'} disabled={!canCall || busy} onPress={() => void action(() => client().startCall(conversation.id, true))} />
+    <View style={styles.chatHeader}><IconButton name="chevron-back" label={t('Back to chats')} onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)')} />
+      <Avatar name={conversation.title} id={conversation.id} group={group} size={41} /><View style={[styles.flex, { marginLeft: 7 }]}><Text numberOfLines={1} style={styles.chatName}>{conversation.title}</Text><Text numberOfLines={1} style={[styles.chatStatus, !group && peer?.online && { color: colors.accent }]}>{group ? t('Members: {count}', { count: conversation.memberIds.length }) : lastSeen(!!peer?.online, peer?.lastSeen ?? 0)}</Text></View>
+      {!group && peer && <IconButton name={peerVerified ? 'shield-checkmark-outline' : 'shield-outline'} label={t('Safety code')} onPress={() => setSafetyOpen(true)} />}
+      <IconButton name="call-outline" label={group ? t('Group calls unavailable') : t('Audio call')} disabled={!canCall || busy} onPress={() => void action(() => client().startCall(conversation.id, false))} />
+      <IconButton name="videocam-outline" label={group ? t('Group video calls unavailable') : t('Video call')} disabled={!canCall || busy} onPress={() => void action(() => client().startCall(conversation.id, true))} />
     </View>
-    <Pressable accessibilityRole="button" accessibilityLabel="Состояние доставки. Открыть настройки соединения" onPress={() => router.push('/(tabs)/settings')} style={{ paddingHorizontal: 15, paddingVertical: 9, backgroundColor: notice.warning ? '#FFF2D8' : '#EDF5F1' }}><Text style={[styles.info, { color: notice.warning ? '#7B5924' : '#4E7161' }]}>{notice.text}</Text></Pressable>
-    {!group && peer && !peerVerified && <Pressable accessibilityRole="button" accessibilityLabel="Проверить код безопасности собеседника" onPress={() => setSafetyOpen(true)} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 15, paddingVertical: 8, backgroundColor: '#FFF6E4' }}><Icon name="shield-outline" size={17} color="#7B5924" /><Text style={[styles.info, { flex: 1, color: '#7B5924' }]}>Ключ собеседника не сверен. Сверьте код безопасности.</Text><Icon name="chevron-forward" size={17} color="#7B5924" /></Pressable>}
+    <Pressable accessibilityRole="button" accessibilityLabel={t('Delivery status. Open connection settings')} onPress={() => router.push('/(tabs)/settings')} style={{ paddingHorizontal: 15, paddingVertical: 9, backgroundColor: notice.warning ? '#FFF2D8' : '#EDF5F1' }}><Text style={[styles.info, { color: notice.warning ? '#7B5924' : '#4E7161' }]}>{notice.text}</Text></Pressable>
+    {!group && peer && !peerVerified && <Pressable accessibilityRole="button" accessibilityLabel={t('Verify contact safety code')} onPress={() => setSafetyOpen(true)} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 15, paddingVertical: 8, backgroundColor: '#FFF6E4' }}><Icon name="shield-outline" size={17} color="#7B5924" /><Text style={[styles.info, { flex: 1, color: '#7B5924' }]}> {t('Contact key is not verified. Compare the safety code.')}</Text><Icon name="chevron-forward" size={17} color="#7B5924" /></Pressable>}
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={styles.conversation}>
-        {group && <Text style={[styles.info, { textAlign: 'center', paddingVertical: 8, paddingHorizontal: 15 }]}>Группа до 8 участников · звонки в группах пока недоступны</Text>}
+        {group && <Text style={[styles.info, { textAlign: 'center', paddingVertical: 8, paddingHorizontal: 15 }]}> {t('Group up to 8 members · group calls are not available yet')}</Text>}
         <FlatList ref={list} data={timeline} keyExtractor={entry => entry.key} contentContainerStyle={styles.messages} keyboardShouldPersistTaps="handled" onContentSizeChange={() => list.current?.scrollToEnd({ animated: true })}
           renderItem={({ item: entry }) => {
             if (entry.kind === 'message') return renderMessage(entry.item);
             const file = entry.item;
             return <View style={{ marginTop: 9 }}><AttachmentCard file={file} self={file.senderId === identity?.userId} group={group} sender={group ? snapshot.contacts.find(contact => contact.userId === file.senderId)?.displayName : undefined} mediaDisabled={!focused || !!snapshot.activeCall || !!recording} onOpen={() => void action(() => shareFile(file))} /></View>;
           }}
-          ListEmptyComponent={<Empty icon="chatbubble-ellipses-outline" title="Начните разговор" text={group ? 'Данные синхронизируются между телефонами участников.' : 'Отправьте первое сообщение. Если друга нет в сети, оно подождёт на вашем устройстве до 7 дней.'} />} />
+          ListEmptyComponent={<Empty icon="chatbubble-ellipses-outline" title={t('Start a conversation')} text={group ? t('Data syncs between participants’ phones.') : t('Send the first message. If your contact is offline, it waits on your device for up to 7 days.')} />} />
       </View>
-      {!!error && <Pressable accessibilityRole="button" accessibilityLabel="Скрыть ошибку" onPress={() => setError('')}><Text style={[styles.error, { borderRadius: 0 }]}>{error}</Text></Pressable>}
+      {!!error && <Pressable accessibilityRole="button" accessibilityLabel={t('Hide error')} onPress={() => setError('')}><Text style={[styles.error, { borderRadius: 0 }]}>{error}</Text></Pressable>}
       {attachments && <View><View style={styles.attachmentMenu}>
-        <Pressable style={styles.attachment} accessibilityRole="button" onPress={() => attach('media')}><Icon name="images-outline" size={27} /><Text style={styles.rowText}>Фото и видео</Text></Pressable>
-        <Pressable style={styles.attachment} accessibilityRole="button" onPress={() => attach('document')}><Icon name="document-outline" size={27} /><Text style={styles.rowText}>Файл до 5 МиБ</Text></Pressable>
+        <Pressable style={styles.attachment} accessibilityRole="button" onPress={() => attach('media')}><Icon name="images-outline" size={27} /><Text style={styles.rowText}> {t('Photos and video')}</Text></Pressable>
+        <Pressable style={styles.attachment} accessibilityRole="button" onPress={() => attach('document')}><Icon name="document-outline" size={27} /><Text style={styles.rowText}> {t('File up to 5 MiB')}</Text></Pressable>
       </View><View style={styles.attachmentMenu}>
-        <Pressable style={[styles.attachment, !!snapshot.activeCall && styles.disabled]} disabled={busy || !!snapshot.activeCall} accessibilityRole="button" onPress={() => record('voice')}><Icon name="mic-outline" size={27} /><Text style={styles.rowText}>Голосовое</Text></Pressable>
-        <Pressable style={[styles.attachment, !!snapshot.activeCall && styles.disabled]} disabled={busy || !!snapshot.activeCall} accessibilityRole="button" onPress={() => record('circle')}><Icon name="videocam-outline" size={27} /><Text style={styles.rowText}>Видеокружок</Text></Pressable>
+        <Pressable style={[styles.attachment, !!snapshot.activeCall && styles.disabled]} disabled={busy || !!snapshot.activeCall} accessibilityRole="button" onPress={() => record('voice')}><Icon name="mic-outline" size={27} /><Text style={styles.rowText}> {t('Voice message')}</Text></Pressable>
+        <Pressable style={[styles.attachment, !!snapshot.activeCall && styles.disabled]} disabled={busy || !!snapshot.activeCall} accessibilityRole="button" onPress={() => record('circle')}><Icon name="videocam-outline" size={27} /><Text style={styles.rowText}> {t('Video circle')}</Text></Pressable>
       </View></View>}
-      <View style={styles.composer}><IconButton name={attachments ? 'close' : 'attach'} label="Прикрепить файл" disabled={busy} onPress={() => setAttachments(!attachments)} />
-        <TextInput style={styles.composerInput} value={draft} onChangeText={setDraft} multiline maxLength={4000} placeholder="Сообщение" placeholderTextColor={colors.secondary} accessibilityLabel="Текст сообщения" />
-        {!draft.trim() && <IconButton name="mic-outline" label="Записать голосовое сообщение" disabled={busy || !!snapshot.activeCall} onPress={() => record('voice')} />}
-        {!!draft.trim() && <Pressable style={[styles.send, busy && styles.disabled]} accessibilityRole="button" accessibilityLabel="Отправить сообщение" disabled={busy} onPress={send}><Icon name="arrow-up" color={colors.white} size={25} /></Pressable>}
+      <View style={styles.composer}><IconButton name={attachments ? 'close' : 'attach'} label={t('Attach file')} disabled={busy} onPress={() => setAttachments(!attachments)} />
+        <TextInput style={styles.composerInput} value={draft} onChangeText={setDraft} multiline maxLength={4000} placeholder={t('Message')} placeholderTextColor={colors.secondary} accessibilityLabel={t('Message text')} />
+        {!draft.trim() && <IconButton name="mic-outline" label={t('Record voice message')} disabled={busy || !!snapshot.activeCall} onPress={() => record('voice')} />}
+        {!!draft.trim() && <Pressable style={[styles.send, busy && styles.disabled]} accessibilityRole="button" accessibilityLabel={t('Send message')} disabled={busy} onPress={send}><Icon name="arrow-up" color={colors.white} size={25} /></Pressable>}
       </View>
     </KeyboardAvoidingView>
     {!!recording && focused && <MediaComposer key={`${id}:${recording}`} kind={recording} conversationId={conversation.id} blocked={!!snapshot.activeCall} onClose={() => setRecording(undefined)} />}

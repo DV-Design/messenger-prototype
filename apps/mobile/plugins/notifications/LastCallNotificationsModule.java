@@ -1,6 +1,7 @@
 package dev.messenger.prototype.notifications;
 
 import android.Manifest;
+import dev.messenger.prototype.R;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -81,8 +82,8 @@ public final class LastCallNotificationsModule extends ReactContextBaseJavaModul
   private boolean ensureChannel(NotificationManager manager) {
     if (!enabled(manager)) return false;
     if (Build.VERSION.SDK_INT >= 26) {
-      NotificationChannel channel = new NotificationChannel(CHANNEL, "Текст сообщений LastCall", NotificationManager.IMPORTANCE_HIGH);
-      channel.setDescription("Имя отправителя и текст сообщения на экране блокировки");
+      NotificationChannel channel = new NotificationChannel(CHANNEL, context.getString(R.string.lastcall_notification_channel_preview), NotificationManager.IMPORTANCE_HIGH);
+      channel.setDescription(context.getString(R.string.lastcall_notification_channel_preview_desc));
       channel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
       channel.enableVibration(true);
       manager.createNotificationChannel(channel);

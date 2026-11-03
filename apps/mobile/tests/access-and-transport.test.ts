@@ -24,11 +24,11 @@ test('only active features request permissions sequentially and survive one deni
 const session = (status: SessionSnapshot['status'], error?: string): SessionSnapshot => ({ status, error, messages: [], files: [], callState: 'idle', muted: false, route: 'unknown', stats: {} });
 test('directory presence is never presented as successful peer delivery', () => {
   const failed = transportNotice({ directory: 'online', group: false, peerOnline: true, session: session('error', 'ICE timeout'), pending: 1 });
-  assert.match(failed.text, /Сервер подключён, но связь с собеседником не установлена/);
+  assert.match(failed.text, /The server is connected, but the contact is unreachable/);
   assert.equal(failed.warning, true);
   const offline = transportNotice({ directory: 'online', group: false, peerOnline: false, pending: 1 });
-  assert.match(offline.text, /Собеседник не в сети/);
+  assert.match(offline.text, /The contact is offline/);
   const peerUp = transportNotice({ directory: 'offline', group: false, peerOnline: false, session: session('connected'), pending: 0 });
   assert.equal(peerUp.warning, false);
-  assert.match(peerUp.text, /Соединение с собеседником установлено/);
+  assert.match(peerUp.text, /Connected to the contact/);
 });

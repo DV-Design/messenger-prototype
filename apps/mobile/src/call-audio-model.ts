@@ -1,8 +1,9 @@
+import { t } from './i18n';
 export type CallAudioKind = 'earpiece' | 'speaker' | 'bluetooth' | 'wired';
 export interface CallAudioRoute { id: string; kind: CallAudioKind; selected: boolean }
 export interface CallAudioSnapshot { callId: string; active: boolean; routes: CallAudioRoute[] }
 export interface CallAudioState extends CallAudioSnapshot { pendingId?: string; error?: string }
-export const audioRouteLabel: Record<CallAudioKind, string> = { earpiece: 'У телефона', speaker: 'Громкая связь', bluetooth: 'Bluetooth', wired: 'Проводная гарнитура' };
+export const audioRouteLabel: Record<CallAudioKind, string> = { earpiece: t('Earpiece'), speaker: t('Speaker'), bluetooth: 'Bluetooth', wired: t('Wired headset') };
 export interface CallAudioPort {
   get(id: string): Promise<unknown>;
   select(id: string, routeId: string): Promise<unknown>;
@@ -50,7 +51,7 @@ export class CallAudioController {
     }
     if (pendingId) {
       const pending = incoming.routes.find(route => route.id === pendingId);
-      if (!pending || this.now() >= this.deadline) { pendingId = undefined; this.routeError = pending ? 'Не удалось переключить звук. Попробуйте ещё раз.' : 'Аудиоустройство отключено.'; }
+      if (!pending || this.now() >= this.deadline) { pendingId = undefined; this.routeError = pending ? t('Could not switch audio. Try again.') : t('Audio device disconnected.'); }
     }
     this.update({ ...incoming, pendingId, error: this.routeError });
   }
@@ -64,8 +65,8 @@ export class CallAudioController {
     } catch {
       if (generation === this.generation && observation === this.observation && selection === this.selection && query === this.query) {
         const timedOut = !!this.state.pendingId && this.now() >= this.deadline;
-        if (timedOut) this.routeError = 'Не удалось переключить звук. Попробуйте ещё раз.';
-        this.update({ ...this.state, pendingId: timedOut ? undefined : this.state.pendingId, error: this.routeError ?? 'Не удалось получить список аудиоустройств.' });
+        if (timedOut) this.routeError = t('Could not switch audio. Try again.');
+        this.update({ ...this.state, pendingId: timedOut ? undefined : this.state.pendingId, error: this.routeError ?? t('Could not load audio devices.') });
       }
     }
   }
@@ -83,7 +84,7 @@ export class CallAudioController {
       if (generation === this.generation && selection === this.selection && observation === this.observation) this.observe(value);
     } catch {
       if (generation === this.generation && selection === this.selection && this.requestedId === routeId) {
-        this.routeError = 'Не удалось переключить звук. Попробуйте ещё раз.';
+        this.routeError = t('Could not switch audio. Try again.');
         this.update({ ...this.state, pendingId: undefined, error: this.routeError });
       }
     }

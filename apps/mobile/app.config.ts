@@ -12,26 +12,28 @@ const config: ExpoConfig = {
   name: 'LastCall',
   slug: 'messenger-prototype',
   icon: './assets/lastcall-icon.png',
-  version: '1.0.3',
+  version: '1.0.4',
   scheme: 'messenger-preview',
   orientation: 'default',
   userInterfaceStyle: 'light',
   backgroundColor: '#F5F7F9',
+  locales: { en: './locales/en.json', ru: './locales/ru.json' },
   ios: {
     supportsTablet: true,
     bundleIdentifier: iosBundleIdentifier,
-    buildNumber: '17',
+    buildNumber: '18',
     infoPlist: {
       // Local-network HTTP is only for an explicitly configured development server.
       NSAppTransportSecurity: process.env.MESSENGER_ALLOW_LOCAL_HTTP === '1'
         ? { NSAllowsArbitraryLoads: true, NSAllowsLocalNetworking: true }
         : { NSAllowsLocalNetworking: false },
-      NSLocalNetworkUsageDescription: 'Подключение к вашему тестовому серверу в локальной сети.',
+      NSLocalNetworkUsageDescription: 'Connect to your test server on the local network.',
+      CFBundleAllowMixedLocalizations: true,
     },
   },
   android: {
     package: androidPackage,
-    versionCode: 17,
+    versionCode: 18,
     allowBackup: false,
     adaptiveIcon: { foregroundImage: './assets/lastcall-icon.png', backgroundColor: '#FFFFFF' },
     ...(googleServicesFile ? { googleServicesFile } : {}),
@@ -42,10 +44,11 @@ const config: ExpoConfig = {
   },
   extra: { nativeFcmConfigured: !!googleServicesFile, distribution, directUpdates: distribution === 'direct' },
   plugins: [
+    ['expo-localization', { supportedLocales: { ios: ['en', 'ru'], android: ['en', 'ru'] } }],
     './plugins/withLastCallPip.cjs',
     'expo-router',
-    ['expo-audio', { microphonePermission: 'Микрофон нужен для звонков и записи голосовых сообщений.', enableBackgroundRecording: false, enableBackgroundPlayback: false }],
-    ['expo-camera', { cameraPermission: 'Камера нужна для видеозвонков и записи видеокружков.', microphonePermission: 'Микрофон нужен для звонков и записи сообщений.', recordAudioAndroid: true }],
+    ['expo-audio', { microphonePermission: 'Microphone is used for calls and voice messages.', enableBackgroundRecording: false, enableBackgroundPlayback: false }],
+    ['expo-camera', { cameraPermission: 'Camera is used for video calls and video circles.', microphonePermission: 'Microphone is used for calls and recorded messages.', recordAudioAndroid: true }],
     ['expo-video', { supportsBackgroundPlayback: false, supportsPictureInPicture: false }],
     ['expo-splash-screen', { image: './assets/lastcall-icon.png', imageWidth: 160, resizeMode: 'contain', backgroundColor: '#FFFFFF' }],
     './plugins/withAdaptiveIconInset.cjs',
@@ -56,17 +59,18 @@ const config: ExpoConfig = {
     './plugins/withLastCallCalls.cjs',
     './plugins/withPersistentCircleCamera.cjs',
     './plugins/withReleaseSigning.cjs',
+    './plugins/withLastCallStrings.cjs',
     './plugins/withLastCallNotifications.cjs',
     './plugins/withWebRtc155Release.cjs',
     ['@config-plugins/react-native-webrtc', {
-      cameraPermission: 'Камера нужна для видеозвонков, которые вы включаете сами.',
-      microphonePermission: 'Микрофон нужен для голосовых и видеозвонков.',
+      cameraPermission: 'Camera is used for video calls you start yourself.',
+      microphonePermission: 'Microphone is used for voice and video calls.',
     }],
     ['expo-image-picker', {
-      photosPermission: 'Выберите фото или видео для передачи собеседнику.',
+      photosPermission: 'Choose a photo or video to send to your contact.',
       // false blocks these globally, including WebRTC call permissions.
-      cameraPermission: 'Камера нужна для видеозвонков, которые вы включаете сами.',
-      microphonePermission: 'Микрофон нужен для голосовых и видеозвонков.',
+      cameraPermission: 'Camera is used for video calls you start yourself.',
+      microphonePermission: 'Microphone is used for voice and video calls.',
     }],
   ],
 };

@@ -1,3 +1,4 @@
+import { t } from './i18n';
 import { useSyncExternalStore } from 'react';
 import { AppRegistry, AppState, NativeEventEmitter, NativeModules, PermissionsAndroid, Platform } from 'react-native';
 import RNCallKeep, { type InitialEvents } from 'react-native-callkeep';
@@ -13,11 +14,11 @@ const nativeCalls = android && nativeCallMode(apiLevel) === 'self-managed';
 const nativeUi = android && apiLevel >= 24;
 const options = {
   ios: { appName: 'LastCall', supportsVideo: false },
-  android: { alertTitle: 'Системные звонки LastCall', alertDescription: 'Разрешите звонки LastCall.', cancelButton: 'Позже', okButton: 'Настроить', additionalPermissions: [], selfManaged: nativeCalls },
+  android: { alertTitle: t('LastCall system calls'), alertDescription: t('Allow LastCall calls.'), cancelButton: t('Later'), okButton: t('Configure'), additionalPermissions: [], selfManaged: nativeCalls },
 };
 let initialized: Promise<boolean> | undefined;
 let enabled = false;
-let status = android ? 'Системный экран звонков ещё не включён.' : 'Системные звонки iOS требуют отдельной настройки APNs/CallKit.';
+let status = android ? t('The system call screen is not enabled yet.') : t('iOS system calls require APNs/CallKit configuration.');
 const listeners = new Set<() => void>();
 function publish(text: string) { status = text; listeners.forEach(listener => listener()); }
 interface LastCallAudio {
@@ -102,14 +103,14 @@ function initialize(): Promise<boolean> {
     return false;
   })();
   if (!initialized) initialized = (async () => {
-    if (!NativeModules.RNCallKeep) { publish('Системные звонки недоступны в этой сборке.'); return false; }
+    if (!NativeModules.RNCallKeep) { publish(t('System calls are unavailable in this build.')); return false; }
     try { await audio?.prepareCallAccounts?.(); } catch { /* Account cleanup is best effort. */ }
     NativeModules.RNCallKeep.setup(options.android);
     RNCallKeep.canMakeMultipleCalls(false); RNCallKeep.setAvailable(true); RNCallKeep.setReachable();
     enabled = await RNCallKeep.hasPhoneAccount().catch(() => false);
     publish(callStatusText(enabled, await queryUiStatus()));
     return enabled;
-  })().catch(() => { publish('Не удалось настроить системные звонки. Повторите настройку на экране приложения.'); return false; });
+  })().catch(() => { publish(t('Could not configure system calls. Try again from the app screen.')); return false; });
   return initialized;
 }
 export async function refreshSystemCallStatus(): Promise<void> {

@@ -5,6 +5,7 @@ import * as Crypto from 'expo-crypto';
 import type { MessengerFile } from '@messenger/core';
 import { colors, styles } from '../styles';
 import { Icon, fileSize } from './ui';
+import { t } from '../i18n';
 import { client } from '../runtime';
 import { deliveryIcon, deliveryLabel } from '../delivery-model';
 import { mediaKind } from '../media-model';
@@ -29,22 +30,22 @@ export function AttachmentCard({ file, self, group = false, sender, onOpen, medi
     return () => { canceled = true; if (temporary.exists) temporary.delete(); };
   }, [id, senderId, conversationId, data, mime, blobKey, deliveryStatus, previewKey]);
   const available = !!(file.data || file.blobKey) && file.deliveryStatus !== 'expired';
-  const label = self ? deliveryLabel(file, group) : file.status === 'receiving' ? 'Получение…' : file.status === 'error' ? 'Не удалось получить' : 'Получено';
+  const label = self ? deliveryLabel(file, group) : file.status === 'receiving' ? t('Receiving…') : file.status === 'error' ? t('Could not receive') : t('Received');
   const note = mediaKind(file.name, file.mime);
   const receipt = self ? <View accessibilityLabel={label}><Icon name={deliveryIcon(file)} size={15} /></View> : null;
   if (note && available) return <View style={[styles.bubble, self && styles.bubbleSelf]}>
     {!!sender && !self && <Text style={styles.senderName}>{sender}</Text>}
     {receipt}
     <MediaAttachment file={file} kind={note} disabled={mediaDisabled} />
-    <View style={[styles.row, { justifyContent: 'space-between', marginTop: 7 }]}><Text style={styles.fileMeta}>{fileSize(file.size)} · {label}</Text><Pressable accessibilityRole="button" accessibilityLabel="Сохранить запись" onPress={onOpen} hitSlop={10}><Icon name="share-outline" size={20} /></Pressable></View>
+    <View style={[styles.row, { justifyContent: 'space-between', marginTop: 7 }]}><Text style={styles.fileMeta}>{fileSize(file.size)} · {label}</Text><Pressable accessibilityRole="button" accessibilityLabel={t('Save recording')} onPress={onOpen} hitSlop={10}><Icon name="share-outline" size={20} /></Pressable></View>
   </View>;
-  return <Pressable accessibilityRole="button" accessibilityLabel={`Файл ${file.name}. ${label}`} disabled={!available} onPress={onOpen} style={[styles.bubble, self && styles.bubbleSelf]}>
+  return <Pressable accessibilityRole="button" accessibilityLabel={t('File {name}. {label}', { name: file.name, label })} disabled={!available} onPress={onOpen} style={[styles.bubble, self && styles.bubbleSelf]}>
     {!!sender && !self && <Text style={styles.senderName}>{sender}</Text>}
     {receipt}
     {available && preview?.key === previewKey && <Image source={{ uri: preview.uri }} style={styles.previewImage} resizeMode="cover" />}
     <View style={styles.row}><Icon name={file.mime.startsWith('video/') ? 'videocam-outline' : file.mime.startsWith('image/') ? 'image-outline' : 'document-text-outline'} size={25} /><View><Text numberOfLines={2} style={styles.fileName}>{file.name}</Text><Text style={styles.fileMeta}>{fileSize(file.size)} · {label}</Text>
       {file.status === 'receiving' && <Text style={styles.fileMeta}>{Math.min(100, Math.round(file.receivedBytes / Math.max(1, file.size) * 100))}%</Text>}
-      {available && <Text style={[styles.fileMeta, { color: colors.accent }]}>Нажмите, чтобы открыть или сохранить</Text>}
+      {available && <Text style={[styles.fileMeta, { color: colors.accent }]}> {t('Tap to open or save')}</Text>}
     </View></View>
   </Pressable>;
 }
