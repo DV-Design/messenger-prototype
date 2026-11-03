@@ -1,12 +1,12 @@
 {
   "android": {
-    "version": "1.0.4",
-    "versionCode": 18,
-    "url": "https://p2p.lienad.ru/download/LastCall-1.0.4.apk",
-    "alternateUrl": "https://lienad.ru/messenger/download/LastCall-1.0.4.apk",
-    "sha256": "ecc82e53fdbe835e42d9cdceff67b2b436fb16477d5d13fc829a40aa5b7c566e",
-    "notes": "Английский интерфейс по умолчанию и русский при русской локали телефона; локализованы уведомления и экран звонка."
+    "version": "1.0.5",
+    "versionCode": 19,
+    "url": "https://p2p.lienad.ru/download/LastCall-1.0.5.apk",
+    "alternateUrl": "https://lienad.ru/messenger/download/LastCall-1.0.5.apk",
+    "sha256": "cb7b3e3edc8c04e668d2acf92b556c1e1d8c03bd8d15e3b38fda601105327bee",
+    "notes": "Кандидат исправления смены камеры в видеокружке: CameraX 1.7.0-rc01 и pause/resume persistent recording."
   },
-  "publishedAt": "2026-11-03T11:05:46Z",
-  "signature": "63be565709229bb6ec7dddc3c22b5cafbb62ae72df5693508f37c1cea129e16f83474030c9de40b311aa714bd4a8cae1e5a1a7b81fa4b441c3d2449989349200"
+  "publishedAt": "2026-11-03T11:33:35Z",
+  "signature": "6dc29cef61872f5a91de8370150bfe454f8d6fdf8e1bfa712a20b1d7d88f38eec7d347df44d4883b3b63c707b259f4752f1840946e8bd7ac698d13d7c8698e0b"
 }

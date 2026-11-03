@@ -11,17 +11,17 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { withDangerousMod } = require('@expo/config-plugins');
+const { withAppBuildGradle, withDangerousMod } = require('@expo/config-plugins');
 
 const EXPECTED_VERSION = '58.0.14';
 const RELATIVE_SOURCE = 'android/src/main/java/expo/modules/camera/ExpoCameraView.kt';
 const RELATIVE_BUILD_GRADLE = 'android/build.gradle';
 const PATCH_NAME = 'expo-camera+58.0.14+persistent-circle-camera.patch';
 const ORIGINAL_SHA256 = 'f212cf1f9509e3c52a31fc82bfa8f20f0a29c8266b9ed41b399a626087061abd';
-const PATCHED_SHA256 = 'd862ac33c9b8159f79a7e2c833842860c6a92afe63e2e8f566b4d6326daa9769';
-const CAMERAX_BASELINE = '1.6.0';
-// CameraX 1.6.2 contains the persistent-recording camera-switch fixes.
-const CAMERAX_TARGET = '1.6.2';
+const PATCHED_SHA256 = '0f5e76a273806d7b993509ce2897115de2d04adabbc37c2d8bd0198eb000288e';
+const CAMERAX_BASELINES = ['1.6.0', '1.6.2'];
+// CameraX 1.7.0-rc01 includes the persistent-recording camera-switch fixes.
+const CAMERAX_TARGET = '1.7.0-rc01';
 
 function sha256(file) {
   return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
@@ -37,9 +37,9 @@ function classifySource(version, digest) {
 
 /** Upgrades only the known CameraX pin; any other source fails closed. */
 function upgradeBuildGradle(source) {
-  const current = `def camerax_version = "${CAMERAX_BASELINE}"`;
   if (source.includes(`def camerax_version = "${CAMERAX_TARGET}"`)) return source;
-  if (!source.includes(current)) throw new Error('withPersistentCircleCamera: unknown CameraX pin');
+  const current = CAMERAX_BASELINES.map(version => `def camerax_version = "${version}"`).find(pin => source.includes(pin));
+  if (!current) throw new Error('withPersistentCircleCamera: unknown CameraX pin');
   return source.replace(current, `def camerax_version = "${CAMERAX_TARGET}"`);
 }
 
@@ -56,6 +56,12 @@ function findPackage(projectRoot) {
 }
 
 module.exports = function withPersistentCircleCamera(config) {
+  config = withAppBuildGradle(config, (cfg) => {
+    const marker = '// LASTCALL_CAMERAX_FORCE';
+    if (cfg.modResults.contents.includes(marker)) return cfg;
+    cfg.modResults.contents += `\n${marker}\nconfigurations.all {\n  resolutionStrategy.eachDependency { details ->\n    if (details.requested.group == "androidx.camera") {\n      details.useVersion("${CAMERAX_TARGET}")\n    }\n  }\n}\n`;
+    return cfg;
+  });
   return withDangerousMod(config, [
     'android',
     async (config) => {
@@ -112,7 +118,7 @@ module.exports = function withPersistentCircleCamera(config) {
 module.exports.EXPECTED_VERSION = EXPECTED_VERSION;
 module.exports.ORIGINAL_SHA256 = ORIGINAL_SHA256;
 module.exports.PATCHED_SHA256 = PATCHED_SHA256;
-module.exports.CAMERAX_BASELINE = CAMERAX_BASELINE;
+module.exports.CAMERAX_BASELINES = CAMERAX_BASELINES;
 module.exports.CAMERAX_TARGET = CAMERAX_TARGET;
 module.exports.classifySource = classifySource;
 module.exports.upgradeBuildGradle = upgradeBuildGradle;

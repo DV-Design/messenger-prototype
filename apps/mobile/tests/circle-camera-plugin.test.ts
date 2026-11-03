@@ -66,7 +66,7 @@ test('unknown source and version fail closed, without touching installed source'
 });
 
 test('CameraX pin upgrades only the known baseline and is idempotent', () => {
-  const source = `android { def camerax_version = "${plugin.CAMERAX_BASELINE}" }`;
+  const source = `android { def camerax_version = "${plugin.CAMERAX_BASELINES[0]}" }`;
   const upgraded = plugin.upgradeBuildGradle(source);
   assert.ok(upgraded.includes(`def camerax_version = "${plugin.CAMERAX_TARGET}"`));
   assert.equal(plugin.upgradeBuildGradle(upgraded), upgraded);

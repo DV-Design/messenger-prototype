@@ -1,10 +1,10 @@
 # Optional FCM and authenticated ICE configuration
 
-## 1.0.4/code18 published test release
+## 1.0.5/code19 camera-fix candidate
 
-Client-only release. Download: `download/LastCall-1.0.4.apk` at
-https://p2p.lienad.ru and https://lienad.ru/messenger/download/LastCall-1.0.4.apk
-(53,967,857 bytes, SHA256 `ecc82e53fdbe835e42d9cdceff67b2b436fb16477d5d13fc829a40aa5b7c566e`). Versioned 1.0.3, 1.0.2 and 0.7.2 remain available
+Client-only release. Download: `download/LastCall-1.0.5.apk` at
+https://p2p.lienad.ru and https://lienad.ru/messenger/download/LastCall-1.0.5.apk
+(54,017,233 bytes, SHA256 `cb7b3e3edc8c04e668d2acf92b556c1e1d8c03bd8d15e3b38fda601105327bee`). Versioned 1.0.4, 1.0.3 and 1.0.2 remain available
 for rollback. Independent native acceptance and physical-phone evidence are
 **PENDING** and are not claimed. Client update checks use the static, Ed25519-signed
 `download/latest.json` manifest; no signaling or profile endpoint is involved.

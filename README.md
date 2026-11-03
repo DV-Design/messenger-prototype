@@ -4,25 +4,26 @@ Android/iOS мессенджер с приоритетом прямого P2P.
 Целевая среда — в том числе российские мобильные и домашние сети.
 Боты, каналы и резервные копии исключены из объёма.
 
-## Опубликованный выпуск 1.0.4 / Android code18
+## Кандидат исправления 1.0.5 / Android code19
 
-Опубликован **LastCall 1.0.4 / Android code18**:
-[основная загрузка](https://p2p.lienad.ru/download/LastCall-1.0.4.apk),
-[резервная](https://lienad.ru/messenger/download/LastCall-1.0.4.apk).
-Файл: 53 967 857 байт, SHA256 `ecc82e53fdbe835e42d9cdceff67b2b436fb16477d5d13fc829a40aa5b7c566e`.
-Прежняя [1.0.3/code17](https://p2p.lienad.ru/download/LastCall-1.0.3.apk),
-[1.0.2/code16](https://p2p.lienad.ru/download/LastCall-1.0.2.apk) и
-[0.7.2/code12](https://lienad.ru/messenger/download/LastCall-0.7.2.apk)
-остаются доступными для отката.
+Опубликован тестовый кандидат **LastCall 1.0.5 / Android code19**:
+[основная загрузка](https://p2p.lienad.ru/download/LastCall-1.0.5.apk),
+[резервная](https://lienad.ru/messenger/download/LastCall-1.0.5.apk).
+Файл: 54 017 233 байт, SHA256 `cb7b3e3edc8c04e668d2acf92b556c1e1d8c03bd8d15e3b38fda601105327bee`.
+Прежняя [1.0.4/code18](https://p2p.lienad.ru/download/LastCall-1.0.4.apk) и
+[1.0.3/code17](https://p2p.lienad.ru/download/LastCall-1.0.3.apk) остаются
+доступными для отката. Это кандидат исправления камеры: проверка на Vivo X200
+Ultra ещё не подтверждена.
 
 Это тестовый выпуск с прежним тестовым сертификатом. Сборка и автоматические
 проверки пройдены; независимая приёмка PiP, камеры, аудио и доставки на
 физических телефонах и в российских сетях продолжается. **Оба собеседника
-должны обновиться до 1.0.4:** новый прикладной E2E-слой не откатывается к
+должны обновиться до 1.0.5:** новый прикладной E2E-слой не откатывается к
 передаче открытого контента.
 
 Что нового:
 
+- Исправление смены камеры в видеокружке: CameraX 1.7.0-rc01 и явный pause/resume persistent recording перед rebind. Требуется проверка на Vivo X200 Ultra.
 - Основной язык приложения — английский. Если системный язык телефона русский,
   интерфейс, уведомления и нативный экран звонка переключаются на русский.
 - Все сообщения, файлы, голосовые и видеокружки дополнительно шифруются
@@ -79,8 +80,8 @@ Android/iOS мессенджер с приоритетом прямого P2P.
   preview. Data-only wake не требует `POST_NOTIFICATIONS`; отказ в разрешении
   больше не блокирует синхронизацию закрытого приложения.
 
-Сборка 1.0.4/code18: `npm run build:apk` — PASS, в APK подтверждены
-`nativeFcmConfigured=true` и version1.0.4/code18; `npm run check` — PASS,
+Сборка 1.0.5/code19: `npm run build:apk` — PASS, в APK подтверждены
+`nativeFcmConfigured=true` и version1.0.5/code19; `npm run check` — PASS,
 420 unit-тестов (210 core, 133 mobile, 77 server), typecheck, lint без ошибок
 (одно прежнее предупреждение VoiceNote), iOS/Android JS exports;
 `npm run test:e2e` — 11 PASS / 1 authenticated-TURN skip.
@@ -315,7 +316,7 @@ LastCall: текст и файл 35 байт получили durable ACK при
 Другой участник может дослать их, пока автор офлайн. Подписаны состав группы,
 исходное авторство, содержимое/хеш файла, срок и подтверждения отдельных получателей.
 Копии не продлевают семидневный срок синхронизации. Все участники этой проверки
-должны обновиться до 1.0.4/code18; прежняя 0.7.2/code12
+должны обновиться до 1.0.5/code19; прежняя 0.7.2/code12
 остаётся доступной для отката. [Контракт очереди](docs/OUTBOX-CONTRACT.md).
 
 Часы означают ожидание подтверждения полного сохранения сообщения или вложения;
@@ -487,8 +488,8 @@ npm run check
 npm run test:e2e
 ```
 
-Выпуск 1.0.4/code18: `npm run build:apk` — PASS, packaged
-`nativeFcmConfigured=true` и version1.0.4/code18; `npm run check` — PASS,
+Выпуск 1.0.5/code19: `npm run build:apk` — PASS, packaged
+`nativeFcmConfigured=true` и version1.0.5/code19; `npm run check` — PASS,
 420 unit-тестов (210 core, 133 mobile, 77 server), typecheck, lint без ошибок
 (одно прежнее предупреждение VoiceNote), iOS/Android JS exports;
 `npm run test:e2e` — 11 PASS / 1 authenticated-TURN skip. APK, SHA256 и

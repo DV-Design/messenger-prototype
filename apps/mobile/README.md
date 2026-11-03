@@ -1,9 +1,9 @@
 # LastCall · Android и iOS
 
-Опубликован **1.0.4 / Android versionCode 18**:
-[APK 1.0.4](https://p2p.lienad.ru/download/LastCall-1.0.4.apk),
-[резерв](https://lienad.ru/messenger/download/LastCall-1.0.4.apk).
-Файл: 53 967 857 байт, SHA256 `ecc82e53fdbe835e42d9cdceff67b2b436fb16477d5d13fc829a40aa5b7c566e`.
+Тестовый кандидат **1.0.5 / Android versionCode 19**:
+[APK 1.0.5](https://p2p.lienad.ru/download/LastCall-1.0.5.apk),
+[резерв](https://lienad.ru/messenger/download/LastCall-1.0.5.apk).
+Файл: 54 017 233 байт, SHA256 `cb7b3e3edc8c04e668d2acf92b556c1e1d8c03bd8d15e3b38fda601105327bee`.
 Прежняя [1.0.3](https://p2p.lienad.ru/download/LastCall-1.0.3.apk),
 [1.0.2](https://p2p.lienad.ru/download/LastCall-1.0.2.apk) и
 [0.7.2](https://lienad.ru/messenger/download/LastCall-0.7.2.apk) остаются
@@ -17,7 +17,9 @@ Package ID `dev.messenger.prototype`, ключ подписи и обновле�
 версии без удаления данных сохраняются. Это тестовый выпуск с прежним тестовым
 сертификатом; независимая нативная приёмка на физических телефонах продолжается.
 
-## Изменения 1.0.4
+## Изменения 1.0.5
+
+- Кандидат исправления обрыва записи кружка при переключении камеры: CameraX 1.7.0-rc01, pause/resume persistent recording перед rebind и запрет аварийной остановки JS при временной ошибке mount. Проверка на Vivo X200 Ultra ожидается.
 
 - Английский интерфейс по умолчанию; русский выбирается, если основной язык телефона — русский. Локализованы экраны, ошибки, JS-уведомления и нативные строки звонка/уведомлений Android.
 - iOS/Android permission strings получили английские значения по умолчанию и русские локали.
@@ -81,7 +83,7 @@ recording (`PendingRecording.asPersistentRecording`) сохраняет один
 файл при смене объектива. Плагин
 `withPersistentCircleCamera.cjs` проверяет точную версию **expo-camera 58.0.14**
 и SHA256 исходников, затем выполняет `git apply --check` и `git apply` в
-каталоге пакета, поднимает CameraX до **1.6.2** с исправлениями persistent
+каталоге пакета, поднимает CameraX до **1.7.0-rc01** с исправлениями persistent
 recording при смене камеры и переиспользует записанный патч. При обновлении expo-camera
 проверка падает намеренно: патч нужно пересобрать и перепроверить, а не
 применять вслепую. Новых зависимостей нет. Нативная запись закрывается по

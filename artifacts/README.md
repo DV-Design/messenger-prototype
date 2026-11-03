@@ -1,15 +1,15 @@
-# LastCall Android 1.0.4 (published test release)
+# LastCall Android 1.0.5 (camera-fix candidate)
 
 Status: **published**. Built and verified locally; independent native acceptance
 on physical phones remains pending and is not claimed.
 
-- Download: https://p2p.lienad.ru/download/LastCall-1.0.4.apk
-- Alternate: https://lienad.ru/messenger/download/LastCall-1.0.4.apk
-- Local: `artifacts/LastCall-1.0.4.apk` (ignored binary)
-- Package `dev.messenger.prototype`, version1.0.4, versionCode18, label LastCall
+- Download: https://p2p.lienad.ru/download/LastCall-1.0.5.apk
+- Alternate: https://lienad.ru/messenger/download/LastCall-1.0.5.apk
+- Local: `artifacts/LastCall-1.0.5.apk` (ignored binary)
+- Package `dev.messenger.prototype`, version1.0.5, versionCode19, label LastCall
 - ARM64, Android API24 minimum / target36 / compile37; same existing internal test certificate
-- Size: 53,967,857 bytes
-- SHA256: `ecc82e53fdbe835e42d9cdceff67b2b436fb16477d5d13fc829a40aa5b7c566e`
+- Size: 54,017,233 bytes
+- SHA256: `cb7b3e3edc8c04e668d2acf92b556c1e1d8c03bd8d15e3b38fda601105327bee`
 - Signing certificate SHA256: `fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c` (same existing test certificate)
 
 `npm run build:apk` passed native release assembly, forced JavaScript bundle
@@ -25,8 +25,8 @@ passed 11 browser tests with 1 authenticated-TURN skip.
 
 New-profile default server is `https://p2p.lienad.ru`; an existing profile keeps
 its explicitly stored server so contacts/history namespaces do not change.
-Previous 1.0.3/code17, 1.0.2/code16 and 0.7.2 remain available for rollback.
-Both peers must update to 1.0.4 before exchanging content; there is no plaintext
+Previous 1.0.4/code18, 1.0.3/code17 and 1.0.2/code16 remain available for rollback.
+Both peers must update to 1.0.5 before exchanging content; there is no plaintext
 fallback.
 
 [Phone tasks](../docs/TESTING-RU.md).
