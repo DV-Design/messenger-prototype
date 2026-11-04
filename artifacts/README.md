@@ -1,3 +1,19 @@
+# LastCall Android 1.0.10 (email test build, not offered as an update)
+
+Built from `feature/email-recovery` for the owner's phone test. It is not in
+`latest.json`, so the app does not offer it. Not tested on a device yet.
+
+- Download: https://p2p.lienad.ru/download/LastCall-1.0.10.apk
+- Alternate: https://lienad.ru/messenger/download/LastCall-1.0.10.apk
+- Local: `artifacts/LastCall-1.0.10.apk` (ignored binary)
+- Package `dev.messenger.prototype`, version1.0.10, versionCode24
+- Size: 54,220,482 bytes
+- SHA256: `638e9983439e8125bda5fc565ca4526f9cdaafd504fcbd9b3e6ec17e021479dc`
+- Signing certificate SHA256: `fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c` (same test certificate)
+- Packaged `nativeFcmConfigured=true`, `distribution=direct`, `directUpdates=true`.
+
+---
+
 # LastCall 1.0.9 Google Play AAB (in Google review)
 
 Built with `npm run build:aab`. Uploaded on 2026-11-04 to the Alpha closed-testing
