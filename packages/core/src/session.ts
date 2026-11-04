@@ -42,12 +42,14 @@ const REQUEST_TIMEOUT=120000;
 // Experimental, authenticated application capability; never passed to the native SDP engine.
 const DATA_READY_ATTRIBUTE='a=x-lastcall-data-ready:1';
 const CONTENT_E2E_ATTRIBUTE='a=x-lastcall-content-e2e:1';
+const MESSAGE_CHANGE_ATTRIBUTE='a=x-lastcall-message-change:1';
+const sessionMarker=(line:string)=>line===DATA_READY_ATTRIBUTE||line===CONTENT_E2E_ATTRIBUTE||line===MESSAGE_CHANGE_ATTRIBUTE;
 const DATA_READY_TIMEOUT=5000;
 const DATA_READY_RETRY=250;
 function readySdp(sdp:string,content:boolean):string{
-  const lines=sdp.split(/\r?\n/).filter(line=>line!==DATA_READY_ATTRIBUTE&&line!==CONTENT_E2E_ATTRIBUTE);
+  const lines=sdp.split(/\r?\n/).filter(line=>!sessionMarker(line));
   const media=lines.findIndex(line=>line.startsWith('m='));
-  lines.splice(media<0?Math.max(0,lines.length-1):media,0,...(content?[CONTENT_E2E_ATTRIBUTE,DATA_READY_ATTRIBUTE]:[DATA_READY_ATTRIBUTE]));
+  lines.splice(media<0?Math.max(0,lines.length-1):media,0,...(content?[CONTENT_E2E_ATTRIBUTE,DATA_READY_ATTRIBUTE,MESSAGE_CHANGE_ATTRIBUTE]:[DATA_READY_ATTRIBUTE,MESSAGE_CHANGE_ATTRIBUTE]));
   return lines.join('\r\n');
 }
 export class PeerSession {
@@ -67,6 +69,7 @@ export class PeerSession {
   private readyAcknowledged=false;
   private contentConfigured=false;
   private remoteContentE2E=false;
+  private remoteMessageChanges=false;
   private contentRemoteUserId?:string;
   private contentPrivateKey?:Uint8Array;
   private contentLocalHello?:ContentHello;
@@ -374,13 +377,14 @@ export class PeerSession {
       const lines=body.description.sdp.split(/\r?\n/);const media=lines.findIndex(line=>line.startsWith('m='));
       const capability=lines.slice(0,media<0?undefined:media).includes(DATA_READY_ATTRIBUTE);
       const contentCapability=lines.slice(0,media<0?undefined:media).includes(CONTENT_E2E_ATTRIBUTE);
+      const changeCapability=lines.slice(0,media<0?undefined:media).includes(MESSAGE_CHANGE_ATTRIBUTE);
       // Parse before awaiting native SDP: it may emit datachannel/open during the await.
       if(!pc.remoteDescription){
-        this.remoteDataReady=capability;this.remoteContentE2E=this.contentConfigured&&contentCapability;
+        this.remoteDataReady=capability;this.remoteContentE2E=this.contentConfigured&&contentCapability;this.remoteMessageChanges=changeCapability;
         // No plaintext fallback: a peer without the marker must update first.
         if(this.contentConfigured&&!contentCapability){this.failTransport('peer does not support end-to-end content encryption; update both apps');return;}
       }
-      await pc.setRemoteDescription({...body.description,sdp:lines.filter(line=>line!==DATA_READY_ATTRIBUTE&&line!==CONTENT_E2E_ATTRIBUTE).join('\r\n')});if(this.pc!==pc)return;
+      await pc.setRemoteDescription({...body.description,sdp:lines.filter(line=>!sessionMarker(line)).join('\r\n')});if(this.pc!==pc)return;
       for(const candidate of this.pendingCandidates.splice(0))await pc.addIceCandidate(candidate);
       if(body.description.type==='offer'){const answer=await pc.createAnswer();if(this.pc!==pc)return;await pc.setLocalDescription(answer);if(this.pc!==pc)return;this.signal({kind:'description',description:{type:'answer',sdp:pc.localDescription?.sdp??answer.sdp??''}});}
       else if(this.offerAgain)await this.offer();
@@ -494,6 +498,8 @@ export class PeerSession {
     if(old<0)this.state.messages=[...this.state.messages,message].slice(-100);else if(this.state.messages[old]?.status!=='delivered')this.state.messages[old]=message;
     await this.options.onMessage?.(message);this.emit();
   }
+  /** Older peers report an unknown application payload as a transport problem; they only get what they understand. */
+  supportsMessageChanges():boolean{return this.remoteMessageChanges;}
   async sendApplication(payload:unknown):Promise<void>{
     if((this.channel?.bufferedAmount??0)>BUFFER_HIGH)throw new Error('Data channel busy');
     const frame=dataFrameSchema.parse({kind:'application',id:this.id(),body:JSON.stringify(payload)});this.dataSend(frame);
@@ -690,7 +696,7 @@ export class PeerSession {
     }catch{/* Stats are optional and must not break the call. */}finally{this.statsBusy=false;}
   }
   private cleanupPeer(){
-    this.resetReady();this.remoteDataReady=false;this.localDataReady=false;this.remoteContentE2E=false;
+    this.resetReady();this.remoteDataReady=false;this.localDataReady=false;this.remoteContentE2E=false;this.remoteMessageChanges=false;
     clearTimeout(this.recoveryTimer);this.recoveryTimer=undefined;clearTimeout(this.resumeTimer);this.resumeTimer=undefined;this.hadConnected=false;this.restartPending=false;this.signalBacklog=[];this.state.recovering=false;
     this.resetReceiveQueue();
     clearTimeout(this.transportTimer);this.transportTimer=undefined;clearInterval(this.statsTimer);this.statsTimer=undefined;this.stopCall();this.failTransfers();

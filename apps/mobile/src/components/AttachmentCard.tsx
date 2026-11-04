@@ -11,7 +11,7 @@ import { deliveryIcon, deliveryLabel } from '../delivery-model';
 import { mediaKind } from '../media-model';
 import { MediaAttachment } from './MediaAttachment';
 
-export function AttachmentCard({ file, self, group = false, sender, onOpen, mediaDisabled = false }: { file: MessengerFile; self: boolean; group?: boolean; sender?: string; onOpen: () => void; mediaDisabled?: boolean }) {
+export function AttachmentCard({ file, self, group = false, sender, onOpen, onLongPress, mediaDisabled = false }: { file: MessengerFile; self: boolean; group?: boolean; sender?: string; onOpen: () => void; onLongPress?: () => void; mediaDisabled?: boolean }) {
   const [preview, setPreview] = useState<{ key: string; uri: string }>();
   const { id, senderId, conversationId, data, mime, blobKey, deliveryStatus } = file;
   const previewKey = `${conversationId}:${senderId}:${id}:${blobKey ?? ''}`;
@@ -33,13 +33,13 @@ export function AttachmentCard({ file, self, group = false, sender, onOpen, medi
   const label = self ? deliveryLabel(file, group) : file.status === 'receiving' ? t('Receiving…') : file.status === 'error' ? t('Could not receive') : t('Received');
   const note = mediaKind(file.name, file.mime);
   const receipt = self ? <View accessibilityLabel={label}><Icon name={deliveryIcon(file)} size={15} /></View> : null;
-  if (note && available) return <View style={[styles.bubble, self && styles.bubbleSelf]}>
+  if (note && available) return <Pressable accessibilityHint={t('Hold to delete')} onLongPress={onLongPress} style={[styles.bubble, self && styles.bubbleSelf]}>
     {!!sender && !self && <Text style={styles.senderName}>{sender}</Text>}
     {receipt}
     <MediaAttachment file={file} kind={note} disabled={mediaDisabled} />
     <View style={[styles.row, { justifyContent: 'space-between', marginTop: 7 }]}><Text style={styles.fileMeta}>{fileSize(file.size)} · {label}</Text><Pressable accessibilityRole="button" accessibilityLabel={t('Save recording')} onPress={onOpen} hitSlop={10}><Icon name="share-outline" size={20} /></Pressable></View>
-  </View>;
-  return <Pressable accessibilityRole="button" accessibilityLabel={t('File {name}. {label}', { name: file.name, label })} disabled={!available} onPress={onOpen} style={[styles.bubble, self && styles.bubbleSelf]}>
+  </Pressable>;
+  return <Pressable accessibilityRole="button" accessibilityLabel={t('File {name}. {label}', { name: file.name, label })} disabled={!available && !onLongPress} onPress={available ? onOpen : undefined} onLongPress={onLongPress} style={[styles.bubble, self && styles.bubbleSelf]}>
     {!!sender && !self && <Text style={styles.senderName}>{sender}</Text>}
     {receipt}
     {available && preview?.key === previewKey && <Image source={{ uri: preview.uri }} style={styles.previewImage} resizeMode="cover" />}

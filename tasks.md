@@ -1,6 +1,20 @@
+# Edit and delete messages, chats and contacts (msg-n9n, branch `feature/email-recovery`)
+
+Status: test build only. Contract: [docs/MESSAGE-CHANGE-CONTRACT.md](docs/MESSAGE-CHANGE-CONTRACT.md).
+
+- [X] Signed message changes, tombstones, hidden chats, contact removal in core
+  → Artifacts: [core](packages/core/src/message-change.ts), [tests](packages/core/src/message-change.test.ts), [e2e](tests/e2e/outbox-sync.spec.ts)
+- [X] Message menu, edit mode, delete chat and contact, "My contacts" section (not yet run on a device)
+  → Artifacts: [menu](apps/mobile/src/components/MessageActions.tsx), [model](apps/mobile/src/message-actions-model.ts), [chat](apps/mobile/src/app/chat/[id].tsx)
+- [X] Gates: `npm run check` (245 core, 116 server, 154 mobile), `npm run test:e2e` 15 PASS / 1 skip
+- [X] Publish test build 1.0.11/code25, not offered through `latest.json`
+  → Artifacts: [APK](https://p2p.lienad.ru/download/LastCall-1.0.11.apk), [details](artifacts/README.md)
+- [ ] Physical test on two phones with 1.0.11
+- [ ] New client connects to a 1.0.9 Android phone; the SDP marker was checked in Chromium only (msg-5a9)
+
 # Email registration and account recovery (msg-3zf, branch `feature/email-recovery`)
 
-Status: in development, not released or deployed. Contract: [docs/EMAIL-RECOVERY-CONTRACT.md](docs/EMAIL-RECOVERY-CONTRACT.md).
+Status: server deployed with `EMAIL_REQUIRED` off, client in test builds only. Contract: [docs/EMAIL-RECOVERY-CONTRACT.md](docs/EMAIL-RECOVERY-CONTRACT.md).
 
 - [X] Core protocol and one-shot helpers
   → Artifacts: [core](packages/core/src/email-auth.ts), [tests](packages/core/src/email-auth.test.ts)

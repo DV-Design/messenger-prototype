@@ -101,3 +101,55 @@ test('network recovery rotates real ICE credentials while retaining the peer con
   expect((await snapshot(a)).activeCall?.session.callState).toBe('active');expect((await snapshot(b)).activeCall?.session.callState).toBe('active');await sendText(a,id,'После восстановления сигналинга и ICE');await expect.poll(async()=>(await snapshot(b)).conversations.find(c=>c.id===id)?.messages.map(m=>m.text)).toContain('После восстановления сигналинга и ICE');await expect.poll(async()=>(await snapshot(a)).conversations.find(c=>c.id===id)?.messages.at(-1)?.status).toBe('delivered');
  }finally{await Promise.all([a,b].map(p=>stop(p).catch(()=>{})));await Promise.all(contexts.map(c=>c.close()));}
 });
+
+async function connect(a:Page,ub:DirectoryUser,b:Page,ua:DirectoryUser){const id=await a.evaluate(u=>(window as ClientWindow).__messenger.addContact(u),ub);await b.evaluate(u=>(window as ClientWindow).__messenger.addContact(u),ua);return id;}
+const texts=async(page:Page,id:string)=>(await snapshot(page)).conversations.find(c=>c.id===id)?.messages.map(m=>m.text)??[];
+async function firstMessage(page:Page,id:string){return (await snapshot(page)).conversations.find(c=>c.id===id)!.messages[0]!;}
+
+test('an edit reaches the peer, survives both restarts, and a read receipt still matches',async({browser})=>{
+ const contexts=await Promise.all([0,1].map(()=>browser.newContext()));const [a,b]=await Promise.all(contexts.map(c=>c.newPage())) as [Page,Page];
+ try{
+  const [ua,ub]=await Promise.all([boot(a,20),boot(b,21)]);const id=await connect(a,ub,b,ua);await sendText(a,id,'Исходный текст');
+  await expect.poll(()=>texts(b,id)).toEqual(['Исходный текст']);await expect.poll(async()=>(await firstMessage(a,id)).status).toBe('delivered');const m=await firstMessage(a,id);
+  await a.evaluate(({id,mid})=>(window as ClientWindow).__messenger.editMessage(id,mid,'Новый текст'),{id,mid:m.id});
+  await expect.poll(()=>texts(b,id)).toEqual(['Новый текст']);expect((await firstMessage(b,id)).editedAt).toBeGreaterThan(0);
+  await b.evaluate(id=>(window as ClientWindow).__messenger.markRead(id),id);await expect.poll(async()=>(await firstMessage(a,id)).readBy).toEqual([ub.userId]);
+  await a.evaluate(()=>(window as ClientWindow).__messenger.flushState());await b.evaluate(()=>(window as ClientWindow).__messenger.flushState());
+  await restart(a);await restart(b);expect(await texts(a,id)).toEqual(['Новый текст']);expect(await texts(b,id)).toEqual(['Новый текст']);
+  await expect.poll(async()=>(await snapshot(b)).conversations.find(c=>c.id===id)?.session?.status).toBe('connected');expect(await texts(b,id)).toEqual(['Новый текст']);
+ }finally{await Promise.all([a,b].map(p=>stop(p).catch(()=>{})));await Promise.all(contexts.map(c=>c.close()));}
+});
+
+test('delete for everyone removes the message on the peer, and restarts do not bring it back',async({browser})=>{
+ const contexts=await Promise.all([0,1].map(()=>browser.newContext()));const [a,b]=await Promise.all(contexts.map(c=>c.newPage())) as [Page,Page];
+ try{
+  const [ua,ub]=await Promise.all([boot(a,22),boot(b,23)]);const id=await connect(a,ub,b,ua);await sendText(a,id,'Удалить');await sendText(a,id,'Оставить');
+  await expect.poll(()=>texts(b,id)).toEqual(['Удалить','Оставить']);const m=await firstMessage(a,id);
+  await a.evaluate(({id,mid,author})=>(window as ClientWindow).__messenger.deleteMessage(id,{id:mid,type:'message',author},'everyone'),{id,mid:m.id,author:ua.userId});
+  await expect.poll(()=>texts(b,id)).toEqual(['Оставить']);expect(await texts(a,id)).toEqual(['Оставить']);
+  await a.evaluate(()=>(window as ClientWindow).__messenger.flushState());await b.evaluate(()=>(window as ClientWindow).__messenger.flushState());
+  await restart(a);await restart(b);await expect.poll(async()=>(await snapshot(b)).conversations.find(c=>c.id===id)?.session?.status).toBe('connected');expect(await texts(a,id)).toEqual(['Оставить']);expect(await texts(b,id)).toEqual(['Оставить']);
+ }finally{await Promise.all([a,b].map(p=>stop(p).catch(()=>{})));await Promise.all(contexts.map(c=>c.close()));}
+});
+
+test('a change made while the peer is offline arrives when the peer returns',async({browser})=>{
+ const contexts=await Promise.all([0,1].map(()=>browser.newContext()));const [a,b]=await Promise.all(contexts.map(c=>c.newPage())) as [Page,Page];
+ try{
+  const [ua,ub]=await Promise.all([boot(a,24),boot(b,25)]);const id=await connect(a,ub,b,ua);await sendText(a,id,'Первая');await sendText(a,id,'Вторая');
+  await expect.poll(()=>texts(b,id)).toEqual(['Первая','Вторая']);await b.evaluate(()=>(window as ClientWindow).__messenger.flushState());await stop(b);
+  const [first,second]=(await snapshot(a)).conversations.find(c=>c.id===id)!.messages;
+  await a.evaluate(({id,mid})=>(window as ClientWindow).__messenger.editMessage(id,mid,'Первая исправлена'),{id,mid:first!.id});
+  await a.evaluate(({id,mid,author})=>(window as ClientWindow).__messenger.deleteMessage(id,{id:mid,type:'message',author},'everyone'),{id,mid:second!.id,author:ua.userId});
+  await restart(b);await expect.poll(()=>texts(b,id)).toEqual(['Первая исправлена']);
+ }finally{await Promise.all([a,b].map(p=>stop(p).catch(()=>{})));await Promise.all(contexts.map(c=>c.close()));}
+});
+
+test('the browser engine accepts an unknown session-level SDP marker, as an older client must',async({page})=>{
+ await page.goto('/');const result=await page.evaluate(async()=>{
+  const offerer=new RTCPeerConnection(),answerer=new RTCPeerConnection();offerer.createDataChannel('probe');
+  const mark=(sdp:string)=>{const lines=sdp.split('\r\n');lines.splice(lines.findIndex(line=>line.startsWith('m=')),0,'a=x-lastcall-message-change:1');return lines.join('\r\n');};
+  try{const offer=await offerer.createOffer();await offerer.setLocalDescription(offer);await answerer.setRemoteDescription({type:'offer',sdp:mark(offer.sdp!)});const answer=await answerer.createAnswer();await answerer.setLocalDescription(answer);await offerer.setRemoteDescription({type:'answer',sdp:mark(answer.sdp!)});return 'accepted';}
+  catch(error){return String(error);}finally{offerer.close();answerer.close();}
+ });
+ expect(result).toBe('accepted');
+});

@@ -1,3 +1,20 @@
+# LastCall Android 1.0.11 (email, edit and delete test build, not offered as an update)
+
+Built from `feature/email-recovery` for the owner's phone test. It contains 1.0.10 plus
+message edit and delete, chat delete and contact delete. It is not in `latest.json`, so
+the app does not offer it. Not tested on a device yet.
+
+- Download: https://p2p.lienad.ru/download/LastCall-1.0.11.apk
+- Alternate: https://lienad.ru/messenger/download/LastCall-1.0.11.apk
+- Local: `artifacts/LastCall-1.0.11.apk` (ignored binary)
+- Package `dev.messenger.prototype`, version1.0.11, versionCode25
+- Size: 54,257,362 bytes
+- SHA256: `9743c4b04da8b27056c638dec57599f9bf1d336bd39e41ededc9a83c8677a6ba`
+- Signing certificate SHA256: `fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c` (same test certificate)
+- Packaged `nativeFcmConfigured=true`, `distribution=direct`, `directUpdates=true`.
+
+---
+
 # LastCall Android 1.0.10 (email test build, not offered as an update)
 
 Built from `feature/email-recovery` for the owner's phone test. It is not in

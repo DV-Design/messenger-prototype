@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { router, useIsFocused } from 'expo-router';
-import { ActivityIndicator, AppState, FlatList, Pressable, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, FlatList, Pressable, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { DirectoryUser } from '@messenger/core';
 import { Avatar, Button, Empty, Icon, IconButton, ScreenHeader, lastSeen } from '../../components/ui';
 import { CatalogController, catalogQuery } from '../../catalog-model';
+import { myContacts } from '../../message-actions-model';
 import { client, errorText, useMessenger } from '../../runtime';
 import { colors, styles } from '../../styles';
 import { intlLocale, t } from '../../i18n';
@@ -45,16 +46,32 @@ function ContactDirectory() {
     try { const id = await current.addContact(user); if (current === client()) router.push({ pathname: '/chat/[id]', params: { id } }); }
     catch (cause) { setError(errorText(cause)); } finally { openingGuard.current = false; setOpening(''); }
   }
-  const saved = new Set(snapshot.contacts.map(user => user.userId));
+  function confirmRemove(user: DirectoryUser) {
+    Alert.alert(t('Delete {name} from contacts?', { name: user.displayName }), t('The chat and its history are removed from this phone. The chat stays on the other person\'s device, and they can still write to you. Block them to stop that.'), [
+      { text: t('Cancel'), style: 'cancel' },
+      { text: t('Delete'), style: 'destructive', onPress: () => { setError(''); void current.removeContact(user.userId).catch(cause => setError(errorText(cause))); } },
+    ]);
+  }
+  const saved = new Set(myContacts(snapshot.contacts, snapshot.conversations).map(user => user.userId));
+  const mine = myContacts(snapshot.contacts, snapshot.conversations, normalized);
   return <SafeAreaView style={styles.whiteScreen} edges={['top']}>
     <ScreenHeader title={t('Contacts')} action={<IconButton name="refresh" label={t('Refresh directory')} disabled={!online || state.busy} onPress={() => void catalog.load()} />} />
     <View style={styles.search}><Icon name="search" color={colors.secondary} size={19} /><TextInput style={styles.searchInput} placeholder={t('Name or @username')} placeholderTextColor={colors.secondary} value={query} onChangeText={value => { setQuery(value); catalog.setQuery(value); setError(''); }} maxLength={49} autoCapitalize="none" autoCorrect={false} accessibilityLabel={t('Search by name or username')} />{state.busy && <ActivityIndicator color={colors.accent} />}</View>
     <Pressable style={styles.listRow} accessibilityRole="button" onPress={() => router.push('/new-group')}><View style={[styles.avatar, { backgroundColor: '#E2F2EB' }]}><Icon name="people-outline" /></View><Text style={[styles.rowName, { color: colors.accent }]}> {t('Create group')}</Text></Pressable>
     {!online && <Text style={[styles.info, { margin: 18 }]}> {t('No connection to the server. The directory is not updated; saved chats are available in the Chats tab.')}</Text>}
     {!!(error || state.error) && <Text style={[styles.error, { marginHorizontal: 16, marginVertical: 8 }]}>{error || state.error}</Text>}
-    <Text style={[styles.sectionTitle, { marginTop: 12 }]}>{normalized ? t('SEARCH RESULTS') : t('SERVER USERS')}</Text>
-    <Text style={[styles.info, { marginHorizontal: 18, marginBottom: 12 }]}> {t('The directory does not add people to your contacts automatically. Choose a person to open a chat.')}{state.updatedAt ? ` ${t('Updated {time}.', { time: new Date(state.updatedAt).toLocaleTimeString(intlLocale, { hour: '2-digit', minute: '2-digit' }) })}` : ''}</Text>
     <FlatList data={state.users} keyExtractor={item => item.userId} keyboardShouldPersistTaps="handled" ItemSeparatorComponent={() => <View style={styles.separator} />}
+      ListHeaderComponent={<>
+        {mine.length > 0 && <><Text style={[styles.sectionTitle, { marginTop: 12 }]}>{t('MY CONTACTS')}</Text>
+          {mine.map(user => <View key={user.userId} style={{ flexDirection: 'row', alignItems: 'center', paddingRight: 8 }}>
+            <Pressable accessibilityRole="button" accessibilityLabel={t('Open chat with {name}, @{username}', { name: user.displayName, username: user.username })} disabled={!!opening} onPress={() => void open(user)} style={({ pressed }) => [styles.listRow, styles.flex, pressed && styles.pressed]}>
+              <Avatar name={user.displayName} id={user.userId} online={user.online} /><View style={styles.rowBody}><Text numberOfLines={1} style={styles.rowName}>{user.displayName}</Text><Text numberOfLines={1} style={styles.rowText}>@{user.username}</Text></View>
+            </Pressable>
+            <IconButton name="trash-outline" label={t('Delete {name} from contacts', { name: user.displayName })} color="#A33535" onPress={() => confirmRemove(user)} />
+          </View>)}</>}
+        <Text style={[styles.sectionTitle, { marginTop: 12 }]}>{normalized ? t('SEARCH RESULTS') : t('SERVER USERS')}</Text>
+        <Text style={[styles.info, { marginHorizontal: 18, marginBottom: 12 }]}> {t('The directory does not add people to your contacts automatically. Choose a person to open a chat.')}{state.updatedAt ? ` ${t('Updated {time}.', { time: new Date(state.updatedAt).toLocaleTimeString(intlLocale, { hour: '2-digit', minute: '2-digit' }) })}` : ''}</Text>
+      </>}
       refreshing={state.busy} onRefresh={() => { if (online) void catalog.load(); }}
       ListEmptyComponent={!state.busy ? <Empty icon="people-outline" title={normalized ? t('User not found') : online ? t('The directory is empty') : t('Directory unavailable')} text={normalized ? t('Check the name or username. Display names may repeat; verify the @username.') : t('Registered server users will appear here after you connect.')} /> : undefined}
       ListFooterComponent={state.nextCursor && !normalized ? <View style={styles.content}><Button title={t('Load more')} secondary busy={state.busy} disabled={!online} onPress={() => void catalog.load(true)} /></View> : undefined}

@@ -20,7 +20,7 @@ export interface SafetyMember { userId: string; displayName: string }
  * Reports are sent through the authenticated directory with report metadata
  * and optional details; message content is never attached automatically.
  */
-export function SafetyMenu({ visible, group, title, targetId, peer, members, blocked, onClose, onBlock, onUnblock, onSafetyCode, onReport }: {
+export function SafetyMenu({ visible, group, title, targetId, peer, members, blocked, onClose, onBlock, onUnblock, onSafetyCode, onReport, onDeleteChat, onDeleteContact }: {
   visible: boolean;
   group: boolean;
   title: string;
@@ -33,6 +33,8 @@ export function SafetyMenu({ visible, group, title, targetId, peer, members, blo
   onUnblock: (userId: string) => Promise<void>;
   onSafetyCode?: () => void;
   onReport: (input: { reason: ReportReason; details: string }) => Promise<void>;
+  onDeleteChat?: () => void;
+  onDeleteContact?: () => void;
 }) {
   const [reporting, setReporting] = useState(false);
   const [reported, setReported] = useState(false);
@@ -101,6 +103,8 @@ export function SafetyMenu({ visible, group, title, targetId, peer, members, blo
           {peer && onSafetyCode && <Button title={t('Safety code')} secondary onPress={() => { close(); onSafetyCode(); }} />}
           <Button title={t('Report {title}', { title })} secondary onPress={() => { setReporting(true); setError(''); }} />
           <Button title={t('Community guidelines')} secondary onPress={() => { void Linking.openURL(COMMUNITY_URL).catch(() => setError(t('Could not open community guidelines.'))); }} />
+          {onDeleteChat && <Button title={t('Delete chat')} danger onPress={() => { close(); onDeleteChat(); }} />}
+          {onDeleteContact && <Button title={t('Delete contact')} danger onPress={() => { close(); onDeleteContact(); }} />}
           <Button title={t('Close')} secondary onPress={close} />
         </>}
       </View>
