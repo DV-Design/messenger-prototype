@@ -27,6 +27,15 @@ services:
       TURN_URLS: ${TURN_URLS:-}
       TURN_SHARED_SECRET: ${TURN_SHARED_SECRET:-}
       TURN_TTL_SECONDS: ${TURN_TTL_SECONDS:-600}
+      # Email registration and recovery; empty values leave it off.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      EMAIL_HASH_SECRET: ${EMAIL_HASH_SECRET:-}
+      EMAIL_REQUIRED: ${EMAIL_REQUIRED:-}
+      EMAIL_GLOBAL_PER_HOUR: ${EMAIL_GLOBAL_PER_HOUR:-200}
       # Registration uses an immutable username and device key; SMS is not used.
       # Only the optional Firebase override sets this and mounts a private external file.
       GOOGLE_APPLICATION_CREDENTIALS: ''

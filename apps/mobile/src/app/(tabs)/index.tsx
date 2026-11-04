@@ -3,20 +3,27 @@ import { router } from 'expo-router';
 import { FlatList, Pressable, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar, Empty, Icon, IconButton, ScreenHeader, time } from '../../components/ui';
-import { useMessenger } from '../../runtime';
+import { AccountMovedNotice } from '../../components/AccountMovedNotice';
+import { shouldShowEmailReminder } from '../../email-flow-model';
+import { dismissEmailReminder, useMessenger } from '../../runtime';
 import { colors, styles } from '../../styles';
 import { chatTimeline } from '../../timeline-model';
 import { mediaKind } from '../../media-model';
 import { intlLocale, t } from '../../i18n';
 export default function Chats() {
-  const { snapshot, identity } = useMessenger();
+  const { snapshot, identity, profile, boundEmail, emailReminderDismissed, retired } = useMessenger();
   const [query, setQuery] = useState('');
   const blocked = new Set(snapshot.blockedContacts);
   const conversations = [...snapshot.conversations].sort((a, b) => b.updatedAt - a.updatedAt)
     .filter(item => item.kind === 'group' || !item.memberIds.some(id => id !== identity?.userId && blocked.has(id)))
     .filter(item => item.title.toLocaleLowerCase(intlLocale).includes(query.toLocaleLowerCase(intlLocale)));
   return <SafeAreaView style={styles.whiteScreen} edges={['top']}>
-    <ScreenHeader title={t('Chats')} subtitle={snapshot.status === 'online' ? undefined : snapshot.status === 'connecting' ? t('Connecting…') : t('Waiting for network…')} action={<IconButton name="create-outline" label={t('New chat')} onPress={() => router.push('/(tabs)/contacts')} />} />
+    <ScreenHeader title={t('Chats')} subtitle={retired ? undefined : snapshot.status === 'online' ? undefined : snapshot.status === 'connecting' ? t('Connecting…') : t('Waiting for network…')} action={<IconButton name="create-outline" label={t('New chat')} onPress={() => router.push('/(tabs)/contacts')} />} />
+    {retired && <AccountMovedNotice />}
+    {shouldShowEmailReminder({ bound: boundEmail, serverUrl: profile?.serverUrl, dismissed: emailReminderDismissed, status: snapshot.status, retired }) && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 15, paddingRight: 4, paddingVertical: 4, backgroundColor: '#FFF6E4' }}>
+      <Pressable accessibilityRole="button" accessibilityLabel={t('Add an email in settings')} onPress={() => router.push('/(tabs)/settings')} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}><Icon name="mail-outline" size={17} color="#7B5924" /><Text style={[styles.info, { flex: 1, color: '#7B5924' }]}>{t('Add an email: without it you lose this account if you reinstall the app.')}</Text></Pressable>
+      <IconButton name="close" label={t('Not now')} onPress={dismissEmailReminder} />
+    </View>}
     <View style={styles.search}><Icon name="search" color={colors.secondary} size={19} /><TextInput style={styles.searchInput} placeholder={t('Search')} placeholderTextColor={colors.secondary} value={query} onChangeText={setQuery} accessibilityLabel={t('Search chats')} /></View>
     <FlatList data={conversations} keyExtractor={item => item.id} keyboardShouldPersistTaps="handled" ItemSeparatorComponent={() => <View style={styles.separator} />}
       ListEmptyComponent={<Empty icon="chatbubbles-outline" title={query ? t('Nothing found') : t('Your conversations')} text={query ? t('Try another chat name.') : t('Find a friend by @username and start a conversation.')} />}

@@ -4,11 +4,14 @@ import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type { WebSocket } from 'ws';
 import { DirectoryServices, ServiceError, type ServiceOptions } from './services.js';
-import { directoryClientFrameSchema, userIdFromPublicKey, verifyAuthentication, verifyProfileResolve, wakeIntentSchema, type DirectoryUser } from '@messenger/core';
+import { EmailAuth, type EmailOutcome } from './email-auth.js';
+import { directoryClientFrameSchema, userIdFromPublicKey, verifyAuthentication, verifyEmailStart, verifyEmailVerify, verifyProfileResolve, wakeIntentSchema, type DirectoryUser } from '@messenger/core';
 
 type ProfileRow = { user_id: string; public_key: string; username: string; display_name: string; last_seen: number };
 interface Connection {
   ws: WebSocket;
+  ip: string;
+  identityMovedV1?: boolean;
   challenge?: string;
   expiresAt: number;
   userId?: string;
@@ -31,6 +34,7 @@ export class Directory {
   private online = new Map<string, Connection>();
   private closed = false;
   private services: DirectoryServices;
+  private email: EmailAuth;
   constructor(private options: DirectoryOptions) {
     if (options.dbPath !== ':memory:') mkdirSync(dirname(options.dbPath), { recursive: true, mode: 0o700 });
     this.db = new DatabaseSync(options.dbPath);
@@ -53,15 +57,16 @@ export class Directory {
     // intact and fold both operands with the same Unicode rule instead.
     this.db.function('lastcall_fold', { deterministic: true }, (value) => String(value ?? '').normalize('NFKC').toLowerCase());
     this.services = new DirectoryServices(this.db, options, (id) => { const row = this.row(id); return row && this.user(row); }, options.iceServers,state=>{for(const id of [state.callerId,state.calleeId]){const target=this.online.get(id);if(target?.callInviteV1)this.options.send(target.ws,{type:'call-state',...state});}},(recipient,invite)=>{const target=this.online.get(recipient);if(target?.callInviteV1)this.options.send(target.ws,{type:'call-invitation',invite});});
+    this.email = new EmailAuth(this.db, options, (quotas) => this.services.reserveQuotas(quotas));
   }
-  open(ws: WebSocket) {
+  open(ws: WebSocket, ip = '') {
     const challenge = randomBytes(32).toString('hex');
-    this.connections.set(ws, { ws, challenge, expiresAt: Date.now() + (this.options.challengeTtlMs ?? 15_000), watches: new Set() });
+    this.connections.set(ws, { ws, ip, challenge, expiresAt: Date.now() + (this.options.challengeTtlMs ?? 15_000), watches: new Set() });
     this.options.send(ws, { type: 'challenge', challenge });
   }
   isAuthenticated(ws: WebSocket) { return Boolean(this.connections.get(ws)?.userId); }
   expire(now: number) {
-    try { this.services.expire(); } catch { console.error('Directory quota cleanup failed'); }
+    try { this.services.expire(); this.email.expire(); } catch { console.error('Directory quota cleanup failed'); }
     for (const connection of this.connections.values()) {
       if (!connection.userId && now >= connection.expiresAt) this.options.reject(connection.ws, 'auth-expired', 'Authentication challenge expired', true);
     }
@@ -76,6 +81,60 @@ export class Directory {
     const row = this.row(userId); if (!row) return;
     const user = this.user(row);
     for (const connection of this.connections.values()) if (connection.userId && connection.watches.has(userId)) this.options.send(connection.ws, { type: 'presence', user });
+  }
+  /** Registration, binding and recovery prove the key per request and never publish presence. */
+  private oneShot(connection: Connection, operation: (challenge: string) => unknown) {
+    const challenge = connection.challenge; connection.challenge = undefined;
+    if (connection.userId || !challenge || Date.now() >= connection.expiresAt) return this.options.reject(connection.ws, 'auth-expired', 'Authentication challenge is unavailable or expired', true);
+    try {
+      const reply = operation(challenge);
+      this.options.send(connection.ws, reply);
+      connection.ws.close(1000, 'Email request finished');
+    } catch (error) {
+      if (error instanceof ServiceError) this.options.reject(connection.ws, error.code, error.message, true);
+      else this.options.reject(connection.ws, 'directory-error', 'Directory operation failed', true);
+    }
+  }
+  private emailKeyState(publicKey: string) {
+    const userId = userIdFromPublicKey(publicKey);
+    if (this.email.movedTo(userId)) throw new ServiceError('account-moved', 'This account was restored on another device');
+    return { userId, hasProfile: Boolean(this.row(userId)) };
+  }
+  private finishEmail(publicKey: string, outcome: EmailOutcome) {
+    const { userId, hasProfile } = this.emailKeyState(publicKey);
+    if (outcome.purpose === 'register') {
+      if (hasProfile) throw new ServiceError('device-already-registered', 'This installation already owns a username');
+      return { type: 'email-verified', proof: this.email.createProof(publicKey, outcome.emailHash) };
+    }
+    if (outcome.purpose === 'bind') {
+      if (!hasProfile) throw new ServiceError('profile-required', 'Register before binding an address');
+      const owner = this.email.ownerOf(outcome.emailHash);
+      if (owner && owner !== userId) throw new ServiceError('email-taken', 'This address belongs to another account');
+      this.services.atomically(() => this.email.bindInside(userId, outcome.emailHash));
+      return { type: 'email-verified' };
+    }
+    if (hasProfile) throw new ServiceError('device-already-registered', 'This installation already owns a username');
+    const oldUserId = this.email.ownerOf(outcome.emailHash);
+    const old = oldUserId ? this.row(oldUserId) : undefined;
+    if (!old) throw new ServiceError('email-code-invalid', 'The code is invalid or expired');
+    this.services.atomically(() => {
+      this.services.deleteAccountInside(old.user_id);
+      this.email.unbindInside(old.user_id);
+      this.db.prepare('DELETE FROM directory_users WHERE user_id = ?').run(old.user_id);
+      this.db.prepare('INSERT INTO directory_users (user_id, public_key, username, display_name, last_seen) VALUES (?, ?, ?, ?, ?)')
+        .run(userId, publicKey, old.username, old.display_name, Date.now());
+      this.email.recordMoveInside(old.user_id, userId, old.username, outcome.emailHash);
+    });
+    const live = this.online.get(old.user_id);
+    if (live) { this.online.delete(old.user_id); this.options.reject(live.ws, 'account-moved', 'This account was restored on another device', true); }
+    const user = this.user(this.row(userId)!);
+    const retired = this.email.movedFrom(userId);
+    for (const connection of this.connections.values()) {
+      if (!connection.userId || !connection.identityMovedV1) continue;
+      for (const id of retired) if (connection.watches.has(id)) this.options.send(connection.ws, { type: 'identity-moved', oldUserId: id, user });
+    }
+    if (outcome.email) this.email.sendRecoveredNotice(outcome.email, outcome.locale);
+    return { type: 'email-verified', user };
   }
   async handle(ws: WebSocket, raw: unknown) {
     const connection = this.connections.get(ws); if (!connection) return;
@@ -93,21 +152,47 @@ export class Directory {
         ws.close(1000, 'Profile resolved');
         return;
       }
+      if (frame.type === 'email-start') {
+        return this.oneShot(connection, (challenge: string) => {
+          if (!verifyEmailStart(frame.publicKey, challenge, frame.purpose, frame.email, frame.locale, frame.signature)) throw new ServiceError('auth-failed', 'Signature verification failed');
+          if (!this.email.enabled) throw new ServiceError('email-unavailable', 'Email is not configured on this server');
+          const { userId, hasProfile } = this.emailKeyState(frame.publicKey);
+          // These depend only on the signing key, so they reveal nothing about the address.
+          if (frame.purpose === 'bind' && !hasProfile) throw new ServiceError('profile-required', 'Register before binding an address');
+          if (frame.purpose !== 'bind' && hasProfile) throw new ServiceError('device-already-registered', 'This installation already owns a username');
+          return { type: 'email-started', challengeId: this.email.start({ purpose: frame.purpose, email: frame.email, locale: frame.locale, publicKey: frame.publicKey, userId, ip: connection.ip }) };
+        });
+      }
+      if (frame.type === 'email-verify') {
+        return this.oneShot(connection, (challenge: string) => {
+          if (!verifyEmailVerify(frame.publicKey, challenge, frame.challengeId, frame.code, frame.signature)) throw new ServiceError('auth-failed', 'Signature verification failed');
+          return this.finishEmail(frame.publicKey, this.email.verify({ challengeId: frame.challengeId, code: frame.code, publicKey: frame.publicKey }));
+        });
+      }
       if (frame.type === 'authenticate') {
         // Consume before signature/database work; invalid attempts cannot reuse a challenge.
         const challenge = connection.challenge; connection.challenge = undefined;
         if (connection.userId || !challenge || Date.now() >= connection.expiresAt) return this.options.reject(ws, 'auth-expired', 'Authentication challenge is unavailable or expired', true);
         if (!verifyAuthentication(frame.publicKey, challenge, frame.username, frame.displayName, frame.signature)) return this.options.reject(ws, 'auth-failed', 'Signature verification failed', true);
         const userId = userIdFromPublicKey(frame.publicKey);
+        if (this.email.movedTo(userId)) return this.options.reject(ws, 'account-moved', 'This account was restored on another device', true);
         const existing = this.row(userId);
         if (existing && existing.username !== frame.username) return this.options.reject(ws, 'device-already-registered', 'This installation already owns a username', true);
         const occupied = this.db.prepare('SELECT user_id FROM directory_users WHERE username = ? AND user_id <> ?').get(frame.username, userId);
         if (occupied) return this.options.reject(ws, 'username-taken', 'This username is already registered', true);
         const count = this.db.prepare('SELECT COUNT(*) AS total FROM directory_users').get() as { total: number };
         if (!existing && count.total >= this.options.maxUsers) return this.options.reject(ws, 'directory-full', 'User directory capacity reached', true);
+        // Reconnecting profiles never need a proof. A proof is spent only once the profile exists.
+        const emailHash = !existing && frame.emailProof ? this.email.proofHash(frame.emailProof, frame.publicKey) : undefined;
+        if (!existing && (frame.emailProof ? !emailHash : this.email.required)) return this.options.reject(ws, 'email-required', 'Confirm an email address to register', true);
+        if (emailHash && this.email.ownerOf(emailHash)) return this.options.reject(ws, 'email-taken', 'This address belongs to another account', true);
         if (existing) this.db.prepare('UPDATE directory_users SET last_seen = ? WHERE user_id = ?').run(Date.now(), userId);
-        else this.db.prepare('INSERT INTO directory_users (user_id, public_key, username, display_name, last_seen) VALUES (?, ?, ?, ?, ?)')
-          .run(userId, frame.publicKey, frame.username, frame.displayName, Date.now());
+        else this.services.atomically(() => {
+          this.db.prepare('INSERT INTO directory_users (user_id, public_key, username, display_name, last_seen) VALUES (?, ?, ?, ?, ?)')
+            .run(userId, frame.publicKey, frame.username, frame.displayName, Date.now());
+          if (emailHash) this.email.bindInside(userId, emailHash);
+        });
+        if (emailHash) this.email.consumeProof(frame.emailProof!);
         const old = this.online.get(userId);
         connection.userId = userId;
         this.online.set(userId, connection); // New owner is visible before the old close callback runs.
@@ -122,7 +207,7 @@ export class Directory {
         this.services.deleteAccount(userId);
         this.online.delete(userId);
         this.notify(userId);
-        this.db.prepare('DELETE FROM directory_users WHERE user_id = ?').run(userId);
+        this.services.atomically(() => { this.email.deleteAccountInside(userId); this.db.prepare('DELETE FROM directory_users WHERE user_id = ?').run(userId); });
         this.connections.delete(ws);
         this.options.send(ws, { type: 'account-deleted', requestId: frame.requestId });
         ws.close(1000, 'Account deleted');
@@ -177,9 +262,14 @@ export class Directory {
       } else if (frame.type === 'watch') {
         this.services.replaceWatchConsent(connection.userId, frame.userIds);
         connection.watches = new Set(frame.userIds);
+        if (frame.identityMovedV1) connection.identityMovedV1 = true;
         // Initial snapshots and future changes go only to this explicit authenticated subscription.
         for (const id of connection.watches) {
-          const row = this.row(id); if (row) this.options.send(ws, { type: 'presence', user: this.user(row) });
+          const row = this.row(id); if (row) { this.options.send(ws, { type: 'presence', user: this.user(row) }); continue; }
+          // Released clients treat an unknown frame as fatal, so this needs the explicit opt-in.
+          const newId = connection.identityMovedV1 ? this.email.movedTo(id) : undefined;
+          const moved = newId ? this.row(newId) : undefined;
+          if (moved) this.options.send(ws, { type: 'identity-moved', oldUserId: id, user: this.user(moved) });
         }
       } else if (frame.type === 'connect') {
         if (frame.to === connection.userId) return this.options.reject(ws, 'invalid-target', 'Cannot connect to self');
@@ -214,6 +304,7 @@ export class Directory {
     if (this.closed) return;
     this.closed = true;
     for (const ws of this.connections.keys()) this.disconnect(ws);
+    await this.email.close();
     await this.services.close();
     this.db.close();
   }

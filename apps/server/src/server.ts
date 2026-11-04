@@ -3,7 +3,7 @@ import { createServer, type IncomingMessage } from 'node:http';
 import { WebSocket, WebSocketServer } from 'ws';
 import { clientFrameSchema } from '@messenger/core';
 import { Directory } from './directory.js';
-import { createFcmPushProvider } from './providers.js';
+import { createFcmPushProvider, createSmtpEmailSender } from './providers.js';
 import { clientIp, rateKey } from './client-ip.js';
 import type { ServiceOptions } from './services.js';
 
@@ -224,7 +224,7 @@ export function createSignalingServer(options: ServerOptions = {}) {
         if (!other) return reject(peer, 'peer-unavailable', 'The other peer is not connected');
         send(other, { type: 'signal', from: peer.peerId, payload: frame.payload });
       });
-      if (peer.kind === 'directory') directory.open(ws);
+      if (peer.kind === 'directory') directory.open(ws, peer.ip);
     });
   });
   const heartbeat = setInterval(() => {
@@ -272,6 +272,11 @@ export function optionsFromEnv(env: NodeJS.ProcessEnv = process.env): ServerOpti
   const turnUrls = list('TURN_URLS'); const stunUrls = list('STUN_URLS');
   if (turnUrls.some((url) => !/^turns?:[^\s]+$/.test(url)) || stunUrls.some((url) => !/^stuns?:[^\s]+$/.test(url))) throw new Error('Invalid ICE URL configuration');
   if (Boolean(env.TURN_SHARED_SECRET) !== Boolean(turnUrls.length)) throw new Error('TURN_URLS and TURN_SHARED_SECRET must be configured together');
+  const emailValues = [env.SMTP_HOST, env.SMTP_USER, env.SMTP_PASS, env.SMTP_FROM, env.EMAIL_HASH_SECRET];
+  const emailEnabled = emailValues.every(Boolean);
+  if (!emailEnabled && emailValues.some(Boolean)) throw new Error('SMTP_HOST, SMTP_USER, SMTP_PASS, SMTP_FROM and EMAIL_HASH_SECRET must be configured together');
+  if (emailEnabled && Buffer.byteLength(env.EMAIL_HASH_SECRET!) < 32) throw new Error('EMAIL_HASH_SECRET must contain at least 32 bytes');
+  if (env.EMAIL_REQUIRED === '1' && !emailEnabled) throw new Error('EMAIL_REQUIRED needs SMTP configuration');
   return {
     host: env.HOST || '127.0.0.1', port: numberEnv(env, 'PORT', 8787, 0, 65535),
     ...(env.ALLOWED_ORIGINS !== undefined ? { allowedOrigins: list('ALLOWED_ORIGINS') } : {}),
@@ -279,6 +284,12 @@ export function optionsFromEnv(env: NodeJS.ProcessEnv = process.env): ServerOpti
     requireIceAuth: env.REQUIRE_ICE_AUTH === '1',
     // Phone registration was retired. Legacy SMS environment values are ignored.
     pushProvider: env.GOOGLE_APPLICATION_CREDENTIALS ? createFcmPushProvider(env.GOOGLE_APPLICATION_CREDENTIALS) : undefined,
+    ...(emailEnabled ? {
+      emailSender: createSmtpEmailSender({ host: env.SMTP_HOST!, port: numberEnv(env, 'SMTP_PORT', 465, 1, 65535), user: env.SMTP_USER!, pass: env.SMTP_PASS!, from: env.SMTP_FROM! }),
+      emailHashSecret: env.EMAIL_HASH_SECRET,
+    } : {}),
+    emailRequired: env.EMAIL_REQUIRED === '1',
+    emailGlobalPerHour: numberEnv(env, 'EMAIL_GLOBAL_PER_HOUR', 200, 1, 100_000),
     turnTtlSeconds: numberEnv(env, 'TURN_TTL_SECONDS', 600, 60, 3600),
     directoryDbPath: env.DIRECTORY_DB_PATH || ':memory:',
     directoryMaxUsers: numberEnv(env, 'DIRECTORY_MAX_USERS', 10_000, 1, 1_000_000),

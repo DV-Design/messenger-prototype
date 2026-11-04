@@ -10,6 +10,7 @@ Private chats, files and calls sent directly between devices.
 LastCall is a messenger with a unique username and no phone number. Messages, files, voice notes, video circles and calls travel between devices over a protected connection, and content is additionally encrypted by the app.
 
 - Unique @username, directory search, direct chats and groups up to 8 members.
+- A confirmed email address restores your @username after a reinstall. Chat history stays on the device and is not restored.
 - Text, files up to 5 MiB, voice notes up to 2 minutes and video circles up to 30 seconds.
 - Audio and video calls with camera switching, picture-in-picture and an Android audio-output picker.
 - Five-emoji safety code to compare contact keys and a short call verification code.

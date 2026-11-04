@@ -8,7 +8,7 @@ import { pickDocument, pickMedia, shareFile } from '../../attachments';
 import { AttachmentCard } from '../../components/AttachmentCard';
 import { SafetyCode } from '../../components/SafetyCode';
 import { SafetyMenu } from '../../components/SafetyMenu';
-import { Avatar, Empty, Icon, IconButton, lastSeen, time } from '../../components/ui';
+import { Avatar, Button, Empty, Icon, IconButton, lastSeen, time } from '../../components/ui';
 import { client, errorText, useMessenger } from '../../runtime';
 import { colors, styles } from '../../styles';
 import { transportNotice } from '../../transport-notice';
@@ -57,6 +57,7 @@ export default function Chat() {
   const groupMembers = group ? conversation.memberIds.filter(id => id !== identity?.userId).map(id => ({ userId: id, displayName: snapshot.contacts.find(contact => contact.userId === id)?.displayName ?? t('Member') })) : [];
   const safety = peer && identity ? safetyEmoji(identity.publicKey, peer.publicKey) : '';
   const peerVerified = !!peer && snapshot.verifiedContacts.includes(peer.userId);
+  const moved = !group && peer ? snapshot.movedContacts?.[peer.userId] : undefined;
   const canCall = !group && !blockedPeer && !snapshot.activeCall && !recording && (snapshot.status === 'online' || conversation.session?.status === 'connected');
   const notice = transportNotice({ directory: snapshot.status, group, peerOnline: peer?.online, session: conversation.session,
     pending: conversation.messages.filter(item => item.from === identity?.userId && waitingForDelivery(item)).length
@@ -99,7 +100,11 @@ export default function Chat() {
     {blockedPeer && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 15, paddingVertical: 9, backgroundColor: '#FDECEF' }}><Icon name="ban-outline" size={17} color="#A22D3B" /><Text style={[styles.info, { flex: 1, color: '#A22D3B' }]}> {t('You blocked this contact. Unblock to see messages and calls.')}</Text></View>}
     {hiddenBlocked && <Text style={[styles.info, { textAlign: 'center', paddingVertical: 8, paddingHorizontal: 15 }]}> {t('Messages from blocked users are hidden.')}</Text>}
     <Pressable accessibilityRole="button" accessibilityLabel={t('Delivery status. Open connection settings')} onPress={() => router.push('/(tabs)/settings')} style={{ paddingHorizontal: 15, paddingVertical: 9, backgroundColor: notice.warning ? '#FFF2D8' : '#EDF5F1' }}><Text style={[styles.info, { color: notice.warning ? '#7B5924' : '#4E7161' }]}>{notice.text}</Text></Pressable>
-    {!group && peer && !peerVerified && <Pressable accessibilityRole="button" accessibilityLabel={t('Verify contact safety code')} onPress={() => setSafetyOpen(true)} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 15, paddingVertical: 8, backgroundColor: '#FFF6E4' }}><Icon name="shield-outline" size={17} color="#7B5924" /><Text style={[styles.info, { flex: 1, color: '#7B5924' }]}> {t('Contact key is not verified. Compare the safety code.')}</Text><Icon name="chevron-forward" size={17} color="#7B5924" /></Pressable>}
+    {moved && peer && !blockedPeer && <View accessibilityRole="alert" style={{ gap: 9, paddingHorizontal: 15, paddingVertical: 10, backgroundColor: '#FFF2D8' }}>
+      <Text style={[styles.info, { color: '#7B5924' }]}>{t('{name} restored the account on a new key. This is not confirmed to be the same person until you compare the safety code in the new chat. Messages not yet delivered here will not reach the new key and expire after 7 days. This chat stays as history.', { name: peer.displayName })}</Text>
+      <Button secondary busy={busy} title={t('Open new chat')} onPress={() => void action(async () => { const next = await client().acceptMovedContact(peer.userId); router.push({ pathname: '/chat/[id]', params: { id: next } }); })} />
+    </View>}
+    {!group && peer && !peerVerified && !moved && <Pressable accessibilityRole="button" accessibilityLabel={t('Verify contact safety code')} onPress={() => setSafetyOpen(true)} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 15, paddingVertical: 8, backgroundColor: '#FFF6E4' }}><Icon name="shield-outline" size={17} color="#7B5924" /><Text style={[styles.info, { flex: 1, color: '#7B5924' }]}> {t('Contact key is not verified. Compare the safety code.')}</Text><Icon name="chevron-forward" size={17} color="#7B5924" /></Pressable>}
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={styles.conversation}>
         {group && <Text style={[styles.info, { textAlign: 'center', paddingVertical: 8, paddingHorizontal: 15 }]}> {t('Group up to 8 members · group calls are not available yet')}</Text>}

@@ -7,6 +7,9 @@ import Constants from 'expo-constants';
 import type { Conversation } from '@messenger/core';
 import { enableSystemCalls, useSystemCallStatus } from '../../system-calls';
 import { Avatar, Button, Icon, ScreenHeader, connectionLabel } from '../../components/ui';
+import { AccountMovedNotice } from '../../components/AccountMovedNotice';
+import { EmailBinding } from '../../components/EmailBinding';
+import { isAccountMoved } from '../../email-flow-model';
 import { changeServer, client, deleteAccount, errorText, reconnect, useMessenger } from '../../runtime';
 import { formatMediaDiagnostics, sanitizeDiagnostic } from '../../diagnostics';
 import { usePushStatus } from '../../components/PushBridge';
@@ -15,7 +18,7 @@ import { colors, styles } from '../../styles';
 import { t } from '../../i18n';
 
 export default function Settings() {
-  const { profile, identity, snapshot, error, busy } = useMessenger();
+  const { profile, identity, snapshot, error, busy, boundEmail, retired } = useMessenger();
   const pushStatus = usePushStatus();
   const callStatus = useSystemCallStatus();
   const updateState = useUpdateState();
@@ -39,7 +42,7 @@ export default function Settings() {
     try { await changeServer(server); } catch (cause) { setLocalError(errorText(cause)); }
   }
   async function copyDiagnostics() {
-    const privateValues = [profile?.displayName ?? '', profile?.username ?? '', identity?.userId ?? '', identity?.publicKey ?? '', identity?.privateKey ?? '',
+    const privateValues = [profile?.displayName ?? '', profile?.username ?? '', boundEmail?.email ?? '', identity?.userId ?? '', identity?.publicKey ?? '', identity?.privateKey ?? '',
       ...snapshot.contacts.flatMap(user => [user.displayName, user.username, user.userId, user.publicKey]),
       ...snapshot.conversations.flatMap(item => [item.title, ...item.messages.map(message => message.text)])];
     const sanitize = (value?: string) => sanitizeDiagnostic(value, privateValues);
@@ -69,6 +72,7 @@ export default function Settings() {
       <View style={styles.profile}><Avatar name={profile?.displayName ?? ''} id={identity?.userId} size={86} /><Text style={styles.profileName}>{profile?.displayName}</Text>
         <Pressable accessibilityRole="button" accessibilityLabel={t('Copy username')} onPress={() => { void Clipboard.setStringAsync(`@${profile?.username ?? ''}`).then(() => setCopied(true)).catch(cause => setLocalError(errorText(cause))); }}><Text style={styles.profileUsername}>@{profile?.username}</Text></Pressable>{copied && <Text style={styles.info}>{t('Username copied')}</Text>}
         <Text style={[styles.info, { marginTop: 12, textAlign: 'center' }]}>{t('Login is confirmed by the server and bound to this device key.')}</Text></View>
+      {retired && <AccountMovedNotice />}
       <Text style={styles.sectionTitle}>{t('ACCESS')}</Text>
       <View style={[styles.section, { marginTop: 0 }]}><Pressable style={styles.listRow} accessibilityRole="button" onPress={() => router.push('/permissions')}><Icon name="shield-checkmark-outline" /><Text style={[styles.rowName, styles.flex]}>{t('App permissions')}</Text><Icon name="chevron-forward" size={18} color={colors.secondary} /></Pressable></View>
       <Text style={styles.sectionTitle}>{t('CONNECTION')}</Text>
@@ -76,9 +80,9 @@ export default function Settings() {
         <View style={styles.listRow}><Icon name={snapshot.status === 'online' ? 'checkmark-circle' : 'cloud-offline-outline'} color={snapshot.status === 'online' ? colors.accent : colors.secondary} /><View style={styles.rowBody}><Text style={styles.rowName}>{connectionLabel[snapshot.status]}</Text><Text style={styles.rowText}>{t('Status and contact search')}</Text></View></View>
         <Pressable style={styles.listRow} accessibilityRole="button" onPress={() => setShowServer(!showServer)}><Icon name="server-outline" /><View style={styles.rowBody}><Text style={styles.rowName}>{t('Server')}</Text><Text numberOfLines={1} style={styles.rowText}>{profile?.serverUrl}</Text></View><Icon name={showServer ? 'chevron-up' : 'chevron-forward'} color={colors.secondary} size={18} /></Pressable>
         {showServer && <View style={styles.content}><TextInput style={styles.input} value={server} onChangeText={setServer} autoCapitalize="none" autoCorrect={false} keyboardType="url" accessibilityLabel={t('Server address')} placeholder="https://p2p.lienad.ru" /><Text style={styles.info}>{t('Contacts and history are stored separately for each server. Changing the address reconnects the app.')}</Text><Button title={t('Save and connect')} busy={busy} onPress={() => void save()} /></View>}
-        {snapshot.status !== 'online' && <View style={{ padding: 16 }}><Button title={t('Reconnect')} secondary onPress={() => void reconnect()} disabled={snapshot.status === 'connecting'} /></View>}
+        {snapshot.status !== 'online' && !retired && <View style={{ padding: 16 }}><Button title={t('Reconnect')} secondary onPress={() => void reconnect()} disabled={snapshot.status === 'connecting'} /></View>}
       </View>
-      {!!(localError || error || snapshot.error) && <Text style={[styles.error, { marginHorizontal: 16, marginTop: 16 }]}>{localError || error || snapshot.error}</Text>}
+      {!!(localError || [error, snapshot.error].find(text => text && !isAccountMoved(text))) && <Text style={[styles.error, { marginHorizontal: 16, marginTop: 16 }]}>{localError || [error, snapshot.error].find(text => text && !isAccountMoved(text))}</Text>}
       <Text style={styles.sectionTitle}>{t('NOTIFICATIONS')}</Text><View style={[styles.section, styles.content]}><Text style={styles.body}>{pushStatus}</Text><Button title={t('Configure permissions')} secondary onPress={() => router.push('/permissions')} /></View>
       {Platform.OS === 'android' && <><Text style={styles.sectionTitle}>{t('SYSTEM CALLS')}</Text><View style={[styles.section, styles.content]}><Text style={styles.body}>{callStatus}</Text><Text style={styles.info}>{t('On Android 8+ LastCall registers its own phone account and shows its own incoming-call screen; no manual setup in the Phone app is needed. The screen appears after the encrypted call invitation is verified; connecting the peer may continue after you answer. On Android 14+ allow full-screen notifications, otherwise the call stays a normal notification. The microphone is enabled only after you answer. On Android 7 LastCall uses its own notification and screen without the Phone app.')}</Text><Button title={t('Open call settings')} secondary onPress={() => void enableSystemCalls().catch(cause => setLocalError(errorText(cause)))} /></View></>}
       {directUpdates && Platform.OS === 'android' && <><Text style={styles.sectionTitle}>{t('UPDATES')}</Text>
@@ -119,7 +123,8 @@ export default function Settings() {
       </View></View>
       <Text style={styles.sectionTitle}>{t('ACCOUNT')}</Text>
       <View style={styles.section}><View style={styles.content}>
-        <Text style={styles.body}>{t('Deleting the account removes the profile and push consents on the server, plus the device key, contacts and history on this phone. This cannot be undone.')}</Text>
+        {!retired && <EmailBinding />}
+        {!retired && <><Text style={styles.body}>{t('Deleting the account removes the profile and push consents on the server, plus the device key, contacts and history on this phone. This cannot be undone.')}</Text>
         <Button danger title={deleting ? t('Deleting…') : t('Delete account')} busy={deleting} onPress={() => Alert.alert(
           t('Delete account?'),
           t('The profile, key, contacts and history will be deleted. This action is irreversible.'),
@@ -128,7 +133,7 @@ export default function Settings() {
             setDeleting(true); setLocalError('');
             void deleteAccount().catch(cause => setLocalError(errorText(cause))).finally(() => setDeleting(false));
           } }],
-        )} />
+        )} /></>}
         {!!localError && <Text accessibilityRole="alert" style={styles.error}>{localError}</Text>}
       </View></View>
       <Text style={styles.sectionTitle}>{t('ABOUT')}</Text>

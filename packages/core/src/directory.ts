@@ -10,6 +10,14 @@ export interface DeviceIdentity { privateKey:string;publicKey:string;userId:stri
 const utf8=(value:string)=>new TextEncoder().encode(value);
 export const usernameSchema=z.string().regex(/^[a-z0-9_]{3,24}$/);
 export const displayNameSchema=z.string().min(1).max(48);
+/** Address as typed to address as compared and signed; no provider-specific rewriting. */
+export function normalizeEmail(input:string):string {return input.trim().toLowerCase();}
+// ASCII only and no list/display-name syntax: one address can never become several recipients.
+export const emailAddressSchema=z.string().min(3).max(254).regex(/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9-]+(\.[a-z0-9-]+)+$/);
+export const emailPurposeSchema=z.enum(['register','recover','bind']);
+export const emailLocaleSchema=z.enum(['en','ru']);
+export type EmailPurpose=z.infer<typeof emailPurposeSchema>;
+export type EmailLocale=z.infer<typeof emailLocaleSchema>;
 export function userIdFromPublicKey(publicKey:string):string {
   roomIdSchema.parse(publicKey);const point=ed25519.Point.fromBytes(hexToBytes(publicKey));point.assertValidity();
   if(point.isSmallOrder()||!point.isTorsionFree())throw new Error('Invalid identity public key');
@@ -81,10 +89,12 @@ export const directoryClientFrameSchema=z.discriminatedUnion('type',[
   z.object({type:z.literal('phone-discover'),hashes:z.array(roomIdSchema).max(100),requestId:peerIdSchema}).strict(),
   z.object({type:z.literal('push-register'),token:z.string().min(1).max(4096),backgroundSync:z.boolean().optional(),messagePreview:z.boolean().optional(),callInviteV1:z.boolean().optional(),requestId:peerIdSchema}).strict(),
   z.object({type:z.literal('wake'),to:roomIdSchema,kind:wakeIntentSchema.shape.kind.optional(),intentId:peerIdSchema.optional(),expiresAt:wakeIntentSchema.shape.expiresAt.optional(),preview:pushPreviewSchema.optional()}).strict().refine(frame=>[frame.kind,frame.intentId,frame.expiresAt].filter(value=>value!==undefined).length%3===0&&(frame.preview===undefined||((frame.kind==='message'||frame.kind==='file')&&pushPreviewSchema.safeParse(frame.preview).success&&JSON.parse(frame.preview).kind===frame.kind)),{message:'Wake metadata must be supplied together; previews require matching message/file intent'}),
-  z.object({type:z.literal('authenticate'),publicKey:roomIdSchema,username:usernameSchema,displayName:displayNameSchema,signature:z.string().regex(/^[0-9a-f]{128}$/)}).strict(),
+  z.object({type:z.literal('authenticate'),publicKey:roomIdSchema,username:usernameSchema,displayName:displayNameSchema,signature:z.string().regex(/^[0-9a-f]{128}$/),emailProof:roomIdSchema.optional()}).strict(),
+  z.object({type:z.literal('email-start'),purpose:emailPurposeSchema,email:emailAddressSchema,locale:emailLocaleSchema,publicKey:roomIdSchema,signature:z.string().regex(/^[0-9a-f]{128}$/)}).strict(),
+  z.object({type:z.literal('email-verify'),challengeId:peerIdSchema,code:z.string().regex(/^[0-9]{6}$/),publicKey:roomIdSchema,signature:z.string().regex(/^[0-9a-f]{128}$/)}).strict(),
   z.object({type:z.literal('search'),query:z.string().max(48),requestId:peerIdSchema}).strict(),
   z.object({type:z.literal('lookup'),userIds:z.array(roomIdSchema).max(200),requestId:peerIdSchema}).strict(),
-  z.object({type:z.literal('watch'),userIds:z.array(roomIdSchema).max(200)}).strict(),
+  z.object({type:z.literal('watch'),userIds:z.array(roomIdSchema).max(200),identityMovedV1:z.literal(true).optional()}).strict(),
   z.object({type:z.literal('connect'),to:roomIdSchema}).strict(),
   z.object({type:z.literal('delete-account'),requestId:peerIdSchema}).strict(),
   z.object({type:z.literal('report'),requestId:peerIdSchema,targetId:roomIdSchema,targetKind:z.enum(['user','group']),conversationId:conversationIdSchema.optional(),reason:z.enum(['spam','harassment','illegal','other']),details:z.string().max(500).optional()}).strict(),
@@ -93,6 +103,9 @@ export const directoryServerFrameSchema=z.discriminatedUnion('type',[
   z.object({type:z.literal('call-state'),requestId:peerIdSchema.optional(),...callStateSchema.shape}).strict(),
   z.object({type:z.literal('call-invitation'),invite:callPushSchema}).strict(),
   z.object({type:z.literal('profile'),user:directoryUserSchema.nullable()}).strict(),
+  z.object({type:z.literal('email-started'),challengeId:peerIdSchema}).strict(),
+  z.object({type:z.literal('email-verified'),proof:roomIdSchema.optional(),user:directoryUserSchema.optional()}).strict(),
+  z.object({type:z.literal('identity-moved'),oldUserId:roomIdSchema,user:directoryUserSchema}).strict(),
   z.object({type:z.literal('users-page'),requestId:peerIdSchema,...directoryPageSchema.shape}).strict(),
   z.object({type:z.literal('services'),requestId:peerIdSchema,capabilities:serviceCapabilitiesSchema}).strict(),
   z.object({type:z.literal('ice'),requestId:peerIdSchema,iceServers:iceServersSchema}).strict(),

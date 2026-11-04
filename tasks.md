@@ -1,3 +1,21 @@
+# Email registration and account recovery (msg-3zf, branch `feature/email-recovery`)
+
+Status: in development, not released or deployed. Contract: [docs/EMAIL-RECOVERY-CONTRACT.md](docs/EMAIL-RECOVERY-CONTRACT.md).
+
+- [X] Core protocol and one-shot helpers
+  → Artifacts: [core](packages/core/src/email-auth.ts), [tests](packages/core/src/email-auth.test.ts)
+- [X] Server: keyed address hash, codes, proofs, atomic account move, contact notice
+  → Artifacts: [server](apps/server/src/email-auth.ts), [tests](apps/server/test/email-auth.test.ts)
+- [X] Privacy policy, terms and store listing text
+  → Artifacts: [privacy](infra/public/privacy.html), [terms](infra/public/terms.html), [store guide](store/PLAY-CONSOLE.md)
+- [X] Mobile onboarding, settings, reminder and chat banner (not yet run on a device)
+  → Artifacts: [onboarding](apps/mobile/src/app/onboarding.tsx), [flow model](apps/mobile/src/email-flow-model.ts), [tests](apps/mobile/tests/email-flow-model.test.ts)
+- [X] Gates: `npm run check` (220 core, 116 server, 150 mobile), `npm run test:e2e` 11 PASS / 1 skip
+- [ ] Free mail provider Brevo: account, DNS records and SMTP key (msg-60q)
+- [ ] Deploy server, then a real letter; set the policy's effective date and name the provider
+- [ ] Update Play Data safety and App access (msg-2o0)
+- [ ] Release client, physical acceptance on reinstall, then `EMAIL_REQUIRED=1`
+
 # LastCall 1.0.9 / code23: Play-package push, background delivery and calls fix
 
 Status: root cause found. The server sent every FCM message with `restrictedPackageName: 'dev.messenger.prototype'`, so the Play package `ru.lastcall.app` (1.0.8) never received wake/preview/call pushes: no background delivery, notifications or incoming calls.

@@ -2,7 +2,7 @@ import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto
 import type { DatabaseSync } from 'node:sqlite';
 import { normalizePhone, phoneLookupHash,pushPreviewSchema,pushPreviewEnvelopeSchema,callPushSchema,callPushEnvelopeSchema,type CallState, type DirectoryUser, type PhoneChallenge, type PhoneMatch, type ServiceCapabilities, type WakeIntent } from '@messenger/core';
 import {CallRegistry,CallControlError,type CallTiming,type CallAction} from './call-registry.js';
-import { InvalidPushToken, type PushProvider, type SMSProvider } from './providers.js';
+import { InvalidPushToken, type EmailSender, type PushProvider, type SMSProvider } from './providers.js';
 
 export class ServiceError extends Error {
   constructor(readonly code: string, message: string) { super(message); }
@@ -12,6 +12,10 @@ export interface ServiceOptions {
   enableLegacyPhoneServices?: boolean;
   smsProvider?: SMSProvider;
   pushProvider?: PushProvider;
+  emailSender?: EmailSender;
+  emailHashSecret?: string;
+  emailRequired?: boolean;
+  emailGlobalPerHour?: number;
   phoneVerificationSecret?: string;
   smsMaxPerHour?: number;
   smsIdentityMaxPerHour?: number;
@@ -73,17 +77,19 @@ export class DirectoryServices {
   /** Removes every server-side identity-linked service record; content is never stored. */
   deleteAccount(userId: string) {
     this.checkOpen();
-    this.transaction(() => {
-      this.db.prepare('DELETE FROM push_consent WHERE recipient_id = ? OR sender_id = ?').run(userId, userId);
-      this.db.prepare('DELETE FROM push_tokens WHERE user_id = ?').run(userId);
-      this.db.prepare('DELETE FROM verified_phones WHERE user_id = ?').run(userId);
-      this.db.prepare('DELETE FROM wake_last_attempt WHERE recipient_id = ?').run(userId);
-      this.db.prepare('DELETE FROM wake_call_last_attempt WHERE recipient_id = ?').run(userId);
-      this.db.prepare('DELETE FROM service_quotas WHERE quota_key = ?').run(userId);
-      this.db.prepare('DELETE FROM sms_last_attempt WHERE quota_key = ?').run(userId);
-      // Reports are moderation records; remove the reporter identity but keep the complaint.
-      this.db.prepare("UPDATE moderation_reports SET reporter_id = 'deleted' WHERE reporter_id = ?").run(userId);
-    });
+    this.transaction(() => this.deleteAccountInside(userId));
+  }
+  /** Caller provides the transaction; for moving an account as a single atomic step. */
+  deleteAccountInside(userId: string) {
+    this.db.prepare('DELETE FROM push_consent WHERE recipient_id = ? OR sender_id = ?').run(userId, userId);
+    this.db.prepare('DELETE FROM push_tokens WHERE user_id = ?').run(userId);
+    this.db.prepare('DELETE FROM verified_phones WHERE user_id = ?').run(userId);
+    this.db.prepare('DELETE FROM wake_last_attempt WHERE recipient_id = ?').run(userId);
+    this.db.prepare('DELETE FROM wake_call_last_attempt WHERE recipient_id = ?').run(userId);
+    this.db.prepare('DELETE FROM service_quotas WHERE quota_key = ?').run(userId);
+    this.db.prepare('DELETE FROM sms_last_attempt WHERE quota_key = ?').run(userId);
+    // Reports are moderation records; remove the reporter identity but keep the complaint.
+    this.db.prepare("UPDATE moderation_reports SET reporter_id = 'deleted' WHERE reporter_id = ?").run(userId);
   }
   /** Stores report metadata only; message content never reaches this table. */
   fileReport(reporterId: string, targetId: string, targetKind: 'user' | 'group', conversationId: string | undefined, reason: 'spam' | 'harassment' | 'illegal' | 'other', details: string | undefined) {
@@ -113,6 +119,9 @@ export class DirectoryServices {
     for (const quota of quotas) this.db.prepare('INSERT INTO service_quotas(scope, quota_key, period, count) VALUES (?, ?, ?, ?) ON CONFLICT(scope, quota_key, period) DO UPDATE SET count = count + excluded.count').run(quota.scope, quota.key, period, quota.amount ?? 1);
   }
   private reserve(quotas: Quota[]) { this.transaction(() => this.reserveInside(quotas)); }
+  reserveQuotas(quotas: Quota[]) { this.checkOpen(); this.reserve(quotas); }
+  /** One BEGIN IMMEDIATE for steps that span the directory and service tables. */
+  atomically<T>(operation: () => T): T { this.checkOpen(); return this.transaction(operation); }
   expire() {
     const now = this.now();this.calls.expire();
     for (const [id, value] of this.challenges) if (now >= value.expiresAt) { value.digest.fill(0); this.challenges.delete(id); }

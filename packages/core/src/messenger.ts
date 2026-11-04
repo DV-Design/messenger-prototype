@@ -17,8 +17,8 @@ export interface MessengerFile extends SharedFile {timestamp:number;senderId:str
 export interface Conversation {id:string;kind:'direct'|'group';title:string;memberIds:string[];messages:MessengerMessage[];files:MessengerFile[];unread:number;updatedAt:number;session?:SessionSnapshot;}
 export interface PendingIncomingCall extends OpenedCallPush {state:'ringing'|'accepted';revision:number;}
 interface OutgoingInvitation extends CallInvitation {peerId:string;conversationId:string;video:boolean;serverEpoch?:string;offered:boolean;offering:boolean;ringing:boolean;sessionStarted:boolean;revision:number;operation:PendingOperation;timer?:ReturnType<typeof setTimeout>;expiry?:ReturnType<typeof setTimeout>;}
-export interface MessengerSnapshot {status:'idle'|'connecting'|'online'|'offline'|'error';self?:DirectoryUser;contacts:DirectoryUser[];conversations:Conversation[];activeCall?:{conversationId:string;peerId:string;session:SessionSnapshot};pendingIncomingCall?:PendingIncomingCall;verifiedContacts:string[];blockedContacts:string[];error?:string;}
-export interface MessengerOptions {serverUrl:string;identity:DeviceIdentity;username:string;displayName:string;randomBytes?:RandomBytes;rtcFactory?:PeerSessionOptions['rtcFactory'];getUserMedia?:PeerSessionOptions['getUserMedia'];createMediaStream?:PeerSessionOptions['createMediaStream'];onChange?:(snapshot:MessengerSnapshot)=>void;loadState?:()=>Promise<string|null>;saveState?:(sealed:string)=>Promise<void>;saveAttachment?:(key:string,sealed:string)=>Promise<void>;loadAttachment?:(key:string)=>Promise<string|null>;deleteAttachment?:(key:string)=>Promise<void>;}
+export interface MessengerSnapshot {status:'idle'|'connecting'|'online'|'offline'|'error';self?:DirectoryUser;contacts:DirectoryUser[];conversations:Conversation[];activeCall?:{conversationId:string;peerId:string;session:SessionSnapshot};pendingIncomingCall?:PendingIncomingCall;verifiedContacts:string[];blockedContacts:string[];movedContacts?:Record<string,DirectoryUser>;error?:string;}
+export interface MessengerOptions {serverUrl:string;identity:DeviceIdentity;username:string;displayName:string;emailProof?:string;randomBytes?:RandomBytes;rtcFactory?:PeerSessionOptions['rtcFactory'];getUserMedia?:PeerSessionOptions['getUserMedia'];createMediaStream?:PeerSessionOptions['createMediaStream'];onChange?:(snapshot:MessengerSnapshot)=>void;loadState?:()=>Promise<string|null>;saveState?:(sealed:string)=>Promise<void>;saveAttachment?:(key:string,sealed:string)=>Promise<void>;loadAttachment?:(key:string)=>Promise<string|null>;deleteAttachment?:(key:string)=>Promise<void>;}
 export const MAX_CONTACTS=100;
 export const MAX_GROUPS=32;
 export const MAX_HISTORY_MESSAGES=500;
@@ -42,7 +42,7 @@ interface Request {expected:ReplyType;resolve:(frame:DirectoryServerFrame)=>void
 interface Pair {session:PeerSession;connecting?:Promise<void>;retry?:ReturnType<typeof setTimeout>;attempt:number;flushing:boolean;notified:boolean;lastUsed:number;lastSent:Map<string,number>;definitions:Set<string>;pump?:ReturnType<typeof setTimeout>;}
 export class MessengerClient {
   private status:MessengerSnapshot['status']='idle';private self?:DirectoryUser;private error?:string;
-  private contacts=new Map<string,DirectoryUser>();private conversations=new Map<string,InternalConversation>();private pending:PendingMessage[]=[];private verified=new Set<string>();private blocked=new Set<string>();
+  private contacts=new Map<string,DirectoryUser>();private conversations=new Map<string,InternalConversation>();private pending:PendingMessage[]=[];private verified=new Set<string>();private blocked=new Set<string>();private moved=new Map<string,DirectoryUser>();
   private closing=false;private closed=false;private shutdown?:Promise<void>;private activeWork=new Set<Promise<unknown>>();
   private protectedReceive=new Set<string>();private committed=new Set<string>();private blobs=new Map<string,Uint8Array>();private enqueueQueue=Promise.resolve();private expiryTimer?:ReturnType<typeof setTimeout>;private pairs=new Map<string,Pair>();private socket?:WebSocket;private requests=new Map<string,Request>();private iceRequest?:Promise<RTCIceServer[]>;private wakeTimer?:ReturnType<typeof setTimeout>;private lastWake=new Map<string,number>();private wakeStarted=new Map<string,number>();private pendingCall?:PendingOperation;private outgoingInvitation?:OutgoingInvitation;private pendingIncoming?:PendingIncomingCall;private incomingExpiry?:ReturnType<typeof setTimeout>;private endedCalls=new Map<string,number>();private callStates=new Map<string,CallState>();private services?:ServiceCapabilities;private servicesRequest?:Promise<ServiceCapabilities>;private wakeCapabilitiesRequest?:Promise<ServiceCapabilities>;
   private random:RandomBytes;private stopped=true;private opening?:Promise<void>;private loaded=false;private restorePromise?:Promise<void>;
@@ -55,7 +55,7 @@ export class MessengerClient {
     for(const [peerId,pair] of this.pairs){const session=pair.session.getSnapshot();if(session.callState!=='idle'){activeCall={conversationId:directConversationId(this.options.identity.userId,peerId),peerId,session};break;}}
     if(!activeCall&&this.pendingIncoming){const incoming=this.pendingIncoming;activeCall={conversationId:incoming.conversationId,peerId:incoming.callerId,session:{status:'connecting',setup:'invitation',callId:incoming.callId,callVideo:incoming.video,callExpiresAt:incoming.expiresAt,messages:[],files:[],stats:{},muted:false,route:'unknown',callState:'incoming'}};}
     if(!activeCall&&this.pendingCall){const op=this.pendingCall;const snapshot=this.pairs.get(op.peerId!)?.session.getSnapshot();activeCall={conversationId:op.conversationId,peerId:op.peerId!,session:{status:'connecting',messages:[],muted:false,route:'unknown',stats:{},files:[],...snapshot,callState:'outgoing',callId:this.outgoingInvitation?.callId,callVideo:this.outgoingInvitation?.video,callExpiresAt:this.outgoingInvitation?.expiresAt}};}
-    return {status:this.status,self:this.self?{...this.self}:undefined,contacts:[...this.contacts.values()].map(c=>({...c})),conversations:conversations.sort((a,b)=>b.updatedAt-a.updatedAt),activeCall,pendingIncomingCall:this.pendingIncoming?{...this.pendingIncoming}:undefined,verifiedContacts:[...this.verified],blockedContacts:[...this.blocked],error:this.error};
+    return {status:this.status,self:this.self?{...this.self}:undefined,contacts:[...this.contacts.values()].map(c=>({...c})),conversations:conversations.sort((a,b)=>b.updatedAt-a.updatedAt),activeCall,pendingIncomingCall:this.pendingIncoming?{...this.pendingIncoming}:undefined,verifiedContacts:[...this.verified],blockedContacts:[...this.blocked],movedContacts:Object.fromEntries([...this.moved].map(([id,user])=>[id,{...user}])),error:this.error};
   }
   private emit(){this.options.onChange?.(this.getSnapshot());}
   private report(error:unknown){this.error=error instanceof Error?error.message:'Messenger operation failed';this.emit();}
@@ -113,7 +113,7 @@ export class MessengerClient {
           const frame=directoryServerFrameSchema.parse(JSON.parse(event.data));
           if(frame.type==='challenge'){
             if(challenged||ready)throw new Error('Unexpected directory challenge');challenged=true;
-            this.directorySend({type:'authenticate',publicKey:this.options.identity.publicKey,username:this.options.username,displayName:this.options.displayName,signature:signAuthentication(this.options.identity,frame.challenge,this.options.username,this.options.displayName)});
+            this.directorySend({type:'authenticate',publicKey:this.options.identity.publicKey,username:this.options.username,displayName:this.options.displayName,signature:signAuthentication(this.options.identity,frame.challenge,this.options.username,this.options.displayName),...(this.options.emailProof?{emailProof:this.options.emailProof}:{})});
           }else if(frame.type==='ready'){
             if(!challenged||ready||frame.self.userId!==this.options.identity.userId||frame.self.publicKey!==this.options.identity.publicKey)throw new Error('Directory identity mismatch');
             ready=true;this.services=undefined;this.servicesRequest=undefined;this.wakeCapabilitiesRequest=undefined;this.self=frame.self;this.status='online';this.attempt=0;this.error=undefined;finish();this.watch();this.wakePending();this.emit();
@@ -121,14 +121,15 @@ export class MessengerClient {
           }else if(frame.type==='error'){
             const request=frame.requestId?this.requests.get(frame.requestId):undefined;
             if(request){clearTimeout(request.timer);this.requests.delete(frame.requestId!);request.reject(new Error(frame.message));}
-            else if(!ready){if(['username-taken','auth-failed','auth-expired','session-replaced','device-already-registered'].includes(frame.code)){this.stopped=true;this.status='error';this.report(new Error(`${frame.code}: ${frame.message}`));}finish(new Error(`${frame.code}: ${frame.message}`));socket.close();}
-            else if(frame.code==='session-replaced'||frame.code==='device-already-registered'){this.stopped=true;this.status='error';this.report(new Error(frame.code==='session-replaced'?'This identity connected on another client; reconnect manually':'This device is already registered on this server; resolve its existing profile'));socket.close();}
+            else if(!ready){if(['username-taken','auth-failed','auth-expired','session-replaced','device-already-registered','email-required','email-taken','account-moved'].includes(frame.code)){this.stopped=true;this.status='error';this.report(new Error(`${frame.code}: ${frame.message}`));}finish(new Error(`${frame.code}: ${frame.message}`));socket.close();}
+            else if(frame.code==='session-replaced'||frame.code==='device-already-registered'||frame.code==='account-moved'||frame.code==='email-required'||frame.code==='email-taken'){this.stopped=true;this.status='error';this.report(new Error(frame.code==='session-replaced'?'This identity connected on another client; reconnect manually':frame.code==='device-already-registered'?'This device is already registered on this server; resolve its existing profile':`${frame.code}: ${frame.message}`));socket.close();}
             else if(frame.code!=='peer-offline'&&(frame.requestId!==undefined||!['wake-expired','wake-not-allowed','provider-failed','service-rate-limit','service-busy','service-unavailable'].includes(frame.code)))this.report(new Error(frame.message));
           }else {
             if(!ready)throw new Error('Directory message before authentication');
             if(frame.type==='call-state'){this.handleCallState(frame);if(frame.requestId){const request=this.requests.get(frame.requestId);if(request){clearTimeout(request.timer);this.requests.delete(frame.requestId);if(request.expected!=='call-state')request.reject(new Error('Unexpected directory response type'));else request.resolve(frame);}}}
             else if(frame.type==='call-invitation'){const h=callPushEnvelopeSchema.parse(JSON.parse(frame.invite));void this.openCallPush(frame.invite,{kind:'call',intentId:h.callId,expiresAt:h.expiresAt}).catch(e=>this.report(e));}
             else if('requestId' in frame){const request=this.requests.get(frame.requestId);if(request){clearTimeout(request.timer);this.requests.delete(frame.requestId);if(frame.type!==request.expected)request.reject(new Error('Unexpected directory response type'));else request.resolve(frame);}}
+            else if(frame.type==='identity-moved'){this.identityMoved(frame.oldUserId,frame.user);}
             else if(frame.type==='presence'){this.updateContact(frame.user);if(frame.user.online)this.wakePeer(frame.user.userId);this.changed();}
             else if(frame.type==='connect'){this.remember(frame.from);this.ensureDirect(frame.from);void this.ensurePair(frame.from.userId,false).catch(e=>this.report(e));this.watch();this.changed();}
           }
@@ -230,7 +231,7 @@ export class MessengerClient {
   }
   async search(query:string):Promise<DirectoryUser[]>{return this.request('search',query.normalize('NFKC').trim().replace(/^@/,'').trim().toLowerCase());}
   async listUsers(cursor?:string):Promise<DirectoryPage>{const frame=await this.requestFrame({type:'list-users',...(cursor!==undefined?{cursor}: {})},'users-page');return {users:frame.users.map(user=>({...user})),...(frame.nextCursor!==undefined?{nextCursor:frame.nextCursor}: {})};}
-  private watch(){if(this.status==='online')this.directorySend({type:'watch',userIds:[...this.contacts.keys()]});}
+  private watch(){if(this.status==='online')this.directorySend({type:'watch',userIds:[...this.contacts.keys()],identityMovedV1:true});}
   private refreshContacts(){return this.track(this.refreshContactsWork());}
   private async refreshContactsWork(){if(!this.contacts.size)return;const users=await this.request('lookup',[...this.contacts.keys()]);if(this.closing)return;for(const user of users)this.updateContact(user);this.changed();for(const user of users)if(user.online)this.wakePeer(user.userId);}
   private updateContact(user:DirectoryUser){const old=this.contacts.get(user.userId);if(old){if(old.publicKey!==user.publicKey)throw new Error('Pinned contact key changed');this.contacts.set(user.userId,user);if(old.online!==user.online){const pair=this.pairs.get(user.userId);if(pair)pair.notified=false;}const c=this.conversations.get(directConversationId(this.options.identity.userId,user.userId));if(c)c.title=user.displayName;}}
@@ -241,7 +242,20 @@ export class MessengerClient {
   }
   async addContact(user:DirectoryUser):Promise<string>{this.assertActive();return this.track(this.addContactWork(user));}
   async markContactVerified(userId:string):Promise<void>{await this.restore();this.assertActive();if(!this.contacts.has(userId))throw new Error('Unknown contact');this.verified.add(userId);this.changed();}
-  async blockContact(userId:string):Promise<void>{await this.restore();this.assertActive();if(!this.contacts.has(userId))throw new Error('Unknown contact');if(this.blocked.has(userId))return;this.blocked.add(userId);if(this.pendingIncoming?.callerId===userId)this.clearPendingIncoming(true);const active=this.getSnapshot().activeCall;if(active?.peerId===userId)this.endCall();this.changed();}
+  async blockContact(userId:string):Promise<void>{await this.restore();this.assertActive();if(!this.contacts.has(userId))throw new Error('Unknown contact');if(this.blocked.has(userId))return;this.blocked.add(userId);if(this.pendingIncoming?.callerId===userId)this.clearPendingIncoming(true);const active=this.getSnapshot().activeCall;if(active?.peerId===userId)this.endCall();const moved=this.moved.get(userId);if(moved){this.moved.delete(userId);this.blockMoved(moved);}this.changed();}
+  /** The new key is unconfirmed: never migrate the old chat, its verification or its queue. */
+  async acceptMovedContact(oldUserId:string):Promise<string>{await this.restore();this.assertActive();const user=this.moved.get(oldUserId);if(!user)throw new Error('Unknown moved contact');return this.track(this.addContactWork(user));}
+  private identityMoved(oldUserId:string,user:DirectoryUser){
+    if(!this.contacts.has(oldUserId)||oldUserId===this.options.identity.userId||user.userId===this.options.identity.userId||user.userId===oldUserId)return;
+    if(this.blocked.has(oldUserId)){this.moved.delete(oldUserId);if(this.blockMoved(user))this.changed();return;}
+    this.moved.set(oldUserId,{...user});this.emit();
+  }
+  /** Persisted blocks must name a known contact, so the block needs a contact slot. At capacity a new sender cannot be added at all. */
+  private blockMoved(user:DirectoryUser):boolean{
+    if(this.blocked.has(user.userId))return false;
+    if(!this.contacts.has(user.userId)&&this.contacts.size>=MAX_CONTACTS)return false;
+    this.remember(user);this.blocked.add(user.userId);return true;
+  }
   async unblockContact(userId:string):Promise<void>{await this.restore();this.assertActive();if(this.blocked.delete(userId))this.changed();}
   /** Sends report metadata to the authenticated directory; message content is never included. */
   async reportContent(input:{targetId:string;targetKind:'user'|'group';conversationId?:string;reason:ReportReason;details?:string}):Promise<void>{await this.restore();this.assertActive();if(input.targetKind==='user'&&!this.contacts.has(input.targetId))throw new Error('Unknown contact');if(input.targetKind==='group'){const c=this.conversations.get(input.targetId);if(!c||c.kind!=='group')throw new Error('Unknown group');}await this.requestFrame({type:'report',...input},'report-received');}

@@ -25,12 +25,17 @@ the repository at `~/.config/lastcall/google-services-play.json`.
 
 ## App access
 
-Registration is open inside the app: choose a display name and a unique
-`@username`; no email, phone number or password is required. A new installation
-can create an account immediately. To exercise chat/calls, register a second
-installation with another username. Mention this in “App access → All
+Registration is open inside the app up to version 1.0.9: choose a display name and
+a unique `@username`; no email, phone number or password is required. A new
+installation can create an account immediately. To exercise chat/calls, register a
+second installation with another username. Mention this in “App access → All
 functionality is available without restrictions” and add the registration note
 in reviewer instructions.
+
+The email build needs new notes before release (`msg-2o0`): registration asks for
+an email address and a 6-digit code sent to it. Reviewers can use any mailbox they
+control, and no shared credentials or password exist. Each installation needs its
+own address.
 
 ## Ads and content declarations
 
@@ -66,6 +71,7 @@ Collected (all encrypted in transit; no sale; no advertising/analytics):
 |---|---|---|
 | Name (display name) | Required for account | App functionality, account management |
 | User IDs (username, user ID, public key) | Required | App functionality, account management |
+| Email address (from the email build; not yet declared in Play Console) | Required for new accounts | Account management |
 | Messages (other in-app messages) | User content | App functionality |
 | Photos and videos (circles, selected media) | Optional | App functionality |
 | Audio (voice notes, call audio) | Optional | App functionality |

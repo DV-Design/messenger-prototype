@@ -1,23 +1,26 @@
-import { t } from './i18n';
+import { locale, t } from './i18n';
 import { useEffect, useSyncExternalStore } from 'react';
 import { AppState } from 'react-native';
 import * as Network from 'expo-network';
-import { MessengerClient, resolveDeviceProfile, type DeviceIdentity, type DirectoryUser, type MessengerSnapshot } from '@messenger/core';
+import { EmailAuthError, MessengerClient, resolveDeviceProfile, startEmailChallenge, verifyEmailChallenge, type DeviceIdentity, type DirectoryUser, type EmailPurpose, type MessengerSnapshot } from '@messenger/core';
+import { isAccountMoved, type BoundEmail } from './email-flow-model';
 import { nativeRtc, validateServerUrl } from './native';
 import { CanonicalProfileStore, profileSignature, registrationCandidate } from './registration-model';
-import { DEFAULT_SERVER, deleteLocalAccount, loadIdentity, loadExistingIdentity, loadProfile, saveProfile, sealedStateAdapter, type LocalProfile } from './storage';
+import { DEFAULT_SERVER, deleteLocalAccount, loadBoundEmail, loadEmailReminderDismissed, loadIdentity, loadExistingIdentity, loadProfile, saveBoundEmail, saveEmailReminderDismissed, saveProfile, sealedStateAdapter, type LocalProfile } from './storage';
 import { monitorNetworkRecovery, shouldForceNetworkResume } from './network-recovery';
 import { SharedWakeRuntime, type WakeLease } from './wake-model';
 
-const empty: MessengerSnapshot = { status: 'idle', contacts: [], conversations: [], verifiedContacts: [], blockedContacts: [] };
-type Runtime = { ready: boolean; busy: boolean; registration: 'checking' | 'unregistered' | 'unavailable' | 'bound'; profile: LocalProfile | null; identity?: DeviceIdentity; snapshot: MessengerSnapshot; error?: string };
-let state: Runtime = { ready: false, busy: false, registration: 'checking', profile: null, snapshot: empty };
+const empty: MessengerSnapshot = { status: 'idle', contacts: [], conversations: [], verifiedContacts: [], blockedContacts: [], movedContacts: {} };
+type Runtime = { ready: boolean; busy: boolean; registration: 'checking' | 'unregistered' | 'unavailable' | 'bound'; profile: LocalProfile | null; identity?: DeviceIdentity; snapshot: MessengerSnapshot; error?: string; boundEmail?: BoundEmail | null; emailReminderDismissed?: boolean; retired: boolean };
+let state: Runtime = { ready: false, busy: false, registration: 'checking', profile: null, snapshot: empty, retired: false };
 const listeners = new Set<() => void>();
 const previewScopes = new WeakMap<MessengerClient, string>();
 const observers = new Set<(snapshot: MessengerSnapshot, manager: MessengerClient) => void>();
 const managers = new SharedWakeRuntime<MessengerClient>();
 let bootPromise: Promise<void> | null = null;
 let generation = 0;
+/** Spent by the one manager built for a registration attempt; never persisted. */
+let pendingEmailProof: string | undefined;
 let profiles = new CanonicalProfileStore(saveProfile);
 let networkRecovery: ReturnType<typeof monitorNetworkRecovery> | undefined;
 let resumeSubscription: ReturnType<typeof AppState.addEventListener> | undefined;
@@ -40,10 +43,11 @@ async function buildManager(profile: LocalProfile, signal?: AbortSignal): Promis
   const persistence = await sealedStateAdapter(state.identity, profile.serverUrl);
   if (signal?.aborted) throw new Error('Wake expired');
   const current = ++generation;
-  const next = new MessengerClient({ ...profile, identity: state.identity, ...nativeRtc, ...persistence,
+  const emailProof = pendingEmailProof; pendingEmailProof = undefined;
+  const next = new MessengerClient({ ...profile, ...(emailProof ? { emailProof } : {}), identity: state.identity, ...nativeRtc, ...persistence,
     onChange: snapshot => {
       if (current !== generation) return;
-      publish({ snapshot });
+      publish({ snapshot, ...(isAccountMoved(snapshot.error) ? { retired: true } : {}) });
       for (const observer of observers) { try { observer(snapshot, next); } catch { /* An optional native presenter cannot break delivery. */ } }
       if (snapshot.status === 'online' && snapshot.self) acceptCanonical(profile.serverUrl, snapshot.self);
     },
@@ -110,6 +114,10 @@ export async function checkRegistration(): Promise<void> {
 export function boot(): Promise<void> {
   managers.claimForeground();
   if (bootPromise) return bootPromise;
+  // A cold background task may already own the manager, so this cannot live in its factory.
+  void Promise.all([loadBoundEmail(), loadEmailReminderDismissed()])
+    .then(([boundEmail, emailReminderDismissed]) => publish({ boundEmail, emailReminderDismissed }))
+    .catch(() => publish({ boundEmail: null, emailReminderDismissed: true }));
   bootPromise = (async () => {
     try {
       // Foreground and headless initialization serialize through the same owner.
@@ -132,7 +140,7 @@ export function boot(): Promise<void> {
           await connectResolved(state.profile.serverUrl, bound);
         }
       } else await checkRegistration();
-    } catch (error) { publish({ ready: true, registration: state.profile ? 'bound' : 'unavailable', error: errorText(error) }); }
+    } catch (error) { publish({ ready: true, registration: state.profile ? 'bound' : 'unavailable', error: errorText(error), ...(isAccountMoved(errorText(error)) ? { retired: true } : {}) }); }
   })();
   // One app-scoped subscription survives navigation; never tear down peers merely
   // because Wi-Fi disappears while Android switches its default route to mobile.
@@ -175,13 +183,100 @@ export async function deleteAccount(): Promise<void> {
     generation++;
     const identity = await loadIdentity();
     profiles = new CanonicalProfileStore(saveProfile);
-    publish({ busy: false, ready: true, profile: null, identity, registration: 'unregistered', snapshot: empty, error: undefined });
+    publish({ busy: false, ready: true, profile: null, identity, registration: 'unregistered', snapshot: empty, error: undefined, boundEmail: null, emailReminderDismissed: false, retired: false });
   } catch (error) {
     publish({ busy: false, error: errorText(error) });
     throw error;
   }
 }
-export async function registerProfile(displayName: string, username: string): Promise<void> {
+/** The server no longer accepts this key, so there is nothing to delete there. */
+export async function removeRetiredDeviceData(): Promise<void> {
+  if (state.busy || !state.retired) return;
+  publish({ busy: true, error: undefined });
+  try {
+    await managers.clear();
+    await deleteLocalAccount();
+    generation++;
+    const identity = await loadIdentity();
+    profiles = new CanonicalProfileStore(saveProfile);
+    publish({ busy: false, ready: true, profile: null, identity, registration: 'unregistered', snapshot: empty, error: undefined, boundEmail: null, emailReminderDismissed: false, retired: false });
+  } catch (error) {
+    publish({ busy: false, error: errorText(error) });
+    throw error;
+  }
+}
+async function rememberEmail(email: string, serverUrl: string) {
+  const boundEmail = { email, serverUrl };
+  publish({ boundEmail });
+  // The binding exists on the server either way; a failed save only brings the reminder back.
+  try { await saveBoundEmail(boundEmail); } catch { /* Kept for this session. */ }
+}
+const emailServer = () => validateServerUrl(state.profile?.serverUrl ?? DEFAULT_SERVER);
+/** Null means another operation was already running. Refusals stay with the caller, which shows them in place. */
+export async function requestEmailCode(purpose: EmailPurpose, email: string): Promise<string | null> {
+  if (state.busy) return null;
+  if (!state.identity) throw new Error(t('The device key is not loaded yet.'));
+  publish({ busy: true, error: undefined });
+  try { return await startEmailChallenge(emailServer(), state.identity, { purpose, email, locale }); }
+  finally { publish({ busy: false }); }
+}
+/** Registration: returns the proof to send with the next registration attempt. */
+export async function confirmRegistrationEmail(challengeId: string, code: string): Promise<string | null> {
+  if (state.busy) return null;
+  if (!state.identity) throw new Error(t('The device key is not loaded yet.'));
+  publish({ busy: true, error: undefined });
+  try {
+    const { proof } = await verifyEmailChallenge(emailServer(), state.identity, challengeId, code);
+    if (!proof) throw new Error(t('The server did not confirm the profile.'));
+    return proof;
+  } finally { publish({ busy: false }); }
+}
+export async function bindEmail(challengeId: string, code: string, email: string): Promise<boolean> {
+  if (state.busy || !state.profile) return false;
+  if (!state.identity) throw new Error(t('The device key is not loaded yet.'));
+  const serverUrl = state.profile.serverUrl;
+  publish({ busy: true, error: undefined });
+  try {
+    await verifyEmailChallenge(serverUrl, state.identity, challengeId, code);
+    await rememberEmail(email, serverUrl);
+    return true;
+  } finally { publish({ busy: false }); }
+}
+export function dismissEmailReminder(): void {
+  publish({ emailReminderDismissed: true });
+  void saveEmailReminderDismissed().catch(() => { /* It comes back next launch. */ });
+}
+/** Moves the account onto this device's key. Afterwards the old key no longer works. */
+export async function recoverAccount(challengeId: string, code: string, email: string): Promise<void> {
+  if (state.busy || state.profile || state.registration !== 'unregistered') return;
+  if (!state.identity) throw new Error(t('The device key is not loaded yet.'));
+  const identity = state.identity;
+  const serverUrl = validateServerUrl(DEFAULT_SERVER);
+  publish({ busy: true, error: undefined });
+  try {
+    let user: DirectoryUser | null | undefined;
+    try { ({ user } = await verifyEmailChallenge(serverUrl, identity, challengeId, code)); }
+    catch (cause) {
+      if (cause instanceof EmailAuthError) throw cause;
+      // The move may have committed before the reply was lost. Never offer anything
+      // else until the server confirms this key has no profile.
+      try { user = await resolveDeviceProfile(serverUrl, identity); }
+      catch { publish({ registration: 'unavailable' }); throw cause; }
+      if (!user) throw cause;
+    }
+    if (!user) throw new Error(t('The server did not confirm the profile.'));
+    await rememberEmail(email, serverUrl);
+    try {
+      await connectResolved(serverUrl, user);
+      if (state.profile) await profiles.remember(state.profile);
+    } catch (error) {
+      // The account is already here; a failed connection retries like any other.
+      if (!state.profile) throw error;
+      publish({ error: errorText(error) });
+    }
+  } finally { publish({ busy: false }); }
+}
+export async function registerProfile(displayName: string, username: string, emailProof?: string, email?: string): Promise<void> {
   if (state.busy || state.profile || state.registration !== 'unregistered') return;
   const proposed = { displayName: displayName.trim(), username: username.trim().replace(/^@/, '').toLowerCase(), serverUrl: validateServerUrl(DEFAULT_SERVER) };
   if (!proposed.displayName || proposed.displayName.length > 48) throw new Error(t('The name must contain 1–48 characters.'));
@@ -191,9 +286,11 @@ export async function registerProfile(displayName: string, username: string): Pr
   publish({ busy: true, error: undefined });
   try {
     const profile = await registrationCandidate(proposed, () => resolveDeviceProfile(proposed.serverUrl, identity));
+    pendingEmailProof = emailProof;
     await connectCanonical(profile);
     if (!state.profile) throw new Error(t('The server did not confirm the profile.'));
     await profiles.remember(state.profile);
+    if (email && emailProof) await rememberEmail(email, proposed.serverUrl);
   } catch (error) {
     // A connection may have registered the key before its ACK/save was lost.
     // Resolve again; never offer another login until the server confirms null.
@@ -206,7 +303,7 @@ export async function registerProfile(displayName: string, username: string): Pr
     }
     publish({ error: errorText(error) });
     throw error;
-  } finally { publish({ busy: false }); }
+  } finally { pendingEmailProof = undefined; publish({ busy: false }); }
 }
 export async function changeServer(server: string): Promise<void> {
   if (state.busy || !state.profile || !state.identity) return;
@@ -223,6 +320,7 @@ export async function changeServer(server: string): Promise<void> {
   } finally { publish({ busy: false }); }
 }
 export async function reconnect(): Promise<void> {
+  if (state.retired) return;
   publish({ error: undefined });
   try {
     const current = managers.peek() ?? (state.profile ? await installManager(state.profile) : client());

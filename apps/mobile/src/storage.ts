@@ -3,11 +3,14 @@ import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import { Directory, File, Paths } from 'expo-file-system';
 import { createDeviceIdentity, validateDeviceIdentity, MAX_LOCAL_STATE_BYTES, MAX_SEALED_ATTACHMENT_BYTES, type DeviceIdentity } from '@messenger/core';
+import type { BoundEmail } from './email-flow-model';
 
 export const DEFAULT_SERVER = process.env.EXPO_PUBLIC_SIGNALING_URL ?? 'https://p2p.lienad.ru';
 export type LocalProfile = { username: string; displayName: string; serverUrl: string };
 const IDENTITY_KEY = 'messenger.device.v2';
 const PROFILE_KEY = 'messenger.profile.v2';
+const EMAIL_KEY = 'messenger.email.v1';
+const EMAIL_REMINDER_KEY = 'messenger.email-reminder.v1';
 const secretOptions = { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY };
 const hex = /^[0-9a-f]{64}$/;
 const MAX_SEALED_BYTES = MAX_LOCAL_STATE_BYTES * 2 + 1024;
@@ -58,6 +61,26 @@ export async function deleteLocalAccount(): Promise<void> {
   } catch { /* Local files are best-effort after the server account is gone. */ }
   await SecureStore.deleteItemAsync(IDENTITY_KEY);
   await SecureStore.deleteItemAsync(PROFILE_KEY);
+  await SecureStore.deleteItemAsync(EMAIL_KEY);
+  await SecureStore.deleteItemAsync(EMAIL_REMINDER_KEY);
+}
+/** The server keeps only a keyed hash, so this is the one readable copy of the address. */
+export async function loadBoundEmail(): Promise<BoundEmail | null> {
+  const raw = await SecureStore.getItemAsync(EMAIL_KEY);
+  if (!raw) return null;
+  try {
+    const value = JSON.parse(raw) as BoundEmail;
+    return typeof value.email === 'string' && typeof value.serverUrl === 'string' ? { email: value.email, serverUrl: value.serverUrl } : null;
+  } catch { return null; }
+}
+export async function saveBoundEmail(value: BoundEmail): Promise<void> {
+  await SecureStore.setItemAsync(EMAIL_KEY, JSON.stringify(value), secretOptions);
+}
+export async function loadEmailReminderDismissed(): Promise<boolean> {
+  return await SecureStore.getItemAsync(EMAIL_REMINDER_KEY) === 'dismissed';
+}
+export async function saveEmailReminderDismissed(): Promise<void> {
+  await SecureStore.setItemAsync(EMAIL_REMINDER_KEY, 'dismissed', secretOptions);
 }
 export async function sealedStateAdapter(identity: DeviceIdentity, serverUrl: string) {
   validateDeviceIdentity(identity);

@@ -2,10 +2,12 @@ import { readFileSync, statSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { cert, deleteApp, initializeApp } from 'firebase-admin/app';
 import { getMessaging, type Message } from 'firebase-admin/messaging';
+import nodemailer from 'nodemailer';
 import {pushPreviewSchema,pushPreviewEnvelopeSchema,callPushSchema,callPushEnvelopeSchema,callStateSchema,type CallState,type WakeIntent} from '@messenger/core';
 
 export interface SMSProvider { sendCode(phone: string, code: string): Promise<void>; dispose?(): Promise<void> }
 export interface PushProvider { sendWake(token: string, intent?: WakeIntent, backgroundSync?: boolean,preview?:string,callInvite?:string,callState?:CallState): Promise<void>; dispose?(): Promise<void> }
+export interface EmailSender { send(message: { to: string; subject: string; text: string }): Promise<void>; dispose?(): Promise<void> }
 export class InvalidPushToken extends Error { constructor() { super('Push token is no longer valid'); } }
 
 /**
@@ -99,4 +101,13 @@ export function createFcmPushProvider(credentialsPath: string): PushProvider | u
       async dispose() { await deleteApp(app); },
     };
   } catch { return undefined; }
+}
+
+/** Plain SMTP so the provider stays replaceable. Port 465 uses implicit TLS; others must upgrade with STARTTLS. */
+export function createSmtpEmailSender(config: { host: string; port: number; user: string; pass: string; from: string }): EmailSender {
+  const transport = nodemailer.createTransport({ host: config.host, port: config.port, secure: config.port === 465, requireTLS: config.port !== 465, auth: { user: config.user, pass: config.pass }, connectionTimeout: 10_000, greetingTimeout: 10_000, socketTimeout: 15_000 });
+  return {
+    async send(message) { await transport.sendMail({ from: config.from, to: message.to, subject: message.subject, text: message.text }); },
+    async dispose() { transport.close(); },
+  };
 }
