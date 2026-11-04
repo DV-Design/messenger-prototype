@@ -1,8 +1,9 @@
 # LastCall 1.0.9 Google Play AAB (in Google review)
 
 Built with `npm run build:aab`. Uploaded on 2026-11-04 to the Alpha closed-testing
-track as `LastCall 1.0.9 closed`, rollout 100%, and sent for review. Testers still
-receive 1.0.8 until Google approves it.
+track as `LastCall 1.0.9 closed`, rollout 100%, and sent for review. Closed testers
+still receive 1.0.8 until Google approves it. Published the same day to internal
+testing as `LastCall 1.0.9 internal`.
 
 - Local: `artifacts/LastCall-1.0.9-store.aab` (ignored binary)
 - Package `ru.lastcall.app`, version1.0.9, versionCode23

@@ -161,7 +161,8 @@ first, install from Play, then run `docs/TESTING-RU.md`.
   countries/regions with `LastCall 1.0.8 closed`. The dashboard shows 2 testers.
 - `LastCall 1.0.9 closed` (versionCode 23, rollout 100%) has been sent for review
   and is **in review**. Its install share is 0%; 1.0.8 stays live until approval.
-- The internal testing track still has 1.0.8.
+- Internal testing track `4700769245768869495`: `LastCall 1.0.9 internal` published
+  on 2026-11-04 at 11:57 from the same bundle, no device support lost.
 - Managed publishing is off, so an approved change goes live without a further step.
 
 ## Remaining blockers

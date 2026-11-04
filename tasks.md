@@ -11,7 +11,7 @@ Status: root cause found. The server sent every FCM message with `restrictedPack
 - [X] Upload AAB to the Alpha closed-testing track as `LastCall 1.0.9 closed`, rollout 100%; Google's pre-review check passed
 - [X] Send the change for Google review (user, 2026-11-04)
 - [ ] Google approves `LastCall 1.0.9 closed` (in review; testers keep receiving 1.0.8 until then)
-- [ ] Decide whether the internal testing track also moves from 1.0.8 to 1.0.9
+- [X] Publish `LastCall 1.0.9 internal` to the internal testing track (2026-11-04 11:57)
 - [ ] Physical acceptance: closed app receives text, notification and incoming call
 
 # LastCall 1.0.8 / code22: Google Play compliance (in progress)
