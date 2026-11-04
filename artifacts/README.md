@@ -1,3 +1,26 @@
+# LastCall Android 1.0.12 (test APK and Play bundle, not offered as an update)
+
+1.0.11 plus the reconnect fix. Checked on emulators: [report](../docs/reports/debugging/2026-11/native-1012.md). Not run on physical phones.
+
+Test APK, not in `latest.json`:
+
+- Download: https://p2p.lienad.ru/download/LastCall-1.0.12.apk
+- Alternate: https://lienad.ru/messenger/download/LastCall-1.0.12.apk
+- Local: `artifacts/LastCall-1.0.12.apk` (ignored binary)
+- Package `dev.messenger.prototype`, version1.0.12, versionCode26
+- Size: 54,257,410 bytes
+- SHA256: `eed0ad2d09cefd2ffae35a6c1d4332541ea226d42d81e2893ba57204b9717a7b`
+- Signing certificate SHA256: `fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c` (same test certificate)
+
+Play bundle, uploaded as draft releases `LastCall 1.0.12 closed` and `LastCall 1.0.12 internal`:
+
+- Local: `artifacts/LastCall-1.0.12-store.aab` (ignored binary)
+- Package `ru.lastcall.app`, version1.0.12, versionCode26
+- Size: 41,651,730 bytes
+- SHA256: `79c4aea4a67408289de4dbfa58b257210ef363e401a74bc05c7c677fe01f5621`
+
+---
+
 # LastCall Android 1.0.11 (email, edit and delete test build, not offered as an update)
 
 Built from `feature/email-recovery` for the owner's phone test. It contains 1.0.10 plus

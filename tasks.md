@@ -9,8 +9,16 @@ Status: test build only. Contract: [docs/MESSAGE-CHANGE-CONTRACT.md](docs/MESSAG
 - [X] Gates: `npm run check` (245 core, 116 server, 154 mobile), `npm run test:e2e` 15 PASS / 1 skip
 - [X] Publish test build 1.0.11/code25, not offered through `latest.json`
   → Artifacts: [APK](https://p2p.lienad.ru/download/LastCall-1.0.11.apk), [details](artifacts/README.md)
-- [ ] Physical test on two phones with 1.0.11
-- [ ] New client connects to a 1.0.9 Android phone; the SDP marker was checked in Chromium only (msg-5a9)
+- [X] New client connects to 1.0.9 on native Android: emulator check, messages and calls both ways (msg-5a9)
+  → Artifacts: [report](docs/reports/debugging/2026-11/native-1012.md)
+- [X] Fix signaling queue stall after a peer restart, about 30 s (msg-abo)
+  → Artifacts: [session](packages/core/src/session.ts), [test](packages/core/src/data-ready.test.ts)
+- [X] Fix CI, red since 2026-10-27: camera patch on clean checkout, missing ripgrep, hour-aligned quota tests (msg-km1)
+  → Artifacts: [plugin](apps/mobile/plugins/withPersistentCircleCamera.cjs), [workflow](.github/workflows/check.yml), [tests](apps/server/test/services.test.ts)
+- [X] Build and publish test APK 1.0.12/code26, build AAB, upload draft releases to Play
+  → Artifacts: [APK](https://p2p.lienad.ru/download/LastCall-1.0.12.apk), [details](artifacts/README.md)
+- [ ] Physical test on two phones with 1.0.12
+- [ ] Owner: App access attestation, send Play changes for review, publish the internal draft (msg-2o0)
 
 # Email registration and account recovery (msg-3zf, branch `feature/email-recovery`)
 
@@ -32,8 +40,9 @@ Status: server deployed with `EMAIL_REQUIRED` off, client in test builds only. C
   → Artifacts: [APK](https://p2p.lienad.ru/download/LastCall-1.0.10.apk), [details](artifacts/README.md)
 - [X] Forward `admin@lienad.ru` through Cloudflare Email Routing; MX, SPF and DKIM checked over DoH on 2026-11-04, the owner saw a letter from another mailbox arrive (msg-60q)
 - [ ] Physical test: register, reinstall, restore, contact warning on a second phone
-- [ ] Set the policy's effective date and name the provider before the client release
-- [ ] Update Play Data safety and App access (msg-2o0)
+- [X] Set the policy's effective date, name Brevo, publish privacy and terms (2026-11-04); legal review still recommended
+- [X] Update Play Data safety with the email address (saved, not yet sent for review)
+- [ ] Check a real registration letter reaches Gmail before review; Google's reviewers need the code
 - [ ] Release client, physical acceptance on reinstall, then `EMAIL_REQUIRED=1`
 
 # LastCall 1.0.9 / code23: Play-package push, background delivery and calls fix
@@ -48,7 +57,7 @@ Status: root cause found. The server sent every FCM message with `restrictedPack
   → Artifacts: [AAB](artifacts/README.md), 41,617,605 bytes, SHA256 `a199b6c2ccbf8117e9b9fde389a553c17ee62dafcf603444f4d7030e25836996`
 - [X] Upload AAB to the Alpha closed-testing track as `LastCall 1.0.9 closed`, rollout 100%; Google's pre-review check passed
 - [X] Send the change for Google review (user, 2026-11-04)
-- [ ] Google approves `LastCall 1.0.9 closed` (in review; testers keep receiving 1.0.8 until then)
+- [X] Google approved `LastCall 1.0.9 closed` (listed as available to selected testers, 2026-11-04)
 - [X] Publish `LastCall 1.0.9 internal` to the internal testing track (2026-11-04 11:57)
 - [ ] Physical acceptance: closed app receives text, notification and incoming call
 

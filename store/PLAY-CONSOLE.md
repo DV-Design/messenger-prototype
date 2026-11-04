@@ -71,7 +71,7 @@ Collected (all encrypted in transit; no sale; no advertising/analytics):
 |---|---|---|
 | Name (display name) | Required for account | App functionality, account management |
 | User IDs (username, user ID, public key) | Required | App functionality, account management |
-| Email address (from the email build; not yet declared in Play Console) | Required for new accounts | Account management |
+| Email address (declared 2026-11-04; collected, not shared, not ephemeral) | Required for new accounts | App functionality, account management |
 | Messages (other in-app messages) | User content | App functionality |
 | Photos and videos (circles, selected media) | Optional | App functionality |
 | Audio (voice notes, call audio) | Optional | App functionality |
@@ -85,7 +85,8 @@ Collected (all encrypted in transit; no sale; no advertising/analytics):
   the reporter ID is anonymized on account deletion.
 - Data shared with third parties: Firebase Cloud Messaging (Google) receives the
   push token and technical delivery metadata for app functionality. TURN relay
-  carries encrypted WebRTC packets. No data is sold.
+  carries encrypted WebRTC packets. Brevo delivers the code letter as a service
+  provider, so the address is declared as collected, not shared. No data is sold.
 - Message content is not stored on the developer’s server. Local history and
   queued media are encrypted on the device; the sender queue expires after
   7 days.

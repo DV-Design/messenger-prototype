@@ -14,8 +14,8 @@ MOBILE_DIR="$REPO_ROOT/apps/mobile"
 ANDROID_DIR="$MOBILE_DIR/android"
 AAB_PATH="$ANDROID_DIR/app/build/outputs/bundle/release/app-release.aab"
 PACKAGE=ru.lastcall.app
-VERSION=1.0.9
-VERSION_CODE=23
+VERSION=1.0.12
+VERSION_CODE=26
 
 die() { printf 'build:aab: ERROR: %s\n' "$*" >&2; exit 1; }
 command -v node >/dev/null || die "node is required"
