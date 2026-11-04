@@ -11,8 +11,11 @@ Status: in development, not released or deployed. Contract: [docs/EMAIL-RECOVERY
 - [X] Mobile onboarding, settings, reminder and chat banner (not yet run on a device)
   → Artifacts: [onboarding](apps/mobile/src/app/onboarding.tsx), [flow model](apps/mobile/src/email-flow-model.ts), [tests](apps/mobile/tests/email-flow-model.test.ts)
 - [X] Gates: `npm run check` (220 core, 116 server, 150 mobile), `npm run test:e2e` 11 PASS / 1 skip
-- [ ] Free mail provider Brevo: account, DNS records and SMTP key (msg-60q)
-- [ ] Deploy server, then a real letter; set the policy's effective date and name the provider
+- [X] Free mail provider Brevo: domain records in Cloudflare, SMTP key in `infra/.env.public-services` (msg-60q)
+- [X] Server deployed from this branch on 2026-11-04 with `EMAIL_REQUIRED` off; rollback image `messenger-signaling:rollback-1.0.9`, database backup on the same volume
+- [X] Real letter: reached a narod.ru inbox from `noreply@lienad.ru`, the code was accepted and refused on replay; no account created
+- [ ] Forward `admin@lienad.ru` (no MX yet; the Play contact address cannot receive mail)
+- [ ] Set the policy's effective date and name the provider before the client release
 - [ ] Update Play Data safety and App access (msg-2o0)
 - [ ] Release client, physical acceptance on reinstall, then `EMAIL_REQUIRED=1`
 
