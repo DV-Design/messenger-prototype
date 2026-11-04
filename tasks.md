@@ -1,3 +1,14 @@
+# LastCall 1.0.9 / code23: Play-package push, background delivery and calls fix
+
+Status: root cause found. The server sent every FCM message with `restrictedPackageName: 'dev.messenger.prototype'`, so the Play package `ru.lastcall.app` (1.0.8) never received wake/preview/call pushes: no background delivery, notifications or incoming calls.
+
+- [X] Remove package restriction from FCM messages (server fix also restores pushes for installed 1.0.8)
+  → Artifacts: [providers](apps/server/src/providers.ts), [regression](apps/server/test/fcm-package.test.ts)
+- [X] PiP host detection independent of applicationId (namespace differs in the store build)
+  → Artifacts: [PiP](apps/mobile/plugins/pip/LastCallPip.java)
+- [ ] Redeploy signaling, build store AAB 1.0.9/code23, upload to Play internal testing
+- [ ] Physical acceptance: closed app receives text, notification and incoming call
+
 # LastCall 1.0.8 / code22: Google Play compliance (in progress)
 
 Status: Play Console draft app created (app ID 4973089023189492670), store listing and app-content declarations filled, and 1.0.8/code22 published to the **internal testing** track as unreviewed. Testers are not added yet. Active-services declaration needs three demo video links; closed testing needs 12 testers for 14 days.

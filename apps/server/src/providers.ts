@@ -8,7 +8,11 @@ export interface SMSProvider { sendCode(phone: string, code: string): Promise<vo
 export interface PushProvider { sendWake(token: string, intent?: WakeIntent, backgroundSync?: boolean,preview?:string,callInvite?:string,callState?:CallState): Promise<void>; dispose?(): Promise<void> }
 export class InvalidPushToken extends Error { constructor() { super('Push token is no longer valid'); } }
 
-/** Generic metadata or an opted-in opaque encrypted preview; expired intents never reach FCM. */
+/**
+ * Generic metadata or an opted-in opaque encrypted preview; expired intents never reach FCM.
+ * No restrictedPackageName: FCM tokens are already bound to the installing app, and the
+ * direct (dev.messenger.prototype) and Play (ru.lastcall.app) packages share one server.
+ */
 export function buildFcmWakeMessage(token: string, intent?: WakeIntent, now = Date.now(), backgroundSync = false,preview?:string,callInvite?:string,callState?:CallState): Message | undefined {
   const expiresAt = intent ? Math.min(intent.expiresAt, now + (intent.kind === 'call' ? 30_000 : 60_000)) : now + 60_000;
   if (expiresAt <= now) return undefined;
@@ -25,14 +29,14 @@ export function buildFcmWakeMessage(token: string, intent?: WakeIntent, now = Da
       data={kind:'lastcall-call-state',callId:state.callId,callerId:state.callerId,calleeId:state.calleeId,serverEpoch:state.serverEpoch,issuedAt:String(state.issuedAt),expiresAt:String(state.expiresAt)};
     }
     if(Buffer.byteLength(JSON.stringify(data),'utf8')>4096)throw new Error('Call data exceeds FCM payload limit');
-    return {token,data,android:{priority:'high',ttl:expiresAt-now,restrictedPackageName:'dev.messenger.prototype'}};
+    return {token,data,android:{priority:'high',ttl:expiresAt-now}};
   }
   if(preview!==undefined){
     preview=pushPreviewSchema.parse(preview);const header=pushPreviewEnvelopeSchema.parse(JSON.parse(preview));
     if(!backgroundSync||!intent||(intent.kind!=='message'&&intent.kind!=='file')||header.kind!==intent.kind||header.intentId!==intent.intentId||header.expiresAt!==intent.expiresAt||intent.expiresAt>now+65000)throw new Error('Invalid encrypted preview delivery mode');
     const data={kind:'lastcall-wake',intentKind:intent.kind,intentId:intent.intentId,expiresAt:String(intent.expiresAt),preview};
     if(Buffer.byteLength(JSON.stringify(data),'utf8')>4096)throw new Error('Push data exceeds FCM payload limit');
-    return {token,data,android:{priority:'high',ttl:expiresAt-now,restrictedPackageName:'dev.messenger.prototype'}};
+    return {token,data,android:{priority:'high',ttl:expiresAt-now}};
   }
   const body = intent?.kind === 'call' ? 'Ожидается звонок. Откройте LastCall.' : intent?.kind === 'file' ? 'Ожидается отправка файла. Откройте LastCall.' : 'Ожидается отправка сообщения. Откройте LastCall.';
   // Calls use their own collapse class; no sender/conversation identifier is exposed.
@@ -40,7 +44,7 @@ export function buildFcmWakeMessage(token: string, intent?: WakeIntent, now = Da
   return {
     token, ...(!backgroundSync?{notification: { title: 'LastCall', body }}:{}),
     data: { kind: 'lastcall-wake', ...(backgroundSync?{title:'LastCall',message:body,channelId:'lastcall-messages',tag:collapse}:{}), ...(intent ? { intentKind: intent.kind, intentId: intent.intentId, expiresAt: String(expiresAt) } : {}) },
-    android: { priority: 'high', ttl: expiresAt - now, collapseKey: collapse, restrictedPackageName: 'dev.messenger.prototype', ...(!backgroundSync?{notification: { channelId: 'lastcall-messages', tag: collapse }}:{}) },
+    android: { priority: 'high', ttl: expiresAt - now, collapseKey: collapse, ...(!backgroundSync?{notification: { channelId: 'lastcall-messages', tag: collapse }}:{}) },
   };
 }
 

@@ -61,7 +61,7 @@ public final class LastCallPip {
   static void configure(Context context, Activity candidate, String id, boolean arm, double width, double height) {
     String next = canonical(id); if (next.isEmpty()) throw new IllegalArgumentException("Invalid call id");
     app = context.getApplicationContext();
-    if (candidate != null && candidate.getClass().getName().equals(context.getPackageName() + ".MainActivity")) host = new WeakReference<>(candidate);
+    if (candidate != null && "MainActivity".equals(candidate.getClass().getSimpleName())) host = new WeakReference<>(candidate);
     if (!next.equals(owner)) { owner = next; generation++; hadPip = pinned(host.get()); closed = false; transitioning = false; }
     if (enabled != arm) { enabled = arm; generation++; }
     if (Double.isFinite(width) && Double.isFinite(height) && width > 0 && height > 0) ratio = Math.max(0.42, Math.min(2.39, width / height));
