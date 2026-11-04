@@ -4,6 +4,17 @@ Android/iOS мессенджер с приоритетом прямого P2P.
 Целевая среда — в том числе российские мобильные и домашние сети.
 Боты, каналы и резервные копии исключены из объёма.
 
+## Скачать APK для Android
+
+| Версия | Основная ссылка | Резервная ссылка | Состояние |
+| --- | --- | --- | --- |
+| 1.0.11 | [LastCall-1.0.11.apk](https://p2p.lienad.ru/download/LastCall-1.0.11.apk) | [зеркало](https://lienad.ru/messenger/download/LastCall-1.0.11.apk) | Тестовая: почта, правка и удаление. На телефонах не проверена |
+| 1.0.10 | [LastCall-1.0.10.apk](https://p2p.lienad.ru/download/LastCall-1.0.10.apk) | [зеркало](https://lienad.ru/messenger/download/LastCall-1.0.10.apk) | Тестовая: почта. На телефонах не проверена |
+| 1.0.7 | [LastCall-1.0.7.apk](https://p2p.lienad.ru/download/LastCall-1.0.7.apk) | [зеркало](https://lienad.ru/messenger/download/LastCall-1.0.7.apk) | Её предлагает обновление внутри приложения |
+
+Все три подписаны тестовым сертификатом. Версию из Google Play сначала нужно удалить, и
+при этом пропадут ключ и история на телефоне. Размеры и SHA256 — в [артефактах](artifacts/README.md).
+
 ## Тестовая сборка 1.0.11 / Android code25
 
 Сборка для проверки на телефонах из ветки `feature/email-recovery`:
