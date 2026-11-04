@@ -6,7 +6,11 @@ Status: root cause found. The server sent every FCM message with `restrictedPack
   → Artifacts: [providers](apps/server/src/providers.ts), [regression](apps/server/test/fcm-package.test.ts)
 - [X] PiP host detection independent of applicationId (namespace differs in the store build)
   → Artifacts: [PiP](apps/mobile/plugins/pip/LastCallPip.java)
-- [ ] Redeploy signaling, build store AAB 1.0.9/code23, upload to Play internal testing
+- [X] Redeploy signaling and build store AAB 1.0.9/code23
+  → Artifacts: [AAB](artifacts/README.md), 41,617,605 bytes, SHA256 `a199b6c2ccbf8117e9b9fde389a553c17ee62dafcf603444f4d7030e25836996`
+- [X] Upload AAB to the Alpha closed-testing track as `LastCall 1.0.9 closed`, rollout 100%; Google's pre-review check passed
+- [ ] Send the pending change for Google review (testers keep receiving 1.0.8 until it is approved)
+- [ ] Decide whether the internal testing track also moves from 1.0.8 to 1.0.9
 - [ ] Physical acceptance: closed app receives text, notification and incoming call
 
 # LastCall 1.0.8 / code22: Google Play compliance (in progress)
@@ -28,7 +32,8 @@ Status: Play Console draft app created (app ID 4973089023189492670), store listi
 - [X] Record foreground-service demo videos and finish active-services declaration
   → [camera](https://p2p.lienad.ru/demo/lastcall-foreground-camera.mp4), [microphone](https://p2p.lienad.ru/demo/lastcall-foreground-microphone.mp4), [phone call](https://p2p.lienad.ru/demo/lastcall-foreground-phone-call.mp4)
 - [X] Add internal tester `populizator@googlemail.com`
-- [ ] Configure closed-testing countries, release and 12 testers; run 14 days
+- [X] Configure closed-testing countries and release: Alpha is active in 178 countries/regions
+- [ ] Reach 12 closed-testing testers and run 14 days (the dashboard showed 2 on 2026-11-04)
   → User will add testers (`store/PLAY-TESTING.md`)
 - [ ] Add Russian store listing translation (AI-assets disclosure confirmed as not AI)
 

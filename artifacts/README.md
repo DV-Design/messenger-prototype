@@ -1,7 +1,25 @@
-# LastCall 1.0.8 Google Play AAB (ready for internal testing)
+# LastCall 1.0.9 Google Play AAB (uploaded, not yet sent for review)
+
+Built with `npm run build:aab`. Uploaded on 2026-11-04 to the Alpha closed-testing
+track as `LastCall 1.0.9 closed`, rollout 100%. Google's pre-review check passed;
+the change has not been sent for review yet, so testers still receive 1.0.8.
+
+- Local: `artifacts/LastCall-1.0.9-store.aab` (ignored binary)
+- Package `ru.lastcall.app`, version1.0.9, versionCode23
+- Size: 41,617,605 bytes
+- SHA256: `a199b6c2ccbf8117e9b9fde389a553c17ee62dafcf603444f4d7030e25836996`
+- Upload certificate: `CN=LastCall Upload, O=LastCall, C=RU`
+  SHA256 `ad52a7b387b27104a2055cce8823df51421a1a331d7d34c2533177e6dec24781`
+- Packaged `nativeFcmConfigured=true`, `distribution=store`,
+  `directUpdates=false`; `REQUEST_INSTALL_PACKAGES` absent.
+
+---
+
+# LastCall 1.0.8 Google Play AAB (superseded by 1.0.9)
 
 Built with `npm run build:aab`, store distribution, Firebase client for
-`ru.lastcall.app`, and the LastCall upload key. Not uploaded to Play yet.
+`ru.lastcall.app`, and the LastCall upload key. Published to internal testing and
+the Alpha closed-testing track.
 
 - Local: `artifacts/LastCall-1.0.8-store.aab` (ignored binary)
 - Package `ru.lastcall.app`, version1.0.8, versionCode22

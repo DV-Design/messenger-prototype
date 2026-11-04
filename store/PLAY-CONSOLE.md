@@ -155,12 +155,21 @@ first, install from Play, then run `docs/TESTING-RU.md`.
   `populizator@googlemail.com`.
 - Upload key fingerprint matches Play App Signing (`AD:52:…:47:81`).
 
+## Current Play Console state (2026-11-04)
+
+- Alpha closed-testing track `4699437850249993377` is active in 178
+  countries/regions with `LastCall 1.0.8 closed`. The dashboard shows 2 testers.
+- `LastCall 1.0.9 closed` (versionCode 23, rollout 100%) is uploaded and saved.
+  Google's pre-review check passed. One change is waiting on the publishing
+  overview and has **not** been sent for review.
+- The internal testing track still has 1.0.8.
+- Managed publishing is off, so an approved change goes live without a further step.
+
 ## Remaining blockers
 
-- Closed-testing countries and the Alpha closed track release are not configured
-  yet. Personal accounts need 12 testers opted in for 14 continuous days before
-  production access; internal testing has one tester (`populizator@googlemail.com`).
-  The user will add the remaining testers.
+- Send `LastCall 1.0.9 closed` for review.
+- Personal accounts need 12 testers opted in for 14 continuous days before
+  production access; the dashboard shows 2. The user will add the remaining testers.
 - Russian (`ru-RU`) store listing translation and confirmation that the icon /
   feature graphic are not AI-generated (AI-assets declaration).
 - Review submission is disabled until the active-services declaration and
