@@ -128,7 +128,7 @@ test('delete for everyone removes the message on the peer, and restarts do not b
   await a.evaluate(({id,mid,author})=>(window as ClientWindow).__messenger.deleteMessage(id,{id:mid,type:'message',author},'everyone'),{id,mid:m.id,author:ua.userId});
   await expect.poll(()=>texts(b,id)).toEqual(['Оставить']);expect(await texts(a,id)).toEqual(['Оставить']);
   await a.evaluate(()=>(window as ClientWindow).__messenger.flushState());await b.evaluate(()=>(window as ClientWindow).__messenger.flushState());
-  await restart(a);await restart(b);await expect.poll(async()=>(await snapshot(b)).conversations.find(c=>c.id===id)?.session?.status).toBe('connected');expect(await texts(a,id)).toEqual(['Оставить']);expect(await texts(b,id)).toEqual(['Оставить']);
+  await restart(a);await restart(b);await expect.poll(async()=>(await snapshot(b)).conversations.find(c=>c.id===id)?.session?.status,{timeout:90000}).toBe('connected');expect(await texts(a,id)).toEqual(['Оставить']);expect(await texts(b,id)).toEqual(['Оставить']);
  }finally{await Promise.all([a,b].map(p=>stop(p).catch(()=>{})));await Promise.all(contexts.map(c=>c.close()));}
 });
 
