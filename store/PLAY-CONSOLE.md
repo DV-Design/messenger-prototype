@@ -159,15 +159,14 @@ first, install from Play, then run `docs/TESTING-RU.md`.
 
 - Alpha closed-testing track `4699437850249993377` is active in 178
   countries/regions with `LastCall 1.0.8 closed`. The dashboard shows 2 testers.
-- `LastCall 1.0.9 closed` (versionCode 23, rollout 100%) is uploaded and saved.
-  Google's pre-review check passed. One change is waiting on the publishing
-  overview and has **not** been sent for review.
+- `LastCall 1.0.9 closed` (versionCode 23, rollout 100%) has been sent for review
+  and is **in review**. Its install share is 0%; 1.0.8 stays live until approval.
 - The internal testing track still has 1.0.8.
 - Managed publishing is off, so an approved change goes live without a further step.
 
 ## Remaining blockers
 
-- Send `LastCall 1.0.9 closed` for review.
+- Google approval of `LastCall 1.0.9 closed`.
 - Personal accounts need 12 testers opted in for 14 continuous days before
   production access; the dashboard shows 2. The user will add the remaining testers.
 - Russian (`ru-RU`) store listing translation and confirmation that the icon /

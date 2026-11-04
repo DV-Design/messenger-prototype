@@ -9,7 +9,8 @@ Status: root cause found. The server sent every FCM message with `restrictedPack
 - [X] Redeploy signaling and build store AAB 1.0.9/code23
   → Artifacts: [AAB](artifacts/README.md), 41,617,605 bytes, SHA256 `a199b6c2ccbf8117e9b9fde389a553c17ee62dafcf603444f4d7030e25836996`
 - [X] Upload AAB to the Alpha closed-testing track as `LastCall 1.0.9 closed`, rollout 100%; Google's pre-review check passed
-- [ ] Send the pending change for Google review (testers keep receiving 1.0.8 until it is approved)
+- [X] Send the change for Google review (user, 2026-11-04)
+- [ ] Google approves `LastCall 1.0.9 closed` (in review; testers keep receiving 1.0.8 until then)
 - [ ] Decide whether the internal testing track also moves from 1.0.8 to 1.0.9
 - [ ] Physical acceptance: closed app receives text, notification and incoming call
 
