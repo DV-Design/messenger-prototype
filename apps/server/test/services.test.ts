@@ -79,7 +79,7 @@ describe('private-injected phone/push service contract over real WebSockets', ()
     expect(await a.client.rpc('services')).toMatchObject({ capabilities: { phoneVerification: true, phoneVerified: true } });
   });
   it('retains identity/phone resend and hourly send quotas across socket reconnect', async () => {
-    const fake = providers(); let now = Date.now(); const { url } = await start({ ...fake, serviceNow: () => now, smsIdentityMaxPerHour: 2, smsPhoneMaxPerHour: 2 });
+    const fake = providers(); let now = Math.floor(Date.now() / 3_600_000) * 3_600_000 + 1000; const { url } = await start({ ...fake, serviceNow: () => now, smsIdentityMaxPerHour: 2, smsPhoneMaxPerHour: 2 });
     const a = await user(url, 'alice'), b = await user(url, 'bob'); await begin(a.client, phoneA);
     const replacement = await user(url, 'alice', a.identity);
     expect(await replacement.client.rpc('phone-start', { phone: phoneB })).toMatchObject({ code: 'service-rate-limit' });
@@ -90,7 +90,7 @@ describe('private-injected phone/push service contract over real WebSockets', ()
     expect(await c.client.rpc('phone-start', { phone: phoneA })).toMatchObject({ code: 'service-rate-limit' });
   });
   it('returns no challenge or verification on provider rejection/late acceptance and conservatively bounds spend', async () => {
-    let now = Date.now(); const fake = providers();
+    let now = Math.floor(Date.now() / 3_600_000) * 3_600_000 + 1000; const fake = providers();
     const { url } = await start({ ...fake, smsProvider: { async sendCode() { throw new Error('provider detail must stay private'); } }, smsMaxPerHour: 1 });
     const a = await user(url, 'alice'), b = await user(url, 'bob');
     const failure = await a.client.rpc('phone-start', { phone: phoneA }); expect(failure).toMatchObject({ code: 'provider-failed' }); expect(JSON.stringify(failure).includes('provider detail')).toBe(false);
