@@ -8,6 +8,7 @@ import { nativeRtc, validateServerUrl } from './native';
 import { CanonicalProfileStore, profileSignature, registrationCandidate } from './registration-model';
 import { DEFAULT_SERVER, deleteLocalAccount, loadBoundEmail, loadEmailReminderDismissed, loadIdentity, loadExistingIdentity, loadProfile, saveBoundEmail, saveEmailReminderDismissed, saveProfile, sealedStateAdapter, type LocalProfile } from './storage';
 import { monitorNetworkRecovery, shouldForceNetworkResume } from './network-recovery';
+import { ConnectionSupervisor } from './connection-supervisor';
 import { SharedWakeRuntime, type WakeLease } from './wake-model';
 
 const empty: MessengerSnapshot = { status: 'idle', contacts: [], conversations: [], verifiedContacts: [], blockedContacts: [], movedContacts: {} };
@@ -24,7 +25,14 @@ let pendingEmailProof: string | undefined;
 let profiles = new CanonicalProfileStore(saveProfile);
 let networkRecovery: ReturnType<typeof monitorNetworkRecovery> | undefined;
 let resumeSubscription: ReturnType<typeof AppState.addEventListener> | undefined;
-const publish = (update: Partial<Runtime>) => { state = { ...state, ...update }; listeners.forEach(listener => listener()); };
+const publish = (update: Partial<Runtime>) => { state = { ...state, ...update }; listeners.forEach(listener => listener()); supervisor.poke(); };
+// Core stops on some server errors and waits for a caller; the foreground app is that caller.
+const supervisor = new ConnectionSupervisor({
+  read: () => ({ foreground: AppState.currentState === 'active', retired: !!state.retired, hasProfile: !!state.profile, hasIdentity: !!state.identity,
+    registration: state.registration, status: state.snapshot.status, error: state.snapshot.error ?? state.error }),
+  reconnect: () => reconnect(),
+  checkRegistration: () => checkRegistration(),
+});
 export const errorText = (error: unknown) => error instanceof Error ? error.message : t('Could not complete the action. Try again.');
 function canonicalProfile(serverUrl: string, user: DirectoryUser): LocalProfile {
   if (user.userId !== state.identity?.userId) throw new Error(t('The server returned a different device key.'));
@@ -155,7 +163,8 @@ export function boot(): Promise<void> {
     },
   });
   resumeSubscription = AppState.addEventListener('change', value => {
-    if (value !== 'active') return;
+    if (value !== 'active') { supervisor.stop(); return; }
+    supervisor.resume();
     // Read reachability on every foreground, but do not force a synthetic
     // network change over an already-connected live call; changed signatures
     // and the core recovery watchdog still recover real route changes.
@@ -305,26 +314,18 @@ export async function registerProfile(displayName: string, username: string, ema
     throw error;
   } finally { pendingEmailProof = undefined; publish({ busy: false }); }
 }
-export async function changeServer(server: string): Promise<void> {
-  if (state.busy || !state.profile || !state.identity) return;
-  const previous = state.profile;
-  const serverUrl = validateServerUrl(server);
-  publish({ busy: true, error: undefined });
-  try {
-    const profile = await registrationCandidate({ ...previous, serverUrl }, () => resolveDeviceProfile(serverUrl, state.identity!));
-    await connectCanonical(profile);
-    if (state.profile) await profiles.remember(state.profile);
-  } catch (error) {
-    if (state.profile?.serverUrl === previous.serverUrl) await connectCanonical(previous).catch(() => {});
-    publish({ error: errorText(error) }); throw error;
-  } finally { publish({ busy: false }); }
-}
 export async function reconnect(): Promise<void> {
   if (state.retired) return;
   publish({ error: undefined });
   try {
     const current = managers.peek() ?? (state.profile ? await installManager(state.profile) : client());
-    await current.connect();
+    try { await current.connect(); }
+    catch (error) {
+      if (!/device-already-registered/.test(errorText(error)) || !state.identity || !state.profile) throw error;
+      const bound = await resolveDeviceProfile(state.profile.serverUrl, state.identity);
+      if (!bound) throw error;
+      await connectResolved(state.profile.serverUrl, bound);
+    }
     if (state.profile) await profiles.remember(state.profile);
   } catch (error) { publish({ error: errorText(error) }); }
 }

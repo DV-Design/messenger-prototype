@@ -39,7 +39,9 @@ public final class LastCallCallSetupService extends Service {
     try {
       Intent intent = new Intent(context, LastCallCallSetupService.class).putExtra("callId", id);
       context.startForegroundService(intent);
+      LastCallCallTrace.add(context, "setup");
     } catch (Exception error) {
+      LastCallCallTrace.add(context, "setup-failed");
       return;
     }
     Runnable expiry = () -> end(context, id);

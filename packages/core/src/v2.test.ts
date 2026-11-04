@@ -117,6 +117,8 @@ describe('directory replacement and group ownership',()=>{
       const opening=client.connect();await vi.advanceTimersByTimeAsync(1);await opening;expect(client.getSnapshot().status).toBe('online');
       last.push({type:'error',code:'session-replaced',message:'Identity connected elsewhere'});await vi.advanceTimersByTimeAsync(31000);
       expect(client.getSnapshot().status).toBe('error');expect(instances).toBe(1);
+      // Core never fights another client by itself; the foreground app's retry can recover it.
+      const again=client.connect();await vi.advanceTimersByTimeAsync(1);await again;expect(client.getSnapshot().status).toBe('online');expect(instances).toBe(2);
     }finally{client.disconnect();vi.unstubAllGlobals();vi.useRealTimers();}
   });
   it('rejects definitions from non-creators and modified membership',async()=>{

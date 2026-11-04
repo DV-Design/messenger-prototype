@@ -11,10 +11,10 @@ export const SELF_MANAGED_MIN_API = 26;
 export function nativeCallMode(apiLevel: number): 'self-managed' | 'in-app' {
   return Number.isFinite(apiLevel) && apiLevel >= SELF_MANAGED_MIN_API ? 'self-managed' : 'in-app';
 }
-export interface CallUiStatus { supported: boolean; notifications: boolean; channel: boolean; fullScreen: boolean; specialAccessRequired?: boolean }
+export interface CallUiStatus { supported: boolean; notifications: boolean; channel: boolean; fullScreen: boolean; specialAccessRequired?: boolean; alerting?: boolean; lockscreen?: boolean; importance?: number; oem?: string }
 export function callSettingsTarget(status: CallUiStatus | undefined): 'full-screen' | 'notifications' | 'none' {
   if (!status?.supported) return 'none';
-  if (status.notifications && status.channel && status.fullScreen) return 'none';
+  if (status.notifications && status.channel && status.fullScreen && status.alerting !== false && status.lockscreen !== false) return 'none';
   if (status.notifications && status.channel && !status.fullScreen) return 'full-screen';
   return 'notifications';
 }
@@ -24,6 +24,7 @@ export function callStatusText(enabled: boolean, status?: CallUiStatus): string 
   if (!status.notifications) return t('Allow LastCall notifications; otherwise an incoming call cannot appear on the lock screen.');
   if (!status.channel) return t('Enable the “LastCall incoming calls” channel in notification settings.');
   if (!status.fullScreen) return t('Allow LastCall full-screen notifications (Android 14+). Without them calls appear as notifications.');
+  if (status.alerting === false || status.lockscreen === false) return t('Allow lock screen, banners and sound for the “LastCall incoming calls” channel. Otherwise a call on a locked phone may show only an icon.');
   return t('System incoming calls are enabled. The LastCall phone account is registered automatically.');
 }
 interface NativeCallPort {

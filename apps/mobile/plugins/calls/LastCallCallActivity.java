@@ -32,6 +32,7 @@ public final class LastCallCallActivity extends Activity {
     if (Build.VERSION.SDK_INT >= 27) { setShowWhenLocked(true); setTurnScreenOn(true); }
     else getWindow().addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
     LastCallCallUiService.bindScreen(this, entry.uuid);
+    LastCallCallTrace.add(this, "activity-open");
     render(entry);
     performAction(intent.getAction());
   }
@@ -104,6 +105,8 @@ public final class LastCallCallActivity extends Activity {
     if (entry == null || uuid == null || !uuid.equals(entry.uuid) || entry.expiresAt <= System.currentTimeMillis()) { finish(); return; }
     if (answering) return;
     answering = true; showConnecting();
+    LastCallCallUiService.silenceRinging();
+    LastCallCallTrace.add(this, "answer");
     Connection connection = uuid == null ? null : VoiceConnectionService.getConnection(uuid);
     if (connection != null) connection.onAnswer();
     else LastCallCallUiService.dispatchAction(this, uuid, LastCallCallUiService.ACTION_ANSWER);
@@ -118,6 +121,7 @@ public final class LastCallCallActivity extends Activity {
   }
 
   private void decline() {
+    LastCallCallTrace.add(this, "decline");
     if (uuid != null) LastCallAudioService.end(getApplicationContext(), uuid);
     Connection connection = uuid == null ? null : VoiceConnectionService.getConnection(uuid);
     if (connection != null) connection.onReject();

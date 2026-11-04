@@ -1,16 +1,18 @@
 import { useState } from 'react';
 import { router } from 'expo-router';
-import { Alert, Linking, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Alert, Linking, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import Constants from 'expo-constants';
 import type { Conversation } from '@messenger/core';
-import { enableSystemCalls, useSystemCallStatus } from '../../system-calls';
+import { callDiagnosticLines, enableSystemCalls, useSystemCallStatus } from '../../system-calls';
 import { Avatar, Button, Icon, ScreenHeader, connectionLabel } from '../../components/ui';
 import { AccountMovedNotice } from '../../components/AccountMovedNotice';
 import { EmailBinding } from '../../components/EmailBinding';
 import { isAccountMoved } from '../../email-flow-model';
-import { changeServer, client, deleteAccount, errorText, reconnect, useMessenger } from '../../runtime';
+import { client, deleteAccount, errorText, useMessenger } from '../../runtime';
+import { connectionNeedsUser, isTransientConnectionError } from '../../connection-supervisor';
+import { OemCallSetup } from '../../components/OemCallSetup';
 import { formatMediaDiagnostics, sanitizeDiagnostic } from '../../diagnostics';
 import { usePushStatus } from '../../components/PushBridge';
 import { checkForUpdate, directUpdates, downloadAndInstallUpdate, useUpdateState } from '../../updates';
@@ -18,7 +20,7 @@ import { colors, styles } from '../../styles';
 import { t } from '../../i18n';
 
 export default function Settings() {
-  const { profile, identity, snapshot, error, busy, boundEmail, retired } = useMessenger();
+  const { profile, identity, snapshot, error, boundEmail, retired } = useMessenger();
   const pushStatus = usePushStatus();
   const callStatus = useSystemCallStatus();
   const updateState = useUpdateState();
@@ -28,19 +30,15 @@ export default function Settings() {
       : updateState.status === 'current' ? t('You have the latest version')
         : updateState.status === 'error' ? t('Could not check for updates')
           : t('Not checked yet');
-  const [showServer, setShowServer] = useState(false);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
-  const [server, setServer] = useState(profile?.serverUrl ?? '');
   const [localError, setLocalError] = useState('');
   const [copied, setCopied] = useState(false);
   const [reportCopied, setReportCopied] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  async function save() {
-    setLocalError('');
-    try { await changeServer(server); } catch (cause) { setLocalError(errorText(cause)); }
-  }
+  // Automatic retries own transient connection failures; only actionable errors reach the screen.
+  const visibleError = localError || [error, snapshot.error].find(text => text && !isAccountMoved(text) && !isTransientConnectionError(text));
   async function copyDiagnostics() {
     const privateValues = [profile?.displayName ?? '', profile?.username ?? '', boundEmail?.email ?? '', identity?.userId ?? '', identity?.publicKey ?? '', identity?.privateKey ?? '',
       ...snapshot.contacts.flatMap(user => [user.displayName, user.username, user.userId, user.publicKey]),
@@ -49,7 +47,6 @@ export default function Settings() {
     const peers = snapshot.conversations.filter(item => item.kind === 'direct');
     const report = [`LastCall ${Constants.expoConfig?.version ?? ''}`,
       t('Platform: {os} {version}', { os: Platform.OS, version: String(Platform.Version) }),
-      t('Server: {url}', { url: sanitize(profile?.serverUrl) }),
       `Directory: ${snapshot.status}`,
       t('Direct connections: {count}', { count: peers.length }),
       t('App error: {error}', { error: sanitize(snapshot.error) }),
@@ -58,7 +55,7 @@ export default function Settings() {
         status: item.session?.status ?? 'idle',
         route: item.session?.route ?? 'unknown',
         error: sanitize(item.session?.error),
-      }), ...formatMediaDiagnostics(item.session?.stats)])].join('\n');
+      }), ...formatMediaDiagnostics(item.session?.stats)]), ...await callDiagnosticLines()].join('\n');
     try { await Clipboard.setStringAsync(report); setReportCopied(true); }
     catch (cause) { setLocalError(errorText(cause)); }
   }
@@ -77,14 +74,11 @@ export default function Settings() {
       <View style={[styles.section, { marginTop: 0 }]}><Pressable style={styles.listRow} accessibilityRole="button" onPress={() => router.push('/permissions')}><Icon name="shield-checkmark-outline" /><Text style={[styles.rowName, styles.flex]}>{t('App permissions')}</Text><Icon name="chevron-forward" size={18} color={colors.secondary} /></Pressable></View>
       <Text style={styles.sectionTitle}>{t('CONNECTION')}</Text>
       <View style={[styles.section, { marginTop: 0 }]}>
-        <View style={styles.listRow}><Icon name={snapshot.status === 'online' ? 'checkmark-circle' : 'cloud-offline-outline'} color={snapshot.status === 'online' ? colors.accent : colors.secondary} /><View style={styles.rowBody}><Text style={styles.rowName}>{connectionLabel[snapshot.status]}</Text><Text style={styles.rowText}>{t('Status and contact search')}</Text></View></View>
-        <Pressable style={styles.listRow} accessibilityRole="button" onPress={() => setShowServer(!showServer)}><Icon name="server-outline" /><View style={styles.rowBody}><Text style={styles.rowName}>{t('Server')}</Text><Text numberOfLines={1} style={styles.rowText}>{profile?.serverUrl}</Text></View><Icon name={showServer ? 'chevron-up' : 'chevron-forward'} color={colors.secondary} size={18} /></Pressable>
-        {showServer && <View style={styles.content}><TextInput style={styles.input} value={server} onChangeText={setServer} autoCapitalize="none" autoCorrect={false} keyboardType="url" accessibilityLabel={t('Server address')} placeholder="https://p2p.lienad.ru" /><Text style={styles.info}>{t('Contacts and history are stored separately for each server. Changing the address reconnects the app.')}</Text><Button title={t('Save and connect')} busy={busy} onPress={() => void save()} /></View>}
-        {snapshot.status !== 'online' && !retired && <View style={{ padding: 16 }}><Button title={t('Reconnect')} secondary onPress={() => void reconnect()} disabled={snapshot.status === 'connecting'} /></View>}
+        <View style={styles.listRow}><Icon name={snapshot.status === 'online' ? 'checkmark-circle' : 'cloud-offline-outline'} color={snapshot.status === 'online' ? colors.accent : colors.secondary} /><View style={styles.rowBody}><Text style={styles.rowName}>{snapshot.status === 'error' && connectionNeedsUser(snapshot.error ?? error) ? t('Not connected') : connectionLabel[snapshot.status]}</Text><Text style={styles.rowText}>{t('Status and contact search')}</Text></View></View>
       </View>
-      {!!(localError || [error, snapshot.error].find(text => text && !isAccountMoved(text))) && <Text style={[styles.error, { marginHorizontal: 16, marginTop: 16 }]}>{localError || [error, snapshot.error].find(text => text && !isAccountMoved(text))}</Text>}
+      {!!visibleError && <Text style={[styles.error, { marginHorizontal: 16, marginTop: 16 }]}>{visibleError}</Text>}
       <Text style={styles.sectionTitle}>{t('NOTIFICATIONS')}</Text><View style={[styles.section, styles.content]}><Text style={styles.body}>{pushStatus}</Text><Button title={t('Configure permissions')} secondary onPress={() => router.push('/permissions')} /></View>
-      {Platform.OS === 'android' && <><Text style={styles.sectionTitle}>{t('SYSTEM CALLS')}</Text><View style={[styles.section, styles.content]}><Text style={styles.body}>{callStatus}</Text><Text style={styles.info}>{t('On Android 8+ LastCall registers its own phone account and shows its own incoming-call screen; no manual setup in the Phone app is needed. The screen appears after the encrypted call invitation is verified; connecting the peer may continue after you answer. On Android 14+ allow full-screen notifications, otherwise the call stays a normal notification. The microphone is enabled only after you answer. On Android 7 LastCall uses its own notification and screen without the Phone app.')}</Text><Button title={t('Open call settings')} secondary onPress={() => void enableSystemCalls().catch(cause => setLocalError(errorText(cause)))} /></View></>}
+      {Platform.OS === 'android' && <><Text style={styles.sectionTitle}>{t('SYSTEM CALLS')}</Text><View style={[styles.section, styles.content]}><Text style={styles.body}>{callStatus}</Text><Text style={styles.info}>{t('On Android 8+ LastCall registers its own phone account and shows its own incoming-call screen; no manual setup in the Phone app is needed. The screen appears after the encrypted call invitation is verified; connecting the peer may continue after you answer. On Android 14+ allow full-screen notifications, otherwise the call stays a normal notification. The microphone is enabled only after you answer. On Android 7 LastCall uses its own notification and screen without the Phone app.')}</Text><Button title={t('Open call settings')} secondary onPress={() => void enableSystemCalls().catch(cause => setLocalError(errorText(cause)))} /><OemCallSetup /></View></>}
       {directUpdates && Platform.OS === 'android' && <><Text style={styles.sectionTitle}>{t('UPDATES')}</Text>
         <View style={[styles.section, { marginTop: 0 }]}>
           <View style={styles.listRow}>

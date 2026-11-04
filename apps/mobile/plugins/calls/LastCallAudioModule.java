@@ -66,8 +66,18 @@ public final class LastCallAudioModule extends ReactContextBaseJavaModule {
     map.putBoolean("channel", status.channel);
     map.putBoolean("fullScreen", status.fullScreen);
     map.putBoolean("specialAccessRequired", status.specialAccessRequired);
+    map.putBoolean("alerting", status.alerting);
+    map.putBoolean("lockscreen", status.lockscreen);
+    map.putInt("importance", status.importance);
+    map.putString("oem", status.oem);
     result.resolve(map);
   }
+  @ReactMethod public void callTrace(Promise result) {
+    try { result.resolve(Arguments.fromList(LastCallCallTrace.read(getReactApplicationContext()))); }
+    catch (RuntimeException error) { result.resolve(Arguments.createArray()); }
+  }
+  @ReactMethod public void openCallChannelSettings() { LastCallCallUiService.openChannelSettings(getReactApplicationContext()); }
+  @ReactMethod public void openOemCallSettings() { LastCallCallUiService.openOemSettings(getReactApplicationContext()); }
   @ReactMethod public void openCallUiSettings() { LastCallCallUiService.openSettings(getReactApplicationContext()); }
   @ReactMethod public void openFullScreenCallSettings(Promise result) { result.resolve(LastCallCallUiService.openFullScreenSettings(getReactApplicationContext())); }
   @ReactMethod public void start(String id, boolean video, Promise promise) {

@@ -1,3 +1,18 @@
+# LastCall Android 1.0.13 (test APK, not offered as an update)
+
+1.0.12 plus automatic reconnection and locked-screen call handling. Checked on emulators:
+[report](../docs/reports/debugging/2026-11/lockscreen-1013.md). Not run on physical phones.
+
+- Download: https://p2p.lienad.ru/download/LastCall-1.0.13.apk
+- Alternate: https://lienad.ru/messenger/download/LastCall-1.0.13.apk
+- Local: `artifacts/LastCall-1.0.13.apk` (ignored binary)
+- Package `dev.messenger.prototype`, version1.0.13, versionCode27
+- Size: 54,263,762 bytes
+- SHA256: `63f63951d7deeae389726edb8468645e0b5914ddb6f9c7219e67f42bbacecf60`
+- Signing certificate SHA256: `fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c` (same test certificate)
+
+---
+
 # LastCall Android 1.0.12 (test APK and Play bundle, not offered as an update)
 
 1.0.11 plus the reconnect fix. Checked on emulators: [report](../docs/reports/debugging/2026-11/native-1012.md). Not run on physical phones.

@@ -27,6 +27,9 @@ final class LastCallWakeLease {
         int task = HeadlessJsTaskContext.getInstance(context).startTask(new HeadlessJsTaskConfig("lastcall-wake-runtime", data, duration, true));
         Runnable expiry = () -> { LastCallCallSetupService.end(context, id); release(id); };
         held.put(id, new Lease(context, task, expiry)); anyHeld = true;
+        // A JS timer owner is not a CPU owner: without this the task stalls when the phone suspends.
+        LastCallCpuWake.hold(context, id, duration);
+        LastCallCallTrace.add(context, "js-wake");
         handler.postDelayed(expiry, duration); result.resolve(true);
       } catch (Exception error) { result.reject("WAKE_UNAVAILABLE", "Background timer ownership unavailable"); }
     });
@@ -34,6 +37,7 @@ final class LastCallWakeLease {
   static void release(String id) {
     UiThreadUtil.runOnUiThread(() -> {
       Lease lease = held.remove(id); anyHeld = !held.isEmpty(); if (lease == null) return;
+      LastCallCpuWake.release(id);
       handler.removeCallbacks(lease.expiry); HeadlessJsTaskContext.getInstance(lease.context).finishTask(lease.task);
       LastCallHeadlessAppLoader.drain();
     });

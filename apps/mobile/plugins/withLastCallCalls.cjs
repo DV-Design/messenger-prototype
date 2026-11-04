@@ -1,4 +1,4 @@
-const { withAndroidManifest, withDangerousMod, withMainApplication } = require('expo/config-plugins');
+const { withAndroidManifest, withAppBuildGradle, withDangerousMod, withMainApplication } = require('expo/config-plugins');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 module.exports = function withLastCallCalls(config) {
@@ -9,7 +9,7 @@ module.exports = function withLastCallCalls(config) {
     const bluetooth = manifest['uses-permission'].find(item => item.$['android:name'] === 'android.permission.BLUETOOTH');
     if (bluetooth) bluetooth.$['android:maxSdkVersion'] = '30';
     else manifest['uses-permission'].push({ $: { 'android:name': 'android.permission.BLUETOOTH', 'android:maxSdkVersion': '30' } });
-    for (const name of ['FOREGROUND_SERVICE', 'FOREGROUND_SERVICE_PHONE_CALL', 'FOREGROUND_SERVICE_MICROPHONE', 'FOREGROUND_SERVICE_CAMERA', 'MANAGE_OWN_CALLS', 'USE_FULL_SCREEN_INTENT']) {
+    for (const name of ['FOREGROUND_SERVICE', 'FOREGROUND_SERVICE_PHONE_CALL', 'FOREGROUND_SERVICE_MICROPHONE', 'FOREGROUND_SERVICE_CAMERA', 'MANAGE_OWN_CALLS', 'USE_FULL_SCREEN_INTENT', 'WAKE_LOCK', 'VIBRATE']) {
       const permission = `android.permission.${name}`;
       if (!manifest['uses-permission'].some(item => item.$['android:name'] === permission)) manifest['uses-permission'].push({ $: { 'android:name': permission } });
     }
@@ -24,12 +24,23 @@ module.exports = function withLastCallCalls(config) {
       { $: { 'android:name': 'dev.messenger.prototype.calls.LastCallAudioService', 'android:exported': 'false', 'android:foregroundServiceType': 'phoneCall|microphone|camera' } },
       { $: { 'android:name': 'dev.messenger.prototype.calls.LastCallCallSetupService', 'android:exported': 'false', 'android:foregroundServiceType': 'phoneCall' } },
       { $: { 'android:name': 'dev.messenger.prototype.calls.LastCallCallUiService', 'android:exported': 'false', 'android:foregroundServiceType': 'phoneCall' } },
+      // Default priority 0 outranks Expo's -1, and it is the service FCM resolves.
+      { $: { 'android:name': 'dev.messenger.prototype.calls.LastCallMessagingService', 'android:exported': 'false' }, 'intent-filter': [{ action: [{ $: { 'android:name': 'com.google.firebase.MESSAGING_EVENT' } }] }] },
     ];
     for (const entry of services) { const index = app.service.findIndex(item => item.$['android:name'] === entry.$['android:name']); if (index < 0) app.service.push(entry); else app.service[index] = entry; }
     const activities = [
       { $: { 'android:name': 'dev.messenger.prototype.calls.LastCallCallActivity', 'android:exported': 'false', 'android:excludeFromRecents': 'true', 'android:launchMode': 'singleTask', 'android:taskAffinity': '' } },
     ];
     for (const entry of activities) { const index = app.activity.findIndex(item => item.$['android:name'] === entry.$['android:name']); if (index < 0) app.activity.push(entry); else app.activity[index] = entry; }
+    return mod;
+  });
+  // expo-notifications keeps Firebase private to its module; LastCallMessagingService extends it.
+  config = withAppBuildGradle(config, mod => {
+    const line = "implementation 'com.google.firebase:firebase-messaging:25.0.1'";
+    if (!mod.modResults.contents.includes(line)) {
+      if (!/\ndependencies \{/.test(mod.modResults.contents)) throw new Error('LastCall calls plugin requires an app dependencies block');
+      mod.modResults.contents = mod.modResults.contents.replace(/\ndependencies \{/, `\ndependencies {\n    ${line}`);
+    }
     return mod;
   });
   config = withMainApplication(config, mod => {
@@ -44,7 +55,7 @@ module.exports = function withLastCallCalls(config) {
   return withDangerousMod(config, ['android', async mod => {
     const target = path.join(mod.modRequest.platformProjectRoot, 'app/src/main/java/dev/messenger/prototype/calls');
     await fs.mkdir(target, { recursive: true });
-    for (const file of ['LastCallAudioService.java', 'LastCallAudioModule.java', 'LastCallAudioPackage.java', 'LastCallAudioRoutes.java', 'LastCallHeadlessAppLoader.java', 'LastCallHostLease.java', 'LastCallWakeLease.java', 'LastCallCallUiService.java', 'LastCallCallActivity.java', 'LastCallCallSetupService.java']) await fs.copyFile(path.join(__dirname, 'calls', file), path.join(target, file));
+    for (const file of ['LastCallAudioService.java', 'LastCallAudioModule.java', 'LastCallAudioPackage.java', 'LastCallAudioRoutes.java', 'LastCallHeadlessAppLoader.java', 'LastCallHostLease.java', 'LastCallWakeLease.java', 'LastCallCallUiService.java', 'LastCallCallActivity.java', 'LastCallCallSetupService.java', 'LastCallCpuWake.java', 'LastCallCallTrace.java', 'LastCallMessagingService.java']) await fs.copyFile(path.join(__dirname, 'calls', file), path.join(target, file));
     return mod;
   }]);
 };

@@ -69,6 +69,11 @@ test('self-managed calls are enabled on Android 26+ without a user phone-account
   assert.match(callStatusText(true, fsiBlocked), /full-screen/);
   assert.equal(callSettingsTarget(fsiBlocked), 'full-screen');
   assert.match(callStatusText(true, { ...ready, notifications: false }), /notifications/);
+  // A lowered channel drops the full-screen launch and ringtone even though it is not blocked.
+  for (const lowered of [{ ...ready, alerting: false }, { ...ready, lockscreen: false }]) {
+    assert.match(callStatusText(true, lowered), /lock screen, banners and sound/);
+    assert.equal(callSettingsTarget(lowered), 'notifications');
+  }
 });
 
 test('native call UI shows once for the live UUID and rejects stale/unknown actions', async () => {

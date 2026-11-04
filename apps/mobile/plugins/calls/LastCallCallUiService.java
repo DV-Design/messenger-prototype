@@ -3,6 +3,7 @@ package dev.messenger.prototype.calls;
 import android.app.Activity;
 import dev.messenger.prototype.R;
 import android.app.ActivityOptions;
+import android.app.KeyguardManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -15,12 +16,17 @@ import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.ServiceInfo;
 import android.media.AudioAttributes;
+import android.media.AudioManager;
+import android.media.Ringtone;
 import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.PowerManager;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 import android.provider.Settings;
 import android.telecom.Connection;
 import android.telecom.PhoneAccount;
@@ -55,7 +61,11 @@ public final class LastCallCallUiService extends Service {
   private static volatile Entry active;
   private static volatile WeakReference<Activity> screen = new WeakReference<>(null);
   private static volatile String screenUuid;
+  private static volatile WeakReference<LastCallCallUiService> running = new WeakReference<>(null);
   private Entry bound;
+  private PowerManager.WakeLock screenLock;
+  private Ringtone ringtone;
+  private Vibrator vibrator;
 
   static final class Entry {
     final String uuid;
@@ -77,6 +87,11 @@ public final class LastCallCallUiService extends Service {
     boolean channel;
     boolean fullScreen;
     boolean specialAccessRequired;
+    /** A lower channel importance drops both the full-screen launch and the ringtone. */
+    boolean alerting;
+    boolean lockscreen;
+    int importance;
+    String oem = "";
   }
 
   static synchronized boolean begin(Context context, String uuid, String name, boolean video, long expiresAt) {
@@ -92,12 +107,15 @@ public final class LastCallCallUiService extends Service {
     if (previous != null) {
       if (previous.expiry != null) handler.removeCallbacks(previous.expiry);
       finishScreen(previous.uuid);
+      LastCallCpuWake.release(ringHold(previous.uuid));
     }
     byte[] secret = new byte[24]; RANDOM.nextBytes(secret);
     Entry entry = new Entry(context, uuid, name == null || name.isEmpty() ? "LastCall" : name, video, hex(secret), now, deadline);
     entry.expiry = () -> expire(entry);
     active = entry;
     handler.postDelayed(entry.expiry, deadline - now);
+    LastCallCpuWake.hold(context, ringHold(uuid), deadline - now);
+    LastCallCallTrace.add(context, "ui-begin");
     ensureChannel(context);
     try {
       Intent intent = new Intent(context, LastCallCallUiService.class).setAction(ACTION_INCOMING);
@@ -106,6 +124,8 @@ public final class LastCallCallUiService extends Service {
     } catch (Exception error) {
       handler.removeCallbacks(entry.expiry);
       if (active == entry) active = null;
+      LastCallCpuWake.release(ringHold(uuid));
+      LastCallCallTrace.add(context, "ui-start-failed");
       return false;
     }
   }
@@ -114,6 +134,7 @@ public final class LastCallCallUiService extends Service {
     synchronized (LastCallCallUiService.class) {
       // A stale timer from an old entry must never touch the current call.
       if (active != entry) return;
+      LastCallCallTrace.add(entry.context, "expired");
       LastCallAudioService.endPending(entry.context, entry.uuid);
       // Close only this ringing self-managed connection; never answer or capture media.
       if (Build.VERSION.SDK_INT >= 26) {
@@ -181,10 +202,19 @@ public final class LastCallCallUiService extends Service {
     if (entry == null || !entry.uuid.equals(uuid)) return;
     active = null;
     if (entry.expiry != null) handler.removeCallbacks(entry.expiry);
+    LastCallCpuWake.release(ringHold(uuid));
     finishScreen(uuid);
     NotificationManager manager = (NotificationManager) context.getSystemService(NOTIFICATION_SERVICE);
     if (manager != null) manager.cancel(NOTIFICATION_ID);
     context.stopService(new Intent(context, LastCallCallUiService.class));
+  }
+
+  private static String ringHold(String uuid) { return "ring-" + uuid; }
+
+  /** Answering must stop the fallback alert at once, before media is ready. */
+  static void silenceRinging() {
+    LastCallCallUiService service = running.get();
+    if (service != null) handler.post(service::stopAlert);
   }
 
   private static String hex(byte[] bytes) {
@@ -216,6 +246,9 @@ public final class LastCallCallUiService extends Service {
     status.specialAccessRequired = Build.VERSION.SDK_INT >= 34;
     NotificationManager manager = (NotificationManager) context.getSystemService(NOTIFICATION_SERVICE);
     status.notifications = NotificationManagerCompat.from(context).areNotificationsEnabled();
+    String maker = (Build.MANUFACTURER + " " + Build.BRAND).toLowerCase(java.util.Locale.ROOT);
+    if (maker.contains("vivo") || maker.contains("iqoo")) status.oem = "vivo";
+    status.alerting = true; status.lockscreen = true; status.importance = -1;
     if (!status.supported) { status.channel = false; status.fullScreen = false; return status; }
     if (Build.VERSION.SDK_INT < 26) {
       // Android 7 has no notification channels and uses a package-private call activity.
@@ -224,6 +257,9 @@ public final class LastCallCallUiService extends Service {
       ensureChannel(context);
       NotificationChannel channel = manager.getNotificationChannel(CHANNEL_ID);
       status.channel = channel != null && channel.getImportance() != NotificationManager.IMPORTANCE_NONE;
+      status.importance = channel == null ? -1 : channel.getImportance();
+      status.alerting = channel != null && channel.getImportance() >= NotificationManager.IMPORTANCE_HIGH;
+      status.lockscreen = channel != null && channel.getLockscreenVisibility() != Notification.VISIBILITY_SECRET;
       status.fullScreen = Build.VERSION.SDK_INT < 34 || manager.canUseFullScreenIntent();
     } else { status.channel = false; status.fullScreen = false; }
     return status;
@@ -232,8 +268,12 @@ public final class LastCallCallUiService extends Service {
   static void openSettings(Context context) {
     try {
       Intent intent;
-      if (Build.VERSION.SDK_INT >= 34 && !status(context).fullScreen) {
+      Status current = status(context);
+      if (Build.VERSION.SDK_INT >= 34 && !current.fullScreen) {
         intent = new Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, Uri.parse("package:" + context.getPackageName()));
+      } else if (Build.VERSION.SDK_INT >= 26 && current.notifications && current.channel && (!current.alerting || !current.lockscreen)) {
+        openChannelSettings(context);
+        return;
       } else {
         intent = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
           .putExtra(Settings.EXTRA_APP_PACKAGE, context.getPackageName());
@@ -243,6 +283,48 @@ public final class LastCallCallUiService extends Service {
     } catch (Exception ignored) {
       // Some OEMs hide notification/full-screen settings; do not fail the call path.
     }
+  }
+
+  static void openChannelSettings(Context context) {
+    String pkg = context.getPackageName();
+    if (Build.VERSION.SDK_INT >= 26) {
+      ensureChannel(context);
+      try {
+        context.startActivity(new Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+          .putExtra(Settings.EXTRA_APP_PACKAGE, pkg).putExtra(Settings.EXTRA_CHANNEL_ID, CHANNEL_ID)
+          .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        return;
+      } catch (Exception unavailable) { /* Fall through: some OEMs hide the per-channel screen. */ }
+      try {
+        context.startActivity(new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+          .putExtra(Settings.EXTRA_APP_PACKAGE, pkg).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        return;
+      } catch (Exception unavailable) { /* Fall through to the app details screen. */ }
+    }
+    openAppDetails(context);
+  }
+
+  private static void openAppDetails(Context context) {
+    try {
+      context.startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + context.getPackageName()))
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+    } catch (Exception ignored) {
+      // No settings screen is available; the call path itself is unaffected.
+    }
+  }
+
+  /** vivo's per-app permission screen is undocumented, so every step falls back to the next. */
+  static void openOemSettings(Context context) {
+    String pkg = context.getPackageName();
+    Intent[] attempts = {
+      new Intent("secure.intent.action.softPermissionDetail").putExtra("packagename", pkg),
+      new Intent().setClassName("com.vivo.permissionmanager", "com.vivo.permissionmanager.activity.SoftPermissionDetailActivity").putExtra("packagename", pkg),
+    };
+    for (Intent attempt : attempts) {
+      try { context.startActivity(attempt.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return; }
+      catch (Exception unavailable) { /* Try the next screen. */ }
+    }
+    openAppDetails(context);
   }
 
   /** Launching special settings does not grant access; JS waits for leave/return and reads status. */
@@ -335,17 +417,96 @@ public final class LastCallCallUiService extends Service {
     Entry entry = active;
     if (entry == null) { stopSelf(startId); return START_NOT_STICKY; }
     bound = entry;
+    running = new WeakReference<>(this);
     try {
       Notification notification = build(entry);
       if (Build.VERSION.SDK_INT >= 29) startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL);
       else startForeground(NOTIFICATION_ID, notification);
+      LastCallCallTrace.add(this, "ui-foreground");
+      ringFallback();
+      // Let the system decide on the full-screen launch first: it treats a screen that is
+      // already on differently. Some OEM builds drop that launch and leave only a status icon.
+      handler.postDelayed(() -> alertOverLock(entry), 300);
     } catch (Exception error) {
+      LastCallCallTrace.add(this, "ui-foreground-failed");
       synchronized (LastCallCallUiService.class) { stopLocked(this, entry.uuid); }
     }
     return START_NOT_STICKY;
   }
 
+  private void alertOverLock(Entry entry) {
+    if (active != entry) return;
+    PowerManager power = (PowerManager) getSystemService(POWER_SERVICE);
+    KeyguardManager keyguard = (KeyguardManager) getSystemService(KEYGUARD_SERVICE);
+    boolean asleep = power != null && !power.isInteractive();
+    boolean locked = keyguard != null && keyguard.isKeyguardLocked();
+    if (!asleep && !locked) return; // In use: Android's heads-up call notification is the right UI.
+    if (asleep && power != null) wakeScreen(power, entry);
+    handler.postDelayed(() -> launchIfMissing(entry), 400);
+  }
+
+  @SuppressWarnings("deprecation")
+  private void wakeScreen(PowerManager power, Entry entry) {
+    long remaining = entry.expiresAt - System.currentTimeMillis();
+    if (remaining <= 0 || screenLock != null) return;
+    try {
+      // Deprecated in favour of FLAG_TURN_SCREEN_ON, which needs the Activity this may not get.
+      screenLock = power.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP | PowerManager.ON_AFTER_RELEASE, "LastCall:ring");
+      screenLock.setReferenceCounted(false);
+      screenLock.acquire(remaining);
+      LastCallCallTrace.add(this, "screen-wake");
+    } catch (RuntimeException error) { LastCallCallTrace.add(this, "screen-wake-failed"); }
+  }
+
+  private void launchIfMissing(Entry entry) {
+    if (active != entry) return;
+    if (screen.get() != null) return; // The full-screen launch already worked.
+    LastCallCallTrace.add(this, "activity-try");
+    try { activityIntent(entry, ACTION_INCOMING, 1).send(); }
+    catch (PendingIntent.CanceledException | RuntimeException error) { LastCallCallTrace.add(this, "activity-try-failed"); }
+  }
+
+  /** The channel's ringtone only plays at high importance, which an OEM or the user can lower. */
+  private void ringFallback() {
+    if (Build.VERSION.SDK_INT < 26 || ringtone != null || vibrator != null) return;
+    NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+    NotificationChannel channel = manager == null ? null : manager.getNotificationChannel(CHANNEL_ID);
+    if (channel != null && channel.getImportance() >= NotificationManager.IMPORTANCE_HIGH && channel.getSound() != null) return;
+    LastCallCallTrace.add(this, "ring-fallback");
+    AudioManager audio = (AudioManager) getSystemService(AUDIO_SERVICE);
+    int mode = audio == null ? AudioManager.RINGER_MODE_NORMAL : audio.getRingerMode();
+    if (mode == AudioManager.RINGER_MODE_SILENT) return;
+    try {
+      Vibrator device = (Vibrator) getSystemService(VIBRATOR_SERVICE);
+      if (device != null && device.hasVibrator()) {
+        device.vibrate(VibrationEffect.createWaveform(new long[] { 0, 800, 800 }, 0));
+        vibrator = device;
+      }
+    } catch (RuntimeException ignored) { /* Sound may still work. */ }
+    if (mode != AudioManager.RINGER_MODE_NORMAL) return;
+    try {
+      Ringtone tone = RingtoneManager.getRingtone(this, RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE));
+      if (tone == null) return;
+      tone.setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
+      if (Build.VERSION.SDK_INT >= 28) tone.setLooping(true);
+      tone.play();
+      ringtone = tone;
+    } catch (RuntimeException ignored) { /* The visible call UI remains. */ }
+  }
+
+  private void stopAlert() {
+    try { if (ringtone != null) ringtone.stop(); } catch (RuntimeException ignored) {}
+    ringtone = null;
+    try { if (vibrator != null) vibrator.cancel(); } catch (RuntimeException ignored) {}
+    vibrator = null;
+    try { if (screenLock != null && screenLock.isHeld()) screenLock.release(); } catch (RuntimeException ignored) {}
+    screenLock = null;
+  }
+
   @Override public void onDestroy() {
+    stopAlert();
+    if (running.get() == this) running.clear();
     boolean owns, newerEntry;
     synchronized (LastCallCallUiService.class) {
       // An old instance must never clear a newer entry, notification or activity.
@@ -353,6 +514,7 @@ public final class LastCallCallUiService extends Service {
       newerEntry = active != null && active != bound;
       if (owns) {
         if (bound.expiry != null) handler.removeCallbacks(bound.expiry);
+        LastCallCpuWake.release(ringHold(bound.uuid));
         active = null;
         finishScreen(bound.uuid);
         NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);

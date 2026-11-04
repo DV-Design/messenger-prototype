@@ -36,8 +36,8 @@ export const connectionLabel = {
   idle: t('Connecting…'),
   connecting: t('Connecting to peer…'),
   online: t('Connected'),
-  offline: t('Waiting for network'),
-  error: t('No connection'),
+  offline: t('Reconnecting…'),
+  error: t('Reconnecting…'),
 };
 export const fileSize = (size: number) => size < 1024
   ? `${size} ${t('B')}`

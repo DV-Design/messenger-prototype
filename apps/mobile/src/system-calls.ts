@@ -35,6 +35,9 @@ interface LastCallAudio {
   stopCallSetup(id: string): void;
   callUiStatus(): Promise<CallUiStatus>;
   openCallUiSettings(): void;
+  openCallChannelSettings(): void;
+  openOemCallSettings(): void;
+  callTrace(): Promise<string[]>;
   prepareCallAccounts(): Promise<boolean>;
 }
 const audio = NativeModules.LastCallAudio as LastCallAudio | undefined;
@@ -134,6 +137,19 @@ export async function enableSystemCalls(): Promise<void> {
   const before = await queryUiStatus();
   try { audio?.openCallUiSettings?.(); } catch { /* Settings may be unavailable on some OEMs. */ }
   publish(callStatusText(enabled, before));
+}
+export const callUiStatus = queryUiStatus;
+export function openCallNotificationSettings(): void { try { audio?.openCallChannelSettings?.(); } catch { /* Settings may be unavailable on some OEMs. */ } }
+export function openOemCallSettings(): void { try { audio?.openOemCallSettings?.(); } catch { /* Settings may be unavailable on some OEMs. */ } }
+/** Fixed fields and native stage names only; shared by the user through the connection report. */
+export async function callDiagnosticLines(): Promise<string[]> {
+  if (!android) return [];
+  const constants = Platform.constants as { Manufacturer?: string; Model?: string };
+  const ui = await queryUiStatus();
+  const trace = await audio?.callTrace?.().catch(() => [] as string[]) ?? [];
+  return [`Device: ${constants.Manufacturer ?? '?'} ${constants.Model ?? '?'}`,
+    `Call UI: notifications=${ui?.notifications} channel=${ui?.channel} importance=${ui?.importance} lockscreen=${ui?.lockscreen} fullScreen=${ui?.fullScreen}`,
+    'Call trace:', ...(trace.length ? trace : ['—'])];
 }
 export const answerCurrentSystemCall = () => android ? controller.answer() : Promise.resolve(false);
 export function useSystemCallStatus(): string {

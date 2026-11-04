@@ -1,5 +1,15 @@
 # Direct-first wake and bounded Android background sync
 
+## CPU, screen and OEM handling (1.0.13/code27)
+
+A foreground service or headless task does not keep the CPU running. `LastCallMessagingService`
+takes a bounded partial wake lock on FCM receipt (call 28 s, data 12 s, within the push expiry)
+and starts the mic-free setup service for a call. It never rings or shows content: only the
+authenticated core path may ring. When the phone is asleep or locked, the call UI service wakes the
+screen, opens the call-only activity if the system did not, and plays its own ringtone when the
+channel cannot. Answering stops that alert. All of this ends with the call. Emulator evidence only;
+see [the 1.0.13 report](reports/debugging/2026-11/lockscreen-1013.md).
+
 ## Published 0.7.1/code11 — 2026-10-31
 
 Published `artifacts/LastCall-0.7.1.apk` is54949929 bytes, SHA256

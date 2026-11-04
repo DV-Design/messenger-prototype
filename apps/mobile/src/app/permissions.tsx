@@ -3,6 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { AppState, Linking, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Icon, IconButton, type IconName } from '../components/ui';
+import { OemCallSetup } from '../components/OemCallSetup';
 import { PERMISSION_ORDER, UNKNOWN_ACCESS, hasAccess, inSequence, type Access, type PermissionKind } from '../permission-model';
 import { completeSetup, readPermission, requestInitialPermissions, requestPermission } from '../permissions';
 import { pushConfigured, pushUnavailable } from '../notifications';
@@ -89,6 +90,7 @@ export default function PermissionScreen() {
         {kind === 'notifications' && !pushConfigured && <Text style={styles.info}> {t('A phone permission alone does not enable push.')} {pushUnavailable}</Text>}
         {access.status === 'denied' && access.canAskAgain && <Text style={styles.info}>{kind === 'fullScreenCalls' ? t('Access is not allowed yet. You can open settings or return later.') : t('If the system prompt no longer appears, enable access in phone settings.')}</Text>}
       </View>; })}
+      <View style={{ marginHorizontal: 16, marginTop: 12 }}><OemCallSetup /></View>
       {!!error && <Text style={[styles.error, { margin: 16 }]}>{error}</Text>}
       <View style={styles.content}>{auto !== '1' && <Button title={t('Allow requested')} busy={busy === 'all'} disabled={!!busy && busy !== 'all'} onPress={() => void requestAll()} />}<Button title={setup ? t('Continue') : t('Done')} secondary busy={busy === 'done'} disabled={!!busy && busy !== 'done'} onPress={() => void finish()} />
         {setup && <Button title={t('Later')} secondary disabled={!!busy} onPress={() => void finish()} />}
