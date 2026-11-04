@@ -102,8 +102,11 @@ module.exports = function withPersistentCircleCamera(config) {
       }
 
       // Only source patching: check, then apply. No other git operation.
-      execFileSync('git', ['apply', '--check', patchPath], { cwd: packageDir, stdio: 'pipe' });
-      execFileSync('git', ['apply', patchPath], { cwd: packageDir, stdio: 'pipe' });
+      // Inside a checkout, git apply silently skips gitignored paths such as node_modules and
+      // still exits 0. Stopping repository discovery at the package makes it patch the files.
+      const env = { ...process.env, GIT_CEILING_DIRECTORIES: path.dirname(packageDir) };
+      execFileSync('git', ['apply', '--check', patchPath], { cwd: packageDir, stdio: 'pipe', env });
+      execFileSync('git', ['apply', patchPath], { cwd: packageDir, stdio: 'pipe', env });
 
       const applied = sha256(sourcePath);
       if (applied !== PATCHED_SHA256) {

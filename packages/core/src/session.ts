@@ -84,6 +84,7 @@ export class PeerSession {
   private role:'initiator'|'responder'='initiator';
   private remoteId?:string;
   private generation=0;
+  private peerEpoch=0;
   private queue:Promise<void>=Promise.resolve();
   private receiveQueue:Promise<void>=Promise.resolve();
   private receiving=new Set<Promise<void>>();
@@ -142,9 +143,9 @@ export class PeerSession {
   private change(update:Partial<SessionSnapshot>){this.state={...this.state,...update};this.emit();}
   private report(error:unknown){this.change({error:error instanceof Error?error.message:'Session operation failed'});}
   private serial(action:()=>Promise<void>):Promise<void> {
-    const generation=this.generation;
-    const next=this.queue.then(async()=>{if(generation!==this.generation)throw new Error('Session operation cancelled');await action();});
-    this.queue=next.catch(error=>{if(generation===this.generation)this.report(error);});return next;
+    const generation=this.generation,peerEpoch=this.peerEpoch;
+    const next=this.queue.then(async()=>{if(generation!==this.generation||peerEpoch!==this.peerEpoch)throw new Error('Session operation cancelled');await action();});
+    this.queue=next.catch(error=>{if(generation===this.generation&&peerEpoch===this.peerEpoch)this.report(error);});return next;
   }
   private wsSend(frame:ClientFrame){if(this.socket?.readyState!==1)throw new Error('Signaling connection is unavailable');this.socket.send(JSON.stringify(frame));}
   private signal(body:SignalBody){
@@ -696,6 +697,9 @@ export class PeerSession {
     }catch{/* Stats are optional and must not break the call. */}finally{this.statsBusy=false;}
   }
   private cleanupPeer(){
+    // A promise from a closed RTCPeerConnection may never settle. Work queued behind it must
+    // not hold negotiation for the replacement connection until the transport deadline.
+    ++this.peerEpoch;this.queue=Promise.resolve();
     this.resetReady();this.remoteDataReady=false;this.localDataReady=false;this.remoteContentE2E=false;this.remoteMessageChanges=false;
     clearTimeout(this.recoveryTimer);this.recoveryTimer=undefined;clearTimeout(this.resumeTimer);this.resumeTimer=undefined;this.hadConnected=false;this.restartPending=false;this.signalBacklog=[];this.state.recovering=false;
     this.resetReceiveQueue();

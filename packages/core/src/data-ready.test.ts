@@ -94,3 +94,18 @@ describe('authenticated SDP capability compatibility',()=>{
     expect(h.sent.map(frame=>frame.kind)).toEqual(capable?['ready']:[]);expect(h.session.getSnapshot().status).toBe(capable?'connecting':'connected');
   });
 });
+
+describe('signaling queue after a peer connection is replaced',()=>{
+  it('does not wait for a promise from the closed connection',async()=>{
+    const {internal}=endpoint();const hung=internal.serial(()=>new Promise<void>(()=>{}));void hung.catch(()=>{});
+    const stale=vi.fn();void internal.serial(async()=>{stale();}).catch(()=>{});
+    internal.cleanupPeer();
+    const next=vi.fn();await internal.serial(async()=>{next();});
+    expect(next).toHaveBeenCalledOnce();expect(stale).not.toHaveBeenCalled();
+  });
+  it('cancels work queued before the replacement when it is still running',async()=>{
+    const {internal,session}=endpoint();let finish!:()=>void;void internal.serial(()=>new Promise<void>(resolve=>{finish=resolve;})).catch(()=>{});await Promise.resolve();await Promise.resolve();
+    const stale=vi.fn();const queued=internal.serial(async()=>{stale();});internal.cleanupPeer();finish();
+    await expect(queued).rejects.toThrow('Session operation cancelled');expect(stale).not.toHaveBeenCalled();expect(session.getSnapshot().error).toBeUndefined();
+  });
+});
