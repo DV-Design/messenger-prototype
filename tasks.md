@@ -16,8 +16,8 @@ Status: in development, not released or deployed. Contract: [docs/EMAIL-RECOVERY
 - [X] Real letter: reached a narod.ru inbox from `noreply@lienad.ru`, the code was accepted and refused on replay; no account created
 - [X] Publish test build 1.0.10/code24, not offered through `latest.json`
   → Artifacts: [APK](https://p2p.lienad.ru/download/LastCall-1.0.10.apk), [details](artifacts/README.md)
+- [X] Forward `admin@lienad.ru` through Cloudflare Email Routing; MX, SPF and DKIM checked over DoH on 2026-11-04, the owner saw a letter from another mailbox arrive (msg-60q)
 - [ ] Physical test: register, reinstall, restore, contact warning on a second phone
-- [ ] Forward `admin@lienad.ru` (no MX yet; the Play contact address cannot receive mail)
 - [ ] Set the policy's effective date and name the provider before the client release
 - [ ] Update Play Data safety and App access (msg-2o0)
 - [ ] Release client, physical acceptance on reinstall, then `EMAIL_REQUIRED=1`
