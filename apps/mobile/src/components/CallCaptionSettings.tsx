@@ -3,7 +3,7 @@ import { Pressable, Text, View } from 'react-native';
 import { styles, colors } from '../styles';
 import { t } from '../i18n';
 import { Icon } from './ui';
-import { CAPTION_LANGUAGES, type CaptionLanguage } from '../call-captions-model';
+import { CAPTION_LANGUAGES, captionSpeechNote, type CaptionLanguage } from '../call-captions-model';
 import { callCaptionsSupported, captionSpeechStatus, loadCaptionLanguage, saveCaptionLanguage } from '../call-captions';
 
 export function CallCaptionSettings() {
@@ -23,6 +23,7 @@ export function CallCaptionSettings() {
     return () => { live = false; };
   }, [language]);
   if (!callCaptionsSupported) return null;
+  const note = captionSpeechNote(speech, language);
   return <>
     <Text style={styles.sectionTitle}>{t('CALL CAPTIONS')}</Text>
     <View style={[styles.section, styles.content, { gap: 8 }]}>
@@ -31,7 +32,7 @@ export function CallCaptionSettings() {
       {CAPTION_LANGUAGES.map(item => <Pressable key={item.code} accessibilityRole="radio" accessibilityState={{ selected: item.code === language }} style={{ minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 12 }} onPress={() => { setLanguage(item.code); void saveCaptionLanguage(item.code); }}>
         <Icon name={item.code === language ? 'radio-button-on' : 'radio-button-off'} color={colors.accent} size={22} /><Text style={styles.rowName}>{item.label}</Text>
       </Pressable>)}
-      {speech?.language === language && <Text style={styles.body}>{speech.text}</Text>}
+      {!!note && <Text style={styles.body}>{note}</Text>}
     </View>
   </>;
 }

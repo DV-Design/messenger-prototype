@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { CallCaptionFrame } from '@messenger/core';
-import { CAPTION_PARTIAL_MS, CAPTION_TRANSLATE_MS, CallCaptionsController, captionLanguage, splitCaption, type CaptionNative, type CaptionScheduler, type CaptionsView, type SpeechStatus } from '../src/call-captions-model';
+import { CAPTION_PARTIAL_MS, CAPTION_TRANSLATE_MS, CallCaptionsController, captionLanguage, captionSpeechNote, splitCaption, type CaptionNative, type CaptionScheduler, type CaptionsView, type SpeechStatus } from '../src/call-captions-model';
 
 const callId = 'ab'.repeat(16);
 const flush = async () => { for (let index = 0; index < 8; index++) await new Promise(resolve => setImmediate(resolve)); };
@@ -216,4 +216,11 @@ test('an unknown phone language falls back to English', () => {
   assert.equal(captionLanguage('ru'), 'ru');
   assert.equal(captionLanguage('xx'), 'en');
   assert.equal(captionLanguage(undefined), 'en');
+});
+
+test('the settings note survives the first render, before anything has loaded', () => {
+  assert.equal(captionSpeechNote(undefined, undefined), '');
+  assert.equal(captionSpeechNote(undefined, 'ru'), '');
+  assert.equal(captionSpeechNote({ language: 'en', text: 'old' }, 'ru'), '');
+  assert.equal(captionSpeechNote({ language: 'ru', text: 'ready' }, 'ru'), 'ready');
 });

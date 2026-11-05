@@ -14,6 +14,11 @@ export function captionLanguage(code: string | null | undefined): CaptionLanguag
 }
 const speechTag = (code: string) => CAPTION_LANGUAGES.find(item => item.code === code)?.tag ?? code;
 
+/** The status text belongs to the language it was read for. Both are empty until they load. */
+export function captionSpeechNote(speech: { language: CaptionLanguage; text: string } | undefined, language: CaptionLanguage | undefined): string {
+  return speech && speech.language === language ? speech.text : '';
+}
+
 /** ready: installed. download: on this phone after a download. offline-unavailable: only cloud or nothing. */
 export type SpeechStatus = 'ready' | 'download' | 'downloading' | 'unavailable';
 export interface CaptionNative {
