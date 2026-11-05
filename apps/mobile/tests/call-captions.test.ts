@@ -6,7 +6,7 @@ import { CAPTION_PARTIAL_MS, CAPTION_TRANSLATE_MS, CallCaptionsController, capti
 const callId = 'ab'.repeat(16);
 const flush = async () => { for (let index = 0; index < 8; index++) await new Promise(resolve => setImmediate(resolve)); };
 
-function harness(options: { language?: string; status?: SpeechStatus; translate?: (text: string) => Promise<string> } = {}) {
+function harness(options: { language?: string; status?: SpeechStatus; translate?: (source: string, target: string, text: string) => Promise<string> } = {}) {
   let now = 1000; let id = 0;
   const timers = new Map<number, { at: number; run: () => void }>();
   const scheduler: CaptionScheduler = { now: () => now, set: (run, delay) => { timers.set(++id, { at: now + delay, run }); return id; }, clear: handle => { timers.delete(handle as number); } };
