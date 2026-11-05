@@ -13,11 +13,21 @@ module.exports = function withLastCallCalls(config) {
       const permission = `android.permission.${name}`;
       if (!manifest['uses-permission'].some(item => item.$['android:name'] === permission)) manifest['uses-permission'].push({ $: { 'android:name': permission } });
     }
+    // Android 11+ package visibility: without this the on-device recognizer service is not found.
+    manifest.queries ??= [];
+    const recognition = 'android.speech.RecognitionService';
+    if (!manifest.queries.some(entry => (entry.intent ?? []).some(intent => (intent.action ?? []).some(action => action.$['android:name'] === recognition)))) {
+      manifest.queries.push({ intent: [{ action: [{ $: { 'android:name': recognition } }] }] });
+    }
     const app = manifest.application[0]; app.service ??= []; app.activity ??= [];
     manifest.$['xmlns:tools'] = 'http://schemas.android.com/tools'; app['meta-data'] ??= [];
     const metadata = { $: { 'android:name': 'org.unimodules.core.AppLoader#react-native-headless', 'android:value': 'dev.messenger.prototype.calls.LastCallHeadlessAppLoader', 'tools:replace': 'android:value' } };
     const loaderIndex = app['meta-data'].findIndex(item => item.$['android:name'] === metadata.$['android:name']);
     if (loaderIndex < 0) app['meta-data'].push(metadata); else app['meta-data'][loaderIndex] = metadata;
+    // Emulators have a silent microphone. Only an explicit test build can replace it with a recorded phrase.
+    const captionTest = 'dev.messenger.prototype.captionTestAudio';
+    app['meta-data'] = app['meta-data'].filter(item => item.$['android:name'] !== captionTest);
+    if (process.env.LASTCALL_CAPTION_TEST_AUDIO === '1') app['meta-data'].push({ $: { 'android:name': captionTest, 'android:value': 'true' } });
     const services = [
       { $: { 'android:name': 'io.wazo.callkeep.VoiceConnectionService', 'android:label': 'LastCall', 'android:permission': 'android.permission.BIND_TELECOM_CONNECTION_SERVICE', 'android:exported': 'true', 'android:foregroundServiceType': 'phoneCall' }, 'intent-filter': [{ action: [{ $: { 'android:name': 'android.telecom.ConnectionService' } }] }] },
       { $: { 'android:name': 'io.wazo.callkeep.RNCallKeepBackgroundMessagingService', 'android:exported': 'false' } },
@@ -36,8 +46,8 @@ module.exports = function withLastCallCalls(config) {
   });
   // expo-notifications keeps Firebase private to its module; LastCallMessagingService extends it.
   config = withAppBuildGradle(config, mod => {
-    const line = "implementation 'com.google.firebase:firebase-messaging:25.0.1'";
-    if (!mod.modResults.contents.includes(line)) {
+    for (const line of ["implementation 'com.google.firebase:firebase-messaging:25.0.1'", "implementation 'com.google.mlkit:translate:17.0.3'"]) {
+      if (mod.modResults.contents.includes(line)) continue;
       if (!/\ndependencies \{/.test(mod.modResults.contents)) throw new Error('LastCall calls plugin requires an app dependencies block');
       mod.modResults.contents = mod.modResults.contents.replace(/\ndependencies \{/, `\ndependencies {\n    ${line}`);
     }
@@ -50,12 +60,18 @@ module.exports = function withLastCallCalls(config) {
       if (!mod.modResults.contents.includes(target)) throw new Error('LastCall calls plugin requires Expo Kotlin MainApplication package list');
       mod.modResults.contents = mod.modResults.contents.replace(target, `${target}\n      ${marker}`);
     }
+    // Before React creates WebRTCModule, which reads this option once.
+    const tap = 'dev.messenger.prototype.calls.LastCallAudioTap.install(this)';
+    if (!mod.modResults.contents.includes(tap)) {
+      if (!mod.modResults.contents.includes('super.onCreate()')) throw new Error('LastCall calls plugin requires Application.onCreate');
+      mod.modResults.contents = mod.modResults.contents.replace('super.onCreate()', `super.onCreate()\n    ${tap}`);
+    }
     return mod;
   });
   return withDangerousMod(config, ['android', async mod => {
     const target = path.join(mod.modRequest.platformProjectRoot, 'app/src/main/java/dev/messenger/prototype/calls');
     await fs.mkdir(target, { recursive: true });
-    for (const file of ['LastCallAudioService.java', 'LastCallAudioModule.java', 'LastCallAudioPackage.java', 'LastCallAudioRoutes.java', 'LastCallHeadlessAppLoader.java', 'LastCallHostLease.java', 'LastCallWakeLease.java', 'LastCallCallUiService.java', 'LastCallCallActivity.java', 'LastCallCallSetupService.java', 'LastCallCpuWake.java', 'LastCallCallTrace.java', 'LastCallMessagingService.java']) await fs.copyFile(path.join(__dirname, 'calls', file), path.join(target, file));
+    for (const file of ['LastCallAudioTap.java', 'LastCallSpeechSession.java', 'LastCallCaptionsModule.java', 'LastCallAudioService.java', 'LastCallAudioModule.java', 'LastCallAudioPackage.java', 'LastCallAudioRoutes.java', 'LastCallHeadlessAppLoader.java', 'LastCallHostLease.java', 'LastCallWakeLease.java', 'LastCallCallUiService.java', 'LastCallCallActivity.java', 'LastCallCallSetupService.java', 'LastCallCpuWake.java', 'LastCallCallTrace.java', 'LastCallMessagingService.java']) await fs.copyFile(path.join(__dirname, 'calls', file), path.join(target, file));
     return mod;
   }]);
 };

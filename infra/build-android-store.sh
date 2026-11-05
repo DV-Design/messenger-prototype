@@ -28,6 +28,7 @@ JARSIGNER="$JAVA_HOME_DETECTED/bin/jarsigner"
 [[ -x "$JARSIGNER" ]] || die "jarsigner was not found under the active Java runtime"
 command -v bundletool >/dev/null || die "bundletool is required"
 
+[[ -z "${LASTCALL_CAPTION_TEST_AUDIO:-}" ]] || die "LASTCALL_CAPTION_TEST_AUDIO must not reach a store build"
 SERVICES_FILE="${MESSENGER_GOOGLE_SERVICES_FILE:-}"
 [[ -n "$SERVICES_FILE" ]] || die "MESSENGER_GOOGLE_SERVICES_FILE is not set"
 [[ "$SERVICES_FILE" = /* && -f "$SERVICES_FILE" && -r "$SERVICES_FILE" ]] || die "Firebase client config must be a readable absolute path"

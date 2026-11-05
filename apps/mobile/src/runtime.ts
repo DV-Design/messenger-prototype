@@ -1,6 +1,6 @@
 import { locale, t } from './i18n';
 import { useEffect, useSyncExternalStore } from 'react';
-import { AppState } from 'react-native';
+import { AppState, NativeModules, Platform } from 'react-native';
 import * as Network from 'expo-network';
 import { EmailAuthError, MessengerClient, resolveDeviceProfile, startEmailChallenge, verifyEmailChallenge, type DeviceIdentity, type DirectoryUser, type EmailPurpose, type MessengerSnapshot } from '@messenger/core';
 import { isAccountMoved, type BoundEmail } from './email-flow-model';
@@ -52,7 +52,7 @@ async function buildManager(profile: LocalProfile, signal?: AbortSignal): Promis
   if (signal?.aborted) throw new Error('Wake expired');
   const current = ++generation;
   const emailProof = pendingEmailProof; pendingEmailProof = undefined;
-  const next = new MessengerClient({ ...profile, ...(emailProof ? { emailProof } : {}), identity: state.identity, ...nativeRtc, ...persistence,
+  const next = new MessengerClient({ callCaptions: Platform.OS === 'android' && Number(Platform.Version) >= 33 && !!NativeModules.LastCallCaptions, ...profile, ...(emailProof ? { emailProof } : {}), identity: state.identity, ...nativeRtc, ...persistence,
     onChange: snapshot => {
       if (current !== generation) return;
       publish({ snapshot, ...(isAccountMoved(snapshot.error) ? { retired: true } : {}) });

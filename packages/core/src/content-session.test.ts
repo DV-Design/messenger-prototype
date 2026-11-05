@@ -32,6 +32,30 @@ describe('session-level content encryption',()=>{
     expect(JSON.stringify(a.sent)).not.toContain('secret over e2e');
     expect(JSON.stringify(a.sent)).toContain('sealed');
   });
+  it('sends call captions only as sealed frames, and only to a peer that advertised them',async()=>{
+    vi.useFakeTimers();
+    const received:unknown[]=[];const a=endpoint(alice,bob,{callCaptions:true});const b=endpoint(bob,alice,{callCaptions:true,onApplication:payload=>{received.push(payload);}});
+    a.route(b);b.route(a);a.attach();b.attach();
+    await vi.advanceTimersByTimeAsync(300);await a.drain();await b.drain();
+    expect(a.session.supportsCallCaptions()).toBe(false);
+    a.internal.remoteCallCaptions=true;
+    expect(a.session.supportsCallCaptions()).toBe(true);
+    const frame={kind:'call-caption',callId:'ab'.repeat(16),language:'ru',segment:0,revision:0,final:true,text:'тайные слова'};
+    await a.session.sendApplication(frame);await vi.advanceTimersByTimeAsync(0);await b.drain();
+    expect(received).toContainEqual(frame);
+    expect(JSON.stringify(a.sent)).not.toContain('тайные');
+    const off=endpoint(alice,bob);off.internal.remoteCallCaptions=true;off.internal.contentCipher={dispose(){}};off.internal.dataReady=true;off.attach();
+    expect(off.session.supportsCallCaptions()).toBe(false);
+  });
+  it('advertises captions only when this client enables them, and strips the marker before native SDP',()=>{
+    for(const [callCaptions,expected] of [[true,true],[false,false]] as const){
+      const h=endpoint(alice,bob,{callCaptions});h.internal.role='responder';h.internal.remoteId='cc'.repeat(16);
+      const wire:any[]=[];h.internal.socket={readyState:1,send:(raw:string)=>wire.push(JSON.parse(raw))};
+      h.internal.signal({kind:'description',description:{type:'offer',sdp:'v=0\r\nm=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\n'}});
+      const body:any=new SignalingCipher(conversationInvite(alice,bob.publicKey),'cc'.repeat(16)).open(h.internal.peerId,wire[0].payload);
+      expect(body.description.sdp.includes('a=x-lastcall-call-captions:1')).toBe(expected);
+    }
+  });
   it('refuses to send or accept plaintext content when E2E is configured',async()=>{
     vi.useFakeTimers();
     const a=endpoint(alice,bob);a.internal.remoteContentE2E=false;a.internal.dataReady=true;a.attach();

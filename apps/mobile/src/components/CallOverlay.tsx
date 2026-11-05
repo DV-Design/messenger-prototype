@@ -6,6 +6,8 @@ import { callSafetyEmoji } from '@messenger/core';
 import { client, errorText, useMessenger } from '../runtime';
 import { answerCurrentSystemCall } from '../system-calls';
 import { useCallAudioRoutes } from '../call-audio';
+import { useCallCaptions } from '../call-captions';
+import { CallCaptions } from './CallCaptions';
 import { audioRouteLabel } from '../call-audio-model';
 import { useCallCamera } from '../call-camera';
 import type { CallCameraTrack } from '../call-camera-model';
@@ -34,6 +36,7 @@ function CallPanel() {
   const [controlsVisible, setControlsVisible] = useState(true);
   const [controls] = useState(() => new VideoControlsController(setControlsVisible));
   const audio = useCallAudioRoutes(call?.session.callId);
+  const captions = useCallCaptions(call?.session.callState === 'active' ? call.session.callId : undefined, !!call?.session.callCaptions, !!call?.session.muted);
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const callId = call?.session.callId;
@@ -119,6 +122,7 @@ function CallPanel() {
           </> : <>
             <Pressable accessibilityRole="button" accessibilityLabel={call.session.muted ? t('Unmute microphone') : t('Mute microphone')} style={styles.callControl} onPress={() => { controls.interact(); client().setMuted(!call.session.muted); }}><View style={styles.callCircle}><Icon name={call.session.muted ? 'mic-off' : 'mic'} color={colors.white} size={28} /></View><Text style={styles.callControlLabel}>{call.session.muted ? t('Unmute') : t('Microphone')}</Text></Pressable>
             {activeVideo && camera.state.available && <Pressable accessibilityRole="button" accessibilityLabel={t('Switch camera')} disabled={camera.state.busy} style={[styles.callControl, camera.state.busy && styles.disabled]} onPress={() => { controls.interact(); void camera.switchCamera(); }}><View style={styles.callCircle}><Icon name="camera-reverse" color={colors.white} size={28} /></View><Text style={styles.callControlLabel}>{frontCamera ? t('Rear') : t('Front')}</Text></Pressable>}
+            {captions.supported && callState === 'active' && <Pressable accessibilityRole="switch" accessibilityState={{ checked: captions.view.enabled }} accessibilityLabel={captions.view.enabled ? t('Turn off captions') : t('Turn on captions')} style={styles.callControl} onPress={() => { controls.interact(); captions.toggle(); }}><View style={[styles.callCircle, captions.view.enabled && { backgroundColor: colors.accent }]}><Icon name="language" color={colors.white} size={28} /></View><Text style={styles.callControlLabel}>{t('Captions')}</Text></Pressable>}
             {audio.supported && <Pressable accessibilityRole="button" accessibilityLabel={t('Choose audio: {route}', { route: selectedAudio ? audioRouteLabel[selectedAudio.kind] : t('connecting') })} accessibilityState={{ disabled: !audio.active || !audio.routes.length }} disabled={!audio.active || !audio.routes.length} style={[styles.callControl, (!audio.active || !audio.routes.length) && styles.disabled]} onPress={() => { controls.interact(); setAudioMenu(true); }}><View style={styles.callCircle}><Icon name={audioIcon} color={colors.white} size={28} /></View><Text style={styles.callControlLabel}> {t('Audio')}</Text></Pressable>}
             <Pressable accessibilityRole="button" accessibilityLabel={t('End call')} style={styles.callControl} onPress={finish}><View style={[styles.callCircle, { backgroundColor: colors.danger }]}><Icon name="call" color={colors.white} size={28} /></View><Text style={styles.callControlLabel}> {t('End')}</Text></Pressable>
           </>}
@@ -133,6 +137,7 @@ function CallPanel() {
           <RTCView style={styles.flex} objectFit="cover" zOrder={1} mirror={frontCamera} streamURL={(local as unknown as NativeMediaStream).toURL()} />
         </View>}
         {/* Removed from the tree, not merely transparent, while hidden or in PiP. */}
+        {!pipActive && (captions.view.enabled || captions.view.asked) && <View style={{ position: 'absolute', left: insets.left + 12, right: insets.right + 12, bottom: insets.bottom + (controlsVisible ? 150 : 24) }}><CallCaptions view={captions.view} onEnable={captions.toggle} onDecline={captions.decline} /></View>}
         {!pipActive && controlsVisible && <>
           <View style={[styles.callVideoHeader, { paddingTop: insets.top + 12, paddingLeft: insets.left + 20, paddingRight: insets.right + 12 }]}>
             <View style={styles.callVideoHeading}><Text numberOfLines={1} style={styles.callVideoName}>{name}</Text><Text style={styles.callSubtitle}>{status}</Text>{!!safetyCode && <Text style={[styles.callSubtitle, { fontSize: 22 }]}> {t('Verification code: {code}', { code: safetyCode })}</Text>}</View>
@@ -144,7 +149,8 @@ function CallPanel() {
         </>}
       </Pressable> : <SafeAreaView style={styles.callScreen}>
         <View style={{ position: 'absolute', right: 15, top: insets.top + 10 }}><IconButton name="chevron-down" label={t('Minimize call')} color={colors.white} onPress={() => void minimize()} /></View>
-        <Avatar name={name} id={call.peerId} size={94} /><Text style={styles.callName}>{name}</Text><Text style={styles.callSubtitle}>{status}</Text>{!!safetyCode && <Text style={[styles.callSubtitle, { fontSize: 22 }]}> {t('Verification code: {code}', { code: safetyCode })}</Text>}
+        {!captions.view.enabled && !captions.view.asked && <Avatar name={name} id={call.peerId} size={94} />}<Text style={styles.callName}>{name}</Text><Text style={styles.callSubtitle}>{status}</Text>{!!safetyCode && <Text style={[styles.callSubtitle, { fontSize: 22 }]}> {t('Verification code: {code}', { code: safetyCode })}</Text>}
+        <CallCaptions view={captions.view} onEnable={captions.toggle} onDecline={captions.decline} />
         {!!notice && <Text style={styles.error}>{notice}</Text>}{controlsStrip}
       </SafeAreaView>}
       {menuVisible && <View style={StyleSheet.absoluteFill}>

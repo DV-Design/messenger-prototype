@@ -14,7 +14,7 @@ export interface SessionSnapshot {
   callId?:string;callVideo?:boolean;callExpiresAt?:number;callRinging?:boolean;setup?:'invitation';
   messages:ChatMessage[];callState:'idle'|'outgoing'|'incoming'|'active';muted:boolean;
   localStream?:MediaStream;remoteStream?:MediaStream;route:'unknown'|'direct'|'relay';
-  recovering?:boolean;contentE2E?:boolean;
+  recovering?:boolean;contentE2E?:boolean;callCaptions?:boolean;
   stats:{rttMs?:number;audioBitrateKbps?:number;packetsLost?:number;jitterMs?:number;videoBitrateKbps?:number;videoFramesPerSecond?:number;videoWidth?:number;videoHeight?:number;videoEncodeMs?:number;videoQualityLimitation?:'none'|'cpu'|'bandwidth'|'other';videoCodec?:string;remoteVideoCodec?:string;remoteVideoFramesPerSecond?:number;videoFramesDecoded?:number;videoFramesDropped?:number;videoFreezeCount?:number;videoFreezeSeconds?:number;remoteVideoWidth?:number;remoteVideoHeight?:number};files:SharedFile[];
 }
 export interface PeerSessionOptions {
@@ -24,6 +24,8 @@ export interface PeerSessionOptions {
   createMediaStream?:(tracks:MediaStreamTrack[])=>MediaStream;
   /** Enables the signed ephemeral content layer; both values are required together. */
   contentIdentity?:DeviceIdentity;remoteIdentityPublicKey?:string;
+  /** This device can show and produce live call captions. Advertised only then. */
+  callCaptions?:boolean;
   onChange?:(snapshot:SessionSnapshot)=>void;
   onMessage?:(message:ChatMessage)=>boolean|void|Promise<boolean|void>;
   onApplication?:(payload:unknown)=>void|Promise<void>;
@@ -43,13 +45,14 @@ const REQUEST_TIMEOUT=120000;
 const DATA_READY_ATTRIBUTE='a=x-lastcall-data-ready:1';
 const CONTENT_E2E_ATTRIBUTE='a=x-lastcall-content-e2e:1';
 const MESSAGE_CHANGE_ATTRIBUTE='a=x-lastcall-message-change:1';
-const sessionMarker=(line:string)=>line===DATA_READY_ATTRIBUTE||line===CONTENT_E2E_ATTRIBUTE||line===MESSAGE_CHANGE_ATTRIBUTE;
+const CALL_CAPTIONS_ATTRIBUTE='a=x-lastcall-call-captions:1';
+const sessionMarker=(line:string)=>line===DATA_READY_ATTRIBUTE||line===CONTENT_E2E_ATTRIBUTE||line===MESSAGE_CHANGE_ATTRIBUTE||line===CALL_CAPTIONS_ATTRIBUTE;
 const DATA_READY_TIMEOUT=5000;
 const DATA_READY_RETRY=250;
-function readySdp(sdp:string,content:boolean):string{
+function readySdp(sdp:string,content:boolean,captions:boolean):string{
   const lines=sdp.split(/\r?\n/).filter(line=>!sessionMarker(line));
   const media=lines.findIndex(line=>line.startsWith('m='));
-  lines.splice(media<0?Math.max(0,lines.length-1):media,0,...(content?[CONTENT_E2E_ATTRIBUTE,DATA_READY_ATTRIBUTE,MESSAGE_CHANGE_ATTRIBUTE]:[DATA_READY_ATTRIBUTE,MESSAGE_CHANGE_ATTRIBUTE]));
+  lines.splice(media<0?Math.max(0,lines.length-1):media,0,...(content?[CONTENT_E2E_ATTRIBUTE,DATA_READY_ATTRIBUTE,MESSAGE_CHANGE_ATTRIBUTE]:[DATA_READY_ATTRIBUTE,MESSAGE_CHANGE_ATTRIBUTE]),...(captions?[CALL_CAPTIONS_ATTRIBUTE]:[]));
   return lines.join('\r\n');
 }
 export class PeerSession {
@@ -70,6 +73,7 @@ export class PeerSession {
   private contentConfigured=false;
   private remoteContentE2E=false;
   private remoteMessageChanges=false;
+  private remoteCallCaptions=false;
   private contentRemoteUserId?:string;
   private contentPrivateKey?:Uint8Array;
   private contentLocalHello?:ContentHello;
@@ -137,7 +141,7 @@ export class PeerSession {
   }
   private id(){return bytesToHex(randomChecked(this.random,16));}
   getSnapshot():SessionSnapshot {
-    return {...this.state,callId:this.callId,callVideo:this.callVideo,messages:this.state.messages.map(x=>({...x})),files:this.state.files.map(x=>({...x})),stats:{...this.state.stats}};
+    return {...this.state,callCaptions:this.supportsCallCaptions(),callId:this.callId,callVideo:this.callVideo,messages:this.state.messages.map(x=>({...x})),files:this.state.files.map(x=>({...x})),stats:{...this.state.stats}};
   }
   private emit(){this.options.onChange?.(this.getSnapshot());}
   private change(update:Partial<SessionSnapshot>){this.state={...this.state,...update};this.emit();}
@@ -150,7 +154,7 @@ export class PeerSession {
   private wsSend(frame:ClientFrame){if(this.socket?.readyState!==1)throw new Error('Signaling connection is unavailable');this.socket.send(JSON.stringify(frame));}
   private signal(body:SignalBody){
     if(!this.remoteId)throw new Error('Remote peer identity unavailable');
-    if(body.kind==='description')body={...body,description:{...body.description,sdp:readySdp(body.description.sdp,this.contentConfigured)}};
+    if(body.kind==='description')body={...body,description:{...body.description,sdp:readySdp(body.description.sdp,this.contentConfigured,!!this.options.callCaptions)}};
     if(this.state.recovering&&(!this.socketJoined||this.socket?.readyState!==1)){if(this.signalBacklog.length>=128)throw new Error('Signaling recovery queue capacity exceeded');this.signalBacklog.push(body);return;}
     this.wsSend({type:'signal',payload:this.cipher.seal(body,this.remoteId)});
     if(body.kind==='description'){this.localDataReady=true;if(this.channel?.readyState==='open')this.channelOpened(this.channel);}
@@ -379,9 +383,10 @@ export class PeerSession {
       const capability=lines.slice(0,media<0?undefined:media).includes(DATA_READY_ATTRIBUTE);
       const contentCapability=lines.slice(0,media<0?undefined:media).includes(CONTENT_E2E_ATTRIBUTE);
       const changeCapability=lines.slice(0,media<0?undefined:media).includes(MESSAGE_CHANGE_ATTRIBUTE);
+      const captionCapability=lines.slice(0,media<0?undefined:media).includes(CALL_CAPTIONS_ATTRIBUTE);
       // Parse before awaiting native SDP: it may emit datachannel/open during the await.
       if(!pc.remoteDescription){
-        this.remoteDataReady=capability;this.remoteContentE2E=this.contentConfigured&&contentCapability;this.remoteMessageChanges=changeCapability;
+        this.remoteDataReady=capability;this.remoteContentE2E=this.contentConfigured&&contentCapability;this.remoteMessageChanges=changeCapability;this.remoteCallCaptions=captionCapability;
         // No plaintext fallback: a peer without the marker must update first.
         if(this.contentConfigured&&!contentCapability){this.failTransport('peer does not support end-to-end content encryption; update both apps');return;}
       }
@@ -501,6 +506,8 @@ export class PeerSession {
   }
   /** Older peers report an unknown application payload as a transport problem; they only get what they understand. */
   supportsMessageChanges():boolean{return this.remoteMessageChanges;}
+  /** Only sealed end-to-end content may carry a call's words. */
+  supportsCallCaptions():boolean{return !!this.options.callCaptions&&this.remoteCallCaptions&&!!this.contentCipher&&this.channelReady();}
   async sendApplication(payload:unknown):Promise<void>{
     if((this.channel?.bufferedAmount??0)>BUFFER_HIGH)throw new Error('Data channel busy');
     const frame=dataFrameSchema.parse({kind:'application',id:this.id(),body:JSON.stringify(payload)});this.dataSend(frame);
@@ -700,7 +707,7 @@ export class PeerSession {
     // A promise from a closed RTCPeerConnection may never settle. Work queued behind it must
     // not hold negotiation for the replacement connection until the transport deadline.
     ++this.peerEpoch;this.queue=Promise.resolve();
-    this.resetReady();this.remoteDataReady=false;this.localDataReady=false;this.remoteContentE2E=false;this.remoteMessageChanges=false;
+    this.resetReady();this.remoteDataReady=false;this.localDataReady=false;this.remoteContentE2E=false;this.remoteMessageChanges=false;this.remoteCallCaptions=false;
     clearTimeout(this.recoveryTimer);this.recoveryTimer=undefined;clearTimeout(this.resumeTimer);this.resumeTimer=undefined;this.hadConnected=false;this.restartPending=false;this.signalBacklog=[];this.state.recovering=false;
     this.resetReceiveQueue();
     clearTimeout(this.transportTimer);this.transportTimer=undefined;clearInterval(this.statsTimer);this.statsTimer=undefined;this.stopCall();this.failTransfers();

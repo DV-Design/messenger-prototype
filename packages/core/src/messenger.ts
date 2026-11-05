@@ -1,3 +1,4 @@
+import {callCaptionFrameSchema,type CallCaptionFrame} from './call-captions.js';
 import {CALL_INVITE_TTL_MS,callPushSchema,callPushEnvelopeSchema,type CallInvitation,type CallState} from './call-control.js';
 import {encryptCallPush,decryptCallPush,type OpenedCallPush} from './call-push.js';
 import { normalizePhone, iceServersSchema, type ServiceCapabilities, type PhoneChallenge } from './services.js';
@@ -19,7 +20,7 @@ export interface Conversation {id:string;kind:'direct'|'group';title:string;memb
 export interface PendingIncomingCall extends OpenedCallPush {state:'ringing'|'accepted';revision:number;}
 interface OutgoingInvitation extends CallInvitation {peerId:string;conversationId:string;video:boolean;serverEpoch?:string;offered:boolean;offering:boolean;ringing:boolean;sessionStarted:boolean;revision:number;operation:PendingOperation;timer?:ReturnType<typeof setTimeout>;expiry?:ReturnType<typeof setTimeout>;}
 export interface MessengerSnapshot {status:'idle'|'connecting'|'online'|'offline'|'error';self?:DirectoryUser;contacts:DirectoryUser[];conversations:Conversation[];activeCall?:{conversationId:string;peerId:string;session:SessionSnapshot};pendingIncomingCall?:PendingIncomingCall;verifiedContacts:string[];blockedContacts:string[];movedContacts?:Record<string,DirectoryUser>;error?:string;}
-export interface MessengerOptions {serverUrl:string;identity:DeviceIdentity;username:string;displayName:string;emailProof?:string;randomBytes?:RandomBytes;rtcFactory?:PeerSessionOptions['rtcFactory'];getUserMedia?:PeerSessionOptions['getUserMedia'];createMediaStream?:PeerSessionOptions['createMediaStream'];onChange?:(snapshot:MessengerSnapshot)=>void;loadState?:()=>Promise<string|null>;saveState?:(sealed:string)=>Promise<void>;saveAttachment?:(key:string,sealed:string)=>Promise<void>;loadAttachment?:(key:string)=>Promise<string|null>;deleteAttachment?:(key:string)=>Promise<void>;}
+export interface MessengerOptions {callCaptions?:boolean;serverUrl:string;identity:DeviceIdentity;username:string;displayName:string;emailProof?:string;randomBytes?:RandomBytes;rtcFactory?:PeerSessionOptions['rtcFactory'];getUserMedia?:PeerSessionOptions['getUserMedia'];createMediaStream?:PeerSessionOptions['createMediaStream'];onChange?:(snapshot:MessengerSnapshot)=>void;loadState?:()=>Promise<string|null>;saveState?:(sealed:string)=>Promise<void>;saveAttachment?:(key:string,sealed:string)=>Promise<void>;loadAttachment?:(key:string)=>Promise<string|null>;deleteAttachment?:(key:string)=>Promise<void>;}
 export const MAX_CONTACTS=100;
 export const MAX_GROUPS=32;
 export const MAX_HISTORY_MESSAGES=500;
@@ -56,6 +57,7 @@ export class MessengerClient {
   private protectedReceive=new Set<string>();private committed=new Set<string>();private blobs=new Map<string,Uint8Array>();private enqueueQueue=Promise.resolve();private expiryTimer?:ReturnType<typeof setTimeout>;private pairs=new Map<string,Pair>();private socket?:WebSocket;private requests=new Map<string,Request>();private iceRequest?:Promise<RTCIceServer[]>;private wakeTimer?:ReturnType<typeof setTimeout>;private lastWake=new Map<string,number>();private wakeStarted=new Map<string,number>();private pendingCall?:PendingOperation;private outgoingInvitation?:OutgoingInvitation;private pendingIncoming?:PendingIncomingCall;private incomingExpiry?:ReturnType<typeof setTimeout>;private endedCalls=new Map<string,number>();private callStates=new Map<string,CallState>();private services?:ServiceCapabilities;private servicesRequest?:Promise<ServiceCapabilities>;private wakeCapabilitiesRequest?:Promise<ServiceCapabilities>;
   private random:RandomBytes;private stopped=true;private opening?:Promise<void>;private loaded=false;private restorePromise?:Promise<void>;
   private reconnect?:ReturnType<typeof setTimeout>;private attempt=0;private epoch=0;private savedTimer?:ReturnType<typeof setTimeout>;private saveQueue=Promise.resolve();private dirty=false;private cancelOpening?:()=>void;
+  private callCaptionListeners=new Set<(frame:CallCaptionFrame)=>void>();
   constructor(private options:MessengerOptions){validateDeviceIdentity(options.identity);usernameSchema.parse(options.username);displayNameSchema.parse(options.displayName);endpointUrl(options.serverUrl,'directory');this.random=options.randomBytes??secureRandomBytes;}
   private id(){return bytesToHex(randomChecked(this.random,16));}
   getSnapshot():MessengerSnapshot {
@@ -276,7 +278,7 @@ export class MessengerClient {
     let pair=this.pairs.get(peerId);
     if(!pair){
       if(this.pairs.size>=MAX_SESSIONS){const idle=[...this.pairs.entries()].filter(([id,p])=>!p.flushing&&!p.connecting&&p.session.getSnapshot().callState==='idle'&&!p.session.getSnapshot().files.some(f=>f.status==='sending'||f.status==='receiving')&&!this.pending.some(m=>m.remaining.includes(id))).sort((a,b)=>a[1].lastUsed-b[1].lastUsed)[0];if(!idle)throw new Error('Active peer capacity exceeded (16)');this.pairs.delete(idle[0]);clearTimeout(idle[1].retry);clearTimeout(idle[1].pump);idle[1].session.disconnect();}
-      const session=new PeerSession({serverUrl:this.options.serverUrl,expectPeer:true,getIceServers:()=>this.getIceServers(),invite:conversationInvite(this.options.identity,user.publicKey),contentIdentity:this.options.identity,remoteIdentityPublicKey:user.publicKey,randomBytes:this.random,rtcFactory:this.options.rtcFactory,getUserMedia:this.options.getUserMedia,createMediaStream:this.options.createMediaStream,onChange:snapshot=>this.pairChanged(peerId,snapshot),onMessage:message=>this.receiveMessage(peerId,message),onApplication:payload=>this.receiveApplication(peerId,payload),onFile:file=>this.receiveFile(peerId,file),allowConversation:id=>this.validConversation(peerId,id)});
+      const session=new PeerSession({serverUrl:this.options.serverUrl,expectPeer:true,getIceServers:()=>this.getIceServers(),invite:conversationInvite(this.options.identity,user.publicKey),callCaptions:this.options.callCaptions,contentIdentity:this.options.identity,remoteIdentityPublicKey:user.publicKey,randomBytes:this.random,rtcFactory:this.options.rtcFactory,getUserMedia:this.options.getUserMedia,createMediaStream:this.options.createMediaStream,onChange:snapshot=>this.pairChanged(peerId,snapshot),onMessage:message=>this.receiveMessage(peerId,message),onApplication:payload=>this.receiveApplication(peerId,payload),onFile:file=>this.receiveFile(peerId,file),allowConversation:id=>this.validConversation(peerId,id)});
       pair={session,attempt:0,flushing:false,notified:false,lastUsed:Date.now(),lastSent:new Map(),definitions:new Set()};this.pairs.set(peerId,pair);
     }
     pair.lastUsed=Date.now();
@@ -353,8 +355,26 @@ export class MessengerClient {
     await this.putBlob(key,file.data);if(await dropped())return true;await checkDeadline();target.blobKey=key;target.status='complete';target.receivedBytes=file.size;await this.durable();if(await dropped())return true;await checkDeadline();if(origin)this.receiptAfterSave(c,origin,peerId);return true;
   }
   private receiptAfterSave(c:InternalConversation,origin:GroupOrigin,peerId:string){const receipt=signGroupReceipt(this.options.identity,origin);const receipts=c.receipts??=[];if(!receipts.some(r=>r.author===receipt.author&&r.id===receipt.id&&r.recipient===receipt.recipient))receipts.push(receipt);this.changed();queueMicrotask(()=>{void this.pairs.get(peerId)?.session.sendApplication(receipt).catch(e=>this.report(e));});for(const id of c.memberIds)if(id!==this.options.identity.userId&&id!==peerId)this.wakePeer(id);}
+  /** Live words from the current call only. Never saved, never logged, and dropped once the call ends. */
+  private receiveCallCaption(peerId:string,payload:unknown){
+    const parsed=callCaptionFrameSchema.safeParse(payload);if(!parsed.success)return;
+    const session=this.pairs.get(peerId)?.session.getSnapshot();if(session?.callState!=='active'||session.callId!==parsed.data.callId)return;
+    for(const listener of this.callCaptionListeners)listener(parsed.data);
+  }
+  onCallCaption(listener:(frame:CallCaptionFrame)=>void):()=>void{this.callCaptionListeners.add(listener);return()=>{this.callCaptionListeners.delete(listener);};}
+  /** False while the peer cannot take sealed captions; live words are dropped, never queued. */
+  async sendCallCaption(frame:CallCaptionFrame):Promise<boolean>{
+    const parsed=callCaptionFrameSchema.parse(frame);
+    for(const pair of this.pairs.values()){
+      const session=pair.session.getSnapshot();if(session.callState!=='active'||session.callId!==parsed.callId)continue;
+      if(!pair.session.supportsCallCaptions())return false;
+      await pair.session.sendApplication(parsed);return true;
+    }
+    return false;
+  }
   private receiveApplication(peerId:string,payload:unknown){return this.closing?Promise.resolve():this.track(this.receiveApplicationWork(peerId,payload));}
   private async receiveApplicationWork(peerId:string,payload:unknown){
+    if((payload as {kind?:unknown})?.kind==='call-caption'||(payload as {kind?:unknown})?.kind==='call-caption-state'){this.receiveCallCaption(peerId,payload);return;}
     if((payload as {kind?:unknown})?.kind==='read-receipt'){await this.acceptReadReceipt(peerId,readReceiptSchema.parse(payload));return;}
     if((payload as {kind?:unknown})?.kind==='message-change'){await this.acceptMessageChange(peerId,messageChangeSchema.parse(payload));return;}
     if((payload as {kind?:unknown})?.kind==='group-receipt'){
