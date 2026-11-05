@@ -16,7 +16,7 @@ LastCall is a messenger with a unique username and no phone number. Messages, fi
 - Five-emoji safety code to compare contact keys and a short call verification code.
 - Encrypted local history and a sender-held queue for up to 7 days.
 - English by default; Russian when the phone's primary language is Russian.
-- No ads, analytics or data selling.
+- No ads, no analytics of our own, no data selling.
 
 The server helps find people and deliver a service invitation, but it does not store conversations or files in readable form. A direct peer-to-peer connection may reveal your IP address to the other participant. The app has not passed an independent security audit; do not use it for data that requires certified protection.
 

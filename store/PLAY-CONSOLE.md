@@ -65,7 +65,7 @@ Answer truthfully; Google will assign the final rating. Expect at least Teen.
 
 ## Data safety draft
 
-Collected (all encrypted in transit; no sale; no advertising/analytics):
+Collected (all encrypted in transit; no sale; no advertising; analytics only through Google ML Kit in call captions):
 
 | Data type | Required? | Purpose |
 |---|---|---|
@@ -76,7 +76,8 @@ Collected (all encrypted in transit; no sale; no advertising/analytics):
 | Photos and videos (circles, selected media) | Optional | App functionality |
 | Audio (voice notes, call audio) | Optional | App functionality |
 | Files and documents | Optional | App functionality |
-| Device or other IDs (push token, user/device ID, IP) | Required for service | App functionality, security/fraud prevention |
+| Device or other IDs (push token, user/device ID, IP, ML Kit installation IDs) | Required for service | App functionality, security/fraud prevention, analytics |
+| Diagnostics (ML Kit: device model, OS and app versions, languages, sizes, latency, error codes; collected, not shared) | Required | Analytics |
 
 - Data is encrypted in transit: yes (TLS, DTLS/SRTP and the session content
   encryption layer).
