@@ -2,8 +2,12 @@ package dev.messenger.prototype.calls;
 
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.Intent;
+import android.content.ServiceConnection;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.os.IBinder;
+import android.speech.RecognitionService;
 import android.speech.SpeechRecognizer;
 import java.io.File;
 
@@ -36,6 +40,24 @@ final class LastCallRecognizers {
       ApplicationInfo info = context.getPackageManager().getApplicationInfo(context.getPackageName(), PackageManager.GET_META_DATA);
       return info.metaData != null && info.metaData.getBoolean(TEST_AUDIO, false) && new File(context.getExternalFilesDir(null), "caption-force-google").isFile();
     } catch (PackageManager.NameNotFoundException | RuntimeException error) { return false; }
+  }
+  /**
+   * Android binds a recognizer on the app's behalf from the system process, which gives it no share of
+   * this call's priority. vivo's freezer then stops Google's service about 11 s in. Our own binding lifts
+   * it for exactly as long as the session runs. Returns null when no binding is needed or possible.
+   */
+  static ServiceConnection hold(Context context) {
+    if (named(context) || !trustedGoogle(context)) return null;
+    ServiceConnection connection = new ServiceConnection() {
+      @Override public void onServiceConnected(ComponentName name, IBinder service) {}
+      @Override public void onServiceDisconnected(ComponentName name) {}
+    };
+    try {
+      Intent intent = new Intent(RecognitionService.SERVICE_INTERFACE).setComponent(GOOGLE);
+      if (context.bindService(intent, connection, Context.BIND_AUTO_CREATE | Context.BIND_IMPORTANT)) return connection;
+      context.unbindService(connection);
+    } catch (RuntimeException failed) { /* Recognition still runs; on most firmware it does not need this. */ }
+    return null;
   }
   static boolean named(Context context) { return SpeechRecognizer.isOnDeviceRecognitionAvailable(context) && !testForcesGoogle(context); }
   static boolean available(Context context) { return named(context) || trustedGoogle(context); }

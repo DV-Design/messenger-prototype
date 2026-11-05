@@ -42,6 +42,7 @@ final class LastCallSpeechSession implements LastCallAudioTap.Sink {
   private SpeechRecognizer recognizer;
   private ParcelFileDescriptor readSide;
   private Thread writer;
+  private android.content.ServiceConnection hold;
   private long startedAt;
   private int quickFailures;
   private double phase;
@@ -56,6 +57,7 @@ final class LastCallSpeechSession implements LastCallAudioTap.Sink {
   void start() {
     testPcm = loadTestAudio();
     running = true;
+    hold = LastCallRecognizers.hold(context);
     LastCallAudioTap.setSink(this);
     listen();
   }
@@ -64,6 +66,12 @@ final class LastCallSpeechSession implements LastCallAudioTap.Sink {
     LastCallAudioTap.setSink(null);
     main.removeCallbacksAndMessages(null);
     closeRecognition();
+    releaseHold();
+  }
+  private void releaseHold() {
+    if (hold == null) return;
+    try { context.unbindService(hold); } catch (RuntimeException alreadyGone) { /* Its service died with the session. */ }
+    hold = null;
   }
 
   /** Runs on WebRTC's audio thread, so it only converts and offers. */
@@ -168,6 +176,7 @@ final class LastCallSpeechSession implements LastCallAudioTap.Sink {
     running = false;
     LastCallAudioTap.setSink(null);
     closeRecognition();
+    releaseHold();
     events.onFailed(code);
   }
   /** A recognizer without segmented sessions ends after each phrase; a broken one ends immediately and repeatedly. */

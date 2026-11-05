@@ -18,6 +18,12 @@ test('speech is on-device only: no default cloud recognizer and no microphone of
   assert.ok(!session.includes('AudioRecord'));
 });
 
+test('the recognizer is held against firmware freezers for exactly the session', () => {
+  assert.ok(recognizers.includes('Context.BIND_AUTO_CREATE | Context.BIND_IMPORTANT'));
+  assert.ok(session.includes('LastCallRecognizers.hold(context)'));
+  assert.ok(session.includes('unbindService(hold)'));
+});
+
 test('native caption code never logs recognized words', () => {
   for (const source of [session, speechModule]) assert.ok(!/\bLog\.[dviwe]\(/.test(source));
 });
