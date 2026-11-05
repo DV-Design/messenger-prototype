@@ -26,7 +26,7 @@ export function CallCaptionSettings() {
   return <>
     <Text style={styles.sectionTitle}>{t('CALL CAPTIONS')}</Text>
     <View style={[styles.section, styles.content, { gap: 8 }]}>
-      <Text style={styles.body}>{t('Speech is recognized and translated on the phones. Words go to the other person as encrypted text and are not saved. Language packs are downloaded once from Google, which also receives usage statistics such as language names, but never your words.')}</Text>
+      <Text style={styles.body}>{t('Speech is recognized and translated on the phones. Words go to the other person as encrypted text and are not saved. Language packs are downloaded once from Google, which also receives usage statistics such as language names.')}</Text>
       <Text style={styles.rowName}>{t('I speak')}</Text>
       {CAPTION_LANGUAGES.map(item => <Pressable key={item.code} accessibilityRole="radio" accessibilityState={{ selected: item.code === language }} style={{ minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 12 }} onPress={() => { setLanguage(item.code); void saveCaptionLanguage(item.code); }}>
         <Icon name={item.code === language ? 'radio-button-on' : 'radio-button-off'} color={colors.accent} size={22} /><Text style={styles.rowName}>{item.label}</Text>

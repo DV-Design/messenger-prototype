@@ -287,7 +287,7 @@ const ru: Record<string, string> = {
   'Speech recognition for this language is on this phone.': 'Распознавание этого языка уже есть на телефоне.',
   'Speech recognition for this language will be downloaded when you first use captions.': 'Распознавание этого языка скачается при первом включении субтитров.',
   'This phone has no offline speech recognition for this language. You can still read captions from the other person.': 'На этом телефоне нет распознавания этого языка без интернета. Субтитры собеседника вы всё равно сможете читать.',
-  'Speech is recognized and translated on the phones. Words go to the other person as encrypted text and are not saved. Language packs are downloaded once from Google, which also receives usage statistics such as language names, but never your words.': 'Речь распознаётся и переводится на самих телефонах. Слова уходят собеседнику зашифрованным текстом и не сохраняются. Языковые пакеты один раз скачиваются у Google. Google также получает статистику использования, например названия языков.',
+  'Speech is recognized and translated on the phones. Words go to the other person as encrypted text and are not saved. Language packs are downloaded once from Google, which also receives usage statistics such as language names.': 'Речь распознаётся и переводится на самих телефонах. Слова уходят собеседнику зашифрованным текстом и не сохраняются. Языковые пакеты один раз скачиваются у Google. Google также получает статистику использования, например названия языков.',
   'connecting…': 'подключаем…',
   'Recording interrupted. Open it again after the call.': 'Запись прервана. Откройте её снова после звонка.',
   'Recording stopped by the system.': 'Запись прервана системой.',
