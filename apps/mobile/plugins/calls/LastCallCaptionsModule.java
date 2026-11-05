@@ -1,6 +1,8 @@
 package dev.messenger.prototype.calls;
 
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.speech.RecognitionSupport;
 import android.speech.RecognitionSupportCallback;
 import android.speech.SpeechRecognizer;
@@ -46,7 +48,8 @@ public final class LastCallCaptionsModule extends ReactContextBaseJavaModule {
     String found = null;
     for (String tag : languages) {
       if (tag.equalsIgnoreCase(preferred)) return tag;
-      if (found == null && language.equals(Locale.forLanguageTag(tag).getLanguage())) found = tag;
+      String base = Locale.forLanguageTag(tag).getLanguage();
+      if (found == null && (language.equals(base) || ("zh".equals(language) && "cmn".equals(base)))) found = tag;
     }
     return found;
   }
@@ -54,33 +57,57 @@ public final class LastCallCaptionsModule extends ReactContextBaseJavaModule {
   /** "unavailable" also covers cloud-only languages: speech from a call must not leave this phone. */
   @ReactMethod public void speechStatus(String language, String preferred, Promise result) {
     UiThreadUtil.runOnUiThread(() -> {
-      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || !SpeechRecognizer.isOnDeviceRecognitionAvailable(getReactApplicationContext())) {
-        result.resolve(status("unavailable", null)); return;
-      }
+      ReactApplicationContext context = getReactApplicationContext();
+      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || !LastCallRecognizers.available(context)) { result.resolve(status("unavailable", null)); return; }
       try {
-        SpeechRecognizer recognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(getReactApplicationContext());
-        recognizer.checkRecognitionSupport(LastCallSpeechSession.intent(preferred, null), getReactApplicationContext().getMainExecutor(), new RecognitionSupportCallback() {
-          @Override public void onSupportResult(RecognitionSupport support) {
-            String tag = match(support.getInstalledOnDeviceLanguages(), language, preferred);
-            if (tag != null) result.resolve(status("ready", tag));
-            else if ((tag = match(support.getPendingOnDeviceLanguages(), language, preferred)) != null) result.resolve(status("downloading", tag));
-            else if ((tag = match(support.getSupportedOnDeviceLanguages(), language, preferred)) != null) result.resolve(status("download", tag));
-            else result.resolve(status("unavailable", null));
-            recognizer.destroy();
-          }
-          @Override public void onError(int error) {
-            result.resolve(status(error == SpeechRecognizer.ERROR_CANNOT_CHECK_SUPPORT ? "ready" : "unavailable", preferred));
-            recognizer.destroy();
-          }
-        });
+        new SupportCheck(LastCallRecognizers.create(context), LastCallRecognizers.named(context), language, preferred, result).start(context);
       } catch (RuntimeException error) { result.resolve(status("unavailable", null)); }
     });
+  }
+  /**
+   * Google's recognizer reports ERROR_CANNOT_CHECK_SUPPORT and then the real answer, sometimes twice.
+   * The first definite answer wins. A bare "cannot check" means ready only for a recognizer Android
+   * itself vouches for as on-device.
+   */
+  private static final class SupportCheck {
+    private static final long AFTER_ERROR_MS = 1500, GIVE_UP_MS = 5000;
+    private final SpeechRecognizer recognizer; private final boolean vouched; private final String language, preferred; private final Promise result;
+    private final Handler main = new Handler(Looper.getMainLooper());
+    private boolean settled;
+    SupportCheck(SpeechRecognizer recognizer, boolean vouched, String language, String preferred, Promise result) {
+      this.recognizer = recognizer; this.vouched = vouched; this.language = language; this.preferred = preferred; this.result = result;
+    }
+    void start(ReactApplicationContext context) {
+      main.postDelayed(() -> settle(status("unavailable", null)), GIVE_UP_MS);
+      recognizer.checkRecognitionSupport(LastCallSpeechSession.intent(preferred, null), context.getMainExecutor(), new RecognitionSupportCallback() {
+        @Override public void onSupportResult(RecognitionSupport support) { settle(answer(support)); }
+        @Override public void onError(int error) {
+          boolean cannotCheck = error == SpeechRecognizer.ERROR_CANNOT_CHECK_SUPPORT;
+          if (!cannotCheck) { settle(status("unavailable", null)); return; }
+          main.postDelayed(() -> settle(status(vouched ? "ready" : "unavailable", vouched ? preferred : null)), AFTER_ERROR_MS);
+        }
+      });
+    }
+    private WritableMap answer(RecognitionSupport support) {
+      String tag = match(support.getInstalledOnDeviceLanguages(), language, preferred);
+      if (tag != null) return status("ready", tag);
+      if ((tag = match(support.getPendingOnDeviceLanguages(), language, preferred)) != null) return status("downloading", tag);
+      if ((tag = match(support.getSupportedOnDeviceLanguages(), language, preferred)) != null) return status("download", tag);
+      return status("unavailable", null);
+    }
+    private void settle(WritableMap value) {
+      if (settled) return;
+      settled = true;
+      main.removeCallbacksAndMessages(null);
+      result.resolve(value);
+      try { recognizer.destroy(); } catch (RuntimeException ignored) { /* Its service may already be gone. */ }
+    }
   }
   @ReactMethod public void downloadSpeech(String tag, Promise result) {
     UiThreadUtil.runOnUiThread(() -> {
       if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) { result.reject("CAPTIONS", "Android 13 is required"); return; }
       try {
-        SpeechRecognizer recognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(getReactApplicationContext());
+        SpeechRecognizer recognizer = LastCallRecognizers.create(getReactApplicationContext());
         recognizer.triggerModelDownload(LastCallSpeechSession.intent(tag, null));
         recognizer.destroy();
         result.resolve(null);

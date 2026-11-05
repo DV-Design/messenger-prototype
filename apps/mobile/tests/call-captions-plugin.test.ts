@@ -4,12 +4,16 @@ import test from 'node:test';
 
 const plugin = readFileSync(new URL('../plugins/withLastCallCalls.cjs', import.meta.url), 'utf8');
 const session = readFileSync(new URL('../plugins/calls/LastCallSpeechSession.java', import.meta.url), 'utf8');
+const recognizers = readFileSync(new URL('../plugins/calls/LastCallRecognizers.java', import.meta.url), 'utf8');
 const speechModule = readFileSync(new URL('../plugins/calls/LastCallCaptionsModule.java', import.meta.url), 'utf8');
 const store = readFileSync(new URL('../../../infra/build-android-store.sh', import.meta.url), 'utf8');
 
-test('speech is on-device only: no cloud recognizer factory and no microphone of its own', () => {
-  for (const source of [session, speechModule]) assert.ok(!source.includes('createSpeechRecognizer('), 'createSpeechRecognizer may use a cloud service');
-  assert.ok(session.includes('createOnDeviceSpeechRecognizer'));
+test('speech is on-device only: no default cloud recognizer and no microphone of its own', () => {
+  for (const source of [session, speechModule]) assert.ok(!source.includes('createSpeechRecognizer(') && !source.includes('createOnDeviceSpeechRecognizer('), 'only LastCallRecognizers may choose a recognizer');
+  assert.ok(recognizers.includes('createOnDeviceSpeechRecognizer(context)'));
+  assert.equal(recognizers.match(/createSpeechRecognizer\(/g)?.length, 1);
+  assert.ok(recognizers.includes('createSpeechRecognizer(context, GOOGLE)'), 'the fallback names one exact service');
+  assert.ok(recognizers.includes('hasSigningCertificate'), 'and verifies who signed it');
   assert.ok(session.includes('EXTRA_AUDIO_SOURCE'));
   assert.ok(!session.includes('AudioRecord'));
 });
@@ -25,6 +29,6 @@ test('recorded test speech needs an explicit test build and cannot reach a store
 
 test('the WebRTC audio tap is installed before React and the module files are copied', () => {
   assert.ok(plugin.includes('LastCallAudioTap.install(this)'));
-  for (const file of ['LastCallAudioTap.java', 'LastCallSpeechSession.java', 'LastCallCaptionsModule.java']) assert.ok(plugin.includes(file));
+  for (const file of ['LastCallAudioTap.java', 'LastCallRecognizers.java', 'LastCallSpeechSession.java', 'LastCallCaptionsModule.java']) assert.ok(plugin.includes(file));
   assert.ok(plugin.includes('android.speech.RecognitionService'));
 });

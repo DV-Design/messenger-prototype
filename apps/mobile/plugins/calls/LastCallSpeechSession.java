@@ -126,7 +126,7 @@ final class LastCallSpeechSession implements LastCallAudioTap.Sink {
       queue = target;
       writer = new Thread(() -> pump(target, pipe[1]), "LastCallSpeechAudio");
       writer.start();
-      recognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(context);
+      recognizer = LastCallRecognizers.create(context);
       recognizer.setRecognitionListener(listener);
       recognizer.startListening(intent(tag, readSide));
     } catch (IOException | RuntimeException error) { failed("start"); }
