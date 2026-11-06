@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
 import { Redirect, router, useIsFocused, useLocalSearchParams } from 'expo-router';
 import { Alert, AppState, FlatList, KeyboardAvoidingView, Linking, Platform, Pressable, Text, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView } from '../../components/SafeArea';
 import { safetyEmoji, type MessengerFile, type MessengerMessage } from '@messenger/core';
 import { intlLocale, t } from '../../i18n';
 import { messageParts } from '../../message-links';

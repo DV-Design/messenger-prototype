@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { router, useIsFocused } from 'expo-router';
 import { ActivityIndicator, Alert, FlatList, Pressable, Text, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView } from '../../components/SafeArea';
 import type { DirectoryUser } from '@messenger/core';
 import { Avatar, Empty, Icon, IconButton, ScreenHeader, lastSeen } from '../../components/ui';
 import { CatalogController, catalogQuery, searchable } from '../../catalog-model';

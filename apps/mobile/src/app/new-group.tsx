@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Redirect, router } from 'expo-router';
 import { FlatList, Pressable, Text, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView } from '../components/SafeArea';
 import { Avatar, Button, Empty, Icon, IconButton } from '../components/ui';
 import { client, errorText, useMessenger } from '../runtime';
 import { colors, styles } from '../styles';

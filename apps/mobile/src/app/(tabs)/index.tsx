@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { router } from 'expo-router';
 import { Alert, FlatList, Pressable, Text, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView } from '../../components/SafeArea';
 import { Avatar, Empty, Icon, IconButton, ScreenHeader, time } from '../../components/ui';
 import { AccountMovedNotice } from '../../components/AccountMovedNotice';
 import { shouldShowEmailReminder } from '../../email-flow-model';

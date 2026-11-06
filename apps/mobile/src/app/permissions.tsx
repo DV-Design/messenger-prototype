@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { AppState, Linking, ScrollView, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView } from '../components/SafeArea';
 import { Button, Icon, IconButton, type IconName } from '../components/ui';
 import { OemCallSetup } from '../components/OemCallSetup';
 import { PERMISSION_ORDER, UNKNOWN_ACCESS, hasAccess, inSequence, type Access, type PermissionKind } from '../permission-model';

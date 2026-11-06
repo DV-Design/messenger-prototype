@@ -167,7 +167,8 @@ export class CallCaptionsController {
   toggle() { this.setEnabled(!this.view.enabled); }
   decline() { this.declined = true; this.update({}); }
 
-  toggleVoice() { void this.setVoice(this.view.voice === 'off'); }
+  /** After the engine's download screen, the same button checks again instead of turning the voice off. */
+  toggleVoice() { void this.setVoice(this.view.voice === 'off' || this.view.voice === 'download'); }
   /** Spoken translation needs captions, so turning it on turns them on too. */
   async setVoice(on: boolean) {
     const voice = this.deps.voice;

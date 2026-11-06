@@ -287,6 +287,9 @@ test('a voice that must be downloaded opens the engine; none offline leaves capt
   download.controller.toggleVoice(); await flush();
   assert.equal(download.controller.snapshot().voice, 'download');
   assert.equal(download.voiceCalls.installs, 1);
+  download.controller.toggleVoice(); await flush();
+  assert.equal(download.controller.snapshot().voice, 'download', 'pressing again after the download screen checks again');
+  assert.equal(download.voiceCalls.installs, 2);
   const none = harness({ voice: 'unavailable' });
   none.controller.toggleVoice(); none.peer(); await flush();
   assert.equal(none.controller.snapshot().voiceActive, false);

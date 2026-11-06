@@ -1,7 +1,7 @@
 import { useReducer, useState } from 'react';
 import { Redirect } from 'expo-router';
 import { Image, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView } from '../components/SafeArea';
 import { EmailCodeForm } from '../components/EmailCodeForm';
 import { Button, Icon } from '../components/ui';
 import { emailErrorCode, emailErrorMessage, emailFlowReducer, emailNoticeMessage, initialEmailFlow, isEmailUnavailable, registrationErrorCode, registrationErrorMessage } from '../email-flow-model';

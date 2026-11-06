@@ -33,6 +33,7 @@ test('spoken translation uses only installed offline voices of Google or a prein
   assert.ok(voice.includes('voice.isNetworkConnectionRequired()') && voice.includes('KEY_FEATURE_NOT_INSTALLED'));
   assert.ok(voice.includes('LastCallRecognizers.googleSigned(context, GOOGLE)') && voice.includes('ApplicationInfo.FLAG_SYSTEM'));
   assert.ok(voice.includes('USAGE_VOICE_COMMUNICATION'), 'the voice follows the call audio route');
+  assert.ok(voice.includes('synthesizeToFile') && voice.includes('onAudioAvailable') && voice.includes('"/dev/null"') && !/\.speak\(/.test(voice), 'this app plays the samples and stores nothing');
 });
 
 test('recorded test speech needs an explicit test build and cannot reach a store build', () => {

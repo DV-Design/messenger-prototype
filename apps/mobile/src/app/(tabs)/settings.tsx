@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { router } from 'expo-router';
 import { Alert, Linking, Platform, Pressable, ScrollView, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView } from '../../components/SafeArea';
 import * as Clipboard from 'expo-clipboard';
 import Constants from 'expo-constants';
 import type { Conversation } from '@messenger/core';
