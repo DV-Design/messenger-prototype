@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { CallCaptionFrame } from '@messenger/core';
-import { CAPTION_PARTIAL_MS, CAPTION_TRANSLATE_MS, CallCaptionsController, captionLanguage, captionSpeechNote, splitCaption, type CaptionNative, type CaptionScheduler, type CaptionsView, type SpeechStatus } from '../src/call-captions-model';
+import { CAPTION_PARTIAL_MS, CAPTION_TRANSLATE_MS, CallCaptionsController, captionLanguage, captionSpeechNote, splitCaption, type CaptionNative, type CaptionScheduler, type CaptionsView, type SpeechStatus, type VoiceNative, type VoiceStatus, VOICE_QUEUE, voiceDeadline } from '../src/call-captions-model';
 
 const callId = 'ab'.repeat(16);
 const flush = async () => { for (let index = 0; index < 8; index++) await new Promise(resolve => setImmediate(resolve)); };
 
-function harness(options: { language?: string; status?: SpeechStatus; translate?: (source: string, target: string, text: string) => Promise<string> } = {}) {
+function harness(options: { language?: string; status?: SpeechStatus; voice?: VoiceStatus; translate?: (source: string, target: string, text: string) => Promise<string> } = {}) {
   let now = 1000; let id = 0;
   const timers = new Map<number, { at: number; run: () => void }>();
   const scheduler: CaptionScheduler = { now: () => now, set: (run, delay) => { timers.set(++id, { at: now + delay, run }); return id; }, clear: handle => { timers.delete(handle as number); } };
@@ -22,8 +22,16 @@ function harness(options: { language?: string; status?: SpeechStatus; translate?
     translate: options.translate ?? (async (_source, _target, text) => `T(${text})`),
     releaseTranslation: () => { calls.released++; },
   };
+  const voiceCalls = { spoken: [] as { text: string; tag: string; id: string }[], stopped: 0, released: 0, installs: 0 };
+  const voice: VoiceNative = {
+    voiceStatus: async () => ({ status: options.voice ?? 'ready' }),
+    speak: async (text, tag, id) => { voiceCalls.spoken.push({ text, tag, id }); return true; },
+    stopVoice: () => { voiceCalls.stopped++; },
+    releaseVoice: () => { voiceCalls.released++; },
+    installVoice: async () => { voiceCalls.installs++; },
+  };
   const sent: CallCaptionFrame[] = []; const views: CaptionsView[] = [];
-  const controller = new CallCaptionsController({ native, language: options.language ?? 'ru', send: async frame => { sent.push(frame); return true; }, onChange: view => views.push(view), scheduler });
+  const controller = new CallCaptionsController({ native, voice, language: options.language ?? 'ru', send: async frame => { sent.push(frame); return true; }, onChange: view => views.push(view), scheduler });
   controller.setCall(callId, true);
   const advance = async (ms: number) => {
     now += ms;
@@ -32,7 +40,7 @@ function harness(options: { language?: string; status?: SpeechStatus; translate?
   };
   const peer = (enabled = true, language = 'en', speech: 'ready' | 'preparing' | 'unavailable' = 'ready') => controller.onFrame({ kind: 'call-caption-state', callId, enabled, language, speech });
   const caption = (segment: number, revision: number, final: boolean, text: string, language = 'en') => controller.onFrame({ kind: 'call-caption', callId, language, segment, revision, final, text });
-  return { controller, calls, sent, views, advance, peer, caption, setStatus: (value: SpeechStatus) => { status = value; }, timers };
+  return { controller, calls, voiceCalls, sent, views, advance, peer, caption, setStatus: (value: SpeechStatus) => { status = value; }, timers };
 }
 async function both(h: ReturnType<typeof harness>) { h.controller.setEnabled(true); h.peer(); await flush(); }
 
@@ -223,4 +231,66 @@ test('the settings note survives the first render, before anything has loaded', 
   assert.equal(captionSpeechNote(undefined, 'ru'), '');
   assert.equal(captionSpeechNote({ language: 'en', text: 'old' }, 'ru'), '');
   assert.equal(captionSpeechNote({ language: 'ru', text: 'ready' }, 'ru'), 'ready');
+});
+
+const done = (h: ReturnType<typeof harness>, index: number) => h.controller.onVoice({ type: 'voice-done', id: h.voiceCalls.spoken[index]!.id });
+
+test('spoken translation turns captions on, silences the peer only for another language and speaks finished phrases once', async () => {
+  const h = harness();
+  h.controller.toggleVoice(); await flush();
+  assert.equal(h.controller.snapshot().enabled, true, 'voice needs captions');
+  assert.equal(h.controller.snapshot().voiceActive, false, 'not before the peer turns captions on');
+  h.peer(); await flush();
+  assert.equal(h.controller.snapshot().voiceActive, true);
+  h.caption(0, 0, false, 'hello'); await h.advance(CAPTION_TRANSLATE_MS);
+  assert.equal(h.voiceCalls.spoken.length, 0, 'partials are only read');
+  h.caption(0, 1, true, 'hello there'); await flush();
+  assert.deepEqual(h.voiceCalls.spoken.map(item => [item.text, item.tag]), [['T(hello there)', 'ru-RU']]);
+  assert.equal(h.controller.snapshot().speaking, true);
+  h.caption(0, 2, true, 'hello there'); await flush();
+  assert.equal(h.voiceCalls.spoken.length, 1, 'a repeated final is not spoken twice');
+  h.caption(1, 0, true, 'second'); await flush();
+  assert.equal(h.voiceCalls.spoken.length, 1, 'the next phrase waits for the first');
+  done(h, 0); await flush();
+  assert.deepEqual(h.voiceCalls.spoken.map(item => item.text), ['T(hello there)', 'T(second)']);
+  done(h, 1); await flush();
+  assert.equal(h.controller.snapshot().speaking, false);
+
+  const same = harness({ language: 'en' });
+  same.controller.toggleVoice(); same.peer(); await flush();
+  same.caption(0, 0, true, 'hi'); await flush();
+  assert.equal(same.controller.snapshot().voiceActive, false, 'the same language keeps the real voice');
+  assert.deepEqual(same.voiceCalls.spoken, []);
+});
+
+test('the voice keeps up with the talk, recovers from a silent engine and stops with captions', async () => {
+  const h = harness();
+  h.controller.toggleVoice(); h.peer(); await flush();
+  for (let segment = 0; segment < 5; segment++) { h.caption(segment, 0, true, `p${segment}`); await flush(); }
+  assert.deepEqual(h.voiceCalls.spoken.map(item => item.text), ['T(p0)']);
+  done(h, 0); await flush(); done(h, 1); await flush(); done(h, 2); await flush();
+  assert.equal(VOICE_QUEUE, 2);
+  assert.deepEqual(h.voiceCalls.spoken.map(item => item.text), ['T(p0)', 'T(p3)', 'T(p4)'], 'older waiting phrases are dropped');
+  h.caption(5, 0, true, 'stuck'); await flush();
+  await h.advance(voiceDeadline('T(stuck)'));
+  assert.equal(h.controller.snapshot().speaking, false, 'the microphone comes back without a done event');
+  assert.equal(h.voiceCalls.stopped, 1);
+  h.caption(6, 0, true, 'last'); await flush();
+  h.controller.setEnabled(false); await flush();
+  assert.equal(h.controller.snapshot().voice, 'off');
+  assert.equal(h.controller.snapshot().speaking, false);
+  assert.equal(h.voiceCalls.stopped, 2);
+});
+
+test('a voice that must be downloaded opens the engine; none offline leaves captions alone', async () => {
+  const download = harness({ voice: 'download' });
+  download.controller.toggleVoice(); await flush();
+  assert.equal(download.controller.snapshot().voice, 'download');
+  assert.equal(download.voiceCalls.installs, 1);
+  const none = harness({ voice: 'unavailable' });
+  none.controller.toggleVoice(); none.peer(); await flush();
+  assert.equal(none.controller.snapshot().voiceActive, false);
+  assert.equal(none.controller.snapshot().enabled, true);
+  none.controller.dispose();
+  assert.equal(none.voiceCalls.released, 1);
 });

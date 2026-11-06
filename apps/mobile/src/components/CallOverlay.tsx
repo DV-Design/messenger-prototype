@@ -17,6 +17,7 @@ import { VideoControlsController } from '../video-controls-model';
 import { colors, styles } from '../styles';
 import { t } from '../i18n';
 import { Avatar, Icon, IconButton } from './ui';
+import { markCallActive, setCallBar, useCallBar } from '../call-bar';
 
 export function CallOverlay() {
   const { snapshot } = useMessenger();
@@ -29,14 +30,17 @@ export function CallOverlay() {
 function CallPanel() {
   const { snapshot, identity } = useMessenger();
   const call = snapshot.activeCall;
-  const [collapsed, setCollapsed] = useState(false);
+  const collapsed = useCallBar().collapsed;
+  const setCollapsed = (value: boolean) => setCallBar({ collapsed: value });
+  // A new call always opens full screen; the bar disappears with the call.
+  useEffect(() => { setCallBar({ collapsed: false }); return () => setCallBar(null); }, []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [audioMenu, setAudioMenu] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [controls] = useState(() => new VideoControlsController(setControlsVisible));
   const audio = useCallAudioRoutes(call?.session.callId);
-  const captions = useCallCaptions(call?.session.callState === 'active' ? call.session.callId : undefined, !!call?.session.callCaptions, !!call?.session.muted);
+  const captions = useCallCaptions(call?.session.callState === 'active' ? call.session.callId : undefined, !!call?.session.callCaptions, !!call?.session.muted, call?.session.localStream, call?.session.remoteStream);
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const callId = call?.session.callId;
@@ -87,13 +91,19 @@ function CallPanel() {
   const minimizeRef = useRef(minimize);
   useEffect(() => { minimizeRef.current = minimize; });
   useEffect(() => {
+    // Minimized, Back belongs to the app's own navigation, as in Telegram; the bar reopens the call.
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (collapsed) setCollapsed(false);
-      else void minimizeRef.current();
+      if (collapsed) return false;
+      void minimizeRef.current();
       return true;
     });
     return () => subscription.remove();
   }, [collapsed]);
+
+  const barName = snapshot.contacts.find(item => item.userId === call?.peerId)?.displayName ?? snapshot.conversations.find(item => item.id === call?.conversationId)?.title ?? t('Contact');
+  const barStatus = shownError || (callState === 'incoming' ? t('Incoming call') : callState === 'outgoing' ? t('Calling…') : t('In call'));
+  useEffect(() => { setCallBar({ name: barName, status: barStatus.toLowerCase() }); }, [barName, barStatus]);
+  useEffect(() => { if (callState === 'active') markCallActive(); }, [callState]);
 
   if (!call || callState === 'idle') return null;
   const contact = snapshot.contacts.find(item => item.userId === call.peerId);
@@ -123,13 +133,12 @@ function CallPanel() {
             <Pressable accessibilityRole="button" accessibilityLabel={call.session.muted ? t('Unmute microphone') : t('Mute microphone')} style={styles.callControl} onPress={() => { controls.interact(); client().setMuted(!call.session.muted); }}><View style={styles.callCircle}><Icon name={call.session.muted ? 'mic-off' : 'mic'} color={colors.white} size={28} /></View><Text style={styles.callControlLabel}>{call.session.muted ? t('Unmute') : t('Microphone')}</Text></Pressable>
             {activeVideo && camera.state.available && <Pressable accessibilityRole="button" accessibilityLabel={t('Switch camera')} disabled={camera.state.busy} style={[styles.callControl, camera.state.busy && styles.disabled]} onPress={() => { controls.interact(); void camera.switchCamera(); }}><View style={styles.callCircle}><Icon name="camera-reverse" color={colors.white} size={28} /></View><Text style={styles.callControlLabel}>{frontCamera ? t('Rear') : t('Front')}</Text></Pressable>}
             {captions.supported && callState === 'active' && <Pressable accessibilityRole="switch" accessibilityState={{ checked: captions.view.enabled }} accessibilityLabel={captions.view.enabled ? t('Turn off captions') : t('Turn on captions')} style={styles.callControl} onPress={() => { controls.interact(); captions.toggle(); }}><View style={[styles.callCircle, captions.view.enabled && { backgroundColor: colors.accent }]}><Icon name="language" color={colors.white} size={28} /></View><Text style={styles.callControlLabel}>{t('Captions')}</Text></Pressable>}
+            {captions.voiceSupported && callState === 'active' && <Pressable accessibilityRole="switch" accessibilityState={{ checked: captions.view.voice !== 'off' }} accessibilityLabel={captions.view.voice !== 'off' ? t('Turn off spoken translation') : t('Turn on spoken translation')} style={styles.callControl} onPress={() => { controls.interact(); captions.toggleVoice(); }}><View style={[styles.callCircle, captions.view.voiceActive && { backgroundColor: colors.accent }]}><Icon name="megaphone" color={colors.white} size={26} /></View><Text style={styles.callControlLabel}>{t('Voice')}</Text></Pressable>}
             {audio.supported && <Pressable accessibilityRole="button" accessibilityLabel={t('Choose audio: {route}', { route: selectedAudio ? audioRouteLabel[selectedAudio.kind] : t('connecting') })} accessibilityState={{ disabled: !audio.active || !audio.routes.length }} disabled={!audio.active || !audio.routes.length} style={[styles.callControl, (!audio.active || !audio.routes.length) && styles.disabled]} onPress={() => { controls.interact(); setAudioMenu(true); }}><View style={styles.callCircle}><Icon name={audioIcon} color={colors.white} size={28} /></View><Text style={styles.callControlLabel}> {t('Audio')}</Text></Pressable>}
             <Pressable accessibilityRole="button" accessibilityLabel={t('End call')} style={styles.callControl} onPress={finish}><View style={[styles.callCircle, { backgroundColor: colors.danger }]}><Icon name="call" color={colors.white} size={28} /></View><Text style={styles.callControlLabel}> {t('End')}</Text></Pressable>
           </>}
         </View>;
   const notice = shownError || (camera.state.busy ? t('Switching camera…') : '');
-  const banner = collapsed && <Pressable style={[styles.callBanner, { top: insets.top + 4 }]} onPress={() => setCollapsed(false)} accessibilityRole="button" accessibilityLabel={t('Return to call')}>
-      <Icon name="call" color={colors.white} size={19} /><Text style={styles.callBannerText}>{name} · {shownError || status.toLowerCase()}</Text><Icon name="chevron-forward" color={colors.white} size={19} /></Pressable>;
   const panel = <View style={{ flex: 1 }}>
       {video ? <Pressable style={styles.callVideoStage} onPress={() => controls.tap()} accessibilityRole="none">
         <RTCView style={styles.callVideoFill} objectFit="cover" zOrder={0} mirror={!remoteVideo && frontCamera} pointerEvents="none" streamURL={((remoteVideo ? remote : local) as unknown as NativeMediaStream).toURL()} />
@@ -170,16 +179,15 @@ function CallPanel() {
   // or the native PiP window has no video surface. The panel stays mounted while collapsed.
   if (Platform.OS === 'android' && call.session.callVideo) {
     return <>
-      {banner}
       <View pointerEvents={collapsed ? 'none' : 'auto'} style={[{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 10000, elevation: 10000, backgroundColor: '#000' }, collapsed && { display: 'none' }]}>
         {panel}
       </View>
     </>;
   }
   return <>
-    {banner}
     <Modal visible={!collapsed} animationType="slide" presentationStyle="fullScreen" supportedOrientations={['portrait', 'landscape']} statusBarTranslucent navigationBarTranslucent onRequestClose={() => void minimize()}>
       {panel}
     </Modal>
   </>;
 }
+

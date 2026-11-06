@@ -7,6 +7,10 @@ import { DirectoryServices, ServiceError, type ServiceOptions } from './services
 import { EmailAuth, type EmailOutcome } from './email-auth.js';
 import { directoryClientFrameSchema, userIdFromPublicKey, verifyAuthentication, verifyEmailStart, verifyEmailVerify, verifyProfileResolve, wakeIntentSchema, type DirectoryUser } from '@messenger/core';
 
+/** Directory pages and search results; a person types more to narrow a search instead of scrolling hundreds. */
+export const DIRECTORY_PAGE = 30;
+export const DIRECTORY_SEARCH_LIMIT = 30;
+
 type ProfileRow = { user_id: string; public_key: string; username: string; display_name: string; last_seen: number };
 interface Connection {
   ws: WebSocket;
@@ -219,9 +223,10 @@ export class Directory {
         return;
       }
       if (frame.type === 'list-users') {
-        const rows = this.db.prepare('SELECT * FROM directory_users WHERE username > ? ORDER BY username LIMIT 101').all(frame.cursor ?? '') as ProfileRow[];
-        const page = rows.slice(0, 100);
-        this.options.send(ws, { type: 'users-page', requestId: frame.requestId, users: page.map((row) => this.user(row)), ...(rows.length > 100 ? { nextCursor: page.at(-1)!.username } : {}) });
+        // Small pages keep a scroll through the directory cheap; older clients follow nextCursor the same way.
+        const rows = this.db.prepare(`SELECT * FROM directory_users WHERE username > ? ORDER BY username LIMIT ${DIRECTORY_PAGE + 1}`).all(frame.cursor ?? '') as ProfileRow[];
+        const page = rows.slice(0, DIRECTORY_PAGE);
+        this.options.send(ws, { type: 'users-page', requestId: frame.requestId, users: page.map((row) => this.user(row)), ...(rows.length > DIRECTORY_PAGE ? { nextCursor: page.at(-1)!.username } : {}) });
       } else if (frame.type === 'services') {
         if(frame.callInviteV1===true)connection.callInviteV1=true;
         this.options.send(ws, { type: 'services', requestId: frame.requestId, capabilities: this.services.capabilities(connection.userId,frame.callInviteV1===true) });
@@ -253,7 +258,7 @@ export class Directory {
       } else if (frame.type === 'search') {
         // Escape SQL LIKE wildcards; the query is always a bound parameter.
         const escaped = frame.query.normalize('NFKC').toLowerCase().replace(/[\\%_]/g, (value) => `\\${value}`);
-        const rows = this.db.prepare(`SELECT * FROM directory_users WHERE username LIKE ? ESCAPE '\\' OR lastcall_fold(display_name) LIKE ? ESCAPE '\\' ORDER BY username LIMIT 200`)
+        const rows = this.db.prepare(`SELECT * FROM directory_users WHERE username LIKE ? ESCAPE '\\' OR lastcall_fold(display_name) LIKE ? ESCAPE '\\' ORDER BY username LIMIT ${DIRECTORY_SEARCH_LIMIT}`)
           .all(`${escaped}%`, `%${escaped}%`) as ProfileRow[];
         this.options.send(ws, { type: 'results', requestId: frame.requestId, users: rows.map((row) => this.user(row)) });
       } else if (frame.type === 'lookup') {

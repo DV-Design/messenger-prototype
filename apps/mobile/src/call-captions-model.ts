@@ -32,6 +32,17 @@ export interface CaptionNative {
   releaseTranslation(): void;
 }
 export type SpeechEvent = { type: 'partial' | 'final'; text: string } | { type: 'error'; code: string };
+/** ready: an offline voice is installed. download: the engine can install one. unavailable: none offline. */
+export type VoiceStatus = 'ready' | 'download' | 'unavailable';
+export interface VoiceNative {
+  voiceStatus(tag: string): Promise<{ status: VoiceStatus }>;
+  /** Resolves false when nothing was queued; otherwise voice-start and voice-done events follow. */
+  speak(text: string, tag: string, id: string): Promise<boolean>;
+  stopVoice(): void;
+  releaseVoice(): void;
+  installVoice(): Promise<void>;
+}
+export type VoiceEvent = { type: 'voice-start' | 'voice-done'; id: string };
 export interface CaptionScheduler { set(callback: () => void, delayMs: number): unknown; clear(handle: unknown): void; now(): number }
 export interface CaptionLine { segment: number; original: string; text: string; final: boolean; translated: boolean }
 export interface CaptionsView {
@@ -44,13 +55,24 @@ export interface CaptionsView {
   translation: 'none' | 'preparing' | 'ready' | 'failed';
   lines: CaptionLine[];
   own: string;
+  /** Spoken translation, chosen by this listener. */
+  voice: 'off' | 'checking' | VoiceStatus;
+  /** Spoken translation is playing for this call: the peer's own voice is silenced here. */
+  voiceActive: boolean;
+  /** A translation is being spoken; this phone's microphone and recognizer are quiet meanwhile. */
+  speaking: boolean;
 }
 export const CAPTION_PARTIAL_MS = 300;
 export const CAPTION_TRANSLATE_MS = 700;
 const MAX_LINES = 3;
 const DOWNLOAD_POLL_MS = 3000;
 const DOWNLOAD_POLLS = 60;
-const emptyView = (): CaptionsView => ({ enabled: false, peerEnabled: false, asked: false, speech: 'off', translation: 'none', lines: [], own: '' });
+export const emptyCaptionsView = (): CaptionsView => ({ enabled: false, peerEnabled: false, asked: false, speech: 'off', translation: 'none', lines: [], own: '', voice: 'off', voiceActive: false, speaking: false });
+const emptyView = emptyCaptionsView;
+/** Utterances waiting behind the one playing. Older ones are dropped so the voice does not fall behind the talk. */
+export const VOICE_QUEUE = 2;
+/** Longest wait for an engine's "done" before the microphone is given back anyway. */
+export const voiceDeadline = (text: string) => Math.min(30_000, 3000 + text.length * 120);
 
 /** Splits a long final utterance at spaces; a frame stays within the protocol limit and no words are cut off. */
 export function splitCaption(text: string, limit = CALL_CAPTION_TEXT_MAX): string[] {
@@ -90,9 +112,16 @@ export class CallCaptionsController {
   private preparing?: string;
   private translationToken = 0;
   private seen = new Map<number, number>();
+  private voiceToken = 0;
+  private voiceQueue: { id: string; text: string }[] = [];
+  private speakingId?: string;
+  private speakingTimer: unknown;
+  private utterance = 0;
+  private spoken = new Set<number>();
 
   constructor(private readonly deps: {
     native: CaptionNative;
+    voice?: VoiceNative;
     language: string;
     send(frame: CallCaptionFrame): Promise<boolean>;
     onChange(view: CaptionsView): void;
@@ -108,8 +137,12 @@ export class CallCaptionsController {
   private update(change: Partial<CaptionsView>) {
     this.view = { ...this.view, ...change };
     this.view.asked = this.view.peerEnabled && !this.view.enabled && !this.declined;
+    // Speaking needs captions on both sides and another language: the same language needs no voice.
+    this.view.voiceActive = this.view.voice === 'ready' && this.view.enabled && this.view.peerEnabled && !!this.peerLanguage && this.peerLanguage !== this.deps.language && !!this.callId;
+    if (!this.view.voiceActive) this.haltVoice();
     if (!this.disposed) this.deps.onChange(this.view);
   }
+  get voiceSupported() { return !!this.deps.voice; }
   private transmit(frame: CallCaptionFrame) { void this.deps.send(frame).catch(() => {}); }
   private sendState() {
     if (!this.callId) return;
@@ -133,12 +166,67 @@ export class CallCaptionsController {
   }
   toggle() { this.setEnabled(!this.view.enabled); }
   decline() { this.declined = true; this.update({}); }
+
+  toggleVoice() { void this.setVoice(this.view.voice === 'off'); }
+  /** Spoken translation needs captions, so turning it on turns them on too. */
+  async setVoice(on: boolean) {
+    const voice = this.deps.voice;
+    if (!voice || !this.callId) return;
+    const token = ++this.voiceToken;
+    if (!on) { this.update({ voice: 'off' }); return; }
+    if (!this.view.enabled) this.setEnabled(true);
+    this.update({ voice: 'checking' });
+    let status: VoiceStatus;
+    try { status = (await voice.voiceStatus(speechTag(this.deps.language))).status; }
+    catch { status = 'unavailable'; }
+    if (token !== this.voiceToken || this.disposed || !this.view.enabled) return;
+    this.update({ voice: status });
+    // The engine's own screen downloads the voice; pressing the button again checks once more.
+    if (status === 'download') void voice.installVoice().catch(() => {});
+  }
+  /** Native voice events. Only the utterance this controller started counts. */
+  onVoice(event: VoiceEvent) {
+    if (event.type !== 'voice-done' || event.id !== this.speakingId) return;
+    this.finishUtterance();
+    this.speakNext();
+  }
+  private say(segment: number, text: string) {
+    if (!this.view.voiceActive || this.spoken.has(segment) || !text.trim()) return;
+    this.spoken.add(segment);
+    if (this.spoken.size > 64) this.spoken.delete(this.spoken.values().next().value as number);
+    this.voiceQueue.push({ id: `u${++this.utterance}`, text });
+    while (this.voiceQueue.length > VOICE_QUEUE + (this.speakingId ? 0 : 1)) this.voiceQueue.shift();
+    this.speakNext();
+  }
+  private speakNext() {
+    const voice = this.deps.voice;
+    if (!voice || this.speakingId || !this.voiceQueue.length || !this.view.voiceActive || this.disposed) return;
+    const next = this.voiceQueue.shift()!;
+    this.speakingId = next.id;
+    this.speakingTimer = this.scheduler.set(() => { if (this.speakingId !== next.id) return; voice.stopVoice(); this.finishUtterance(); this.speakNext(); }, voiceDeadline(next.text));
+    this.update({ speaking: true });
+    voice.speak(next.text, speechTag(this.deps.language), next.id).then(started => { if (!started) this.onVoice({ type: 'voice-done', id: next.id }); }, () => this.onVoice({ type: 'voice-done', id: next.id }));
+  }
+  private finishUtterance() {
+    this.scheduler.clear(this.speakingTimer); this.speakingTimer = undefined;
+    this.speakingId = undefined;
+    if (this.view.speaking) this.update({ speaking: false });
+  }
+  /** Silences and forgets queued speech without notifying; update() reports the new state. */
+  private haltVoice() {
+    this.voiceQueue = [];
+    if (!this.speakingId) return;
+    this.scheduler.clear(this.speakingTimer); this.speakingTimer = undefined;
+    this.speakingId = undefined; this.view.speaking = false;
+    this.deps.voice?.stopVoice();
+  }
   setEnabled(enabled: boolean) {
     if (enabled === this.view.enabled || !this.callId) return;
     if (!enabled) {
       this.stopListening();
       this.clearLines();
-      this.update({ enabled: false, speech: 'off', translation: 'none', own: '' });
+      this.voiceToken++;
+      this.update({ enabled: false, speech: 'off', translation: 'none', own: '', voice: 'off' });
       this.sendState();
       this.deps.native.releaseTranslation(); this.preparedPair = undefined;
       return;
@@ -297,9 +385,12 @@ export class CallCaptionsController {
     const current = this.view.lines.find(item => item.segment === segment);
     if (!current || (token !== this.translationToken && current.original !== original)) return;
     this.update({ lines: this.view.lines.map(item => item.segment === segment ? { ...item, text, translated: true } : item) });
+    // Only a finished phrase is spoken, once; partial translations change too often to be heard.
+    if (current.final && current.original === original) this.say(segment, text);
   }
   private reset() {
     this.stopListening(); this.clearLines();
+    this.voiceToken++; this.haltVoice(); this.spoken.clear(); this.deps.voice?.releaseVoice();
     this.deps.native.releaseTranslation();
     this.view = emptyView(); this.declined = false; this.peerLanguage = undefined; this.preparedPair = undefined; this.preparing = undefined; this.segment = 0; this.revision = 0;
   }

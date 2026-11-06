@@ -43,3 +43,12 @@ test('old page response cannot append to a new search, and canceled requests sta
   canceled.setQuery('name'); const request = canceled.load(); canceled.cancel(); pending.resolve([user('late')]); await request;
   assert.equal(canceled.snapshot().users.length, 0);
 });
+test('a one-letter query asks the server nothing and clears the list', async () => {
+  const asked: string[] = [];
+  const controller = new CatalogController({ listUsers: async () => ({ users: [user('alice')] }), search: async query => { asked.push(query); return [user('ivan')]; } }, 'self');
+  await controller.load(); assert.equal(controller.snapshot().users.length, 1);
+  controller.setQuery('И'); await controller.load();
+  assert.deepEqual(asked, []); assert.deepEqual(controller.snapshot().users, []);
+  controller.setQuery('Ив'); await controller.load();
+  assert.deepEqual(asked, ['ив']);
+});

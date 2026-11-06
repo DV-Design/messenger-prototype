@@ -27,12 +27,16 @@ final class LastCallRecognizers {
     for (int index = 0; index < bytes.length; index++) bytes[index] = (byte) Integer.parseInt(value.substring(index * 2, index * 2 + 2), 16);
     return bytes;
   }
-  private static boolean trustedGoogle(Context context) {
+  /** True when the package is installed and signed by Google, whether it came with the phone or from Play. */
+  static boolean googleSigned(Context context, String pkg) {
     PackageManager manager = context.getPackageManager();
-    try { manager.getServiceInfo(GOOGLE, 0); }
-    catch (PackageManager.NameNotFoundException missing) { return false; }
-    for (String cert : GOOGLE_CERTS) if (manager.hasSigningCertificate(GOOGLE.getPackageName(), hex(cert), PackageManager.CERT_INPUT_SHA256)) return true;
+    for (String cert : GOOGLE_CERTS) if (manager.hasSigningCertificate(pkg, hex(cert), PackageManager.CERT_INPUT_SHA256)) return true;
     return false;
+  }
+  private static boolean trustedGoogle(Context context) {
+    try { context.getPackageManager().getServiceInfo(GOOGLE, 0); }
+    catch (PackageManager.NameNotFoundException missing) { return false; }
+    return googleSigned(context, GOOGLE.getPackageName());
   }
   /** An emulator always names a recognizer, so only an explicit test build can exercise the other path. */
   private static boolean testForcesGoogle(Context context) {

@@ -232,7 +232,7 @@ describe('immutable installation registration and directory synchronization', ()
     expect(await unauth.next('error')).toMatchObject({ code: 'not-authenticated' });
   });
 
-  it('pages 100 canonical public profiles by keyset through real MessengerClient and preserves offline profiles', async () => {
+  it('pages canonical public profiles by 30 by keyset through real MessengerClient and preserves offline profiles', async () => {
     const path = mkdtempSync(join(tmpdir(), 'lastcall-catalog-')); tempDirs.push(path); const directoryDbPath = join(path, 'directory.sqlite');
     const { url } = await start({ directoryDbPath });
     // Fixture a larger catalog without making the test depend on connection/rate limits.
@@ -246,9 +246,12 @@ describe('immutable installation registration and directory synchronization', ()
     expect(await resolveDeviceProfile(url, identity)).toBeNull();
     const manager = new MessengerClient({ serverUrl: url, identity, username: 'reader', displayName: 'Canonical Reader' }); managers.push(manager);
     await manager.connect();
-    const first = await manager.listUsers(); expect(first.users).toHaveLength(100); expect(first.nextCursor).toBe(first.users.at(-1)!.username);
-    const second = await manager.listUsers(first.nextCursor); expect(second.users).toHaveLength(4); expect(second.nextCursor).toBeUndefined();
-    const names = [...first.users, ...second.users].map(user => user.username);
+    const pages = [await manager.listUsers()];
+    while (pages.at(-1)!.nextCursor) pages.push(await manager.listUsers(pages.at(-1)!.nextCursor));
+    expect(pages.map(page => page.users.length)).toEqual([30, 30, 30, 14]);
+    const first = pages[0]!; expect(first.nextCursor).toBe(first.users.at(-1)!.username);
+    expect(await manager.search('user_')).toHaveLength(30);
+    const names = pages.flatMap(page => page.users).map(user => user.username);
     expect(names).toEqual([...names].sort()); expect(new Set(names).size).toBe(104);
     expect(first.users.find(user => user.username === 'user_000')).toMatchObject({ online: false, lastSeen: 123 });
     manager.disconnect();
@@ -289,3 +292,4 @@ describe('immutable installation registration and directory synchronization', ()
     expect(await query("%' OR 1=1 --")).toEqual([]);
   });
 });
+

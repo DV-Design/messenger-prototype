@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState, type ComponentRef } from 'react';
+import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
 import { Redirect, router, useIsFocused, useLocalSearchParams } from 'expo-router';
-import { Alert, AppState, FlatList, KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from 'react-native';
+import { Alert, AppState, FlatList, KeyboardAvoidingView, Linking, Platform, Pressable, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { safetyEmoji, type MessengerFile, type MessengerMessage } from '@messenger/core';
-import { t } from '../../i18n';
+import { intlLocale, t } from '../../i18n';
+import { messageParts } from '../../message-links';
 import { pickDocument, pickMedia, shareFile } from '../../attachments';
 import { AttachmentCard } from '../../components/AttachmentCard';
 import { MessageActions, type MessageTarget } from '../../components/MessageActions';
@@ -16,7 +17,9 @@ import { transportNotice } from '../../transport-notice';
 import { canMarkRead, deliveryIcon, deliveryLabel, deliveryStage, readContentVersion, waitingForDelivery } from '../../delivery-model';
 import { MediaComposer } from '../../components/MediaComposer';
 import type { MediaKind } from '../../media-model';
-import { chatTimeline, type ChatTimelineEntry } from '../../timeline-model';
+import { chatTimeline, dayLabel, withDays, type ChatTimelineRow } from '../../timeline-model';
+
+const FLOATING_DATE_MS = 1200;
 
 export default function Chat() {
   const params = useLocalSearchParams<{ id: string }>();
@@ -33,7 +36,20 @@ export default function Chat() {
   const [selected, setSelected] = useState<MessageTarget>();
   const [editing, setEditing] = useState<string>();
   const unsentDraft = useRef('');
-  const list = useRef<ComponentRef<typeof FlatList<ChatTimelineEntry>>>(null);
+  const list = useRef<ComponentRef<typeof FlatList<ChatTimelineRow>>>(null);
+  // Like Telegram: while the history scrolls, the date of the topmost message floats above it.
+  const [floatingDate, setFloatingDate] = useState('');
+  const [scrolling, setScrolling] = useState(false);
+  const scrollIdle = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const now = useToday();
+  // FlatList requires a handler that never changes; the label is computed when it runs.
+  const onViewable = useCallback(({ viewableItems }: { viewableItems: { item: ChatTimelineRow | null }[] }) => {
+    const top = viewableItems.find(token => token.item)?.item;
+    if (top) setFloatingDate(dayLabel(top.timestamp, Date.now(), intlLocale, { today: t('Today'), yesterday: t('Yesterday') }));
+  }, []);
+  const scrollStarted = useCallback(() => { clearTimeout(scrollIdle.current); setScrolling(true); }, []);
+  const scrollStopped = useCallback(() => { clearTimeout(scrollIdle.current); scrollIdle.current = setTimeout(() => setScrolling(false), FLOATING_DATE_MS); }, []);
+  useEffect(() => () => clearTimeout(scrollIdle.current), []);
   const unread = conversation?.unread ?? 0;
   const focused = useIsFocused();
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
@@ -53,7 +69,8 @@ export default function Chat() {
   if (!profile) return <Redirect href="/onboarding" />;
   if (!conversation) return <SafeAreaView style={styles.whiteScreen}><View style={styles.chatHeader}><IconButton name="chevron-back" label={t('Back')} onPress={() => router.back()} /></View><Empty icon="chatbubble-outline" title={t('Chat not found')} text={t('It may belong to another server. Return to the chat list.')} /></SafeAreaView>;
   const blocked = new Set(snapshot.blockedContacts);
-  const timeline = chatTimeline(conversation.messages.filter(item => !blocked.has(item.from)), conversation.files.filter(item => !blocked.has(item.senderId)));
+  const timeline = withDays(chatTimeline(conversation.messages.filter(item => !blocked.has(item.from)), conversation.files.filter(item => !blocked.has(item.senderId))),
+    timestamp => dayLabel(timestamp, now, intlLocale, { today: t('Today'), yesterday: t('Yesterday') }));
   const peer = snapshot.contacts.find(item => conversation.memberIds.includes(item.userId) && item.userId !== identity?.userId);
   const group = conversation.kind === 'group';
   const blockedPeer = !group && !!peer && blocked.has(peer.userId);
@@ -113,7 +130,10 @@ export default function Chat() {
     const expired = item.status === 'expired';
     const label = deliveryLabel(item, group);
     return <Pressable accessibilityHint={t('Hold to edit, copy or delete')} accessibilityActions={[{ name: 'longpress', label: t('Message actions') }]} onAccessibilityAction={() => selectMessage(item)} onLongPress={() => selectMessage(item)} style={[styles.bubble, own && styles.bubbleSelf]}>
-      {group && !own && <Text style={styles.senderName}>{sender}</Text>}<Text style={styles.message}>{item.text}</Text>
+      {group && !own && <Text style={styles.senderName}>{sender}</Text>}<Text style={styles.message}>{messageParts(item.text).map((part, index) => part.url
+        ? <Text key={index} accessibilityRole="link" style={{ color: colors.blue, textDecorationLine: 'underline' }} onLongPress={() => selectMessage(item)}
+          onPress={() => { const url = part.url!; void Linking.openURL(url).catch(() => setError(t('Could not open the link.'))); }}>{part.text}</Text>
+        : part.text)}</Text>
       {own && (group || expired) && <Text style={[styles.fileMeta, expired && { color: '#A33535' }]}>{label}</Text>}
       <View style={styles.messageMeta}>{!!item.editedAt && <Text style={styles.messageTime}>{t('edited')}</Text>}<Text style={styles.messageTime}>{time(item.timestamp)}</Text>{own && <View accessibilityLabel={label}><Icon name={deliveryIcon(item)} size={15} color={expired ? '#A33535' : read ? colors.accent : '#70877D'} /></View>}</View>
     </Pressable>;
@@ -137,12 +157,15 @@ export default function Chat() {
       <View style={styles.conversation}>
         {group && <Text style={[styles.info, { textAlign: 'center', paddingVertical: 8, paddingHorizontal: 15 }]}> {t('Group up to 8 members · group calls are not available yet')}</Text>}
         <FlatList ref={list} data={timeline} keyExtractor={entry => entry.key} contentContainerStyle={styles.messages} keyboardShouldPersistTaps="handled" onContentSizeChange={() => list.current?.scrollToEnd({ animated: true })}
+          onViewableItemsChanged={onViewable} viewabilityConfig={VIEWABILITY} onScrollBeginDrag={scrollStarted} onMomentumScrollBegin={scrollStarted} onScrollEndDrag={scrollStopped} onMomentumScrollEnd={scrollStopped}
           renderItem={({ item: entry }) => {
+            if (entry.kind === 'day') return <DayPill label={entry.label} />;
             if (entry.kind === 'message') return renderMessage(entry.item);
             const file = entry.item;
             return <View style={{ marginTop: 9 }}><AttachmentCard file={file} self={file.senderId === identity?.userId} group={group} sender={group ? snapshot.contacts.find(contact => contact.userId === file.senderId)?.displayName : undefined} mediaDisabled={!focused || !!snapshot.activeCall || !!recording} onOpen={() => void action(() => shareFile(file))} onLongPress={() => selectFile(file)} /></View>;
           }}
           ListEmptyComponent={<Empty icon="chatbubble-ellipses-outline" title={t('Start a conversation')} text={group ? t('Data syncs between participants’ phones.') : t('Send the first message. If your contact is offline, it waits on your device for up to 7 days.')} />} />
+        {scrolling && !!floatingDate && <View pointerEvents="none" style={{ position: 'absolute', top: 8, left: 0, right: 0, alignItems: 'center' }}><DayPill label={floatingDate} /></View>}
       </View>
       {!!error && <Pressable accessibilityRole="button" accessibilityLabel={t('Hide error')} onPress={() => setError('')}><Text style={[styles.error, { borderRadius: 0 }]}>{error}</Text></Pressable>}
       {!blockedPeer && !!editing && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 15, paddingRight: 4, paddingVertical: 4, backgroundColor: '#EDF5F1' }}><Icon name="create-outline" size={17} /><Text style={[styles.info, { flex: 1 }]}>{t('Editing message')}</Text><IconButton name="close" label={t('Cancel editing')} disabled={busy} onPress={cancelEdit} /></View>}
@@ -173,4 +196,22 @@ export default function Chat() {
         else if (peer) await client().reportContent({ targetId: peer.userId, targetKind: 'user', conversationId: conversation.id, reason, details: details || undefined });
       }} />}
   </SafeAreaView>;
+}
+
+const VIEWABILITY = { itemVisiblePercentThreshold: 1 };
+function DayPill({ label }: { label: string }) {
+  return <View accessibilityRole="header" style={{ alignSelf: 'center', marginVertical: 4, paddingHorizontal: 11, paddingVertical: 4, borderRadius: 12, backgroundColor: 'rgba(43, 74, 62, 0.42)' }}>
+    <Text style={{ color: colors.white, fontSize: 13, fontWeight: '600' }}>{label}</Text>
+  </View>;
+}
+
+/** The current time, refreshed at local midnight so "Today" and "Yesterday" move while a chat stays open. */
+function useToday() {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const midnight = new Date(now); midnight.setHours(24, 0, 1, 0);
+    const timer = setTimeout(() => setNow(Date.now()), midnight.getTime() - now);
+    return () => clearTimeout(timer);
+  }, [now]);
+  return now;
 }

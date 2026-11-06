@@ -15,6 +15,20 @@ function notice(view: CaptionsView): string {
   return '';
 }
 
+/** Spoken translation: what the listener hears instead of the other person's voice. */
+export function voiceNote(view: CaptionsView): string {
+  if (!view.enabled) return '';
+  switch (view.voice) {
+    case 'off': return '';
+    case 'checking': return t('Checking the voice for spoken translation…');
+    case 'download': return t('Spoken translation needs an offline voice for your language. Install it on the screen that opened, then press Voice again.');
+    case 'unavailable': return t('This phone has no offline voice for your language. Captions stay on.');
+    case 'ready':
+      if (view.voiceActive) return view.speaking ? t('Speaking the translation. Your microphone is paused.') : t('Spoken translation is on. The other person’s own voice is muted.');
+      return view.peerEnabled && view.translation === 'none' ? t('You both speak the same language, so nothing is spoken.') : '';
+  }
+}
+
 export function CallCaptions({ view, onEnable, onDecline }: { view: CaptionsView; onEnable: () => void; onDecline: () => void }) {
   const message = notice(view);
   if (view.asked) return <View style={{ alignSelf: 'stretch', backgroundColor: 'rgba(0,0,0,0.72)', borderRadius: 14, padding: 12, gap: 10 }}>
@@ -34,6 +48,7 @@ export function CallCaptions({ view, onEnable, onDecline }: { view: CaptionsView
       </View>;
     })}
     {!!message && <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, lineHeight: 20 }}>{message}</Text>}
+    {!!voiceNote(view) && <Text style={{ color: view.voiceActive ? '#9FE3C9' : 'rgba(255,255,255,0.8)', fontSize: 14, lineHeight: 20 }}>{voiceNote(view)}</Text>}
     {!!view.own && <Text numberOfLines={1} ellipsizeMode="head" style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13, lineHeight: 18 }}>{t('You: {text}', { text: view.own })}</Text>}
   </View>;
 }

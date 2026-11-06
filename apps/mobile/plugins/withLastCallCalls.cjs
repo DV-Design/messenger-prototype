@@ -13,11 +13,12 @@ module.exports = function withLastCallCalls(config) {
       const permission = `android.permission.${name}`;
       if (!manifest['uses-permission'].some(item => item.$['android:name'] === permission)) manifest['uses-permission'].push({ $: { 'android:name': permission } });
     }
-    // Android 11+ package visibility: without this the on-device recognizer service is not found.
+    // Android 11+ package visibility: without these the on-device recognizer and speech engines are not found.
     manifest.queries ??= [];
-    const recognition = 'android.speech.RecognitionService';
-    if (!manifest.queries.some(entry => (entry.intent ?? []).some(intent => (intent.action ?? []).some(action => action.$['android:name'] === recognition)))) {
-      manifest.queries.push({ intent: [{ action: [{ $: { 'android:name': recognition } }] }] });
+    for (const service of ['android.speech.RecognitionService', 'android.intent.action.TTS_SERVICE']) {
+      if (!manifest.queries.some(entry => (entry.intent ?? []).some(intent => (intent.action ?? []).some(action => action.$['android:name'] === service)))) {
+        manifest.queries.push({ intent: [{ action: [{ $: { 'android:name': service } }] }] });
+      }
     }
     const app = manifest.application[0]; app.service ??= []; app.activity ??= [];
     manifest.$['xmlns:tools'] = 'http://schemas.android.com/tools'; app['meta-data'] ??= [];
@@ -71,7 +72,7 @@ module.exports = function withLastCallCalls(config) {
   return withDangerousMod(config, ['android', async mod => {
     const target = path.join(mod.modRequest.platformProjectRoot, 'app/src/main/java/dev/messenger/prototype/calls');
     await fs.mkdir(target, { recursive: true });
-    for (const file of ['LastCallAudioTap.java', 'LastCallRecognizers.java', 'LastCallSpeechSession.java', 'LastCallCaptionsModule.java', 'LastCallAudioService.java', 'LastCallAudioModule.java', 'LastCallAudioPackage.java', 'LastCallAudioRoutes.java', 'LastCallHeadlessAppLoader.java', 'LastCallHostLease.java', 'LastCallWakeLease.java', 'LastCallCallUiService.java', 'LastCallCallActivity.java', 'LastCallCallSetupService.java', 'LastCallCpuWake.java', 'LastCallCallTrace.java', 'LastCallMessagingService.java']) await fs.copyFile(path.join(__dirname, 'calls', file), path.join(target, file));
+    for (const file of ['LastCallAudioTap.java', 'LastCallRecognizers.java', 'LastCallSpeechSession.java', 'LastCallCaptionsModule.java', 'LastCallVoice.java', 'LastCallAudioService.java', 'LastCallAudioModule.java', 'LastCallAudioPackage.java', 'LastCallAudioRoutes.java', 'LastCallHeadlessAppLoader.java', 'LastCallHostLease.java', 'LastCallWakeLease.java', 'LastCallCallUiService.java', 'LastCallCallActivity.java', 'LastCallCallSetupService.java', 'LastCallCpuWake.java', 'LastCallCallTrace.java', 'LastCallMessagingService.java']) await fs.copyFile(path.join(__dirname, 'calls', file), path.join(target, file));
     return mod;
   }]);
 };

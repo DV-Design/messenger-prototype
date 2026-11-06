@@ -21,6 +21,9 @@ import java.util.Map;
 /** Live call captions with the phone's own engines. Text is emitted to JS and never logged or stored here. */
 public final class LastCallCaptionsModule extends ReactContextBaseJavaModule {
   private LastCallSpeechSession speech;
+  private LastCallVoice voice;
+  /** Utterances being spoken. While any is, the recognizer hears silence, or it would caption the voice itself. */
+  private final java.util.Set<String> voicing = new java.util.HashSet<>();
   private final Map<String, Translator> translators = new HashMap<>();
 
   LastCallCaptionsModule(ReactApplicationContext context) { super(context); }
@@ -28,7 +31,7 @@ public final class LastCallCaptionsModule extends ReactContextBaseJavaModule {
   @ReactMethod public void addListener(String eventName) {}
   @ReactMethod public void removeListeners(Integer count) {}
   @Override public void invalidate() {
-    UiThreadUtil.runOnUiThread(() -> { if (speech != null) { speech.stop(); speech = null; } closeTranslators(); });
+    UiThreadUtil.runOnUiThread(() -> { if (speech != null) { speech.stop(); speech = null; } closeTranslators(); releaseVoiceNow(); });
     super.invalidate();
   }
   private void emit(String type, String key, String value) {
@@ -123,7 +126,7 @@ public final class LastCallCaptionsModule extends ReactContextBaseJavaModule {
         @Override public void onFinal(String text) { emit("final", "text", text); }
         @Override public void onFailed(String code) { emit("error", "code", code); }
       });
-      speech.setMuted(muted);
+      speech.setMuted(muted || !voicing.isEmpty());
       speech.start();
       result.resolve(null);
     });
@@ -131,8 +134,43 @@ public final class LastCallCaptionsModule extends ReactContextBaseJavaModule {
   private volatile boolean muted;
   @ReactMethod public void setSpeechMuted(boolean value) {
     muted = value;
-    UiThreadUtil.runOnUiThread(() -> { if (speech != null) speech.setMuted(value); });
+    UiThreadUtil.runOnUiThread(this::applySpeechMute);
   }
+  private void applySpeechMute() { if (speech != null) speech.setMuted(muted || !voicing.isEmpty()); }
+
+  private LastCallVoice voice() {
+    if (voice == null) voice = new LastCallVoice(getReactApplicationContext(), new LastCallVoice.Events() {
+      @Override public void onStart(String id) { voicing.add(id); applySpeechMute(); emit("voice-start", "id", id); }
+      @Override public void onDone(String id) { voicing.remove(id); applySpeechMute(); emit("voice-done", "id", id); }
+    });
+    return voice;
+  }
+  @ReactMethod public void voiceStatus(String tag, Promise result) {
+    UiThreadUtil.runOnUiThread(() -> voice().whenReady(ok -> {
+      WritableMap value = Arguments.createMap();
+      value.putString("status", ok ? voice.status(tag) : "unavailable");
+      result.resolve(value);
+    }));
+  }
+  @ReactMethod public void speak(String text, String tag, String id, Promise result) {
+    UiThreadUtil.runOnUiThread(() -> voice().whenReady(ok -> {
+      // Counted from the request, so the microphone is quiet before the first sound plays.
+      boolean started = ok && voice.speak(text, tag, id);
+      if (started) { voicing.add(id); applySpeechMute(); }
+      result.resolve(started);
+    }));
+  }
+  @ReactMethod public void stopVoice() {
+    UiThreadUtil.runOnUiThread(() -> { if (voice != null) voice.stop(); voicing.clear(); applySpeechMute(); });
+  }
+  @ReactMethod public void installVoice(Promise result) {
+    UiThreadUtil.runOnUiThread(() -> {
+      try { voice().install(); result.resolve(null); }
+      catch (RuntimeException error) { result.reject("CAPTIONS", "Could not open voice settings", error); }
+    });
+  }
+  private void releaseVoiceNow() { if (voice != null) { voice.shutdown(); voice = null; } voicing.clear(); applySpeechMute(); }
+  @ReactMethod public void releaseVoice() { UiThreadUtil.runOnUiThread(this::releaseVoiceNow); }
   @ReactMethod public void stopSpeech() {
     UiThreadUtil.runOnUiThread(() -> { if (speech != null) { speech.stop(); speech = null; } });
   }
