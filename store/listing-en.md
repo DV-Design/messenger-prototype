@@ -13,6 +13,7 @@ LastCall is a messenger with a unique username and no phone number. Messages, fi
 - A confirmed email address restores your @username after a reinstall. Chat history stays on the device and is not restored.
 - Text, files up to 5 MiB, voice notes up to 2 minutes and video circles up to 30 seconds.
 - Audio and video calls with camera switching, picture-in-picture and an Android audio-output picker.
+- Live call translation on Android 13 and newer: captions in your language, or the translation read aloud in place of the other person's voice. Speech is recognized, translated and voiced on the phones; language packs are downloaded from Google once.
 - Five-emoji safety code to compare contact keys and a short call verification code.
 - Encrypted local history and a sender-held queue for up to 7 days.
 - English by default; Russian when the phone's primary language is Russian.
