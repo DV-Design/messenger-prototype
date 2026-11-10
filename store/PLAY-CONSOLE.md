@@ -173,6 +173,18 @@ first, install from Play, then run `docs/TESTING-RU.md`.
   on 2026-11-04 at 11:57 from the same bundle, no device support lost.
 - Managed publishing is off, so an approved change goes live without a further step.
 
+## Current Play Console state (2026-11-11)
+
+- Internal testing: `LastCall 1.0.22 internal` (versionCode 36) published.
+- Alpha closed testing: `LastCall 1.0.22 closed` (versionCode 36, rollout 100%) sent
+  for Google review; 1.0.17 stays live until approval. No devices lost.
+- The developer account is signed in to Safari as Google account index `u/1`
+  (`u/0` is another account). Upload note: with the Mac screen locked, Safari keeps the page hidden and
+  `requestAnimationFrame` never runs, so Play Console dialogs (publish
+  confirmation) never open. Patch `requestAnimationFrame` to a timer as the page
+  loads, and hand the AAB to the upload input from JS; the native file picker
+  cannot be used while locked.
+
 ## Remaining blockers
 
 - Google approval of `LastCall 1.0.9 closed`.

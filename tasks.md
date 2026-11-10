@@ -1,6 +1,6 @@
 # Haptics and in-chat sounds (msg-bd1, branch `feat/delivery-requests`)
 
-Status: 1.0.22/code36 built (AAB sha256 a8bd4eea…76d0f9); emulator-tested.
+Status: 1.0.22/code36 published to Google Play internal testing on 2026-11-11; `LastCall 1.0.22 closed` (Alpha, 100%) passed pre-review checks and is in Google review. AAB sha256 a8bd4eea…76d0f9; emulator-tested.
 
 - [X] Feedback model (incoming baseline, open-chat cue, call connect/end, throttle) with tests
   → Artifacts: [model](apps/mobile/src/feedback-model.ts), [runtime](apps/mobile/src/feedback.ts), [tests](apps/mobile/tests/feedback.test.ts)
@@ -8,7 +8,7 @@ Status: 1.0.22/code36 built (AAB sha256 a8bd4eea…76d0f9); emulator-tested.
   → Artifacts: [native](apps/mobile/plugins/notifications/LastCallNotificationsModule.java), [sounds generator](infra/generate-ui-sounds.mjs), [settings](apps/mobile/src/components/FeedbackSettings.tsx)
 - [X] Gates: mobile 208, server 133, core 265, e2e 16 PASS / 1 skip
 - [X] Two Android emulators upgraded 1.0.21 → 1.0.22: sent/incoming SoundPool started, nothing on vibrate mode, long press gave LONG_PRESS haptic
-- [ ] Upload 1.0.22 to Play internal and closed testing
+- [X] Publish `LastCall 1.0.22 internal` (internal track) and save `LastCall 1.0.22 closed` (Alpha, 100%, no device support lost), send it for review
 - [ ] Physical phones: loudness of the sounds, haptic strength on vivo
 
 # Message reactions (msg-7ek, branch `feat/delivery-requests`)
