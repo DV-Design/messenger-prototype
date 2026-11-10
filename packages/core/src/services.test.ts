@@ -70,6 +70,17 @@ describe('authenticated correlated service requests',()=>{
    const cancelled=f.client.getServices();const rejected=expect(cancelled).rejects.toThrow(/Disconnected/);f.client.disconnect();await rejected;expect((f.client as any).requests.size).toBe(0);
   }finally{f.close();vi.useRealTimers();}
  });
+ it('falls back to the old request when a server refuses the delivery capability',async()=>{
+  const f=await fixture();try{
+   const first=f.client.getServices();const rejected=expect(first).rejects.toThrow(/Disconnected|disconnected/);
+   expect(f.sent.filter(x=>x.type==='services').at(-1).deliveryV1).toBe(true);
+   f.socket.push({type:'error',code:'invalid-frame',message:'Invalid directory control frame'});f.client.disconnect();await rejected;
+   expect((f.client as any).deliveryRefused).toBe(true);
+   (f.client as any).status='online';(f.client as any).stopped=false;(f.client as any).socket={readyState:1,send:(raw:string)=>f.sent.push(JSON.parse(raw)),close:()=>{}};
+   void f.client.getServices().catch(()=>{});expect(f.sent.filter(x=>x.type==='services').at(-1)).not.toHaveProperty('deliveryV1');
+   (f.client as any).socket=undefined;(f.client as any).stopped=true;for(const r of (f.client as any).requests.values())clearTimeout(r.timer);(f.client as any).requests.clear();
+  }finally{f.close();}
+ });
  it('creates one RTC instance when concurrent connects await an asynchronous ICE provider',async()=>{
   let release!:(servers:RTCIceServer[])=>void;const configuration=new Promise<RTCIceServer[]>(resolve=>{release=resolve;});const provider=vi.fn(()=>configuration);
   class Socket {readyState=1;onopen:any;onmessage:any;onclose:any;onerror:any;constructor(){queueMicrotask(()=>this.onopen?.());}send(raw:string){const frame=JSON.parse(raw);if(frame.type==='join')queueMicrotask(()=>this.onmessage?.({data:JSON.stringify({type:'joined',roomId:frame.roomId,peerId:frame.peerId,role:'initiator',peerPresent:false})}));}close(){this.readyState=3;}}

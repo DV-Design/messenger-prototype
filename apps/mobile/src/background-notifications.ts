@@ -1,7 +1,8 @@
 import * as TaskManager from 'expo-task-manager';
 import * as Notifications from 'expo-notifications';
 import { processMessagePreview, pushConfigured } from './notifications';
-import { parseWakeNotice, runWakeTask, WakeSyncCoordinator } from './wake-model';
+import { parseDeliveryNotice, parseWakeNotice, runWakeTask, WakeSyncCoordinator, type DeliveryNotice } from './wake-model';
+import { showDeliveryProgress } from './delivery-progress';
 import { acquireBackgroundManager, client } from './runtime';
 import { retainWakeRuntime } from './system-calls';
 import { processCallPush } from './call-pushes';
@@ -15,10 +16,20 @@ if (!TaskManager.isTaskDefined(TASK)) {
   TaskManager.defineTask<Notifications.NotificationTaskPayload>(TASK, async ({ data, error }) => {
     if (!pushConfigured || error) return;
     if (isCallPushPayload(data)) { await processCallPush(data); return; }
+    const delivery = parseDeliveryNotice(data);
+    if (delivery) { await runDelivery(delivery); return; }
     try { await runWakeTask(parseWakeNotice(data), notice => retainWakeRuntime(notice),
       notice => coordinator.run(notice, signal => processMessagePreview(data, client(), signal))); }
     catch { /* A failed durable drain must not crash the notification entry point. */ }
   });
+}
+
+/** The queue drains the moment the directory connects; the sender sees why the phone woke. */
+async function runDelivery({ role, notice }: DeliveryNotice) {
+  const hide = role === 'sender' ? await showDeliveryProgress() : undefined;
+  try { await runWakeTask(notice, current => retainWakeRuntime(current), current => coordinator.run(current)); }
+  catch { /* The queue stays on the phone; the next push or launch retries. */ }
+  finally { await hide?.(); }
 }
 
 export function ensureBackgroundNotifications(): Promise<boolean> {

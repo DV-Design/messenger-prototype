@@ -277,6 +277,16 @@ describe('short-lived typed wake metadata', () => {
 });
 
 describe('opt-in background token routing over real WebSockets',()=>{
+ it('turns a delivery request into a wake of the absent party over real sockets',async()=>{
+  const calls:Array<[string,string]>=[];let now=Date.now();const provider={async sendWake(){},async sendDelivery(token:string,role:'sender'|'recipient'){calls.push([token,role]);}};const {url}=await start({serviceNow:()=>now,pushProvider:provider});
+  const a=await user(url,'delivery_sender'),b=await user(url,'delivery_recipient');
+  const caps=await a.client.rpc('services',{deliveryV1:true,callInviteV1:true}) as {capabilities:{deliveryV1?:boolean}};expect(caps.capabilities.deliveryV1).toBe(true);
+  expect(await a.client.rpc('push-register',{token:'token-a',backgroundSync:true,deliveryV1:true})).toMatchObject({type:'push-registered'});expect(await b.client.rpc('push-register',{token:'token-b',backgroundSync:true,deliveryV1:true})).toMatchObject({type:'push-registered'});
+  b.client.send({type:'watch',userIds:[a.identity.userId]});await b.client.next(f=>f.type==='presence');
+  a.client.send({type:'delivery-sync',peers:[{to:b.identity.userId,expiresAt:now+86400000}]});await new Promise(resolve=>setTimeout(resolve,50));expect(calls).toEqual([]);
+  a.client.ws.close();await new Promise(resolve=>setTimeout(resolve,50));b.client.ws.close();await new Promise(resolve=>setTimeout(resolve,50));
+  now+=3600000;const again=await user(url,'delivery_recipient',b.identity);await expect.poll(()=>calls).toEqual([['token-a','sender']]);again.client.ws.close();
+ });
  it('forwards only the authenticated registered token capability and supports legacy reset',async()=>{
   const modes:boolean[]=[];let now=Date.now();const {url}=await start({serviceNow:()=>now,pushProvider:{async sendWake(_token,_intent,backgroundSync){modes.push(backgroundSync===true);}}});
   const a=await user(url,'background_sender'),b=await user(url,'background_recipient');expect(await b.client.rpc('push-register',{token:'background-token',backgroundSync:true})).toMatchObject({type:'push-registered'});b.client.send({type:'watch',userIds:[a.identity.userId]});await b.client.next(f=>f.type==='presence');

@@ -125,3 +125,35 @@ describe('a connected but background-suspended recipient still receives call wak
   const f=await fixture();try{f.session.startCall.mockImplementation(async(...args:any[])=>{f.snapshot.callId=args[1]?.callId??'ef'.repeat(16);f.snapshot.callState='outgoing';});const starting=f.client.startCall(f.id);await vi.advanceTimersByTimeAsync(2500);expect(f.sent.filter(x=>x.type==='wake')).toHaveLength(1);f.snapshot.status='connected';await vi.advanceTimersByTimeAsync(100);await starting;await vi.advanceTimersByTimeAsync(2500);expect(f.sent.filter(x=>x.type==='wake')).toHaveLength(1);}finally{f.client.disconnect();}
  });
 });
+
+describe('delivery requests',()=>{
+ const syncs=(sent:any[])=>sent.filter(x=>x.type==='delivery-sync');
+ async function ready(deliveryV1=true){const f=await fixture();f.internal.services={...f.internal.services,...(deliveryV1?{deliveryV1:true}:{})};return f;}
+ it('registers the peer only after the direct-first grace, with no content',async()=>{
+  const f=await ready();try{
+   await f.client.sendText(f.id,'private');await vi.advanceTimersByTimeAsync(2000);expect(syncs(f.sent).filter(x=>x.peers.length)).toHaveLength(0);
+   await vi.advanceTimersByTimeAsync(1000);const frame=syncs(f.sent).at(-1);expect(frame.peers).toHaveLength(1);expect(frame.peers[0].to).toBe(bob.userId);expect(JSON.stringify(frame)).not.toContain('private');
+  }finally{f.client.disconnect();}
+ });
+ it('leaves no request when the recipient confirms within the grace',async()=>{
+  const f=await ready();try{
+   f.internal.contacts.set(bob.userId,{...contact,online:true});await f.client.sendText(f.id,'private');await vi.advanceTimersByTimeAsync(2000);
+   const message=f.client.getSnapshot().conversations[0]!.messages[0]!;f.internal.receiveMessage(bob.userId,{...message,from:'self',status:'delivered'});
+   await vi.advanceTimersByTimeAsync(90000);expect(syncs(f.sent).filter(x=>x.peers.length)).toHaveLength(0);
+  }finally{f.client.disconnect();}
+ });
+ it('sends an unchanged list once and clears it after delivery',async()=>{
+  const f=await ready();try{
+   await f.client.sendText(f.id,'private');await vi.advanceTimersByTimeAsync(95000);expect(syncs(f.sent).filter(x=>x.peers.length)).toHaveLength(1);
+   const message=f.client.getSnapshot().conversations[0]!.messages[0]!;f.internal.receiveMessage(bob.userId,{...message,from:'self',status:'delivered'});await vi.advanceTimersByTimeAsync(10);
+   expect(syncs(f.sent).at(-1).peers).toEqual([]);
+  }finally{f.client.disconnect();}
+ });
+ it('never sends the frame to a server that did not offer it',async()=>{
+  const f=await ready(false);try{await f.client.sendText(f.id,'private');await vi.advanceTimersByTimeAsync(95000);expect(syncs(f.sent)).toHaveLength(0);}finally{f.client.disconnect();}
+ });
+ it('asks for the capability and reports opt-in only when told to',()=>{
+  const services={type:'services',requestId:'ab'.repeat(16),callInviteV1:true,deliveryV1:true};expect(directoryClientFrameSchema.safeParse(services).success).toBe(true);
+  expect(directoryClientFrameSchema.safeParse({...services,deliveryV1:false}).success).toBe(false);
+ });
+});

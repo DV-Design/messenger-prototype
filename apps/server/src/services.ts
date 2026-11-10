@@ -2,11 +2,17 @@ import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto
 import type { DatabaseSync } from 'node:sqlite';
 import { normalizePhone, phoneLookupHash,pushPreviewSchema,pushPreviewEnvelopeSchema,callPushSchema,callPushEnvelopeSchema,type CallState, type DirectoryUser, type PhoneChallenge, type PhoneMatch, type ServiceCapabilities, type WakeIntent } from '@messenger/core';
 import {CallRegistry,CallControlError,type CallTiming,type CallAction} from './call-registry.js';
-import { InvalidPushToken, type EmailSender, type PushProvider, type SMSProvider } from './providers.js';
+import { DELIVERY_PUSH_TTL_MS, InvalidPushToken, type DeliveryRole, type EmailSender, type PushProvider, type SMSProvider } from './providers.js';
 
 export class ServiceError extends Error {
   constructor(readonly code: string, message: string) { super(message); }
 }
+const DELIVERY_RECIPIENT_COOLDOWN_MS = 600_000;
+const DELIVERY_EVENT_COOLDOWN_MS = 60_000;
+const DELIVERY_FIRST_PAUSE_MS = 1_800_000;
+const DELIVERY_MAX_PAUSE_MS = 86_400_000;
+const DELIVERY_MAX_ATTEMPTS = 12;
+interface DeliveryRow { sender_id: string; recipient_id: string; expires_at: number; recipient_pushed_at: number; recipient_attempts: number; sender_pushed_at: number }
 export interface ServiceOptions {
   /** Private legacy regression injection only. No environment switch enables phone features. */
   enableLegacyPhoneServices?: boolean;
@@ -55,6 +61,8 @@ export class DirectoryServices {
       CREATE TABLE IF NOT EXISTS sms_last_attempt (scope TEXT NOT NULL, quota_key TEXT NOT NULL, attempted_at INTEGER NOT NULL, PRIMARY KEY(scope, quota_key)) STRICT;
       CREATE TABLE IF NOT EXISTS wake_last_attempt (recipient_id TEXT PRIMARY KEY, attempted_at INTEGER NOT NULL) STRICT;
       CREATE TABLE IF NOT EXISTS wake_call_last_attempt (recipient_id TEXT PRIMARY KEY, attempted_at INTEGER NOT NULL) STRICT;
+      CREATE TABLE IF NOT EXISTS delivery_requests (sender_id TEXT NOT NULL, recipient_id TEXT NOT NULL, expires_at INTEGER NOT NULL, recipient_pushed_at INTEGER NOT NULL DEFAULT 0, recipient_attempts INTEGER NOT NULL DEFAULT 0, sender_pushed_at INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (sender_id, recipient_id)) STRICT;
+      CREATE INDEX IF NOT EXISTS delivery_requests_recipient ON delivery_requests(recipient_id);
       CREATE TABLE IF NOT EXISTS moderation_reports (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         created_at INTEGER NOT NULL,
@@ -73,6 +81,7 @@ export class DirectoryServices {
     if(!columns.some(column=>column.name==='background_sync'))this.db.exec('ALTER TABLE push_tokens ADD COLUMN background_sync INTEGER NOT NULL DEFAULT 0 CHECK(background_sync IN (0,1))');
     if(!columns.some(column=>column.name==='call_invite_v1'))this.db.exec('ALTER TABLE push_tokens ADD COLUMN call_invite_v1 INTEGER NOT NULL DEFAULT 0 CHECK(call_invite_v1 IN (0,1))');
     if(!columns.some(column=>column.name==='message_preview'))this.db.exec('ALTER TABLE push_tokens ADD COLUMN message_preview INTEGER NOT NULL DEFAULT 0 CHECK(message_preview IN (0,1))');
+    if(!columns.some(column=>column.name==='delivery_v1'))this.db.exec('ALTER TABLE push_tokens ADD COLUMN delivery_v1 INTEGER NOT NULL DEFAULT 0 CHECK(delivery_v1 IN (0,1))');
   }
   /** Removes every server-side identity-linked service record; content is never stored. */
   deleteAccount(userId: string) {
@@ -86,6 +95,7 @@ export class DirectoryServices {
     this.db.prepare('DELETE FROM verified_phones WHERE user_id = ?').run(userId);
     this.db.prepare('DELETE FROM wake_last_attempt WHERE recipient_id = ?').run(userId);
     this.db.prepare('DELETE FROM wake_call_last_attempt WHERE recipient_id = ?').run(userId);
+    this.db.prepare('DELETE FROM delivery_requests WHERE sender_id = ? OR recipient_id = ?').run(userId, userId);
     this.db.prepare('DELETE FROM service_quotas WHERE quota_key = ?').run(userId);
     this.db.prepare('DELETE FROM sms_last_attempt WHERE quota_key = ?').run(userId);
     // Reports are moderation records; remove the reporter identity but keep the complaint.
@@ -100,8 +110,9 @@ export class DirectoryServices {
     this.db.prepare('INSERT INTO moderation_reports (created_at, reporter_id, target_id, target_kind, conversation_id, reason, details) VALUES (?, ?, ?, ?, ?, ?, ?)')
       .run(this.now(), reporterId, targetId, targetKind, conversationId ?? null, reason, details ?? '');
   }
-  capabilities(userId: string,callInviteV1=false): ServiceCapabilities {
-    return { ...(callInviteV1?{callInviteV1:true,serverEpoch:this.calls.epoch}:{}),phoneVerification: Boolean(this.options.smsProvider && this.secret), push: Boolean(this.options.pushProvider), relay: this.ice().some(server => (Array.isArray(server.urls) ? server.urls : [server.urls]).some(url => /^turns?:/.test(url))), phoneVerified: Boolean(this.options.enableLegacyPhoneServices && this.verified(userId)) };
+  capabilities(userId: string,callInviteV1=false,deliveryV1=false): ServiceCapabilities {
+    // Released clients parse this strictly, so the field exists only for those that asked.
+    return { ...(deliveryV1&&this.options.pushProvider?.sendDelivery?{deliveryV1:true}:{}),...(callInviteV1?{callInviteV1:true,serverEpoch:this.calls.epoch}:{}),phoneVerification: Boolean(this.options.smsProvider && this.secret), push: Boolean(this.options.pushProvider), relay: this.ice().some(server => (Array.isArray(server.urls) ? server.urls : [server.urls]).some(url => /^turns?:/.test(url))), phoneVerified: Boolean(this.options.enableLegacyPhoneServices && this.verified(userId)) };
   }
   private verified(userId: string) { return Boolean(this.db.prepare('SELECT 1 FROM verified_phones WHERE user_id = ?').get(userId)); }
   private checkOpen() { if (this.closed) throw unavailable(); }
@@ -130,6 +141,7 @@ export class DirectoryServices {
     this.db.prepare('DELETE FROM sms_last_attempt WHERE attempted_at < ?').run(now - 3_600_000);
     this.db.prepare('DELETE FROM wake_last_attempt WHERE attempted_at < ?').run(now - 3_600_000);
     this.db.prepare('DELETE FROM wake_call_last_attempt WHERE attempted_at < ?').run(now - 3_600_000);
+    this.db.prepare('DELETE FROM delivery_requests WHERE expires_at <= ?').run(now);
   }
   private digest(userId: string, challengeId: string, phoneHash: string, code: string) {
     return createHmac('sha256', this.secret!).update(JSON.stringify(['lastcall/otp/v1', userId, challengeId, phoneHash, code])).digest();
@@ -214,19 +226,76 @@ export class DirectoryServices {
     }
     return matches;
   }
-  registerPush(userId: string, token: string, backgroundSync = false,messagePreview=false,callInviteV1=false) {
-    if(typeof backgroundSync!=='boolean'||typeof messagePreview!=='boolean'||typeof callInviteV1!=='boolean')throw new ServiceError('invalid-frame', 'Invalid push capability mode');
+  registerPush(userId: string, token: string, backgroundSync = false,messagePreview=false,callInviteV1=false,deliveryV1=false) {
+    if(typeof backgroundSync!=='boolean'||typeof messagePreview!=='boolean'||typeof callInviteV1!=='boolean'||typeof deliveryV1!=='boolean')throw new ServiceError('invalid-frame', 'Invalid push capability mode');
     this.checkOpen(); if (!this.options.pushProvider) throw unavailable();
     const owner = this.db.prepare('SELECT user_id FROM push_tokens WHERE token = ?').get(token) as { user_id: string } | undefined;
     if (owner && owner.user_id !== userId) throw new ServiceError('push-token-in-use', 'This token belongs to another identity');
     this.reserve([{ scope: 'push-register', key: userId, limit: 30 }]);
-    this.db.prepare('INSERT INTO push_tokens(user_id,token,updated_at,background_sync,message_preview,call_invite_v1) VALUES (?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET token=excluded.token,updated_at=excluded.updated_at,background_sync=excluded.background_sync,message_preview=excluded.message_preview,call_invite_v1=excluded.call_invite_v1').run(userId, token, this.now(), backgroundSync?1:0,backgroundSync&&messagePreview?1:0,backgroundSync&&callInviteV1?1:0);
+    this.db.prepare('INSERT INTO push_tokens(user_id,token,updated_at,background_sync,message_preview,call_invite_v1,delivery_v1) VALUES (?,?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET token=excluded.token,updated_at=excluded.updated_at,background_sync=excluded.background_sync,message_preview=excluded.message_preview,call_invite_v1=excluded.call_invite_v1,delivery_v1=excluded.delivery_v1').run(userId, token, this.now(), backgroundSync?1:0,backgroundSync&&messagePreview?1:0,backgroundSync&&callInviteV1?1:0,backgroundSync&&deliveryV1?1:0);
   }
   replaceWatchConsent(recipient: string, ids: string[]) {
     this.transaction(() => {
       this.db.prepare('DELETE FROM push_consent WHERE recipient_id = ?').run(recipient);
       for (const sender of new Set(ids)) if (sender !== recipient) this.db.prepare('INSERT INTO push_consent(recipient_id,sender_id) VALUES (?,?)').run(recipient, sender);
     });
+  }
+  /** Makes the stored list exactly what the sender's queue holds, then nudges anyone newly waited for. */
+  async syncDelivery(sender: string, peers: Array<{ to: string; expiresAt: number }>, online: (id: string) => boolean) {
+    this.checkOpen();
+    const now = this.now();
+    this.reserve([{ scope: 'delivery-sync', key: sender, limit: 600 }]);
+    const wanted = new Map(peers.filter(peer => peer.to !== sender && peer.expiresAt > now).map(peer => [peer.to, Math.min(peer.expiresAt, now + DELIVERY_PUSH_TTL_MS)]));
+    this.transaction(() => {
+      const rows = this.db.prepare('SELECT recipient_id FROM delivery_requests WHERE sender_id = ?').all(sender) as Array<{ recipient_id: string }>;
+      for (const row of rows) if (!wanted.has(row.recipient_id)) this.db.prepare('DELETE FROM delivery_requests WHERE sender_id = ? AND recipient_id = ?').run(sender, row.recipient_id);
+      // The same consent that gates a wake: no request can be stored against someone who did not allow it.
+      for (const [recipient, expiresAt] of wanted) if (this.db.prepare('SELECT 1 FROM push_consent WHERE recipient_id = ? AND sender_id = ?').get(recipient, sender))
+        this.db.prepare('INSERT INTO delivery_requests(sender_id,recipient_id,expires_at) VALUES (?,?,?) ON CONFLICT(sender_id,recipient_id) DO UPDATE SET expires_at=excluded.expires_at').run(sender, recipient, expiresAt);
+    });
+    const due = this.deliveryRows('d.sender_id = ?', sender).filter(row => !online(row.recipient_id) && now >= row.recipient_pushed_at + DELIVERY_RECIPIENT_COOLDOWN_MS);
+    await this.pushRecipients(due);
+  }
+  /** One party appeared: wake the other, so both are up at the same moment and can connect directly. */
+  async deliveryOnline(userId: string, online: (id: string) => boolean) {
+    this.checkOpen();
+    const now = this.now();
+    const senders = this.deliveryRows('d.recipient_id = ?', userId).filter(row => !online(row.sender_id) && now >= row.sender_pushed_at + DELIVERY_EVENT_COOLDOWN_MS);
+    for (const row of senders) {
+      this.db.prepare('UPDATE delivery_requests SET sender_pushed_at = ? WHERE sender_id = ? AND recipient_id = ?').run(now, row.sender_id, row.recipient_id);
+      await this.pushDelivery(row.sender_id, 'sender', row.expires_at);
+    }
+    await this.pushRecipients(this.deliveryRows('d.sender_id = ?', userId).filter(row => !online(row.recipient_id) && now >= row.recipient_pushed_at + DELIVERY_EVENT_COOLDOWN_MS));
+  }
+  /** Retries with growing pauses for a recipient who consumed earlier pushes without the two phones meeting. */
+  async deliveryTick(online: (id: string) => boolean) {
+    this.checkOpen();
+    const now = this.now();
+    const rows = this.deliveryRows('d.recipient_attempts < ?', DELIVERY_MAX_ATTEMPTS);
+    await this.pushRecipients(rows.filter(row => !online(row.recipient_id) && now >= row.recipient_pushed_at + Math.min(DELIVERY_MAX_PAUSE_MS, DELIVERY_FIRST_PAUSE_MS * 2 ** row.recipient_attempts)).slice(0, 200));
+  }
+  private deliveryRows(where: string, value: string | number) {
+    return this.db.prepare(`SELECT d.sender_id,d.recipient_id,d.expires_at,d.recipient_pushed_at,d.recipient_attempts,d.sender_pushed_at FROM delivery_requests d JOIN push_consent c ON c.recipient_id=d.recipient_id AND c.sender_id=d.sender_id WHERE d.expires_at > ? AND ${where}`).all(this.now(), value) as unknown as DeliveryRow[];
+  }
+  /** A single push per recipient however many senders wait: its arrival brings all of them. */
+  private async pushRecipients(rows: DeliveryRow[]) {
+    const now = this.now();
+    for (const recipient of new Set(rows.map(row => row.recipient_id))) {
+      this.db.prepare('UPDATE delivery_requests SET recipient_pushed_at = ?, recipient_attempts = recipient_attempts + 1 WHERE recipient_id = ?').run(now, recipient);
+      await this.pushDelivery(recipient, 'recipient', Math.max(...rows.filter(row => row.recipient_id === recipient).map(row => row.expires_at)));
+    }
+  }
+  /** Best effort by design: the queue stays on the sender's phone, so a lost nudge loses nothing. */
+  private async pushDelivery(userId: string, role: DeliveryRole, expiresAt: number) {
+    const send = this.options.pushProvider?.sendDelivery?.bind(this.options.pushProvider);
+    const row = this.db.prepare('SELECT token FROM push_tokens WHERE user_id = ? AND background_sync = 1 AND delivery_v1 = 1').get(userId) as { token: string } | undefined;
+    if (!send || !row) return;
+    try {
+      this.reserve([{ scope: 'wake-global', key: 'all', limit: 1000 }, { scope: 'delivery-push', key: userId, limit: 30 }]);
+      await this.provider('push', () => send(row.token, role, randomBytes(16).toString('hex'), expiresAt));
+    } catch (error) {
+      if (error instanceof InvalidPushToken && !this.closed) this.db.prepare('DELETE FROM push_tokens WHERE user_id = ? AND token = ?').run(userId, row.token);
+    }
   }
   async wake(sender: string, recipient: string, intent?: WakeIntent,preview?:string,valid:()=>boolean=()=>true) {
     this.checkOpen(); if (!this.options.pushProvider) throw unavailable();if(!valid())return;

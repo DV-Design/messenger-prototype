@@ -71,10 +71,12 @@ export class Directory {
   isAuthenticated(ws: WebSocket) { return Boolean(this.connections.get(ws)?.userId); }
   expire(now: number) {
     try { this.services.expire(); this.email.expire(); } catch { console.error('Directory quota cleanup failed'); }
+    void this.services.deliveryTick(this.isOnline).catch(() => { /* Retried on the next tick. */ });
     for (const connection of this.connections.values()) {
       if (!connection.userId && now >= connection.expiresAt) this.options.reject(connection.ws, 'auth-expired', 'Authentication challenge expired', true);
     }
   }
+  private isOnline = (userId: string) => this.online.has(userId);
   private row(userId: string) {
     return this.db.prepare('SELECT * FROM directory_users WHERE user_id = ?').get(userId) as ProfileRow | undefined;
   }
@@ -203,6 +205,7 @@ export class Directory {
         if (old && old !== connection) this.options.reject(old.ws, 'session-replaced', 'Another connection replaced this identity session', true);
         this.options.send(ws, { type: 'ready', self: this.user(this.row(userId)!) });
         this.notify(userId);
+        void this.services.deliveryOnline(userId, this.isOnline).catch(() => { /* A nudge never affects the session. */ });
         return;
       }
       if (!connection.userId || this.online.get(connection.userId) !== connection) return this.options.reject(ws, 'not-authenticated', 'Authenticate before using the directory', true);
@@ -229,7 +232,7 @@ export class Directory {
         this.options.send(ws, { type: 'users-page', requestId: frame.requestId, users: page.map((row) => this.user(row)), ...(rows.length > DIRECTORY_PAGE ? { nextCursor: page.at(-1)!.username } : {}) });
       } else if (frame.type === 'services') {
         if(frame.callInviteV1===true)connection.callInviteV1=true;
-        this.options.send(ws, { type: 'services', requestId: frame.requestId, capabilities: this.services.capabilities(connection.userId,frame.callInviteV1===true) });
+        this.options.send(ws, { type: 'services', requestId: frame.requestId, capabilities: this.services.capabilities(connection.userId,frame.callInviteV1===true,frame.deliveryV1===true) });
       } else if (frame.type === 'ice') {
         this.options.send(ws, { type: 'ice', requestId: frame.requestId, iceServers: this.services.iceServers(connection.userId) });
       } else if (frame.type === 'phone-start') {
@@ -242,7 +245,7 @@ export class Directory {
         const matches = this.services.discover(connection.userId, frame.hashes);
         this.options.send(ws, { type: 'phone-matches', requestId: frame.requestId, matches });
       } else if (frame.type === 'push-register') {
-        this.services.registerPush(connection.userId, frame.token, frame.backgroundSync,frame.messagePreview,frame.callInviteV1);
+        this.services.registerPush(connection.userId, frame.token, frame.backgroundSync,frame.messagePreview,frame.callInviteV1,frame.deliveryV1);
         if(frame.callInviteV1===true&&frame.backgroundSync===true)connection.callInviteV1=true;
         this.options.send(ws, { type: 'push-registered', requestId: frame.requestId });
       } else if (frame.type === 'call-offer') {
@@ -255,6 +258,8 @@ export class Directory {
         connection.callInviteV1=true;const value=await this.services.callAction(connection.userId,frame.otherId,frame.action,frame);this.options.send(ws,{type:'call-state',requestId:frame.requestId,...value});
       } else if (frame.type === 'wake') {
         await this.services.wake(connection.userId, frame.to, frame.kind === undefined ? undefined : wakeIntentSchema.parse({ kind: frame.kind, intentId: frame.intentId, expiresAt: frame.expiresAt }),frame.preview);
+      } else if (frame.type === 'delivery-sync') {
+        await this.services.syncDelivery(connection.userId, frame.peers, this.isOnline);
       } else if (frame.type === 'search') {
         // Escape SQL LIKE wildcards; the query is always a bound parameter.
         const escaped = frame.query.normalize('NFKC').toLowerCase().replace(/[\\%_]/g, (value) => `\\${value}`);

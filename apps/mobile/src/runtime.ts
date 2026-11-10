@@ -52,7 +52,7 @@ async function buildManager(profile: LocalProfile, signal?: AbortSignal): Promis
   if (signal?.aborted) throw new Error('Wake expired');
   const current = ++generation;
   const emailProof = pendingEmailProof; pendingEmailProof = undefined;
-  const next = new MessengerClient({ callCaptions: Platform.OS === 'android' && Number(Platform.Version) >= 33 && !!NativeModules.LastCallCaptions, ...profile, ...(emailProof ? { emailProof } : {}), identity: state.identity, ...nativeRtc, ...persistence,
+  const next = new MessengerClient({ reconcileDeliveryOnConnect: true, callCaptions: Platform.OS === 'android' && Number(Platform.Version) >= 33 && !!NativeModules.LastCallCaptions, ...profile, ...(emailProof ? { emailProof } : {}), identity: state.identity, ...nativeRtc, ...persistence,
     onChange: snapshot => {
       if (current !== generation) return;
       publish({ snapshot, ...(isAccountMoved(snapshot.error) ? { retired: true } : {}) });

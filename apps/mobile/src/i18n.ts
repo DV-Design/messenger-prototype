@@ -19,6 +19,8 @@ const ru: Record<string, string> = {
   'Connecting…': 'Подключение…',
   'Reconnecting…': 'Переподключение…',
   'Not connected': 'Нет подключения',
+  'LastCall message delivery': 'Доставка сообщений LastCall',
+  'Delivering your messages…': 'Доставляем ваши сообщения…',
   'Calls on vivo': 'Звонки на vivo',
   'vivo has its own restrictions. Without these, a call on a locked phone may show only the app icon. In LastCall’s permissions allow display on the lock screen, background pop-ups and autostart, and remove battery restrictions. In the incoming calls notification settings allow lock screen, banners and sound. Names differ between system versions.': 'На vivo есть собственные ограничения. Без этих настроек звонок на заблокированном телефоне может показать только значок приложения. В разрешениях LastCall включите показ на экране блокировки, всплывающие окна в фоне и автозапуск, а также снимите ограничения батареи. В уведомлениях о входящих звонках включите экран блокировки, баннеры и звук. В разных версиях системы названия отличаются.',
   'Open vivo permissions': 'Открыть разрешения vivo',

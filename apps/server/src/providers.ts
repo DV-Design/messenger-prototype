@@ -6,8 +6,10 @@ import nodemailer from 'nodemailer';
 import {pushPreviewSchema,pushPreviewEnvelopeSchema,callPushSchema,callPushEnvelopeSchema,callStateSchema,type CallState,type WakeIntent} from '@messenger/core';
 
 export interface SMSProvider { sendCode(phone: string, code: string): Promise<void>; dispose?(): Promise<void> }
-export interface PushProvider { sendWake(token: string, intent?: WakeIntent, backgroundSync?: boolean,preview?:string,callInvite?:string,callState?:CallState): Promise<void>; dispose?(): Promise<void> }
+export type DeliveryRole = 'sender' | 'recipient';
+export interface PushProvider { sendWake(token: string, intent?: WakeIntent, backgroundSync?: boolean,preview?:string,callInvite?:string,callState?:CallState): Promise<void>; sendDelivery?(token: string, role: DeliveryRole, id: string, expiresAt: number): Promise<void>; dispose?(): Promise<void> }
 export interface EmailSender { send(message: { to: string; subject: string; text: string }): Promise<void>; dispose?(): Promise<void> }
+export const DELIVERY_PUSH_TTL_MS = 7 * 24 * 3_600_000;
 export class InvalidPushToken extends Error { constructor() { super('Push token is no longer valid'); } }
 
 /**
@@ -48,6 +50,16 @@ export function buildFcmWakeMessage(token: string, intent?: WakeIntent, now = Da
     data: { kind: 'lastcall-wake', ...(backgroundSync?{title:'LastCall',message:body,channelId:'lastcall-messages',tag:collapse}:{}), ...(intent ? { intentKind: intent.kind, intentId: intent.intentId, expiresAt: String(expiresAt) } : {}) },
     android: { priority: 'high', ttl: expiresAt - now, collapseKey: collapse, ...(!backgroundSync?{notification: { channelId: 'lastcall-messages', tag: collapse }}:{}) },
   };
+}
+
+/**
+ * "Come online, a queue is waiting": no sender, recipient, conversation or content. A long TTL lets
+ * FCM hold it for a phone that is off; the collapse key keeps at most one per device.
+ */
+export function buildFcmDeliveryMessage(token: string, role: DeliveryRole, id: string, expiresAt: number, now = Date.now()): Message | undefined {
+  const ttl = Math.min(expiresAt - now, DELIVERY_PUSH_TTL_MS);
+  if (ttl <= 0) return undefined;
+  return { token, data: { kind: 'lastcall-delivery', role, intentId: id, expiresAt: String(expiresAt) }, android: { priority: 'high', ttl, collapseKey: 'lastcall-delivery' } };
 }
 
 /** TLS POST only. No query credentials, body logging, fixed codes or SMS.ru test flag. */
@@ -91,6 +103,16 @@ export function createFcmPushProvider(credentialsPath: string): PushProvider | u
       async sendWake(token, intent, backgroundSync = false,preview,callInvite,callState) {
         try {
           const message = buildFcmWakeMessage(token, intent, Date.now(), backgroundSync,preview,callInvite,callState);
+          if (message) await messaging.send(message);
+        } catch (error) {
+          const code = typeof error === 'object' && error ? (error as { code?: unknown }).code : undefined;
+          if (code === 'messaging/registration-token-not-registered' || code === 'messaging/invalid-registration-token') throw new InvalidPushToken();
+          throw new Error('Push provider could not accept notification');
+        }
+      },
+      async sendDelivery(token, role, id, expiresAt) {
+        try {
+          const message = buildFcmDeliveryMessage(token, role, id, expiresAt);
           if (message) await messaging.send(message);
         } catch (error) {
           const code = typeof error === 'object' && error ? (error as { code?: unknown }).code : undefined;

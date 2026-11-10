@@ -38,7 +38,7 @@ export function PushBridge() {
         if (!active || current !== client()) return;
         const callInviteV1 = callInviteCapability(backgroundSync, backgroundSync && await prepareCallInvitePush());
         if (!active || current !== client()) return;
-        await current.registerPushToken(token, backgroundSync, messagePreview, callInviteV1); success = true;
+        await current.registerPushToken(token, backgroundSync, messagePreview, callInviteV1, backgroundSync && services.deliveryV1 === true); success = true;
         if (active) {
           if (rotatedToken === token) rotatedToken = undefined;
           publish(notificationsAllowed

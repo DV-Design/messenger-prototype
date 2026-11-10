@@ -4,7 +4,7 @@ import {encryptCallPush,decryptCallPush,type OpenedCallPush} from './call-push.j
 import { normalizePhone, iceServersSchema, type ServiceCapabilities, type PhoneChallenge } from './services.js';
 import { z } from 'zod';
 import { bytesToHex, randomChecked, secureRandomBytes, type RandomBytes } from './crypto.js';
-import { directoryClientFrameSchema, directoryServerFrameSchema, directoryUserSchema, directConversationId, conversationInvite, endpointUrl, signAuthentication, usernameSchema, displayNameSchema, validateDeviceIdentity, pushPreviewSchema,pushPreviewEnvelopeSchema, type DeviceIdentity, type DirectoryUser, type DirectoryClientFrame, type DirectoryServerFrame, type PhoneMatch, type DirectoryPage, type WakeKind,type WakeIntent } from './directory.js';
+import {MAX_DELIVERY_PEERS, directoryClientFrameSchema, directoryServerFrameSchema, directoryUserSchema, directConversationId, conversationInvite, endpointUrl, signAuthentication, usernameSchema, displayNameSchema, validateDeviceIdentity, pushPreviewSchema,pushPreviewEnvelopeSchema, type DeviceIdentity, type DirectoryUser, type DirectoryClientFrame, type DirectoryServerFrame, type PhoneMatch, type DirectoryPage, type WakeKind,type WakeIntent } from './directory.js';
 import {encryptPushPreview,decryptPushPreview,type OpenedPushPreview} from './push-preview.js';
 import { conversationIdSchema, MAX_FILE_BYTES, MAX_TEXT_CHARS, peerIdSchema, roomIdSchema } from './protocol.js';
 import { openAttachment, sealAttachment, openLocalState, sealLocalState } from './persistence.js';
@@ -20,7 +20,7 @@ export interface Conversation {id:string;kind:'direct'|'group';title:string;memb
 export interface PendingIncomingCall extends OpenedCallPush {state:'ringing'|'accepted';revision:number;}
 interface OutgoingInvitation extends CallInvitation {peerId:string;conversationId:string;video:boolean;serverEpoch?:string;offered:boolean;offering:boolean;ringing:boolean;sessionStarted:boolean;revision:number;operation:PendingOperation;timer?:ReturnType<typeof setTimeout>;expiry?:ReturnType<typeof setTimeout>;}
 export interface MessengerSnapshot {status:'idle'|'connecting'|'online'|'offline'|'error';self?:DirectoryUser;contacts:DirectoryUser[];conversations:Conversation[];activeCall?:{conversationId:string;peerId:string;session:SessionSnapshot};pendingIncomingCall?:PendingIncomingCall;verifiedContacts:string[];blockedContacts:string[];movedContacts?:Record<string,DirectoryUser>;error?:string;}
-export interface MessengerOptions {callCaptions?:boolean;serverUrl:string;identity:DeviceIdentity;username:string;displayName:string;emailProof?:string;randomBytes?:RandomBytes;rtcFactory?:PeerSessionOptions['rtcFactory'];getUserMedia?:PeerSessionOptions['getUserMedia'];createMediaStream?:PeerSessionOptions['createMediaStream'];onChange?:(snapshot:MessengerSnapshot)=>void;loadState?:()=>Promise<string|null>;saveState?:(sealed:string)=>Promise<void>;saveAttachment?:(key:string,sealed:string)=>Promise<void>;loadAttachment?:(key:string)=>Promise<string|null>;deleteAttachment?:(key:string)=>Promise<void>;}
+export interface MessengerOptions {callCaptions?:boolean;reconcileDeliveryOnConnect?:boolean;serverUrl:string;identity:DeviceIdentity;username:string;displayName:string;emailProof?:string;randomBytes?:RandomBytes;rtcFactory?:PeerSessionOptions['rtcFactory'];getUserMedia?:PeerSessionOptions['getUserMedia'];createMediaStream?:PeerSessionOptions['createMediaStream'];onChange?:(snapshot:MessengerSnapshot)=>void;loadState?:()=>Promise<string|null>;saveState?:(sealed:string)=>Promise<void>;saveAttachment?:(key:string,sealed:string)=>Promise<void>;loadAttachment?:(key:string)=>Promise<string|null>;deleteAttachment?:(key:string)=>Promise<void>;}
 export const MAX_CONTACTS=100;
 export const MAX_GROUPS=32;
 export const MAX_HISTORY_MESSAGES=500;
@@ -54,6 +54,7 @@ export class MessengerClient {
   private status:MessengerSnapshot['status']='idle';private self?:DirectoryUser;private error?:string;
   private contacts=new Map<string,DirectoryUser>();private conversations=new Map<string,InternalConversation>();private pending:PendingMessage[]=[];private verified=new Set<string>();private blocked=new Set<string>();private moved=new Map<string,DirectoryUser>();
   private closing=false;private closed=false;private shutdown?:Promise<void>;private activeWork=new Set<Promise<unknown>>();
+  private deliverySent?:string;private deliveryProbe?:unknown;private deliveryRefused=false;
   private protectedReceive=new Set<string>();private committed=new Set<string>();private blobs=new Map<string,Uint8Array>();private enqueueQueue=Promise.resolve();private expiryTimer?:ReturnType<typeof setTimeout>;private pairs=new Map<string,Pair>();private socket?:WebSocket;private requests=new Map<string,Request>();private iceRequest?:Promise<RTCIceServer[]>;private wakeTimer?:ReturnType<typeof setTimeout>;private lastWake=new Map<string,number>();private wakeStarted=new Map<string,number>();private pendingCall?:PendingOperation;private outgoingInvitation?:OutgoingInvitation;private pendingIncoming?:PendingIncomingCall;private incomingExpiry?:ReturnType<typeof setTimeout>;private endedCalls=new Map<string,number>();private callStates=new Map<string,CallState>();private services?:ServiceCapabilities;private servicesRequest?:Promise<ServiceCapabilities>;private wakeCapabilitiesRequest?:Promise<ServiceCapabilities>;
   private random:RandomBytes;private stopped=true;private opening?:Promise<void>;private loaded=false;private restorePromise?:Promise<void>;
   private reconnect?:ReturnType<typeof setTimeout>;private attempt=0;private epoch=0;private savedTimer?:ReturnType<typeof setTimeout>;private saveQueue=Promise.resolve();private dirty=false;private cancelOpening?:()=>void;
@@ -128,10 +129,12 @@ export class MessengerClient {
             this.directorySend({type:'authenticate',publicKey:this.options.identity.publicKey,username:this.options.username,displayName:this.options.displayName,signature:signAuthentication(this.options.identity,frame.challenge,this.options.username,this.options.displayName),...(this.options.emailProof?{emailProof:this.options.emailProof}:{})});
           }else if(frame.type==='ready'){
             if(!challenged||ready||frame.self.userId!==this.options.identity.userId||frame.self.publicKey!==this.options.identity.publicKey)throw new Error('Directory identity mismatch');
-            ready=true;this.services=undefined;this.servicesRequest=undefined;this.wakeCapabilitiesRequest=undefined;this.self=frame.self;this.status='online';this.attempt=0;this.error=undefined;finish();this.watch();this.wakePending();this.emit();
+            ready=true;this.deliverySent=undefined;this.services=undefined;this.servicesRequest=undefined;this.wakeCapabilitiesRequest=undefined;this.self=frame.self;this.status='online';this.attempt=0;this.error=undefined;finish();this.watch();this.wakePending();this.emit();
             void this.refreshContacts().catch(e=>this.report(e));
           }else if(frame.type==='error'){
             const request=frame.requestId?this.requests.get(frame.requestId):undefined;
+            // A server without this feature rejects the field and closes; ask without it after the reconnect.
+            if(!request&&frame.code==='invalid-frame'&&this.deliveryProbe===socket){this.deliveryRefused=true;return;}
             if(request){clearTimeout(request.timer);this.requests.delete(frame.requestId!);request.reject(new Error(frame.message));}
             else if(!ready){if(['username-taken','auth-failed','auth-expired','session-replaced','device-already-registered','email-required','email-taken','account-moved'].includes(frame.code)){this.stopped=true;this.status='error';this.report(new Error(`${frame.code}: ${frame.message}`));}finish(new Error(`${frame.code}: ${frame.message}`));socket.close();}
             else if(frame.code==='session-replaced'||frame.code==='device-already-registered'||frame.code==='account-moved'||frame.code==='email-required'||frame.code==='email-taken'){this.stopped=true;this.status='error';this.report(new Error(frame.code==='session-replaced'?'This identity connected on another client':frame.code==='device-already-registered'?'This device is already registered on this server; resolve its existing profile':`${frame.code}: ${frame.message}`));socket.close();}
@@ -172,7 +175,7 @@ export class MessengerClient {
   }
   async getServices():Promise<ServiceCapabilities>{
     if(this.services&&this.status==='online')return {...this.services};
-    if(!this.servicesRequest){const socket=this.socket;const request=this.requestFrame({type:'services',callInviteV1:true},'services').then(frame=>{const capabilities={...frame.capabilities};if(this.socket===socket&&this.status==='online')this.services=capabilities;return capabilities;});this.servicesRequest=request;
+    if(!this.servicesRequest){const socket=this.socket;const request=(this.deliveryProbe=this.deliveryRefused?undefined:socket,this.requestFrame({type:'services',callInviteV1:true,...(this.deliveryRefused?{}:{deliveryV1:true})},'services')).then(frame=>{const capabilities={...frame.capabilities};if(this.socket===socket&&this.status==='online')this.services=capabilities;return capabilities;});this.servicesRequest=request;
       void request.finally(()=>{if(this.servicesRequest===request)this.servicesRequest=undefined;}).catch(()=>{});
     }
     return {...await this.servicesRequest};
@@ -181,7 +184,7 @@ export class MessengerClient {
   async verifyPhone(challengeId:string,code:string):Promise<void>{await this.requestFrame({type:'phone-verify',challengeId,code},'phone-verified');if(this.services)this.services={...this.services,phoneVerified:true};}
   async discoverPhones(hashes:string[]):Promise<PhoneMatch[]>{return (await this.requestFrame({type:'phone-discover',hashes},'phone-matches')).matches;}
   async deleteAccount():Promise<void>{await this.requestFrame({type:'delete-account'},'account-deleted');this.stopped=true;}
-  async registerPushToken(token:string,backgroundSync=false,messagePreview=false,callInviteV1=false):Promise<void>{if(typeof backgroundSync!=='boolean'||typeof messagePreview!=='boolean'||typeof callInviteV1!=='boolean')throw new Error('Invalid push capability mode');await this.requestFrame({type:'push-register',token,...(backgroundSync?{backgroundSync:true}:{}),...(messagePreview?{messagePreview:true}:{}),...(callInviteV1?{callInviteV1:true}:{})},'push-registered');}
+  async registerPushToken(token:string,backgroundSync=false,messagePreview=false,callInviteV1=false,deliveryV1=false):Promise<void>{if(typeof backgroundSync!=='boolean'||typeof messagePreview!=='boolean'||typeof callInviteV1!=='boolean'||typeof deliveryV1!=='boolean')throw new Error('Invalid push capability mode');await this.requestFrame({type:'push-register',token,...(backgroundSync?{backgroundSync:true}:{}),...(messagePreview?{messagePreview:true}:{}),...(callInviteV1?{callInviteV1:true}:{}),...(deliveryV1?{deliveryV1:true}:{})},'push-registered');}
   /** Decrypt notification copy without inserting chat history or acknowledging delivery. */
   openPushPreview(envelope:string,intent:WakeIntent):Promise<OpenedPushPreview>{this.assertActive();return this.track(this.openPushPreviewWork(envelope,intent));}
   private async openPushPreviewWork(envelope:string,intent:WakeIntent):Promise<OpenedPushPreview>{
@@ -223,6 +226,20 @@ export class MessengerClient {
       this.lastWake.set(key,now);
     }catch{/* Optional wake failures never mark content delivered or fail direct delivery. */}
   }
+  /** Replaces the server's list of this phone's waiting peers. Unchanged lists are not resent; every new socket resends. */
+  private async syncDelivery(waiting:Map<string,number>):Promise<void>{
+    if(this.stopped||this.status!=='online')return;
+    // An empty list still clears what a previous run left behind, but only a real app needs that round trip.
+    if(!waiting.size&&!this.services&&!this.options.reconcileDeliveryOnConnect)return;
+    const socket=this.socket;
+    const peers=[...waiting].sort(([a],[b])=>a<b?-1:1).slice(0,MAX_DELIVERY_PEERS).map(([to,expiresAt])=>({to,expiresAt}));
+    try{
+      const capabilities=await this.getServices();
+      if(this.socket!==socket||this.stopped||this.status!=='online'||!capabilities.deliveryV1)return;
+      const body=JSON.stringify(peers);if(this.deliverySent===body)return;
+      this.directorySend({type:'delivery-sync',peers});this.deliverySent=body;
+    }catch{/* The next change or reconnect resends the whole list. */}
+  }
   private wakePending():void {
     clearTimeout(this.wakeTimer);this.wakeTimer=undefined;
     const entries=this.pending.filter(p=>this.committed.has(this.pendingKey(p))&&Date.now()<(p.expiresAt??Infinity)).flatMap(p=>p.remaining.map(peerId=>({p,peerId,kind:(p.type==='file'?'file':'message') as WakeKind,key:this.wakeKey(peerId,p.type==='file'?'file':'message',p)})));
@@ -230,6 +247,10 @@ export class MessengerClient {
     for(const key of this.wakeStarted.keys())if(!keys.has(key))this.wakeStarted.delete(key);
     for(const key of this.lastWake.keys())if(key.startsWith('preview:')&&!keys.has(key))this.lastWake.delete(key);
     const now=this.now();for(const key of keys)if(!this.wakeStarted.has(key))this.wakeStarted.set(key,now);
+    // A peer counts only after the direct-first grace, so an instant ACK leaves no trace on the server.
+    const waiting=new Map<string,number>();
+    for(const {p,peerId,key} of entries)if(now-this.wakeStarted.get(key)!>=2500)waiting.set(peerId,Math.max(waiting.get(peerId)??0,p.expiresAt??Date.now()+OUTBOX_TTL_MS));
+    void this.syncDelivery(waiting);
     if(this.stopped||this.status!=='online'||!entries.length)return;
     let delay=30000;
     for(const {p,peerId,kind,key} of entries){

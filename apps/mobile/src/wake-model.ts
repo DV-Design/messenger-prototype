@@ -8,25 +8,43 @@ export function wakeSyncBudget(notice: Extract<WakeNotice, { legacy: false }>, n
 const object = (value: unknown): Record<string, unknown> | undefined => typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
 
 /** Accept Expo task, received-notification and response shapes, never payload URLs. */
+function pushData(payload: unknown): Record<string, unknown> | null {
+  if (JSON.stringify(payload).length > 8192) return null;
+  const root = object(payload); if (!root) return null;
+  const notification = object(root.notification) ?? root;
+  const content = object(object(notification.request)?.content);
+  const data = object(content?.data) ?? object(root.data) ?? object(notification.data) ?? root;
+  const encoded = data.dataString ?? data.body;
+  if (typeof encoded !== 'string') return data;
+  if (encoded.length > 4096) return null;
+  return object(JSON.parse(encoded)) ?? {};
+}
 export function parseWakeNotice(payload: unknown, now = Date.now()): WakeNotice | null {
   try {
-    if (JSON.stringify(payload).length > 8192) return null;
-    const root = object(payload); if (!root) return null;
-    const notification = object(root.notification) ?? root;
-    const content = object(object(notification.request)?.content);
-    let data = object(content?.data) ?? object(root.data) ?? object(notification.data) ?? root;
-    const encoded = data.dataString ?? data.body;
-    if (typeof encoded === 'string') {
-      if (encoded.length > 4096) return null;
-      data = object(JSON.parse(encoded)) ?? {};
-    }
-    if (data.kind !== 'lastcall-wake') return null;
+    const data = pushData(payload);
+    if (data?.kind !== 'lastcall-wake') return null;
     if (data.intentKind === undefined && data.intentId === undefined && data.expiresAt === undefined) return { legacy: true };
     if (!['message', 'file', 'call'].includes(String(data.intentKind)) || typeof data.intentId !== 'string' || !/^[a-f0-9]{32}$/.test(data.intentId)
       || typeof data.expiresAt !== 'string' || !/^[0-9]{10,16}$/.test(data.expiresAt)) return null;
     const expiresAt = Number(data.expiresAt);
     if (!Number.isSafeInteger(expiresAt) || expiresAt <= now || expiresAt > now + 65_000) return null;
     return { legacy: false, kind: data.intentKind as 'message' | 'file' | 'call', id: data.intentId, expiresAt };
+  } catch { return null; }
+}
+
+export interface DeliveryNotice { role: 'sender' | 'recipient'; notice: Extract<WakeNotice, { legacy: false }> }
+/**
+ * A delivery push can sit in FCM for days, so its own deadline is long; the phone still only gets
+ * the ordinary short window from the moment it arrives.
+ */
+export function parseDeliveryNotice(payload: unknown, now = Date.now()): DeliveryNotice | null {
+  try {
+    const data = pushData(payload);
+    if (data?.kind !== 'lastcall-delivery' || (data.role !== 'sender' && data.role !== 'recipient')) return null;
+    if (typeof data.intentId !== 'string' || !/^[a-f0-9]{32}$/.test(data.intentId) || typeof data.expiresAt !== 'string' || !/^[0-9]{10,16}$/.test(data.expiresAt)) return null;
+    const expiresAt = Number(data.expiresAt);
+    if (!Number.isSafeInteger(expiresAt) || expiresAt <= now) return null;
+    return { role: data.role, notice: { legacy: false, kind: 'message', id: data.intentId, expiresAt: Math.min(expiresAt, now + 60_000) } };
   } catch { return null; }
 }
 

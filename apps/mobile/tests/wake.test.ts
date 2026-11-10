@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseWakeNotice, runWakeTask, wakeSyncBudget, WakeTaskRegistry, SharedWakeRuntime, WakeSyncCoordinator, type WakeLease } from '../src/wake-model';
+import { parseDeliveryNotice, parseWakeNotice, runWakeTask, wakeSyncBudget, WakeTaskRegistry, SharedWakeRuntime, WakeSyncCoordinator, type WakeLease } from '../src/wake-model';
 
 const now = 1_800_000_000_000;
 const raw = { kind: 'lastcall-wake', intentKind: 'message', intentId: 'ab'.repeat(16), expiresAt: String(now + 60_000) };
@@ -170,4 +170,19 @@ test('an intent that expires during runtime acquisition releases ownership witho
   let clock = now; let works = 0; let releases = 0;
   await runWakeTask(notice(), async () => { clock += 60001; return () => { releases++; }; }, async () => { works++; }, () => clock);
   assert.equal(works, 0); assert.equal(releases, 1);
+});
+
+const delivery = { kind: 'lastcall-delivery', role: 'sender', intentId: 'cd'.repeat(16), expiresAt: String(now + 5 * 86_400_000) };
+test('a delivery push may be days old but still gets only a short window from arrival', () => {
+  assert.deepEqual(parseDeliveryNotice(delivery, now), { role: 'sender', notice: { legacy: false, kind: 'message', id: delivery.intentId, expiresAt: now + 60_000 } });
+  assert.equal(parseDeliveryNotice({ ...delivery, role: 'recipient' }, now)?.role, 'recipient');
+  assert.equal(parseDeliveryNotice({ data: { dataString: JSON.stringify(delivery) } }, now)?.role, 'sender');
+  assert.equal(parseDeliveryNotice({ ...delivery, expiresAt: String(now + 1000) }, now)?.notice.expiresAt, now + 1000);
+});
+test('delivery pushes are rejected when expired or malformed, and never read as ordinary wakes', () => {
+  assert.equal(parseDeliveryNotice({ ...delivery, expiresAt: String(now) }, now), null);
+  assert.equal(parseDeliveryNotice({ ...delivery, role: 'admin' }, now), null);
+  assert.equal(parseDeliveryNotice({ ...delivery, intentId: 'zz' }, now), null);
+  assert.equal(parseDeliveryNotice(raw, now), null);
+  assert.equal(parseWakeNotice(delivery, now), null);
 });

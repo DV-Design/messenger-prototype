@@ -35,6 +35,10 @@ public final class LastCallMessagingService extends ExpoFirebaseMessagingService
       String id = data.get("callId");
       if (id != null && id.matches("[a-f0-9]{32}")) LastCallCpuWake.hold(this, id, STATE_MS);
       LastCallCallTrace.add(this, "push-call-state");
+    } else if ("lastcall-delivery".equals(kind)) {
+      String id = data.get("intentId");
+      if (id != null && id.matches("[a-f0-9]{32}")) LastCallCpuWake.hold(this, id, DATA_MS);
+      LastCallCallTrace.add(this, "push-delivery");
     } else if ("lastcall-wake".equals(kind)) {
       String id = data.get("intentId");
       if (id != null && id.matches("[a-f0-9]{32}")) LastCallCpuWake.hold(this, id, DATA_MS);
