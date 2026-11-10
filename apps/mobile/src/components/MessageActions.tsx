@@ -2,13 +2,16 @@ import { Alert, Modal, Pressable, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { t } from '../i18n';
 import { messageActions, type MessageAction } from '../message-actions-model';
+import type { ReactionEmoji } from '@messenger/core';
+import { nextReaction } from '../reaction-model';
+import { ReactionPicker } from './Reactions';
 import { Button } from './ui';
 
-export interface MessageTarget { id: string; type: 'message' | 'file'; author: string; own: boolean; expired: boolean; text?: string }
+export interface MessageTarget { id: string; type: 'message' | 'file'; author: string; own: boolean; expired: boolean; text?: string; reaction?: ReactionEmoji }
 
 const LABELS: Record<MessageAction, string> = { edit: 'Edit', copy: 'Copy', deleteForEveryone: 'Delete for everyone', deleteForMe: 'Delete for me' };
 
-export function MessageActions({ target, onClose, onEdit, onDelete, onError }: { target?: MessageTarget; onClose: () => void; onEdit: (target: MessageTarget) => void; onDelete: (target: MessageTarget, scope: 'me' | 'everyone') => void; onError: (message: string) => void }) {
+export function MessageActions({ target, onClose, onEdit, onDelete, onReact, onError }: { target?: MessageTarget; onClose: () => void; onEdit: (target: MessageTarget) => void; onReact?: (target: MessageTarget, emoji: ReactionEmoji | undefined) => void; onDelete: (target: MessageTarget, scope: 'me' | 'everyone') => void; onError: (message: string) => void }) {
   function run(action: MessageAction) {
     if (!target) return;
     onClose();
@@ -27,6 +30,7 @@ export function MessageActions({ target, onClose, onEdit, onDelete, onError }: {
     <View style={{ flex: 1, justifyContent: 'center', padding: 20 }}>
       <Pressable accessibilityRole="button" accessibilityLabel={t('Close')} onPress={onClose} style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(12, 24, 30, 0.45)' }} />
       <View style={{ alignSelf: 'center', width: '100%', maxWidth: 430, backgroundColor: '#FFFFFF', borderRadius: 20, padding: 20, gap: 12 }}>
+        {target && onReact && <ReactionPicker current={target.reaction} onChoose={emoji => { onClose(); onReact(target, nextReaction(target.reaction, emoji)); }} />}
         {target && messageActions(target).map(action => <Button key={action} title={t(LABELS[action])} secondary={action === 'edit' || action === 'copy'} danger={action === 'deleteForEveryone' || action === 'deleteForMe'} onPress={() => run(action)} />)}
         <Button title={t('Close')} secondary onPress={onClose} />
       </View>

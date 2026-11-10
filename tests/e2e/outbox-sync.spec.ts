@@ -144,6 +144,22 @@ test('a change made while the peer is offline arrives when the peer returns',asy
  }finally{await Promise.all([a,b].map(p=>stop(p).catch(()=>{})));await Promise.all(contexts.map(c=>c.close()));}
 });
 
+test('reactions reach the peer both ways, wait while it is offline, and can be taken back',async({browser})=>{
+ const contexts=await Promise.all([0,1].map(()=>browser.newContext()));const [a,b]=await Promise.all(contexts.map(c=>c.newPage())) as [Page,Page];
+ const reactions=async(page:Page,id:string)=>(await firstMessage(page,id)).reactions??[];
+ try{
+  const [ua,ub]=await Promise.all([boot(a,26),boot(b,27)]);const id=await connect(a,ub,b,ua);await sendText(a,id,'Как дела?');
+  await expect.poll(()=>texts(b,id)).toEqual(['Как дела?']);const m=await firstMessage(a,id);const record={id:m.id,type:'message' as const,author:ua.userId};
+  await b.evaluate(({id,record})=>(window as ClientWindow).__messenger.react(id,record,'👍'),{id,record});
+  await expect.poll(()=>reactions(a,id)).toEqual([{userId:ub.userId,emoji:'👍'}]);
+  await a.evaluate(({id,record})=>(window as ClientWindow).__messenger.react(id,record,'❤️'),{id,record});
+  await expect.poll(()=>reactions(b,id)).toEqual([{userId:ub.userId,emoji:'👍'},{userId:ua.userId,emoji:'❤️'}]);
+  await a.evaluate(()=>(window as ClientWindow).__messenger.flushState());await stop(a);
+  await b.evaluate(({id,record})=>(window as ClientWindow).__messenger.react(id,record,undefined),{id,record});expect(await reactions(b,id)).toEqual([{userId:ua.userId,emoji:'❤️'}]);
+  await restart(a);await expect.poll(()=>reactions(a,id)).toEqual([{userId:ua.userId,emoji:'❤️'}]);
+ }finally{await Promise.all([a,b].map(p=>stop(p).catch(()=>{})));await Promise.all(contexts.map(c=>c.close()));}
+});
+
 test('the browser engine accepts an unknown session-level SDP marker, as an older client must',async({page})=>{
  await page.goto('/');const result=await page.evaluate(async()=>{
   const offerer=new RTCPeerConnection(),answerer=new RTCPeerConnection();offerer.createDataChannel('probe');

@@ -2,12 +2,14 @@ import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'rea
 import { Redirect, router, useIsFocused, useLocalSearchParams } from 'expo-router';
 import { Alert, AppState, FlatList, KeyboardAvoidingView, Linking, Platform, Pressable, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from '../../components/SafeArea';
-import { safetyEmoji, type MessengerFile, type MessengerMessage } from '@messenger/core';
+import { safetyEmoji, type MessengerFile, type MessengerMessage, type ReactionEmoji, type ReactionView } from '@messenger/core';
 import { intlLocale, t } from '../../i18n';
 import { messageParts } from '../../message-links';
 import { pickDocument, pickMedia, shareFile } from '../../attachments';
 import { AttachmentCard } from '../../components/AttachmentCard';
 import { MessageActions, type MessageTarget } from '../../components/MessageActions';
+import { ReactionBar } from '../../components/Reactions';
+import { myReaction, nextReaction } from '../../reaction-model';
 import { SafetyCode } from '../../components/SafetyCode';
 import { SafetyMenu } from '../../components/SafetyMenu';
 import { Avatar, Button, Empty, Icon, IconButton, lastSeen, time } from '../../components/ui';
@@ -104,8 +106,17 @@ export default function Chat() {
     void action(() => kind === 'media' ? pickMedia(conversation!.id) : pickDocument(conversation!.id));
   }
   function record(kind: MediaKind) { if (busy || snapshot.activeCall) return; setAttachments(false); setRecording(kind); }
-  function selectMessage(item: MessengerMessage) { setSelected({ id: item.id, type: 'message', author: item.from, own: item.from === identity?.userId, expired: item.status === 'expired', text: item.text }); }
-  function selectFile(file: MessengerFile) { setSelected({ id: file.id, type: 'file', author: file.senderId, own: file.senderId === identity?.userId, expired: file.deliveryStatus === 'expired' }); }
+  function selectMessage(item: MessengerMessage) { setSelected({ id: item.id, type: 'message', author: item.from, own: item.from === identity?.userId, expired: item.status === 'expired', text: item.text, reaction: myReaction(item.reactions, identity?.userId) }); }
+  function selectFile(file: MessengerFile) { setSelected({ id: file.id, type: 'file', author: file.senderId, own: file.senderId === identity?.userId, expired: file.deliveryStatus === 'expired', reaction: myReaction(file.reactions, identity?.userId) }); }
+  function react(record: { id: string; type: 'message' | 'file'; author: string }, emoji: ReactionEmoji | undefined) {
+    // Not through action(): a reaction must not wait behind, or block, a send in progress.
+    setError('');
+    void client().react(conversation!.id, record, emoji).catch(cause => setError(errorText(cause)));
+  }
+  function reactionBar(record: { id: string; type: 'message' | 'file'; author: string }, reactions: ReactionView[] | undefined, own: boolean) {
+    return <ReactionBar reactions={reactions} selfId={identity?.userId} blocked={blocked} own={own} names={userId => snapshot.contacts.find(contact => contact.userId === userId)?.displayName ?? t('Member')}
+      onChoose={emoji => react(record, nextReaction(myReaction(reactions, identity?.userId), emoji))} />;
+  }
   function cancelEdit() { setEditing(undefined); setDraft(unsentDraft.current); }
   function deleteMessage(target: MessageTarget, scope: 'me' | 'everyone') {
     if (editing === target.id) cancelEdit();
@@ -129,13 +140,14 @@ export default function Chat() {
     const read = deliveryStage(item) === 'read';
     const expired = item.status === 'expired';
     const label = deliveryLabel(item, group);
-    return <Pressable accessibilityHint={t('Hold to edit, copy or delete')} accessibilityActions={[{ name: 'longpress', label: t('Message actions') }]} onAccessibilityAction={() => selectMessage(item)} onLongPress={() => selectMessage(item)} style={[styles.bubble, own && styles.bubbleSelf]}>
+    return <Pressable accessibilityHint={t('Hold to react, edit, copy or delete')} accessibilityActions={[{ name: 'longpress', label: t('Message actions') }]} onAccessibilityAction={() => selectMessage(item)} onLongPress={() => selectMessage(item)} style={[styles.bubble, own && styles.bubbleSelf]}>
       {group && !own && <Text style={styles.senderName}>{sender}</Text>}<Text style={styles.message}>{messageParts(item.text).map((part, index) => part.url
         ? <Text key={index} accessibilityRole="link" style={{ color: colors.blue, textDecorationLine: 'underline' }} onLongPress={() => selectMessage(item)}
           onPress={() => { const url = part.url!; void Linking.openURL(url).catch(() => setError(t('Could not open the link.'))); }}>{part.text}</Text>
         : part.text)}</Text>
       {own && (group || expired) && <Text style={[styles.fileMeta, expired && { color: '#A33535' }]}>{label}</Text>}
       <View style={styles.messageMeta}>{!!item.editedAt && <Text style={styles.messageTime}>{t('edited')}</Text>}<Text style={styles.messageTime}>{time(item.timestamp)}</Text>{own && <View accessibilityLabel={label}><Icon name={deliveryIcon(item)} size={15} color={expired ? '#A33535' : read ? colors.accent : '#70877D'} /></View>}</View>
+      {reactionBar({ id: item.id, type: 'message', author: item.from }, item.reactions, own)}
     </Pressable>;
   }
   return <SafeAreaView style={styles.whiteScreen} edges={['top', 'bottom']}>
@@ -162,7 +174,7 @@ export default function Chat() {
             if (entry.kind === 'day') return <DayPill label={entry.label} />;
             if (entry.kind === 'message') return renderMessage(entry.item);
             const file = entry.item;
-            return <View style={{ marginTop: 9 }}><AttachmentCard file={file} self={file.senderId === identity?.userId} group={group} sender={group ? snapshot.contacts.find(contact => contact.userId === file.senderId)?.displayName : undefined} mediaDisabled={!focused || !!snapshot.activeCall || !!recording} onOpen={() => void action(() => shareFile(file))} onLongPress={() => selectFile(file)} /></View>;
+            return <View style={{ marginTop: 9 }}><AttachmentCard file={file} self={file.senderId === identity?.userId} group={group} sender={group ? snapshot.contacts.find(contact => contact.userId === file.senderId)?.displayName : undefined} mediaDisabled={!focused || !!snapshot.activeCall || !!recording} onOpen={() => void action(() => shareFile(file))} onLongPress={() => selectFile(file)} />{reactionBar({ id: file.id, type: 'file', author: file.senderId }, file.reactions, file.senderId === identity?.userId)}</View>;
           }}
           ListEmptyComponent={<Empty icon="chatbubble-ellipses-outline" title={t('Start a conversation')} text={group ? t('Data syncs between participants’ phones.') : t('Send the first message. If your contact is offline, it waits on your device for up to 7 days.')} />} />
         {scrolling && !!floatingDate && <View pointerEvents="none" style={{ position: 'absolute', top: 8, left: 0, right: 0, alignItems: 'center' }}><DayPill label={floatingDate} /></View>}
@@ -184,7 +196,7 @@ export default function Chat() {
     </KeyboardAvoidingView>
     {!!recording && focused && <MediaComposer key={`${id}:${recording}`} kind={recording} conversationId={conversation.id} blocked={!!snapshot.activeCall} onClose={() => setRecording(undefined)} />}
     {!group && peer && identity && <SafetyCode visible={safetyOpen} title={peer.displayName} code={safety} verified={peerVerified} sessionReady={!!conversation.session?.contentE2E} onClose={() => setSafetyOpen(false)} onVerify={() => void action(async () => { await client().markContactVerified(peer.userId); setSafetyOpen(false); })} />}
-    <MessageActions target={selected} onClose={() => setSelected(undefined)} onError={setError} onDelete={deleteMessage} onEdit={target => { if (!editing) unsentDraft.current = draft; setAttachments(false); setEditing(target.id); setDraft(target.text ?? ''); }} />
+    <MessageActions target={selected} onClose={() => setSelected(undefined)} onError={setError} onDelete={deleteMessage} onReact={blockedPeer ? undefined : (target, emoji) => react(target, emoji)} onEdit={target => { if (!editing) unsentDraft.current = draft; setAttachments(false); setEditing(target.id); setDraft(target.text ?? ''); }} />
     {identity && <SafetyMenu visible={safetyMenuOpen} group={group} title={conversation.title} targetId={conversation.id}
       peer={!group && peer ? { userId: peer.userId, displayName: peer.displayName } : undefined} members={groupMembers} blocked={snapshot.blockedContacts}
       onClose={() => setSafetyMenuOpen(false)}

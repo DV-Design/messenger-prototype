@@ -13,9 +13,12 @@ import {OUTBOX_TTL_MS,groupDefinitionSchema,signGroupDefinition,verifyGroupDefin
 import {encodeDirectFileTiming,parseDirectFileTiming} from './direct-file.js';
 import {readReceiptSchema,signReadReceipt,verifyReadReceipt,type ReadReceipt} from './read-receipt.js';
 import {messageChangeSchema,signMessageChange,verifyMessageChange,type MessageChange} from './message-change.js';
+import {messageReactionSchema,signMessageReaction,verifyMessageReaction,type MessageReaction,type ReactionEmoji} from './message-reaction.js';
 export {OUTBOX_TTL_MS} from './group-sync.js';
-export interface MessengerMessage {id:string;text:string;from:string;timestamp:number;status:'pending'|'sent'|'delivered'|'received'|'expired';conversationId:string;expiresAt?:number;metadata?:string;recipientIds?:string[];deliveredTo?:string[];readBy?:string[];editedAt?:number;originalText?:string;}
-export interface MessengerFile extends SharedFile {timestamp:number;senderId:string;conversationId:string;deliveryStatus?:'pending'|'sent'|'delivered'|'received'|'expired';expiresAt?:number;blobKey?:string;recipientIds?:string[];deliveredTo?:string[];readBy?:string[];}
+export interface MessengerMessage {id:string;text:string;from:string;timestamp:number;status:'pending'|'sent'|'delivered'|'received'|'expired';conversationId:string;expiresAt?:number;metadata?:string;recipientIds?:string[];deliveredTo?:string[];readBy?:string[];editedAt?:number;originalText?:string;reactions?:ReactionView[];}
+export interface MessengerFile extends SharedFile {timestamp:number;senderId:string;conversationId:string;deliveryStatus?:'pending'|'sent'|'delivered'|'received'|'expired';expiresAt?:number;blobKey?:string;recipientIds?:string[];deliveredTo?:string[];readBy?:string[];reactions?:ReactionView[];}
+/** One member's current reaction, oldest first. */
+export interface ReactionView {userId:string;emoji:ReactionEmoji;}
 export interface Conversation {id:string;kind:'direct'|'group';title:string;memberIds:string[];messages:MessengerMessage[];files:MessengerFile[];unread:number;updatedAt:number;session?:SessionSnapshot;hidden?:boolean;implicit?:boolean;}
 export interface PendingIncomingCall extends OpenedCallPush {state:'ringing'|'accepted';revision:number;}
 interface OutgoingInvitation extends CallInvitation {peerId:string;conversationId:string;video:boolean;serverEpoch?:string;offered:boolean;offering:boolean;ringing:boolean;sessionStarted:boolean;revision:number;operation:PendingOperation;timer?:ReturnType<typeof setTimeout>;expiry?:ReturnType<typeof setTimeout>;}
@@ -31,20 +34,24 @@ export const MAX_PENDING_FILES=16;
 export const MAX_STORED_FILE_BYTES=40*1024*1024;
 export const MAX_MESSAGE_CHANGES=128;
 export const MAX_TOMBSTONES=256;
+/** A history of 100 messages and 64 files with 8 members each fits; older reactions go first beyond that. */
+export const MAX_REACTIONS=1312;
+export const MAX_TOTAL_REACTIONS=4000;
 /** History alone can reach about 6 MiB of the 8 MiB state limit. Edits and deletions never take it past that. */
 const MAX_CHANGE_STATE_BYTES=1024*1024;
 const MAX_APPLICATION_BODY=16000;
 const utf8=new TextEncoder();
+const withReactions=(reactions?:ReactionView[])=>reactions?{reactions}:{};
 const messageSchema=z.object({id:peerIdSchema,text:z.string().min(1).max(MAX_TEXT_CHARS),from:roomIdSchema,timestamp:z.number().finite().nonnegative(),status:z.enum(['pending','sent','delivered','received','expired']),conversationId:conversationIdSchema,expiresAt:z.number().finite().nonnegative().optional(),metadata:z.string().max(12000).optional(),recipientIds:z.array(roomIdSchema).max(7).optional(),deliveredTo:z.array(roomIdSchema).max(7).optional(),readBy:z.array(roomIdSchema).max(7).optional(),editedAt:z.number().finite().nonnegative().optional(),originalText:z.string().min(1).max(MAX_TEXT_CHARS).optional()}).strict();
 const fileSchema=z.object({id:peerIdSchema,name:z.string().min(1).max(255),mime:z.string().max(255),size:z.number().int().min(0).max(MAX_FILE_BYTES),timestamp:z.number().finite().nonnegative(),from:z.enum(['self','peer']),status:z.enum(['sending','receiving','complete','error']),receivedBytes:z.number().nonnegative(),senderId:roomIdSchema,conversationId:conversationIdSchema,metadata:z.string().max(12000).optional(),expiresAt:z.number().finite().nonnegative().optional(),deliveryStatus:z.enum(['pending','sent','delivered','received','expired']).optional(),blobKey:roomIdSchema.optional(),recipientIds:z.array(roomIdSchema).max(7).optional(),deliveredTo:z.array(roomIdSchema).max(7).optional(),readBy:z.array(roomIdSchema).max(7).optional()}).strict();
 const tombstoneSchema=z.object({id:peerIdSchema,author:roomIdSchema,type:z.enum(['message','file']),expiresAt:z.number().finite().nonnegative()}).strict();
 type Tombstone=z.infer<typeof tombstoneSchema>;
-interface InternalConversation extends Conversation {creatorId?:string;definition?:GroupDefinition;receipts?:GroupReceipt[];readReceipts?:ReadReceipt[];changes?:MessageChange[];tombstones?:Tombstone[];}
+interface InternalConversation extends Conversation {creatorId?:string;definition?:GroupDefinition;receipts?:GroupReceipt[];readReceipts?:ReadReceipt[];changes?:MessageChange[];tombstones?:Tombstone[];reactions?:MessageReaction[];}
 interface PendingOperation {controller:AbortController;started:number;timeout:number;timer?:ReturnType<typeof setTimeout>;conversationId:string;peerId?:string;}
 interface PendingMessage {conversationId:string;messageId:string;remaining:string[];type?:'message'|'file';author?:string;createdAt?:number;expiresAt?:number;}
 const pendingSchema=z.object({conversationId:conversationIdSchema,messageId:peerIdSchema,remaining:z.array(roomIdSchema).min(1).max(7),type:z.enum(['message','file']).optional(),author:roomIdSchema.optional(),createdAt:z.number().finite().nonnegative().optional(),expiresAt:z.number().finite().nonnegative().optional()}).strict();
-const storedConversationSchema=z.object({id:conversationIdSchema,kind:z.enum(['direct','group']),title:z.string().min(1).max(64),memberIds:z.array(roomIdSchema).min(2).max(8),creatorId:roomIdSchema.optional(),definition:groupDefinitionSchema.optional(),receipts:z.array(receiptSchema).max(4000).optional(),readReceipts:z.array(readReceiptSchema).max(1312).optional(),messages:z.array(messageSchema).max(100),files:z.array(fileSchema).max(64).optional(),unread:z.number().int().min(0).max(100),updatedAt:z.number().finite().nonnegative(),changes:z.array(messageChangeSchema).max(MAX_MESSAGE_CHANGES).optional(),tombstones:z.array(tombstoneSchema).max(MAX_TOMBSTONES).optional(),hidden:z.boolean().optional(),implicit:z.boolean().optional()}).strict();
-const storedSchema=z.object({version:z.union([z.literal(2),z.literal(3),z.literal(4),z.literal(5),z.literal(6)]),contacts:z.array(directoryUserSchema).max(MAX_CONTACTS),conversations:z.array(storedConversationSchema).max(MAX_CONTACTS+MAX_GROUPS),pending:z.array(pendingSchema).max(MAX_PENDING_MESSAGES+MAX_PENDING_FILES),verified:z.array(roomIdSchema).max(MAX_CONTACTS).optional(),blocked:z.array(roomIdSchema).max(MAX_CONTACTS).optional()}).strict().refine(state=>state.conversations.reduce((n,c)=>n+c.messages.length,0)<=MAX_HISTORY_MESSAGES,{message:'History capacity exceeded'});
+const storedConversationSchema=z.object({id:conversationIdSchema,kind:z.enum(['direct','group']),title:z.string().min(1).max(64),memberIds:z.array(roomIdSchema).min(2).max(8),creatorId:roomIdSchema.optional(),definition:groupDefinitionSchema.optional(),receipts:z.array(receiptSchema).max(4000).optional(),readReceipts:z.array(readReceiptSchema).max(1312).optional(),messages:z.array(messageSchema).max(100),files:z.array(fileSchema).max(64).optional(),unread:z.number().int().min(0).max(100),updatedAt:z.number().finite().nonnegative(),changes:z.array(messageChangeSchema).max(MAX_MESSAGE_CHANGES).optional(),tombstones:z.array(tombstoneSchema).max(MAX_TOMBSTONES).optional(),reactions:z.array(messageReactionSchema).max(MAX_REACTIONS).optional(),hidden:z.boolean().optional(),implicit:z.boolean().optional()}).strict();
+const storedSchema=z.object({version:z.union([z.literal(2),z.literal(3),z.literal(4),z.literal(5),z.literal(6),z.literal(7)]),contacts:z.array(directoryUserSchema).max(MAX_CONTACTS),conversations:z.array(storedConversationSchema).max(MAX_CONTACTS+MAX_GROUPS),pending:z.array(pendingSchema).max(MAX_PENDING_MESSAGES+MAX_PENDING_FILES),verified:z.array(roomIdSchema).max(MAX_CONTACTS).optional(),blocked:z.array(roomIdSchema).max(MAX_CONTACTS).optional()}).strict().refine(state=>state.conversations.reduce((n,c)=>n+c.messages.length,0)<=MAX_HISTORY_MESSAGES,{message:'History capacity exceeded'});
 type RequestInput<T=DirectoryClientFrame>=T extends {requestId:string}?Omit<T,'requestId'>:never;
 type ReplyType=Exclude<Extract<DirectoryServerFrame,{requestId:string}>['type'],'error'>|'call-state';
 export type ReportReason='spam'|'harassment'|'illegal'|'other';
@@ -62,7 +69,7 @@ export class MessengerClient {
   constructor(private options:MessengerOptions){validateDeviceIdentity(options.identity);usernameSchema.parse(options.username);displayNameSchema.parse(options.displayName);endpointUrl(options.serverUrl,'directory');this.random=options.randomBytes??secureRandomBytes;}
   private id(){return bytesToHex(randomChecked(this.random,16));}
   getSnapshot():MessengerSnapshot {
-    const conversations=[...this.conversations.values()].map(c=>({id:c.id,kind:c.kind,title:c.title,memberIds:[...c.memberIds],messages:c.messages.map(m=>({...m,recipientIds:m.recipientIds?[...m.recipientIds]:undefined,deliveredTo:m.deliveredTo?[...m.deliveredTo]:undefined,readBy:m.readBy?[...m.readBy]:undefined})),files:c.files.map(f=>({...f,recipientIds:f.recipientIds?[...f.recipientIds]:undefined,deliveredTo:f.deliveredTo?[...f.deliveredTo]:undefined,readBy:f.readBy?[...f.readBy]:undefined})),unread:c.unread,updatedAt:c.updatedAt,session:c.kind==='direct'?this.pairs.get(c.memberIds.find(id=>id!==this.options.identity.userId)!)?.session.getSnapshot():undefined,...(c.hidden?{hidden:true}:{}),...(c.implicit?{implicit:true}:{})}));
+    const conversations=[...this.conversations.values()].map(c=>{const reactions=this.reactionViews(c);return {id:c.id,kind:c.kind,title:c.title,memberIds:[...c.memberIds],messages:c.messages.map(m=>({...m,recipientIds:m.recipientIds?[...m.recipientIds]:undefined,deliveredTo:m.deliveredTo?[...m.deliveredTo]:undefined,readBy:m.readBy?[...m.readBy]:undefined,...withReactions(reactions.get('message:'+m.from+':'+m.id))})),files:c.files.map(f=>({...f,recipientIds:f.recipientIds?[...f.recipientIds]:undefined,deliveredTo:f.deliveredTo?[...f.deliveredTo]:undefined,readBy:f.readBy?[...f.readBy]:undefined,...withReactions(reactions.get('file:'+f.senderId+':'+f.id))})),unread:c.unread,updatedAt:c.updatedAt,session:c.kind==='direct'?this.pairs.get(c.memberIds.find(id=>id!==this.options.identity.userId)!)?.session.getSnapshot():undefined,...(c.hidden?{hidden:true}:{}),...(c.implicit?{implicit:true}:{})};});
     let activeCall:MessengerSnapshot['activeCall'];
     for(const [peerId,pair] of this.pairs){const session=pair.session.getSnapshot();if(session.callState!=='idle'){activeCall={conversationId:directConversationId(this.options.identity.userId,peerId),peerId,session};break;}}
     if(!activeCall&&this.pendingIncoming){const incoming=this.pendingIncoming;activeCall={conversationId:incoming.conversationId,peerId:incoming.callerId,session:{status:'connecting',setup:'invitation',callId:incoming.callId,callVideo:incoming.video,callExpiresAt:incoming.expiresAt,messages:[],files:[],stats:{},muted:false,route:'unknown',callState:'incoming'}};}
@@ -73,7 +80,7 @@ export class MessengerClient {
   private report(error:unknown){this.error=error instanceof Error?error.message:'Messenger operation failed';this.emit();}
   private changed(){if(this.closed)return;this.trimHistory();this.dirty=true;this.scheduleSave();this.emit();}
   private scheduleSave(){if(this.closing||!this.options.saveState||this.savedTimer)return;this.savedTimer=setTimeout(()=>{this.savedTimer=undefined;void this.persist().catch(error=>this.report(error));},250);}
-  private stored(){return {version:6,contacts:[...this.contacts.values()].map(c=>({...c,online:false})),conversations:[...this.conversations.values()].map(c=>({id:c.id,kind:c.kind,title:c.title,memberIds:c.memberIds,creatorId:c.creatorId,definition:c.definition,receipts:c.receipts,readReceipts:c.readReceipts,messages:c.messages,files:c.files.map(({data:_data,...f})=>f),unread:c.unread,updatedAt:c.updatedAt,changes:c.changes,tombstones:c.tombstones,hidden:c.hidden,implicit:c.implicit})),pending:this.pending,verified:[...this.verified],blocked:[...this.blocked]};}
+  private stored(){return {version:7,contacts:[...this.contacts.values()].map(c=>({...c,online:false})),conversations:[...this.conversations.values()].map(c=>({id:c.id,kind:c.kind,title:c.title,memberIds:c.memberIds,creatorId:c.creatorId,definition:c.definition,receipts:c.receipts,readReceipts:c.readReceipts,messages:c.messages,files:c.files.map(({data:_data,...f})=>f),unread:c.unread,updatedAt:c.updatedAt,changes:c.changes,tombstones:c.tombstones,reactions:c.reactions,hidden:c.hidden,implicit:c.implicit})),pending:this.pending,verified:[...this.verified],blocked:[...this.blocked]};}
   private async persist():Promise<void>{
     if(!this.dirty||!this.options.saveState)return this.saveQueue;this.dirty=false;
     const state=storedSchema.parse(this.stored());const sealed=sealLocalState(this.options.identity,state,this.random);
@@ -94,6 +101,7 @@ export class MessengerClient {
         for(const record of [...c.messages,...(c.files??[])])if(record.readBy?.some(id=>!record.recipientIds?.includes(id)||!c.memberIds.includes(id)))throw new Error('Invalid stored readers');
         for(const receipt of c.readReceipts??[]){const key=receipt.reader===own?this.options.identity.publicKey:contacts.get(receipt.reader)?.publicKey;if(receipt.conversationId!==c.id||!c.memberIds.includes(receipt.author)||!c.memberIds.includes(receipt.reader)||!key||!verifyReadReceipt(receipt,key))throw new Error('Invalid stored read receipt');}
         for(const change of c.changes??[]){const key=change.author===own?this.options.identity.publicKey:contacts.get(change.author)?.publicKey;if(change.conversationId!==c.id||!c.memberIds.includes(change.author)||!key||!verifyMessageChange(change,key))throw new Error('Invalid stored message change');}
+        for(const reaction of c.reactions??[]){const key=reaction.reactor===own?this.options.identity.publicKey:contacts.get(reaction.reactor)?.publicKey;if(reaction.conversationId!==c.id||!c.memberIds.includes(reaction.author)||!c.memberIds.includes(reaction.reactor)||!key||!verifyMessageReaction(reaction,key))throw new Error('Invalid stored reaction');}
         conversations.set(c.id,{...c,files:(c.files??[]).map(f=>({...f})),messages:c.messages.map(m=>({...m,expiresAt:m.expiresAt??m.timestamp+OUTBOX_TTL_MS,status:m.from===own&&m.status!=='delivered'&&m.status!=='expired'?'pending':m.status}))});
       }
       if([...conversations.values()].filter(c=>c.kind==='group').length>MAX_GROUPS)throw new Error('Group capacity exceeded');
@@ -312,7 +320,7 @@ export class MessengerClient {
     return pair;
   }
   private schedulePairRetry(peerId:string){const pair=this.pairs.get(peerId);if(!pair||pair.retry||this.stopped||!this.contacts.get(peerId)?.online)return;pair.notified=false;clearTimeout(pair.pump);pair.pump=undefined;pair.retry=setTimeout(()=>{pair.retry=undefined;void this.ensurePair(peerId,true).catch(e=>this.report(e));},Math.min(30000,1000*2**Math.min(5,pair.attempt++)));}
-  private wakePeer(peerId:string){const needs=[...this.conversations.values()].some(c=>c.readReceipts?.some(r=>r.author===peerId))||this.pending.some(m=>m.remaining.includes(peerId))||this.pairs.has(peerId)||[...this.conversations.values()].some(c=>c.kind==='group'&&c.memberIds.includes(peerId))||[...this.conversations.values()].some(c=>c.memberIds.includes(peerId)&&c.changes?.some(x=>x.author===this.options.identity.userId&&Date.now()<x.expiresAt));if(needs)void this.ensurePair(peerId,true).then(()=>this.flushPeer(peerId)).catch(e=>this.report(e));}
+  private wakePeer(peerId:string){const needs=[...this.conversations.values()].some(c=>c.readReceipts?.some(r=>r.author===peerId))||this.pending.some(m=>m.remaining.includes(peerId))||this.pairs.has(peerId)||[...this.conversations.values()].some(c=>c.kind==='group'&&c.memberIds.includes(peerId))||[...this.conversations.values()].some(c=>c.memberIds.includes(peerId)&&(c.changes?.some(x=>x.author===this.options.identity.userId&&Date.now()<x.expiresAt)||c.reactions?.some(x=>x.reactor===this.options.identity.userId&&Date.now()<x.expiresAt)));if(needs)void this.ensurePair(peerId,true).then(()=>this.flushPeer(peerId)).catch(e=>this.report(e));}
   private pairChanged(peerId:string,snapshot:SessionSnapshot){
     const pair=this.pairs.get(peerId);if(!pair)return;
     if(snapshot.callState==='incoming'){if(this.blocked.has(peerId)){pair.session.rejectCall();return;}const key=peerId+':'+snapshot.callId;const ended=this.endedCalls.get(key);if(ended&&Date.now()<ended){pair.session.rejectCall();return;}const invitation=this.pendingIncoming;if(invitation&&(invitation.callerId!==peerId||invitation.callId!==snapshot.callId||invitation.video!==snapshot.callVideo||invitation.expiresAt!==snapshot.callExpiresAt)){pair.session.rejectCall();return;}}
@@ -398,6 +406,7 @@ export class MessengerClient {
     if((payload as {kind?:unknown})?.kind==='call-caption'||(payload as {kind?:unknown})?.kind==='call-caption-state'){this.receiveCallCaption(peerId,payload);return;}
     if((payload as {kind?:unknown})?.kind==='read-receipt'){await this.acceptReadReceipt(peerId,readReceiptSchema.parse(payload));return;}
     if((payload as {kind?:unknown})?.kind==='message-change'){await this.acceptMessageChange(peerId,messageChangeSchema.parse(payload));return;}
+    if((payload as {kind?:unknown})?.kind==='message-reaction'){await this.acceptReaction(peerId,messageReactionSchema.parse(payload));return;}
     if((payload as {kind?:unknown})?.kind==='group-receipt'){
       const receipt=receiptSchema.parse(payload);const c=this.conversations.get(receipt.groupId);if(!c?.definition||!c.memberIds.includes(peerId)||!verifyGroupReceipt(receipt,c.definition))throw new Error('Invalid group receipt');
       const record=c.messages.find(m=>m.id===receipt.id&&m.from===receipt.author)??c.files.find(f=>f.id===receipt.id&&f.senderId===receipt.author);if(!record)return;if(!record.metadata)throw new Error('Unknown receipt origin');
@@ -458,11 +467,12 @@ export class MessengerClient {
         }
         for(const r of c.readReceipts??[]){if(r.author!==peerId)continue;const key='read:'+c.id+':'+r.author+':'+r.type+':'+r.id+':'+r.reader;if(pair.lastSent.has(key))continue;await pair.session.sendApplication(r);pair.lastSent.set(key,Date.now());}
         for(const change of this.unsentChanges(c,peerId,pair)){await pair.session.sendApplication(change);pair.lastSent.set(this.changeKey(change),Date.now());}
+        for(const reaction of this.unsentReactions(c,peerId,pair)){await pair.session.sendApplication(reaction);pair.lastSent.set(this.reactionKey(reaction),Date.now());}
         for(const r of c.receipts??[]){const record=c.messages.find(m=>m.id===r.id&&m.from===r.author)??c.files.find(f=>f.id===r.id&&f.senderId===r.author);if(!record||Date.now()>=(record.expiresAt??0))continue;const key='receipt:'+c.id+':'+r.author+':'+r.id+':'+r.recipient;if(pair.lastSent.has(key))continue;await pair.session.sendApplication(r);pair.lastSent.set(key,Date.now());}
       }
     }catch(error){this.report(error);}finally{pair.flushing=false;this.scheduleOutbox(peerId);}
   }
-  private scheduleOutbox(peerId:string){const pair=this.pairs.get(peerId);if(!pair||pair.pump||this.stopped||pair.session.getSnapshot().status!=='connected')return;const relay=[...this.conversations.values()].some(c=>c.kind==='group'&&c.memberIds.includes(peerId)&&(c.messages.some(m=>m.metadata&&Date.now()<(m.expiresAt??0))||c.files.some(f=>f.metadata&&f.blobKey&&Date.now()<(f.expiresAt??0))));if(!this.pending.some(p=>p.remaining.includes(peerId))&&!relay&&![...this.conversations.values()].some(c=>c.memberIds.includes(peerId)&&this.unsentChanges(c,peerId,pair).length))return;pair.pump=setTimeout(()=>{pair.pump=undefined;void this.flushPeer(peerId);},5000);}
+  private scheduleOutbox(peerId:string){const pair=this.pairs.get(peerId);if(!pair||pair.pump||this.stopped||pair.session.getSnapshot().status!=='connected')return;const relay=[...this.conversations.values()].some(c=>c.kind==='group'&&c.memberIds.includes(peerId)&&(c.messages.some(m=>m.metadata&&Date.now()<(m.expiresAt??0))||c.files.some(f=>f.metadata&&f.blobKey&&Date.now()<(f.expiresAt??0))));if(!this.pending.some(p=>p.remaining.includes(peerId))&&!relay&&![...this.conversations.values()].some(c=>c.memberIds.includes(peerId)&&(this.unsentChanges(c,peerId,pair).length||this.unsentReactions(c,peerId,pair).length)))return;pair.pump=setTimeout(()=>{pair.pump=undefined;void this.flushPeer(peerId);},5000);}
   async sendText(conversationId:string,text:string):Promise<void>{return this.serial(async()=>{
     await this.restore();await this.expirePending();const c=this.conversations.get(conversationId);if(!c)throw new Error('Unknown conversation');if(!text.trim()||text.length>MAX_TEXT_CHARS)throw new Error('Text must contain 1–4000 characters');if(this.pending.filter(p=>p.type!=='file').length>=MAX_PENDING_MESSAGES)throw new Error('Local outbox is full');
     const timestamp=Date.now();const expiresAt=timestamp+OUTBOX_TTL_MS;const id=this.id();const peers=c.memberIds.filter(id=>id!==this.options.identity.userId);const metadata=c.kind==='group'?JSON.stringify(signGroupOrigin(this.options.identity,{groupId:this.definition(c).id,id,type:'message',timestamp,expiresAt,hash:contentHash('message',text)})):undefined;
@@ -504,6 +514,35 @@ export class MessengerClient {
   private changeKey(change:MessageChange){return 'change:'+change.conversationId+':'+change.author+':'+change.type+':'+change.id+':'+change.revision;}
   /** Each stored change goes once per connected session, and only to a peer that declared support. */
   private unsentChanges(c:InternalConversation,peerId:string,pair:Pair):MessageChange[]{if(!c.changes?.length||!pair.session.supportsMessageChanges())return [];return c.changes.filter(x=>x.author!==peerId&&Date.now()<x.expiresAt&&!pair.lastSent.has(this.changeKey(x)));}
+  private reactionKey(r:MessageReaction){return 'reaction:'+r.conversationId+':'+r.author+':'+r.type+':'+r.id+':'+r.reactor+':'+r.revision;}
+  /** Every member's latest reaction goes once per connected session to a peer that declared support; the peer's own come from the peer. */
+  private unsentReactions(c:InternalConversation,peerId:string,pair:Pair):MessageReaction[]{if(!c.reactions?.length||!pair.session.supportsReactions?.())return [];return c.reactions.filter(x=>x.reactor!==peerId&&Date.now()<x.expiresAt&&!pair.lastSent.has(this.reactionKey(x)));}
+  private reactionViews(c:InternalConversation):Map<string,ReactionView[]>{
+    const views=new Map<string,ReactionView[]>();
+    for(const r of [...(c.reactions??[])].sort((a,b)=>a.reactedAt-b.reactedAt))if(r.emoji){const key=r.type+':'+r.author+':'+r.id;const list=views.get(key)??[];list.push({userId:r.reactor,emoji:r.emoji});views.set(key,list);}
+    return views;
+  }
+  private hasRecord(c:InternalConversation,author:string,id:string,type:'message'|'file'){return type==='file'?c.files.some(f=>f.id===id&&f.senderId===author):c.messages.some(m=>m.id===id&&m.from===author);}
+  /** Keeps one record per member and target: the newest revision wins. */
+  private putReaction(c:InternalConversation,reaction:MessageReaction){const reactions=(c.reactions??[]).filter(x=>!(x.reactor===reaction.reactor&&x.author===reaction.author&&x.id===reaction.id&&x.type===reaction.type));reactions.push(reaction);while(reactions.length>MAX_REACTIONS){const oldest=reactions.reduce((a,b)=>b.reactedAt<a.reactedAt?b:a);reactions.splice(reactions.indexOf(oldest),1);}c.reactions=reactions;}
+  /** Sets, replaces or (without an emoji) removes your reaction. It reaches others directly when their app next connects, within 7 days. */
+  async react(conversationId:string,record:{id:string;type:'message'|'file';author:string},emoji?:ReactionEmoji):Promise<void>{return this.serial(async()=>{
+    await this.restore();const c=this.conversations.get(conversationId);if(!c)throw new Error('Unknown conversation');if(!this.hasRecord(c,record.author,record.id,record.type))throw new Error('Unknown message');
+    const own=this.options.identity.userId;const previous=c.reactions?.find(x=>x.reactor===own&&x.author===record.author&&x.id===record.id&&x.type===record.type);if(previous?.emoji===emoji||(!previous&&!emoji))return;
+    const reactedAt=Math.max(Date.now(),(previous?.reactedAt??0));const reaction=signMessageReaction(this.options.identity,{conversationId:c.id,author:record.author,id:record.id,type:record.type,emoji,revision:(previous?.revision??0)+1,reactedAt,expiresAt:reactedAt+OUTBOX_TTL_MS});
+    const before=c.reactions;this.putReaction(c,reaction);
+    try{await this.durable();}catch(error){c.reactions=before;this.dirty=true;throw error;}this.kick(c);
+  });}
+  private async acceptReaction(peerId:string,reaction:MessageReaction){
+    const c=this.conversations.get(reaction.conversationId),own=this.options.identity.userId;const publicKey=reaction.reactor===own?this.options.identity.publicKey:this.contacts.get(reaction.reactor)?.publicKey;
+    if(!c||!c.memberIds.includes(peerId)||!c.memberIds.includes(reaction.author)||!c.memberIds.includes(reaction.reactor)||!publicKey||(c.kind==='direct'&&reaction.reactor!==peerId&&reaction.reactor!==own)||!verifyMessageReaction(reaction,publicKey))throw new Error('Invalid reaction');
+    if(reaction.reactedAt>Date.now()+60000)throw new Error('Reaction is from the future');if(Date.now()>=reaction.expiresAt||this.blocked.has(reaction.reactor))return;
+    // A reaction can overtake its message in a group relay; the next session sends it again.
+    if(!this.hasRecord(c,reaction.author,reaction.id,reaction.type))return;
+    const existing=c.reactions?.find(x=>x.reactor===reaction.reactor&&x.author===reaction.author&&x.id===reaction.id&&x.type===reaction.type);if(existing&&existing.revision>=reaction.revision)return;
+    const before=c.reactions;this.putReaction(c,reaction);
+    try{await this.durable();}catch(error){c.reactions=before;this.dirty=true;throw error;}
+  }
   private isRemoved(c:InternalConversation,author:string,id:string,type:'message'|'file'){return !!c.tombstones?.some(x=>x.author===author&&x.id===id&&x.type===type)||!!c.changes?.some(x=>x.action==='delete'&&x.author===author&&x.id===id&&x.type===type);}
   private putChange(c:InternalConversation,change:MessageChange){const changes=(c.changes??[]).filter(x=>!(x.author===change.author&&x.id===change.id&&x.type===change.type));changes.push(change);while(changes.length>MAX_MESSAGE_CHANGES){const oldest=changes.reduce((a,b)=>b.expiresAt<a.expiresAt?b:a);changes.splice(changes.indexOf(oldest),1);}c.changes=changes;}
   private putTombstone(c:InternalConversation,tombstone:Tombstone){const tombstones=(c.tombstones??[]).filter(x=>!(x.author===tombstone.author&&x.id===tombstone.id&&x.type===tombstone.type));tombstones.push(tombstone);while(tombstones.length>MAX_TOMBSTONES){const oldest=tombstones.reduce((a,b)=>b.expiresAt<a.expiresAt?b:a);tombstones.splice(tombstones.indexOf(oldest),1);}c.tombstones=tombstones;}
@@ -530,7 +569,7 @@ export class MessengerClient {
     for(const p of removed.pending)this.committed.delete(this.pendingKey(p));
     for(const key of removed.blobKeys)if(key){this.blobs.delete(key);try{await this.options.deleteAttachment?.(key);}catch(error){this.report(error);}}
   }
-  private conversationState(c:InternalConversation){return {messages:c.messages,files:c.files,receipts:c.receipts,readReceipts:c.readReceipts,changes:c.changes,tombstones:c.tombstones,unread:c.unread,hidden:c.hidden,pending:this.pending};}
+  private conversationState(c:InternalConversation){return {messages:c.messages,files:c.files,receipts:c.receipts,readReceipts:c.readReceipts,changes:c.changes,tombstones:c.tombstones,reactions:c.reactions,unread:c.unread,hidden:c.hidden,pending:this.pending};}
   private restoreConversationState(c:InternalConversation,state:ReturnType<MessengerClient['conversationState']>){const {pending,...fields}=state;Object.assign(c,fields);this.pending=pending;this.dirty=true;}
   private signChange(c:InternalConversation,input:{id:string;type:'message'|'file';action:'edit'|'delete';text?:string}):MessageChange{
     const own=this.options.identity.userId;const previous=c.changes?.find(x=>x.author===own&&x.id===input.id&&x.type===input.type);const changedAt=Date.now();
@@ -561,7 +600,7 @@ export class MessengerClient {
     const pending=this.pending.filter(p=>p.conversationId===c.id);const blobKeys=c.files.map(f=>f.blobKey);this.pending=this.pending.filter(p=>p.conversationId!==c.id);
     for(const m of c.messages){const expiresAt=m.expiresAt??m.timestamp+OUTBOX_TTL_MS;if(now<expiresAt)this.putTombstone(c,{id:m.id,author:m.from,type:'message',expiresAt});}
     for(const f of c.files){const expiresAt=f.expiresAt??f.timestamp+OUTBOX_TTL_MS;if(now<expiresAt)this.putTombstone(c,{id:f.id,author:f.senderId,type:'file',expiresAt});}
-    c.messages=[];c.files=[];c.receipts=undefined;c.readReceipts=undefined;c.unread=0;c.hidden=true;this.fitChangeBudget();
+    c.messages=[];c.files=[];c.receipts=undefined;c.readReceipts=undefined;c.reactions=undefined;c.unread=0;c.hidden=true;this.fitChangeBudget();
     try{await this.durable();}catch(error){this.restoreConversationState(c,state);throw error;}await this.forgetRemoved({blobKeys,pending});
   });}
   /** Group membership and persisted blocks both need the contact entry, so those contacts lose only the direct chat. */
@@ -712,6 +751,10 @@ export class MessengerClient {
     let count=[...this.conversations.values()].reduce((n,c)=>n+c.messages.length,0);
     while(count>MAX_HISTORY_MESSAGES){let oldest:InternalConversation|undefined;let index=-1;let timestamp=Infinity;for(const c of this.conversations.values())for(let i=0;i<c.messages.length;i++){const m=c.messages[i]!;if(!pending.has(c.id+':'+m.id)&&m.timestamp<timestamp){oldest=c;index=i;timestamp=m.timestamp;}}if(!oldest)break;oldest.messages.splice(index,1);count--;}
     for(const c of this.conversations.values())if(c.readReceipts)c.readReceipts=c.readReceipts.filter(r=>r.type==='message'?c.messages.some(m=>m.id===r.id&&m.from===r.author):c.files.some(f=>f.id===r.id&&f.senderId===r.author));
+    // A reaction lives as long as its message; a taken-back one only until every peer had a week to hear about it.
+    for(const c of this.conversations.values())if(c.reactions){c.reactions=c.reactions.filter(r=>(r.emoji||now<r.expiresAt)&&this.hasRecord(c,r.author,r.id,r.type));if(!c.reactions.length)c.reactions=undefined;}
+    const all=[...this.conversations.values()].flatMap(c=>(c.reactions??[]).map(r=>({c,r})));
+    if(all.length>MAX_TOTAL_REACTIONS){const drop=new Set(all.sort((a,b)=>a.r.reactedAt-b.r.reactedAt).slice(0,all.length-MAX_TOTAL_REACTIONS).map(x=>x.r));for(const c of this.conversations.values())if(c.reactions)c.reactions=c.reactions.filter(r=>!drop.has(r));}
   }
   async networkChanged():Promise<void>{
     if(this.closing||this.stopped)return;this.cancelOpening?.();await this.opening?.catch(()=>{});clearTimeout(this.reconnect);this.reconnect=undefined;

@@ -9,6 +9,7 @@ export * from './messenger.js';
 export * from './services.js';
 export * from './push-preview.js';
 export * from './message-change.js';
+export * from './message-reaction.js';
 
 export * from './call-control.js';
 export * from './call-captions.js';

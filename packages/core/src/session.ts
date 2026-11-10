@@ -46,13 +46,14 @@ const DATA_READY_ATTRIBUTE='a=x-lastcall-data-ready:1';
 const CONTENT_E2E_ATTRIBUTE='a=x-lastcall-content-e2e:1';
 const MESSAGE_CHANGE_ATTRIBUTE='a=x-lastcall-message-change:1';
 const CALL_CAPTIONS_ATTRIBUTE='a=x-lastcall-call-captions:1';
-const sessionMarker=(line:string)=>line===DATA_READY_ATTRIBUTE||line===CONTENT_E2E_ATTRIBUTE||line===MESSAGE_CHANGE_ATTRIBUTE||line===CALL_CAPTIONS_ATTRIBUTE;
+const REACTIONS_ATTRIBUTE='a=x-lastcall-reactions:1';
+const sessionMarker=(line:string)=>line===DATA_READY_ATTRIBUTE||line===CONTENT_E2E_ATTRIBUTE||line===MESSAGE_CHANGE_ATTRIBUTE||line===CALL_CAPTIONS_ATTRIBUTE||line===REACTIONS_ATTRIBUTE;
 const DATA_READY_TIMEOUT=5000;
 const DATA_READY_RETRY=250;
 function readySdp(sdp:string,content:boolean,captions:boolean):string{
   const lines=sdp.split(/\r?\n/).filter(line=>!sessionMarker(line));
   const media=lines.findIndex(line=>line.startsWith('m='));
-  lines.splice(media<0?Math.max(0,lines.length-1):media,0,...(content?[CONTENT_E2E_ATTRIBUTE,DATA_READY_ATTRIBUTE,MESSAGE_CHANGE_ATTRIBUTE]:[DATA_READY_ATTRIBUTE,MESSAGE_CHANGE_ATTRIBUTE]),...(captions?[CALL_CAPTIONS_ATTRIBUTE]:[]));
+  lines.splice(media<0?Math.max(0,lines.length-1):media,0,...(content?[CONTENT_E2E_ATTRIBUTE,DATA_READY_ATTRIBUTE,MESSAGE_CHANGE_ATTRIBUTE,REACTIONS_ATTRIBUTE]:[DATA_READY_ATTRIBUTE,MESSAGE_CHANGE_ATTRIBUTE,REACTIONS_ATTRIBUTE]),...(captions?[CALL_CAPTIONS_ATTRIBUTE]:[]));
   return lines.join('\r\n');
 }
 export class PeerSession {
@@ -73,6 +74,7 @@ export class PeerSession {
   private contentConfigured=false;
   private remoteContentE2E=false;
   private remoteMessageChanges=false;
+  private remoteReactions=false;
   private remoteCallCaptions=false;
   private contentRemoteUserId?:string;
   private contentPrivateKey?:Uint8Array;
@@ -384,9 +386,10 @@ export class PeerSession {
       const contentCapability=lines.slice(0,media<0?undefined:media).includes(CONTENT_E2E_ATTRIBUTE);
       const changeCapability=lines.slice(0,media<0?undefined:media).includes(MESSAGE_CHANGE_ATTRIBUTE);
       const captionCapability=lines.slice(0,media<0?undefined:media).includes(CALL_CAPTIONS_ATTRIBUTE);
+      const reactionCapability=lines.slice(0,media<0?undefined:media).includes(REACTIONS_ATTRIBUTE);
       // Parse before awaiting native SDP: it may emit datachannel/open during the await.
       if(!pc.remoteDescription){
-        this.remoteDataReady=capability;this.remoteContentE2E=this.contentConfigured&&contentCapability;this.remoteMessageChanges=changeCapability;this.remoteCallCaptions=captionCapability;
+        this.remoteDataReady=capability;this.remoteContentE2E=this.contentConfigured&&contentCapability;this.remoteMessageChanges=changeCapability;this.remoteReactions=reactionCapability;this.remoteCallCaptions=captionCapability;
         // No plaintext fallback: a peer without the marker must update first.
         if(this.contentConfigured&&!contentCapability){this.failTransport('peer does not support end-to-end content encryption; update both apps');return;}
       }
@@ -506,6 +509,8 @@ export class PeerSession {
   }
   /** Older peers report an unknown application payload as a transport problem; they only get what they understand. */
   supportsMessageChanges():boolean{return this.remoteMessageChanges;}
+  /** Older apps reject an unknown application record, so reactions wait until the peer announces support. */
+  supportsReactions():boolean{return this.remoteReactions;}
   /** Only sealed end-to-end content may carry a call's words. */
   supportsCallCaptions():boolean{return !!this.options.callCaptions&&this.remoteCallCaptions&&!!this.contentCipher&&this.channelReady();}
   async sendApplication(payload:unknown):Promise<void>{
@@ -707,7 +712,7 @@ export class PeerSession {
     // A promise from a closed RTCPeerConnection may never settle. Work queued behind it must
     // not hold negotiation for the replacement connection until the transport deadline.
     ++this.peerEpoch;this.queue=Promise.resolve();
-    this.resetReady();this.remoteDataReady=false;this.localDataReady=false;this.remoteContentE2E=false;this.remoteMessageChanges=false;this.remoteCallCaptions=false;
+    this.resetReady();this.remoteDataReady=false;this.localDataReady=false;this.remoteContentE2E=false;this.remoteMessageChanges=false;this.remoteReactions=false;this.remoteCallCaptions=false;
     clearTimeout(this.recoveryTimer);this.recoveryTimer=undefined;clearTimeout(this.resumeTimer);this.resumeTimer=undefined;this.hadConnected=false;this.restartPending=false;this.signalBacklog=[];this.state.recovering=false;
     this.resetReceiveQueue();
     clearTimeout(this.transportTimer);this.transportTimer=undefined;clearInterval(this.statsTimer);this.statsTimer=undefined;this.stopCall();this.failTransfers();

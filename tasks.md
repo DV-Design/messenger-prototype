@@ -1,3 +1,15 @@
+# Message reactions (msg-7ek, branch `feat/delivery-requests`)
+
+Status: emulator-tested, not released. Contract: [docs/REACTIONS-CONTRACT.md](docs/REACTIONS-CONTRACT.md).
+
+- [X] Signed `message-reaction` records, SDP marker, storage version 7, relay and trimming in core
+  → Artifacts: [record](packages/core/src/message-reaction.ts), [client](packages/core/src/messenger.ts), [tests](packages/core/src/message-reaction.test.ts), [e2e](tests/e2e/outbox-sync.spec.ts)
+- [X] Emoji row in the message menu, pills under messages and files
+  → Artifacts: [components](apps/mobile/src/components/Reactions.tsx), [model](apps/mobile/src/reaction-model.ts), [tests](apps/mobile/tests/reactions.test.ts), [chat](apps/mobile/src/app/chat/[id].tsx)
+- [X] Gates: core 265, server 133, mobile 201, e2e 16 PASS / 1 skip
+- [X] Two Android 16 emulators on a store-flavor build: set, add the same, take back while the other app was force-stopped; arrives on reopen
+- [ ] Physical phones, groups on a device, mixed with 1.0.20 (older side must receive nothing and show no error)
+
 # Edit and delete messages, chats and contacts (msg-n9n, branch `feature/email-recovery`)
 
 Status: test build only. Contract: [docs/MESSAGE-CHANGE-CONTRACT.md](docs/MESSAGE-CHANGE-CONTRACT.md).

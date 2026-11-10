@@ -26,10 +26,10 @@ describe('signed message change',()=>{
  });
 });
 describe('editing',()=>{
- it('shows the new text, keeps the wire text, and survives restart as version 6',async()=>{
+ it('shows the new text, keeps the wire text, and survives restart as version 7',async()=>{
   const a=make();const id=await a.c.addContact(user(bob,'bob'));await a.c.sendText(id,'original');const m=chat(a.c,id).messages[0]!;
   await a.c.editMessage(id,m.id,'edited');expect(chat(a.c,id).messages[0]).toMatchObject({text:'edited',originalText:'original',status:'pending'});expect(chat(a.c,id).messages[0]!.editedAt).toBeGreaterThan(0);
-  await a.c.flushState();const stored=openLocalState(alice,a.store.sealed!) as any;expect(stored.version).toBe(6);expect(stored.conversations[0].changes).toHaveLength(1);
+  await a.c.flushState();const stored=openLocalState(alice,a.store.sealed!) as any;expect(stored.version).toBe(7);expect(stored.conversations[0].changes).toHaveLength(1);
   a.c.disconnect();const restored=make(alice,a.store);await restored.c.flushState();expect(chat(restored.c,id).messages[0]).toMatchObject({text:'edited',originalText:'original'});
   const sentText:string[]=[];const {pair,sent}=connectedPair();pair.session.sendText=async(text:string)=>{sentText.push(text);};restored.i.pairs.set(bob.userId,pair);await restored.i.flushPeer(bob.userId);
   expect(sentText).toEqual(['original']);expect(sent.map(x=>x.kind)).toEqual(['message-change']);await restored.i.flushPeer(bob.userId);expect(sent).toHaveLength(1);
