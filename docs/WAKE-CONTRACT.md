@@ -1,6 +1,6 @@
 # Direct-first wake and bounded Android background sync
 
-## Delivery requests (branch `feat/delivery-requests`, not deployed)
+## Delivery requests (server deployed 2026-11-10, client not yet released)
 
 A wake used to come only from the sender's running app and lived 60 s, so a closed sender woke
 nobody. The sender now keeps the server told which peers it still owes (`delivery-sync`, the whole
@@ -18,9 +18,17 @@ notification for the window, because high-priority pushes should be visible.
 rejects that field and closes the socket, after which the client reconnects and asks without it.
 Old clients never send the field and so never see the capability.
 
-Evidence: unit and socket tests only. Real FCM wake of a closed sender, the progress notification
-and the two phones meeting inside the 9 s window are not yet verified on a device. iOS is not covered:
-it cannot open a P2P connection from a background push.
+Evidence, real FCM on two Android 16 emulators against the production server (2026-11-10), message
+queued, then both app processes killed:
+
+- Recipient opens the app: the sender process started about 2.4 s later and the text arrived.
+- Recipient offline for 40 s and for 150 s (past the 60 s wake lifetime), its app dead, then network
+  returns with nothing opened: recipient woke, sender woke about 2.4 s later, text delivered and
+  shown, request removed from the server about 9 s after the network returned.
+- The sender's progress notification appeared during the window and was gone afterwards.
+
+Not verified: physical phones and OEM battery managers, cellular networks, files in this path, a
+phone off for days. iOS is not covered: it cannot open a P2P connection from a background push.
 
 ## CPU, screen and OEM handling (1.0.13/code27)
 
