@@ -1,5 +1,5 @@
 import { StyleSheet } from 'react-native';
-export const colors = { background: '#F5F7F9', white: '#FFFFFF', text: '#17212B', secondary: '#6D7C89', accent: '#218C74', blue: '#268AC5', line: '#E5EBEF', outgoing: '#DDF3E9', chat: '#EAF0EC', danger: '#CF4552' };
+export const colors = { background: '#F5F7F9', white: '#FFFFFF', text: '#17212B', secondary: '#6D7C89', accent: '#218C74', blue: '#268AC5', line: '#E5EBEF', outgoing: '#C3ECD0', chat: '#EAF0EC', danger: '#CF4552' };
 export const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background }, whiteScreen: { flex: 1, backgroundColor: colors.white }, flex: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, paddingTop: 12, paddingBottom: 16, backgroundColor: colors.white, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line },
