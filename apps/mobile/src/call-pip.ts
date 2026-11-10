@@ -7,7 +7,6 @@ export const CALL_PIP_CHANGED = 'LastCallPipChanged';
 
 interface LastCallPipNative {
   configure(callId: string, enabled: boolean, width: number, height: number): Promise<unknown>;
-  enter(callId: string): Promise<unknown>;
   clear(callId: string): void;
   getState(): Promise<unknown>;
 }
@@ -21,7 +20,6 @@ export function nativeCallPip(): LastCallPipNative | undefined {
 export interface CallPipHook {
   snapshot: CallPipSnapshot;
   error: string;
-  minimize(): Promise<boolean>;
   clear(): void;
 }
 
@@ -84,25 +82,9 @@ export function useCallPip(options: {
     });
   }, [callId, enabled, width, height]);
 
-  async function minimize() {
-    const native = nativeCallPip();
-    const current = observer.current;
-    if (!native || !callId || !current || !snapshot.supported || !snapshot.allowed) {
-      setFailure({ text: snapshot.supported === false ? t('Picture-in-picture is not supported on this device') : t('Picture-in-picture is unavailable: check permission in settings'), seen: current?.state ?? snapshot });
-      return false;
-    }
-    try {
-      await current.request(() => native.enter(callId));
-      return true;
-    } catch {
-      setFailure({ text: t('Could not open picture-in-picture'), seen: current.state });
-      return false;
-    }
-  }
-
   function clear() {
     nativeCallPip()?.clear(callId ?? '');
   }
 
-  return { snapshot: callId ? snapshot : emptyCallPip, error, minimize, clear };
+  return { snapshot: callId ? snapshot : emptyCallPip, error, clear };
 }

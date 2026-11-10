@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { BackHandler, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RTCView, type MediaStream as NativeMediaStream } from 'react-native-webrtc';
@@ -31,7 +31,6 @@ function CallPanel() {
   const { snapshot, identity } = useMessenger();
   const call = snapshot.activeCall;
   const collapsed = useCallBar().collapsed;
-  const setCollapsed = (value: boolean) => setCallBar({ collapsed: value });
   // A new call always opens full screen; the bar disappears with the call.
   useEffect(() => { setCallBar({ collapsed: false }); return () => setCallBar(null); }, []);
   const [busy, setBusy] = useState(false);
@@ -60,7 +59,8 @@ function CallPanel() {
   const camera = useCallCamera(callId, localTrack as unknown as CallCameraTrack | undefined);
   const pip = useCallPip({
     callId,
-    enabled: activeVideo && !collapsed,
+    // Armed while minimized too: Home from the chats still shows the video in the system window.
+    enabled: activeVideo,
     width,
     height,
     // Read the LIVE client snapshot: React state can lag behind a native close.
@@ -81,20 +81,19 @@ function CallPanel() {
   }, [activeVideo, pipActive, menuVisible, controls]);
   useEffect(() => () => controls.dispose(), [controls]);
 
-  async function minimize() {
+  // Back and the chevron stay inside the app, as in Telegram. Only Home opens the system PiP window.
+  function minimize() {
     setAudioMenu(false);
-    if (Platform.OS === 'android' && activeVideo) {
-      if (await pip.minimize()) return;
-    }
-    setCollapsed(true);
+    setCallBar({ collapsed: true });
   }
-  const minimizeRef = useRef(minimize);
-  useEffect(() => { minimizeRef.current = minimize; });
+  // The PiP window shows the call, so leaving it must lead back to the call, not to the bar.
+  useEffect(() => { if (pipActive) setCallBar({ collapsed: false }); }, [pipActive]);
   useEffect(() => {
-    // Minimized, Back belongs to the app's own navigation, as in Telegram; the bar reopens the call.
+    // Minimized, Back belongs to the app's own navigation; the bar reopens the call.
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       if (collapsed) return false;
-      void minimizeRef.current();
+      setAudioMenu(false);
+      setCallBar({ collapsed: true });
       return true;
     });
     return () => subscription.remove();
@@ -150,14 +149,14 @@ function CallPanel() {
         {!pipActive && controlsVisible && <>
           <View style={[styles.callVideoHeader, { paddingTop: insets.top + 12, paddingLeft: insets.left + 20, paddingRight: insets.right + 12 }]}>
             <View style={styles.callVideoHeading}><Text numberOfLines={1} style={styles.callVideoName}>{name}</Text><Text style={styles.callSubtitle}>{status}</Text>{!!safetyCode && <Text style={[styles.callSubtitle, { fontSize: 22 }]}> {t('Verification code: {code}', { code: safetyCode })}</Text>}</View>
-            <IconButton name="chevron-down" label={t('Minimize call')} color={colors.white} onPress={() => { controls.interact(); void minimize(); }} />
+            <IconButton name="chevron-down" label={t('Minimize call')} color={colors.white} onPress={() => { controls.interact(); minimize(); }} />
           </View>
           <View style={[styles.callVideoFooter, { paddingBottom: insets.bottom + 16, paddingLeft: insets.left + 16, paddingRight: insets.right + 16 }]}>
             {!!notice && <Text style={styles.error}>{notice}</Text>}{controlsStrip}
           </View>
         </>}
       </Pressable> : <SafeAreaView style={styles.callScreen}>
-        <View style={{ position: 'absolute', right: 15, top: insets.top + 10 }}><IconButton name="chevron-down" label={t('Minimize call')} color={colors.white} onPress={() => void minimize()} /></View>
+        <View style={{ position: 'absolute', right: 15, top: insets.top + 10 }}><IconButton name="chevron-down" label={t('Minimize call')} color={colors.white} onPress={minimize} /></View>
         {!captions.view.enabled && !captions.view.asked && <Avatar name={name} id={call.peerId} size={94} />}<Text style={styles.callName}>{name}</Text><Text style={styles.callSubtitle}>{status}</Text>{!!safetyCode && <Text style={[styles.callSubtitle, { fontSize: 22 }]}> {t('Verification code: {code}', { code: safetyCode })}</Text>}
         <CallCaptions view={captions.view} onEnable={captions.toggle} onDecline={captions.decline} />
         {!!notice && <Text style={styles.error}>{notice}</Text>}{controlsStrip}
@@ -185,7 +184,7 @@ function CallPanel() {
     </>;
   }
   return <>
-    <Modal visible={!collapsed} animationType="slide" presentationStyle="fullScreen" supportedOrientations={['portrait', 'landscape']} statusBarTranslucent navigationBarTranslucent onRequestClose={() => void minimize()}>
+    <Modal visible={!collapsed} animationType="slide" presentationStyle="fullScreen" supportedOrientations={['portrait', 'landscape']} statusBarTranslucent navigationBarTranslucent onRequestClose={minimize}>
       {panel}
     </Modal>
   </>;

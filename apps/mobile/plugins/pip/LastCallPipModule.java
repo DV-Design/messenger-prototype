@@ -17,9 +17,6 @@ public final class LastCallPipModule extends ReactContextBaseJavaModule {
   @ReactMethod public void configure(String id, boolean enabled, double width, double height, Promise promise) {
     UiThreadUtil.runOnUiThread(() -> { try { LastCallPip.configure(getReactApplicationContext(), getCurrentActivity(), id, enabled, width, height); promise.resolve(LastCallPip.snapshot(getReactApplicationContext(), false)); } catch (RuntimeException error) { promise.reject("CALL_PIP", "Android could not configure video picture-in-picture", error); } });
   }
-  @ReactMethod public void enter(String id, Promise promise) {
-    UiThreadUtil.runOnUiThread(() -> { try { LastCallPip.enter(id); promise.resolve(LastCallPip.snapshot(getReactApplicationContext(), false)); } catch (RuntimeException error) { promise.reject("CALL_PIP", "Android could not open video picture-in-picture", error); } });
-  }
   @ReactMethod public void clear(String id) { UiThreadUtil.runOnUiThread(() -> LastCallPip.clear(id)); }
   @ReactMethod public void getState(Promise promise) {
     UiThreadUtil.runOnUiThread(() -> promise.resolve(LastCallPip.snapshot(getReactApplicationContext(), false)));
