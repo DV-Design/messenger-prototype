@@ -24,7 +24,9 @@ export async function pickDocument(conversationId: string) {
   const current = client();
   const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true, multiple: false });
   const asset = result.assets?.[0];
-  if (!result.canceled && asset) await transmit(current, conversationId, asset.uri, asset.name, asset.mimeType ?? 'application/octet-stream', asset.size);
+  if (result.canceled || !asset) return false;
+  await transmit(current, conversationId, asset.uri, asset.name, asset.mimeType ?? 'application/octet-stream', asset.size);
+  return true;
 }
 export async function pickMedia(conversationId: string) {
   const current = client();
@@ -32,7 +34,9 @@ export async function pickMedia(conversationId: string) {
   if (!permission.granted) throw new Error(t('Allow photo and video access in phone settings.'));
   const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images', 'videos'], allowsMultipleSelection: false });
   const asset = result.assets?.[0];
-  if (!result.canceled && asset) await transmit(current, conversationId, asset.uri, asset.fileName ?? (asset.type === 'video' ? 'video.mp4' : 'photo.jpg'), asset.mimeType ?? (asset.type === 'video' ? 'video/mp4' : 'image/jpeg'), asset.fileSize);
+  if (result.canceled || !asset) return false;
+  await transmit(current, conversationId, asset.uri, asset.fileName ?? (asset.type === 'video' ? 'video.mp4' : 'photo.jpg'), asset.mimeType ?? (asset.type === 'video' ? 'video/mp4' : 'image/jpeg'), asset.fileSize);
+  return true;
 }
 export async function loadFileData(item: MessengerFile): Promise<Uint8Array | null> {
   if (item.deliveryStatus === 'expired') return null;

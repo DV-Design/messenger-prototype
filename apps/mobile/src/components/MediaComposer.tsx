@@ -9,6 +9,7 @@ import { client, errorText } from '../runtime';
 import { deleteMediaCache, pruneMediaCache, sendRecordedMedia } from '../attachments';
 import { createMediaScope, MAX_MEDIA_BYTES, MEDIA_SECONDS, mediaMetadata, mediaPermission, mediaTime, validateMedia, type MediaKind } from '../media-model';
 import { stopMediaPlayback } from '../media-playback';
+import { haptic, messageSent } from '../feedback';
 import { styles } from '../styles';
 import { t } from '../i18n';
 import { mergeCircleSegments } from '../video-merge';
@@ -243,6 +244,7 @@ export function MediaComposer({ kind, conversationId, blocked, onClose }: { kind
   const stop = useRef(async () => {});
   useEffect(() => { stop.current = async () => {
     if (phaseRef.current !== 'recording') return;
+    haptic('press');
     if (kind === 'circle' && Platform.OS === 'android') {
       if (segmentAction.current) return;
       segmentAction.current = 'stop';
@@ -283,11 +285,11 @@ export function MediaComposer({ kind, conversationId, blocked, onClose }: { kind
         if (!cameraReady) return;
         started.current = Date.now(); setSeconds(0);
         if (Platform.OS === 'android') {
-          resetCircleSession();
+          resetCircleSession(); haptic('longPress');
           await recordCircleSegment(attempt);
           return;
         }
-        update('recording');
+        update('recording'); haptic('longPress');
         const result = await camera.current!.recordAsync({ maxDuration: MEDIA_SECONDS.circle, maxFileSize: MAX_MEDIA_BYTES, ...(Platform.OS === 'ios' ? { codec: 'avc1' as const } : {}) });
         if (!result?.uri) throw new Error(t('The camera did not save the recording.'));
         if (attempt !== recordingAttempt.current) { deleteMediaCache(result.uri); return; }
@@ -305,7 +307,7 @@ export function MediaComposer({ kind, conversationId, blocked, onClose }: { kind
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true, shouldPlayInBackground: false, allowsBackgroundRecording: false, interruptionMode: 'doNotMix' }); permitted();
       await recorder.prepareToRecordAsync({ ...VOICE_OPTIONS, fileName: `lastcall-voice-${nonce}` });
       original.current = recorder.uri; permitted();
-      started.current = Date.now(); setSeconds(0); recorder.record({ forDuration: MEDIA_SECONDS.voice }); update('recording');
+      started.current = Date.now(); setSeconds(0); recorder.record({ forDuration: MEDIA_SECONDS.voice }); update('recording'); haptic('longPress');
     } catch (cause) {
       if (!scope.active || attempt !== recordingAttempt.current) { try { await recorder.stop(); } catch {} deleteMediaCache(recorder.uri); return; }
       try { await recorder.stop(); } catch {}
@@ -317,6 +319,7 @@ export function MediaComposer({ kind, conversationId, blocked, onClose }: { kind
     try {
       permitted(); stopMediaPlayback(); update('sending');
       await sendRecordedMedia(current, conversationId, draftRef.current, scope);
+      messageSent();
       if (scope.active) cancelRef.current();
     } catch (cause) { if (scope.active) { setError(errorText(cause)); update('preview'); } }
   }

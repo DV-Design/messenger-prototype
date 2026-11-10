@@ -20,6 +20,7 @@ import { canMarkRead, deliveryIcon, deliveryLabel, deliveryStage, readContentVer
 import { MediaComposer } from '../../components/MediaComposer';
 import type { MediaKind } from '../../media-model';
 import { chatTimeline, dayLabel, withDays, type ChatTimelineRow } from '../../timeline-model';
+import { haptic, messageSent, setOpenChat } from '../../feedback';
 
 const FLOATING_DATE_MS = 1200;
 
@@ -54,6 +55,7 @@ export default function Chat() {
   useEffect(() => () => clearTimeout(scrollIdle.current), []);
   const unread = conversation?.unread ?? 0;
   const focused = useIsFocused();
+  useEffect(() => focused && id ? setOpenChat(id) : undefined, [focused, id]);
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
   const [interacting, setInteracting] = useState(true);
   useEffect(() => {
@@ -88,14 +90,14 @@ export default function Chat() {
   async function action(operation: () => Promise<void>) {
     if (busy) return;
     setBusy(true); setError('');
-    try { await operation(); } catch (cause) { setError(errorText(cause)); } finally { setBusy(false); }
+    try { await operation(); } catch (cause) { haptic('reject'); setError(errorText(cause)); } finally { setBusy(false); }
   }
   function send() {
     const text = draft;
     const edited = editing;
     void action(async () => {
       if (edited) await client().editMessage(conversation!.id, edited, text);
-      else await client().sendText(conversation!.id, text);
+      else { await client().sendText(conversation!.id, text); messageSent(); }
       setEditing(undefined); setDraft(edited ? unsentDraft.current : '');
     });
   }
@@ -103,14 +105,14 @@ export default function Chat() {
     // The manager establishes recipient sessions on demand, including group
     // members without a separate DM. Chat-list rows are not transport state.
     setAttachments(false);
-    void action(() => kind === 'media' ? pickMedia(conversation!.id) : pickDocument(conversation!.id));
+    void action(async () => { if (await (kind === 'media' ? pickMedia(conversation!.id) : pickDocument(conversation!.id))) messageSent(); });
   }
   function record(kind: MediaKind) { if (busy || snapshot.activeCall) return; setAttachments(false); setRecording(kind); }
-  function selectMessage(item: MessengerMessage) { setSelected({ id: item.id, type: 'message', author: item.from, own: item.from === identity?.userId, expired: item.status === 'expired', text: item.text, reaction: myReaction(item.reactions, identity?.userId) }); }
-  function selectFile(file: MessengerFile) { setSelected({ id: file.id, type: 'file', author: file.senderId, own: file.senderId === identity?.userId, expired: file.deliveryStatus === 'expired', reaction: myReaction(file.reactions, identity?.userId) }); }
+  function selectMessage(item: MessengerMessage) { haptic('longPress'); setSelected({ id: item.id, type: 'message', author: item.from, own: item.from === identity?.userId, expired: item.status === 'expired', text: item.text, reaction: myReaction(item.reactions, identity?.userId) }); }
+  function selectFile(file: MessengerFile) { haptic('longPress'); setSelected({ id: file.id, type: 'file', author: file.senderId, own: file.senderId === identity?.userId, expired: file.deliveryStatus === 'expired', reaction: myReaction(file.reactions, identity?.userId) }); }
   function react(record: { id: string; type: 'message' | 'file'; author: string }, emoji: ReactionEmoji | undefined) {
     // Not through action(): a reaction must not wait behind, or block, a send in progress.
-    setError('');
+    setError(''); haptic('tick');
     void client().react(conversation!.id, record, emoji).catch(cause => setError(errorText(cause)));
   }
   function reactionBar(record: { id: string; type: 'message' | 'file'; author: string }, reactions: ReactionView[] | undefined, own: boolean) {

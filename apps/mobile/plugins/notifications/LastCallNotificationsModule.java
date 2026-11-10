@@ -9,6 +9,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.media.AudioAttributes;
+import android.media.AudioManager;
+import android.media.SoundPool;
 import android.os.Build;
 import android.service.notification.StatusBarNotification;
 import androidx.core.app.NotificationCompat;
@@ -47,7 +50,6 @@ public final class LastCallNotificationsModule extends ReactContextBaseJavaModul
     routes = context.getSharedPreferences("lastcall-notification-routes-v1", Context.MODE_PRIVATE);
     context.addActivityEventListener(activityListener);
   }
-  @Override public void invalidate() { context.removeActivityEventListener(activityListener); super.invalidate(); }
   @ReactMethod public void addListener(String eventName) {}
   @ReactMethod public void removeListeners(double count) {}
   private boolean validConversation(String value) { return value != null && value.matches("(?:dm:[a-f0-9]{64}|group:[a-f0-9]{32})"); }
@@ -150,5 +152,37 @@ public final class LastCallNotificationsModule extends ReactContextBaseJavaModul
       manager.notify(id, NOTIFICATION_ID, builder.build());
       promise.resolve(true);
     } catch (Exception error) { promise.resolve(false); }
+  }
+
+  // In-chat sounds. SoundPool does not take audio focus, so a playing voice
+  // note or video keeps going, as in Telegram.
+  private SoundPool sounds;
+  private final Map<String, Integer> soundIds = new java.util.HashMap<>();
+  private final java.util.Set<Integer> loadedSounds = new java.util.HashSet<>();
+  private synchronized SoundPool soundPool() {
+    if (sounds != null) return sounds;
+    sounds = new SoundPool.Builder().setMaxStreams(2).setAudioAttributes(new AudioAttributes.Builder()
+      .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()).build();
+    sounds.setOnLoadCompleteListener((pool, sampleId, status) -> { if (status == 0) synchronized (LastCallNotificationsModule.this) { loadedSounds.add(sampleId); } });
+    soundIds.put("sent", sounds.load(context, R.raw.lastcall_sent, 1));
+    soundIds.put("incoming", sounds.load(context, R.raw.lastcall_incoming, 1));
+    return sounds;
+  }
+  @ReactMethod public void prepareUiSounds() { try { soundPool(); } catch (RuntimeException ignored) {} }
+  /** Silent when the phone is on silent/vibrate or a call owns the audio. */
+  @ReactMethod public synchronized void playUiSound(String name) {
+    try {
+      AudioManager audio = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+      if (audio == null || audio.getRingerMode() != AudioManager.RINGER_MODE_NORMAL || audio.getMode() != AudioManager.MODE_NORMAL) return;
+      SoundPool pool = soundPool();
+      Integer id = soundIds.get(name);
+      if (id == null || !loadedSounds.contains(id)) return;
+      pool.play(id, 0.7f, 0.7f, 1, 0, 1f);
+    } catch (RuntimeException ignored) {}
+  }
+  @Override public void invalidate() {
+    context.removeActivityEventListener(activityListener);
+    synchronized (this) { if (sounds != null) { sounds.release(); sounds = null; soundIds.clear(); loadedSounds.clear(); } }
+    super.invalidate();
   }
 }

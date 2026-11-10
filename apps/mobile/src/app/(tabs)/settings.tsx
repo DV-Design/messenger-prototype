@@ -14,6 +14,7 @@ import { client, deleteAccount, errorText, useMessenger } from '../../runtime';
 import { connectionNeedsUser, isTransientConnectionError } from '../../connection-supervisor';
 import { OemCallSetup } from '../../components/OemCallSetup';
 import { CallCaptionSettings } from '../../components/CallCaptionSettings';
+import { FeedbackSettings } from '../../components/FeedbackSettings';
 import { formatMediaDiagnostics, sanitizeDiagnostic } from '../../diagnostics';
 import { usePushStatus } from '../../components/PushBridge';
 import { checkForUpdate, directUpdates, downloadAndInstallUpdate, useUpdateState } from '../../updates';
@@ -80,6 +81,7 @@ export default function Settings() {
       {!!visibleError && <Text style={[styles.error, { marginHorizontal: 16, marginTop: 16 }]}>{visibleError}</Text>}
       <Text style={styles.sectionTitle}>{t('NOTIFICATIONS')}</Text><View style={[styles.section, styles.content]}><Text style={styles.body}>{pushStatus}</Text><Button title={t('Configure permissions')} secondary onPress={() => router.push('/permissions')} /></View>
       {Platform.OS === 'android' && <><Text style={styles.sectionTitle}>{t('SYSTEM CALLS')}</Text><View style={[styles.section, styles.content]}><Text style={styles.body}>{callStatus}</Text><Text style={styles.info}>{t('On Android 8+ LastCall registers its own phone account and shows its own incoming-call screen; no manual setup in the Phone app is needed. The screen appears after the encrypted call invitation is verified; connecting the peer may continue after you answer. On Android 14+ allow full-screen notifications, otherwise the call stays a normal notification. The microphone is enabled only after you answer. On Android 7 LastCall uses its own notification and screen without the Phone app.')}</Text><Button title={t('Open call settings')} secondary onPress={() => void enableSystemCalls().catch(cause => setLocalError(errorText(cause)))} /><OemCallSetup /></View></>}
+      <FeedbackSettings />
       <CallCaptionSettings />
       {directUpdates && Platform.OS === 'android' && <><Text style={styles.sectionTitle}>{t('UPDATES')}</Text>
         <View style={[styles.section, { marginTop: 0 }]}>

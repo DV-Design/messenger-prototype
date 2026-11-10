@@ -11,11 +11,13 @@ import { NotificationNavigationBridge } from '../components/NotificationNavigati
 import { UpdateNotice } from '../components/UpdateNotice';
 import { useMessenger } from '../runtime';
 import { pruneMediaCache } from '../attachments';
+import { startFeedback } from '../feedback';
 import { colors, styles } from '../styles';
 
 export default function RootLayout() {
   const { ready } = useMessenger();
   useEffect(() => { pruneMediaCache(); }, []);
+  useEffect(() => startFeedback(), []);
   return <SafeAreaProvider><StatusBar style="dark" />
     {!ready ? <View style={[styles.screen, { justifyContent: 'center' }]}><ActivityIndicator color={colors.accent} size="large" /></View> : <>
       <CallBarLayout><Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
