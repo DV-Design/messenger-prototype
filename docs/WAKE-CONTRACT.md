@@ -1,5 +1,27 @@
 # Direct-first wake and bounded Android background sync
 
+## Delivery requests (branch `feat/delivery-requests`, not deployed)
+
+A wake used to come only from the sender's running app and lived 60 s, so a closed sender woke
+nobody. The sender now keeps the server told which peers it still owes (`delivery-sync`, the whole
+list, one row per pair: sender, recipient, deadline up to 7 days). No message content, and the row
+is deleted when the queue for that peer empties. Rows require the recipient's existing push consent.
+
+When either party connects, the server pushes the other (`lastcall-delivery`, roles `sender` and
+`recipient`) so both are awake together and connect directly; the bytes still travel P2P. The push
+carries no identity or content, has a TTL up to 7 days and one collapse key, so FCM holds at most one
+for a phone that is off. A recipient who consumed earlier pushes is retried after 30 min, doubling
+to 24 h, at most 12 attempts. A woken sender shows a low-importance "Delivering your messages"
+notification for the window, because high-priority pushes should be visible.
+
+**Deployment order:** server first. A new client asks with `services.deliveryV1`; an old server
+rejects that field and closes the socket, after which the client reconnects and asks without it.
+Old clients never send the field and so never see the capability.
+
+Evidence: unit and socket tests only. Real FCM wake of a closed sender, the progress notification
+and the two phones meeting inside the 9 s window are not yet verified on a device. iOS is not covered:
+it cannot open a P2P connection from a background push.
+
 ## CPU, screen and OEM handling (1.0.13/code27)
 
 A foreground service or headless task does not keep the CPU running. `LastCallMessagingService`
