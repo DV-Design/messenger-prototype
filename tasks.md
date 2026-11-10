@@ -1,6 +1,6 @@
 # Message reactions (msg-7ek, branch `feat/delivery-requests`)
 
-Status: emulator-tested, not released. Contract: [docs/REACTIONS-CONTRACT.md](docs/REACTIONS-CONTRACT.md).
+Status: published to Google Play internal testing as 1.0.21/code35 on 2026-11-10 (AAB sha256 2b3e5a3b…f35425); emulator-tested. Contract: [docs/REACTIONS-CONTRACT.md](docs/REACTIONS-CONTRACT.md).
 
 - [X] Signed `message-reaction` records, SDP marker, storage version 7, relay and trimming in core
   → Artifacts: [record](packages/core/src/message-reaction.ts), [client](packages/core/src/messenger.ts), [tests](packages/core/src/message-reaction.test.ts), [e2e](tests/e2e/outbox-sync.spec.ts)
