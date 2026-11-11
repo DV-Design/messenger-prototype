@@ -175,9 +175,9 @@ first, install from Play, then run `docs/TESTING-RU.md`.
 
 ## Current Play Console state (2026-11-11)
 
-- Internal testing: `LastCall 1.0.23 internal` (versionCode 37) published; 1.0.22 before it.
-- Alpha closed testing: `LastCall 1.0.22 closed` (versionCode 36, rollout 100%) sent
-  for Google review; 1.0.17 stays live until approval. No devices lost.
+- Internal testing: `LastCall 1.0.24 internal` (versionCode 38) published; 1.0.23 and 1.0.22 before it.
+- Alpha closed testing: `LastCall 1.0.22 closed` approved and live; `LastCall 1.0.24 closed`
+  (versionCode 38, rollout 100%) sent for Google review. No devices lost.
 - The developer account is signed in to Safari as Google account index `u/1`
   (`u/0` is another account). Upload note: with the Mac screen locked, Safari keeps the page hidden and
   `requestAnimationFrame` never runs, so Play Console dialogs (publish

@@ -1,6 +1,6 @@
 # File storage up to 10 GiB (msg-dlz follow-up, 1.0.24)
 
-Status: 1.0.24/code38 built (AAB sha256 cc0b871c…f595d) and emulator-tested; not uploaded to Google Play.
+Status: 1.0.24/code38 published to Google Play internal testing on 2026-11-11; `LastCall 1.0.24 closed` (Alpha, 100%) passed pre-review checks and is in Google review (1.0.22 closed was approved and stays live until then). AAB sha256 cc0b871c…f595d, no devices lost; emulator-tested.
 
 - [X] Split the outbox (16 waiting own files) from storage (2000 files / 10 GiB); state limit 16 MiB
   → Artifacts: [core](packages/core/src/messenger.ts), [tests](packages/core/src/outbox.test.ts), [contract](docs/OUTBOX-CONTRACT.md)
