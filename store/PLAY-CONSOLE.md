@@ -175,7 +175,7 @@ first, install from Play, then run `docs/TESTING-RU.md`.
 
 ## Current Play Console state (2026-11-11)
 
-- Internal testing: `LastCall 1.0.22 internal` (versionCode 36) published.
+- Internal testing: `LastCall 1.0.23 internal` (versionCode 37) published; 1.0.22 before it.
 - Alpha closed testing: `LastCall 1.0.22 closed` (versionCode 36, rollout 100%) sent
   for Google review; 1.0.17 stays live until approval. No devices lost.
 - The developer account is signed in to Safari as Google account index `u/1`

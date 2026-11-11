@@ -1,6 +1,6 @@
 # Storage, translation, settings pages, compact actions, permission hints (1.0.23)
 
-Status: 1.0.23/code37 built (AAB sha256 07c123c2…c4e658) and emulator-tested; not uploaded to Google Play.
+Status: 1.0.23/code37 published to Google Play internal testing on 2026-11-11 (AAB sha256 07c123c2…c4e658, no devices lost); emulator-tested. Closed track stays on 1.0.22 (in review).
 
 - [X] Data and storage: one folder per chat, open/delete file, delete folder, clear all, irreversible warning (msg-ese)
   → Artifacts: [model](apps/mobile/src/storage-model.ts), [folders](apps/mobile/src/app/settings/storage/index.tsx), [folder](apps/mobile/src/app/settings/storage/[id].tsx), [tests](apps/mobile/tests/storage-translation-permissions.test.ts)
@@ -14,7 +14,8 @@ Status: 1.0.23/code37 built (AAB sha256 07c123c2…c4e658) and emulator-tested; 
   → Artifacts: [notice](apps/mobile/src/components/PermissionNotice.tsx), [store](apps/mobile/src/permission-notice.ts), [WebRTC hook](apps/mobile/src/native.ts)
 - [X] Gates: mobile 214, server 133, core 265, e2e 16 PASS / 1 skip
 - [X] Emulators: storage delete removes the voice note from the chat; English → Russian translation; denied mic for recording and calls shows the notice, settings button opens App info, notice clears after granting
-- [ ] Physical phones; upload 1.0.23 to Play when the owner asks
+- [X] Publish `LastCall 1.0.23 internal` (owner: internal only for now)
+- [ ] Physical phones
 
 # Haptics and in-chat sounds (msg-bd1, branch `feat/delivery-requests`)
 
