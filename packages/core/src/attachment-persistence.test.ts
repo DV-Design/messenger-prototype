@@ -12,7 +12,7 @@ describe('sealed attachment blobs',()=>{
     expect(openAttachment(alice,key,sealed)).toEqual(bytes);
     expect(bytes).toEqual(new Uint8Array([0,1,2,255,128]));
     expect(JSON.parse(sealed).ciphertext).toBeTypeOf('string');
-    expect(MAX_LOCAL_STATE_BYTES).toBe(8*1024*1024);
+    expect(MAX_LOCAL_STATE_BYTES).toBe(16*1024*1024);
     expect(()=>openLocalState(alice,sealed)).toThrow();
     expect(()=>openAttachment(alice,key,sealLocalState(alice,{text:'private'}))).toThrow();
   });

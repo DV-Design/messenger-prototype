@@ -33,7 +33,8 @@ const supervisor = new ConnectionSupervisor({
   reconnect: () => reconnect(),
   checkRegistration: () => checkRegistration(),
 });
-export const errorText = (error: unknown) => error instanceof Error ? error.message : t('Could not complete the action. Try again.');
+// Core messages are English; known ones have a Russian entry, the rest stay as written.
+export const errorText = (error: unknown) => error instanceof Error ? t(error.message) : t('Could not complete the action. Try again.');
 function canonicalProfile(serverUrl: string, user: DirectoryUser): LocalProfile {
   if (user.userId !== state.identity?.userId) throw new Error(t('The server returned a different device key.'));
   return { serverUrl, username: user.username, displayName: user.displayName };

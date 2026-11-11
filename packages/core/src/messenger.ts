@@ -30,14 +30,19 @@ export const MAX_HISTORY_MESSAGES=500;
 export const MAX_PENDING_MESSAGES=100;
 const MAX_SESSIONS=16;
 const MAX_DIRECTORY_FRAME=128*1024;
+/** Own files waiting for delivery (the sender-held outbox). */
 export const MAX_PENDING_FILES=16;
-export const MAX_STORED_FILE_BYTES=40*1024*1024;
+/** Files kept on this phone: received and sent, delivered or not. */
+export const MAX_STORED_FILES=2000;
+export const MAX_STORED_FILE_BYTES=10*1024*1024*1024;
+/** Records without a stored copy (expired, failed) kept per chat. */
+const MAX_FILE_RECORDS_WITHOUT_DATA=64;
 export const MAX_MESSAGE_CHANGES=128;
 export const MAX_TOMBSTONES=256;
 /** A history of 100 messages and 64 files with 8 members each fits; older reactions go first beyond that. */
 export const MAX_REACTIONS=1312;
 export const MAX_TOTAL_REACTIONS=4000;
-/** History alone can reach about 6 MiB of the 8 MiB state limit. Edits and deletions never take it past that. */
+/** History alone can reach about 6 MiB of the 16 MiB state limit; stored file records take the rest. Edits and deletions never take it past that. */
 const MAX_CHANGE_STATE_BYTES=1024*1024;
 const MAX_APPLICATION_BODY=16000;
 const utf8=new TextEncoder();
@@ -50,7 +55,7 @@ interface InternalConversation extends Conversation {creatorId?:string;definitio
 interface PendingOperation {controller:AbortController;started:number;timeout:number;timer?:ReturnType<typeof setTimeout>;conversationId:string;peerId?:string;}
 interface PendingMessage {conversationId:string;messageId:string;remaining:string[];type?:'message'|'file';author?:string;createdAt?:number;expiresAt?:number;}
 const pendingSchema=z.object({conversationId:conversationIdSchema,messageId:peerIdSchema,remaining:z.array(roomIdSchema).min(1).max(7),type:z.enum(['message','file']).optional(),author:roomIdSchema.optional(),createdAt:z.number().finite().nonnegative().optional(),expiresAt:z.number().finite().nonnegative().optional()}).strict();
-const storedConversationSchema=z.object({id:conversationIdSchema,kind:z.enum(['direct','group']),title:z.string().min(1).max(64),memberIds:z.array(roomIdSchema).min(2).max(8),creatorId:roomIdSchema.optional(),definition:groupDefinitionSchema.optional(),receipts:z.array(receiptSchema).max(4000).optional(),readReceipts:z.array(readReceiptSchema).max(1312).optional(),messages:z.array(messageSchema).max(100),files:z.array(fileSchema).max(64).optional(),unread:z.number().int().min(0).max(100),updatedAt:z.number().finite().nonnegative(),changes:z.array(messageChangeSchema).max(MAX_MESSAGE_CHANGES).optional(),tombstones:z.array(tombstoneSchema).max(MAX_TOMBSTONES).optional(),reactions:z.array(messageReactionSchema).max(MAX_REACTIONS).optional(),hidden:z.boolean().optional(),implicit:z.boolean().optional()}).strict();
+const storedConversationSchema=z.object({id:conversationIdSchema,kind:z.enum(['direct','group']),title:z.string().min(1).max(64),memberIds:z.array(roomIdSchema).min(2).max(8),creatorId:roomIdSchema.optional(),definition:groupDefinitionSchema.optional(),receipts:z.array(receiptSchema).max(4000).optional(),readReceipts:z.array(readReceiptSchema).max(1312).optional(),messages:z.array(messageSchema).max(100),files:z.array(fileSchema).max(MAX_STORED_FILES+MAX_FILE_RECORDS_WITHOUT_DATA).optional(),unread:z.number().int().min(0).max(100),updatedAt:z.number().finite().nonnegative(),changes:z.array(messageChangeSchema).max(MAX_MESSAGE_CHANGES).optional(),tombstones:z.array(tombstoneSchema).max(MAX_TOMBSTONES).optional(),reactions:z.array(messageReactionSchema).max(MAX_REACTIONS).optional(),hidden:z.boolean().optional(),implicit:z.boolean().optional()}).strict();
 const storedSchema=z.object({version:z.union([z.literal(2),z.literal(3),z.literal(4),z.literal(5),z.literal(6),z.literal(7)]),contacts:z.array(directoryUserSchema).max(MAX_CONTACTS),conversations:z.array(storedConversationSchema).max(MAX_CONTACTS+MAX_GROUPS),pending:z.array(pendingSchema).max(MAX_PENDING_MESSAGES+MAX_PENDING_FILES),verified:z.array(roomIdSchema).max(MAX_CONTACTS).optional(),blocked:z.array(roomIdSchema).max(MAX_CONTACTS).optional()}).strict().refine(state=>state.conversations.reduce((n,c)=>n+c.messages.length,0)<=MAX_HISTORY_MESSAGES,{message:'History capacity exceeded'});
 type RequestInput<T=DirectoryClientFrame>=T extends {requestId:string}?Omit<T,'requestId'>:never;
 type ReplyType=Exclude<Extract<DirectoryServerFrame,{requestId:string}>['type'],'error'>|'call-state';
@@ -339,7 +344,10 @@ export class MessengerClient {
   private serial<T>(operation:()=>Promise<T>):Promise<T>{this.assertActive();const next=this.enqueueQueue.catch(()=>{}).then(operation);this.enqueueQueue=next.then(()=>{},()=>{});return this.track(next);}
   private async putBlob(key:string,data:Uint8Array){if(this.options.saveState&&!this.options.saveAttachment)throw new Error('Encrypted attachment storage is unavailable');if(this.options.saveAttachment)await this.options.saveAttachment(key,sealAttachment(this.options.identity,key,data,this.random));this.blobs.set(key,data.slice());}
   async getFileData(conversationId:string,fileId:string,senderId?:string):Promise<Uint8Array|null>{await this.restore();const file=this.conversations.get(conversationId)?.files.find(f=>f.id===fileId&&(!senderId||f.senderId===senderId));if(!file?.blobKey)return null;const cached=this.blobs.get(file.blobKey);if(cached)return cached.slice();const sealed=await this.options.loadAttachment?.(file.blobKey);if(!sealed)return null;const data=openAttachment(this.options.identity,file.blobKey,sealed);this.blobs.set(file.blobKey,data);return data.slice();}
-  private fileCapacity(size:number){const files=[...this.conversations.values()].flatMap(c=>c.files).filter(f=>f.blobKey);if(files.length>=MAX_PENDING_FILES||files.reduce((n,f)=>n+f.size,0)+size>MAX_STORED_FILE_BYTES)throw new Error('Local file storage is full (16 files / 40 MiB); waiting content was preserved');}
+  private fileCapacity(size:number,outgoing=false){
+    if(outgoing&&this.pending.filter(p=>p.type==='file').length>=MAX_PENDING_FILES)throw new Error('Local file outbox is full (16 files waiting for delivery); waiting content was preserved');
+    const files=[...this.conversations.values()].flatMap(c=>c.files).filter(f=>f.blobKey);if(files.length>=MAX_STORED_FILES||files.reduce((n,f)=>n+f.size,0)+size>MAX_STORED_FILE_BYTES)throw new Error('Local file storage is full (2000 files / 10 GiB); free space in Settings, Data and storage. Waiting content was preserved');
+  }
   private origin(c:InternalConversation,metadata:string|undefined,id:string,type:'message'|'file',hash:string):GroupOrigin|undefined {if(c.kind!=='group')return;if(!c.definition||!metadata)throw new Error('Signed group content is required');const o=parseGroupOrigin(metadata,c.definition);if(o.id!==id||o.type!==type||o.hash!==hash||Date.now()>=o.expiresAt||o.timestamp>Date.now()+60000)throw new Error('Invalid or expired group content');return o;}
   private async acknowledge(p:PendingMessage,recipient:string,record:MessengerMessage|MessengerFile){
     const remaining=[...p.remaining],delivered=[...(record.deliveredTo??[])];const status=record.status;const delivery='deliveryStatus'in record?record.deliveryStatus:undefined;
@@ -506,7 +514,7 @@ export class MessengerClient {
     }
   }
   async sendFile(conversationId:string,file:{name:string;mime:string;data:Uint8Array}):Promise<void>{return this.serial(async()=>{
-    await this.restore();await this.expirePending();if(file.data.length>MAX_FILE_BYTES)throw new Error('File exceeds 5 MiB limit');const c=this.conversations.get(conversationId);if(!c)throw new Error('Unknown conversation');if(!file.name||file.name.length>255||typeof file.mime!=='string'||file.mime.length>255)throw new Error('Invalid file metadata');this.fileCapacity(file.data.length);
+    await this.restore();await this.expirePending();if(file.data.length>MAX_FILE_BYTES)throw new Error('File exceeds 5 MiB limit');const c=this.conversations.get(conversationId);if(!c)throw new Error('Unknown conversation');if(!file.name||file.name.length>255||typeof file.mime!=='string'||file.mime.length>255)throw new Error('Invalid file metadata');this.fileCapacity(file.data.length,true);
     const timestamp=Date.now(),expiresAt=timestamp+OUTBOX_TTL_MS,id=this.id(),own=this.options.identity.userId;const key=attachmentKey(own,id,conversationId);const peers=c.memberIds.filter(id=>id!==own);const metadata=c.kind==='group'?JSON.stringify(signGroupOrigin(this.options.identity,{groupId:this.definition(c).id,id,type:'file',timestamp,expiresAt,hash:contentHash('file',file.data,file.name,file.mime)})):encodeDirectFileTiming({id,conversationId,timestamp,expiresAt});
     await this.putBlob(key,file.data);const record:MessengerFile={id,name:file.name,mime:file.mime,size:file.data.length,from:'self',status:'sending',receivedBytes:0,timestamp,senderId:own,conversationId,blobKey:key,metadata,expiresAt,deliveryStatus:'pending',recipientIds:peers,deliveredTo:[]};const p:PendingMessage={conversationId,messageId:id,remaining:peers,type:'file',author:own,createdAt:timestamp,expiresAt};const hidden=c.hidden,implicit=c.implicit;c.hidden=undefined;c.implicit=undefined;c.files.push(record);this.pending.push(p);c.updatedAt=timestamp;
     try{await this.durable();}catch(error){c.files=c.files.filter(f=>f!==record);this.pending=this.pending.filter(item=>item!==p);this.blobs.delete(key);c.hidden=hidden;c.implicit=implicit;this.dirty=true;throw error;}this.committed.add(this.pendingKey(p));await this.expirePending();this.kick(c);
@@ -745,7 +753,7 @@ export class MessengerClient {
   }
   private trimHistory(){
     const now=Date.now();for(const c of this.conversations.values()){if(c.changes?.some(x=>now>=x.expiresAt))c.changes=c.changes.filter(x=>now<x.expiresAt);if(c.tombstones?.some(x=>now>=x.expiresAt))c.tombstones=c.tombstones.filter(x=>now<x.expiresAt);}
-    for(const c of this.conversations.values()){while(c.files.length>64){const index=c.files.findIndex(f=>!f.blobKey&&f.deliveryStatus==='expired');if(index<0)break;c.files.splice(index,1);}if(c.receipts)c.receipts=c.receipts.filter(r=>c.messages.some(m=>m.id===r.id&&m.from===r.author)||c.files.some(f=>f.id===r.id&&f.senderId===r.author));}
+    for(const c of this.conversations.values()){while(c.files.filter(f=>!f.blobKey).length>MAX_FILE_RECORDS_WITHOUT_DATA){const index=c.files.findIndex(f=>!f.blobKey&&f.deliveryStatus==='expired');if(index<0)break;c.files.splice(index,1);}if(c.receipts)c.receipts=c.receipts.filter(r=>c.messages.some(m=>m.id===r.id&&m.from===r.author)||c.files.some(f=>f.id===r.id&&f.senderId===r.author));}
     const pending=new Set([...this.pending.map(p=>p.conversationId+':'+p.messageId),...this.protectedReceive]);
     for(const c of this.conversations.values())while(c.messages.length>100){const index=c.messages.findIndex(m=>!pending.has(c.id+':'+m.id));if(index<0)break;c.messages.splice(index,1);}
     let count=[...this.conversations.values()].reduce((n,c)=>n+c.messages.length,0);

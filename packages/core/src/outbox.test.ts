@@ -1,6 +1,6 @@
 import {afterEach,describe,expect,it,vi} from 'vitest';
 import {createDeviceIdentity,type DeviceIdentity,type DirectoryUser} from './directory.js';
-import {MessengerClient,OUTBOX_TTL_MS,MAX_PENDING_FILES} from './messenger.js';
+import {MessengerClient,OUTBOX_TTL_MS,MAX_PENDING_FILES,MAX_STORED_FILE_BYTES,MAX_STORED_FILES} from './messenger.js';
 import {openLocalState,sealLocalState} from './persistence.js';
 import {signGroupDefinition,signGroupOrigin,parseGroupOrigin,contentHash,signGroupReceipt,verifyGroupReceipt} from './group-sync.js';
 const alice=createDeviceIdentity(n=>new Uint8Array(n).fill(101)),bob=createDeviceIdentity(n=>new Uint8Array(n).fill(102)),charlie=createDeviceIdentity(n=>new Uint8Array(n).fill(103));
@@ -25,6 +25,16 @@ describe('seven-day sender-held outbox',()=>{
  it('fails before any transport send when initial encrypted queue write fails',async()=>{
   const a=tracked();const id=await a.client.addContact(user(bob,'bob'));const send=vi.fn();a.internal.status='online';a.internal.stopped=false;a.internal.contacts.set(bob.userId,{...user(bob,'bob'),online:true});a.internal.ensurePair=send;a.store.saveState.mockRejectedValue(new Error('disk full'));
   await expect(a.client.sendText(id,'must not escape')).rejects.toThrow('disk full');await expect(a.client.sendFile(id,{name:'private',mime:'',data:new Uint8Array([1])})).rejects.toThrow('disk full');expect(send).not.toHaveBeenCalled();expect(a.internal.pending).toHaveLength(0);
+ });
+ it('limits only files waiting for delivery to the outbox size; delivered files stay stored up to the storage limit',async()=>{
+  expect(MAX_STORED_FILES).toBe(2000);expect(MAX_STORED_FILE_BYTES).toBe(10*1024**3);
+  const a=tracked();const id=await a.client.addContact(user(bob,'bob'));for(let i=0;i<MAX_PENDING_FILES;i++)await a.client.sendFile(id,{name:`file${i}`,mime:'',data:new Uint8Array([i])});
+  await expect(a.client.sendFile(id,{name:'waiting',mime:'',data:new Uint8Array([1])})).rejects.toThrow(/outbox is full/);
+  a.internal.pending=[];for(const f of a.internal.conversations.get(id).files)f.deliveryStatus='delivered';
+  await a.client.sendFile(id,{name:'after delivery',mime:'',data:new Uint8Array([1])});expect(a.store.blobs.size).toBe(MAX_PENDING_FILES+1);
+  a.internal.pending=[];a.internal.conversations.get(id).files[0].size=MAX_STORED_FILE_BYTES;
+  await expect(a.client.sendFile(id,{name:'too much',mime:'',data:new Uint8Array([1])})).rejects.toThrow(/storage is full/);
+  const payload=openLocalState(alice,a.store.sealed!) as any;expect(payload.conversations[0].files).toHaveLength(MAX_PENDING_FILES+1);
  });
  it('rejects additional files explicitly and preserves every waiting file at capacity',async()=>{
   const a=tracked();const id=await a.client.addContact(user(bob,'bob'));for(let i=0;i<MAX_PENDING_FILES;i++)await a.client.sendFile(id,{name:`file${i}`,mime:'',data:new Uint8Array([i])});await expect(a.client.sendFile(id,{name:'overflow',mime:'',data:new Uint8Array([1])})).rejects.toThrow(/full/);expect(a.client.getSnapshot().conversations[0]!.files).toHaveLength(MAX_PENDING_FILES);expect(a.store.blobs.size).toBe(MAX_PENDING_FILES);

@@ -4,6 +4,7 @@ import * as SecureStore from 'expo-secure-store';
 import { Directory, File, Paths } from 'expo-file-system';
 import { createDeviceIdentity, validateDeviceIdentity, MAX_LOCAL_STATE_BYTES, MAX_SEALED_ATTACHMENT_BYTES, type DeviceIdentity } from '@messenger/core';
 import type { BoundEmail } from './email-flow-model';
+import { hasDiskRoom, packSealed, packedSize, unpackSealed } from './attachment-file-model';
 
 export const DEFAULT_SERVER = process.env.EXPO_PUBLIC_SIGNALING_URL ?? 'https://p2p.lienad.ru';
 export type LocalProfile = { username: string; displayName: string; serverUrl: string };
@@ -117,17 +118,27 @@ export async function sealedStateAdapter(identity: DeviceIdentity, serverUrl: st
       });
     },
     saveAttachment: (key: string, sealed: string) => {
-      const destination = attachment(key);
       if (typeof sealed !== 'string' || sealed.length > MAX_SEALED_ATTACHMENT_BYTES) return Promise.reject(new Error(t('Encrypted attachment exceeds the allowed size.')));
+      if (!hasDiskRoom(Paths.availableDiskSpace, packedSize(sealed.length))) return Promise.reject(new Error(t('Not enough free space on the phone. Free some space and try again.')));
+      const packed = packSealed(sealed);
       return serialized(async () => {
         const temporary = attachment(key, '.next');
-        await temporary.write(sealed);
+        const destination = attachment(key, packed ? '.bin' : '.sealed');
+        await temporary.write(packed ?? sealed);
         await temporary.move(destination, { overwrite: true });
+        // One copy per key: drop the other format if an older write left it.
+        const other = attachment(key, packed ? '.sealed' : '.bin');
+        if (other.exists) other.delete();
       });
     },
     loadAttachment: async (key: string): Promise<string | null> => {
-      const source = attachment(key);
       await writes.catch(() => {});
+      const binary = attachment(key, '.bin');
+      if (binary.exists) {
+        if (binary.size > MAX_SEALED_ATTACHMENT_BYTES / 2 + 64) throw new Error(t('Encrypted attachment exceeds the allowed size.'));
+        return unpackSealed(await binary.bytes());
+      }
+      const source = attachment(key);
       if (!source.exists) return null;
       if (source.size > MAX_SEALED_ATTACHMENT_BYTES) throw new Error(t('Encrypted attachment exceeds the allowed size.'));
       const sealed = await source.text();
@@ -138,6 +149,8 @@ export async function sealedStateAdapter(identity: DeviceIdentity, serverUrl: st
       const source = attachment(key);
       return serialized(async () => {
         if (source.exists) source.delete();
+        const binary = attachment(key, '.bin');
+        if (binary.exists) binary.delete();
         const temporary = attachment(key, '.next');
         if (temporary.exists) temporary.delete();
       });

@@ -65,9 +65,15 @@ stop/preview/send/cancel; no push-triggered or background recording.
 
 After send, sender-local encrypted bytes persist for up to seven days from the
 original enqueue, with retry under the same ID and full-file retransmission.
-Group peers may supply verified retained media like other files. All records,
-including delivered media, count against 16 stored blobs / 40 MiB total. Quota
-failure preserves prior waiting content. Before send, a local draft must be
+Group peers may supply verified retained media like other files. At most 16
+own files wait for delivery at a time (the outbox). All stored records,
+including delivered and received media, count against 2000 blobs / 10 GiB total
+(1.0.24; previously 16 / 40 MiB), and the phone keeps 512 MB free: a blob write
+that would cross it fails. Quota failure preserves prior waiting content. The
+user frees space in Settings → Data and storage. The local state limit is 16 MiB
+to hold the file records. Android stores each blob as bytes (`<key>.bin`, magic
+`LCA1`, nonce, ciphertext) instead of hex JSON; older `.sealed` files stay
+readable. Before send, a local draft must be
 discardable; cancel, capture failure and leaving the recorder must release
 camera/microphone/player resources and remove temporary capture/preview copies.
 Inline voice playback and circular video presentation are client UI; starting

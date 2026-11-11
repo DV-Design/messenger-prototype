@@ -3,7 +3,8 @@ import { hkdf } from '@noble/hashes/hkdf.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex, hexToBytes, randomChecked, secureRandomBytes, type RandomBytes } from './crypto.js';
 import { validateDeviceIdentity, type DeviceIdentity } from './directory.js';
-export const MAX_LOCAL_STATE_BYTES=8*1024*1024;
+/** History (~6 MiB) plus up to 2000 stored file records (~2 KiB each). */
+export const MAX_LOCAL_STATE_BYTES=16*1024*1024;
 export const MAX_ATTACHMENT_BYTES=5*1024*1024;
 export const MAX_SEALED_ATTACHMENT_BYTES=MAX_ATTACHMENT_BYTES*2+1024;
 const encoder=new TextEncoder();

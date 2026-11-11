@@ -81,4 +81,6 @@ export const fileSize = (size: number) => size < 1024
   ? `${size} ${t('B')}`
   : size < 1024 * 1024
     ? `${(size / 1024).toFixed(1)} ${t('KB')}`
-    : `${(size / 1024 / 1024).toFixed(1)} ${t('MB')}`;
+    : size < 1024 * 1024 * 1024
+      ? `${(size / 1024 / 1024).toFixed(1)} ${t('MB')}`
+      : `${(size / 1024 / 1024 / 1024).toFixed(1)} ${t('GB')}`;

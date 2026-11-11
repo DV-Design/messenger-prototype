@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { router } from 'expo-router';
 import { Text, View } from 'react-native';
-import { MAX_PENDING_FILES, MAX_STORED_FILE_BYTES } from '@messenger/core';
+import { Paths } from 'expo-file-system';
+import { MAX_STORED_FILES, MAX_STORED_FILE_BYTES } from '@messenger/core';
 import { ActionLink, MenuGroup, MenuRow, SettingsPage, fileSize } from '../../../components/ui';
 import { errorText, useMessenger } from '../../../runtime';
 import { deletionTargets, storageFolders, storageTotals } from '../../../storage-model';
@@ -16,7 +17,8 @@ export default function Storage() {
   const [error, setError] = useState('');
   const folders = storageFolders(snapshot, identity?.userId);
   const totals = storageTotals(folders);
-  const share = Math.min(1, Math.max(totals.bytes / MAX_STORED_FILE_BYTES, totals.files / MAX_PENDING_FILES));
+  const free = Paths.availableDiskSpace;
+  const share = Math.min(1, Math.max(totals.bytes / MAX_STORED_FILE_BYTES, totals.files / MAX_STORED_FILES));
   function clearAll() {
     confirmStoredDeletion(t('Delete all files?'), folders.some(folder => folder.files.some(file => file.pending)), () => {
       setBusy(true); setError('');
@@ -25,8 +27,9 @@ export default function Storage() {
   }
   return <SettingsPage title={t('Data and storage')}>
     <View style={[styles.section, styles.content, { gap: 10 }]}>
-      <Text style={styles.rowName}>{t('{used} of {limit} · {files} of {maxFiles} files', { used: fileSize(totals.bytes), limit: fileSize(MAX_STORED_FILE_BYTES), files: totals.files, maxFiles: MAX_PENDING_FILES })}</Text>
+      <Text style={styles.rowName}>{t('{used} of {limit} · {files} of {maxFiles} files', { used: fileSize(totals.bytes), limit: fileSize(MAX_STORED_FILE_BYTES), files: totals.files, maxFiles: MAX_STORED_FILES })}</Text>
       <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.line, overflow: 'hidden' }}><View style={{ width: `${Math.round(share * 100)}%`, height: 6, backgroundColor: share > 0.85 ? colors.danger : colors.accent }} /></View>
+      {free > 0 && <Text style={styles.info}>{t('Free on the phone: {free}', { free: fileSize(free) })}</Text>}
       <Text style={styles.info}>{t('Files arrive directly from people and are kept only on this phone, encrypted inside LastCall. When the storage is full, new files cannot be received until you free space.')}</Text>
     </View>
     {folders.length === 0 ? <Text style={[styles.body, { textAlign: 'center', marginTop: 28, paddingHorizontal: 24 }]}>{t('No files are stored on this phone.')}</Text>

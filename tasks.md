@@ -1,3 +1,15 @@
+# File storage up to 10 GiB (msg-dlz follow-up, 1.0.24)
+
+Status: 1.0.24/code38 built (AAB sha256 cc0b871c…f595d) and emulator-tested; not uploaded to Google Play.
+
+- [X] Split the outbox (16 waiting own files) from storage (2000 files / 10 GiB); state limit 16 MiB
+  → Artifacts: [core](packages/core/src/messenger.ts), [tests](packages/core/src/outbox.test.ts), [contract](docs/OUTBOX-CONTRACT.md)
+- [X] Android stores blobs as bytes (`.bin`, half the disk of hex JSON), legacy `.sealed` readable; keep 512 MB free
+  → Artifacts: [format](apps/mobile/src/attachment-file-model.ts), [adapter](apps/mobile/src/storage.ts), [tests](apps/mobile/tests/attachment-file.test.ts)
+- [X] Gates: mobile 217, server 133, core 266, e2e 16 PASS / 1 skip
+- [X] Emulator: upgrade 1.0.23 → 1.0.24, legacy file opens, new received voice note stored and opens, survives restart
+- [ ] Measure state write time with thousands of file records on a real phone; per-file 5 MiB limit unchanged
+
 # Storage, translation, settings pages, compact actions, permission hints (1.0.23)
 
 Status: 1.0.23/code37 published to Google Play internal testing on 2026-11-11 (AAB sha256 07c123c2…c4e658, no devices lost); emulator-tested. Closed track stays on 1.0.22 (in review).
