@@ -1,6 +1,6 @@
 # Answer on the lock screen and silence other calls (msg-byd follow-up, 1.0.25)
 
-Status: 1.0.25/code39 built (AAB sha256 4990e519…bcc43cc8) and emulator-tested; not uploaded to Google Play.
+Status: 1.0.25/code39 published to Google Play internal testing on 2026-11-11; `LastCall 1.0.25 closed` (Alpha, 100%) passed pre-review checks and is in Google review (1.0.24 closed stays live until then). AAB sha256 4990e519…bcc43cc8, no devices lost; emulator-tested.
 
 - [X] After answering on the call-only screen, the app's call view opens over the keyguard until the call ends
   → Artifacts: [helper](apps/mobile/plugins/calls/LastCallLockScreen.java), [hand-off](apps/mobile/plugins/calls/LastCallAudioService.java), [plugin](apps/mobile/plugins/withLastCallCalls.cjs), [tests](apps/mobile/tests/lock-screen-answer.test.ts)
