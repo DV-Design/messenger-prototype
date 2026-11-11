@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { AppState, Linking, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from '../components/SafeArea';
-import { Button, Icon, IconButton, type IconName } from '../components/ui';
+import { ActionLink, Button, Icon, IconButton, type IconName } from '../components/ui';
 import { OemCallSetup } from '../components/OemCallSetup';
 import { PERMISSION_ORDER, UNKNOWN_ACCESS, hasAccess, inSequence, type Access, type PermissionKind } from '../permission-model';
 import { completeSetup, readPermission, requestInitialPermissions, requestPermission } from '../permissions';
@@ -85,16 +85,18 @@ export default function PermissionScreen() {
         <View style={styles.row}><Icon name={item.icon} /><Text style={[styles.rowName, styles.flex]}>{item.title}</Text><Text style={[styles.info, hasAccess(access) && { color: colors.accent }]}>{kind === 'fullScreenCalls' && access.status === 'unavailable' ? t('Unavailable on this device') : labels[access.status]}</Text></View>
         <Text style={styles.body}>{item.purpose}</Text>
         {!hasAccess(access) && access.status !== 'unknown' && access.status !== 'unavailable' && (access.canAskAgain
-          ? <Button title={kind === 'fullScreenCalls' ? t('Set up full-screen calls') : t('Allow')} secondary busy={busy === kind} disabled={!!busy && busy !== kind} onPress={() => void request(kind)} />
-          : <Button title={t('Open phone settings')} secondary disabled={!!busy} onPress={() => void settings()} />)}
+          ? <ActionLink icon="checkmark-circle-outline" title={kind === 'fullScreenCalls' ? t('Set up full-screen calls') : t('Allow')} busy={busy === kind} disabled={!!busy && busy !== kind} onPress={() => void request(kind)} />
+          : <ActionLink icon="settings-outline" title={t('Open phone settings')} disabled={!!busy} onPress={() => void settings()} />)}
         {kind === 'notifications' && !pushConfigured && <Text style={styles.info}> {t('A phone permission alone does not enable push.')} {pushUnavailable}</Text>}
         {access.status === 'denied' && access.canAskAgain && <Text style={styles.info}>{kind === 'fullScreenCalls' ? t('Access is not allowed yet. You can open settings or return later.') : t('If the system prompt no longer appears, enable access in phone settings.')}</Text>}
       </View>; })}
       <View style={{ marginHorizontal: 16, marginTop: 12 }}><OemCallSetup /></View>
       {!!error && <Text style={[styles.error, { margin: 16 }]}>{error}</Text>}
       <View style={styles.content}>{auto !== '1' && <Button title={t('Allow requested')} busy={busy === 'all'} disabled={!!busy && busy !== 'all'} onPress={() => void requestAll()} />}<Button title={setup ? t('Continue') : t('Done')} secondary busy={busy === 'done'} disabled={!!busy && busy !== 'done'} onPress={() => void finish()} />
-        {setup && <Button title={t('Later')} secondary disabled={!!busy} onPress={() => void finish()} />}
-        <Button title={t('Phone settings')} secondary disabled={!!busy} onPress={() => void settings()} />
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 26 }}>
+          {setup && <ActionLink icon="time-outline" title={t('Later')} disabled={!!busy} onPress={() => void finish()} />}
+          <ActionLink icon="settings-outline" title={t('Phone settings')} disabled={!!busy} onPress={() => void settings()} />
+        </View>
       </View>
     </ScrollView>
   </SafeAreaView>;

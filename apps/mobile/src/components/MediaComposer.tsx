@@ -10,10 +10,13 @@ import { deleteMediaCache, pruneMediaCache, sendRecordedMedia } from '../attachm
 import { createMediaScope, MAX_MEDIA_BYTES, MEDIA_SECONDS, mediaMetadata, mediaPermission, mediaTime, validateMedia, type MediaKind } from '../media-model';
 import { stopMediaPlayback } from '../media-playback';
 import { haptic, messageSent } from '../feedback';
+import { reportDenied } from '../permission-notice';
+import { AccessDenied } from '../permission-notice-model';
+import { PermissionNotice } from './PermissionNotice';
 import { styles } from '../styles';
 import { t } from '../i18n';
 import { mergeCircleSegments } from '../video-merge';
-import { Button, Icon } from './ui';
+import { ActionLink, Button, Icon } from './ui';
 import { VoiceNote } from './VoiceNote';
 import { VideoNote } from './VideoNote';
 import { RecordingWaveform } from './RecordingWaveform';
@@ -298,10 +301,10 @@ export function MediaComposer({ kind, conversationId, blocked, onClose }: { kind
       }
       update('preparing');
       const mic = await mediaPermission(() => AudioModule.getRecordingPermissionsAsync(), () => AudioModule.requestRecordingPermissionsAsync(), permitted); permitted();
-      if (!mic.granted) throw new Error(t('Allow microphone access in phone settings.'));
+      if (!mic.granted) { reportDenied('microphone'); throw new AccessDenied(t('Allow microphone access in phone settings.')); }
       if (kind === 'circle') {
         const permission = await mediaPermission(() => Camera.getCameraPermissionsAsync(), () => Camera.requestCameraPermissionsAsync(), permitted); permitted();
-        if (!permission.granted) throw new Error(t('Allow camera access in phone settings.'));
+        if (!permission.granted) { reportDenied('camera'); throw new AccessDenied(t('Allow camera access in phone settings.')); }
         setCameraReady(false); update('ready'); return;
       }
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true, shouldPlayInBackground: false, allowsBackgroundRecording: false, interruptionMode: 'doNotMix' }); permitted();
@@ -311,7 +314,7 @@ export function MediaComposer({ kind, conversationId, blocked, onClose }: { kind
     } catch (cause) {
       if (!scope.active || attempt !== recordingAttempt.current) { try { await recorder.stop(); } catch {} deleteMediaCache(recorder.uri); return; }
       try { await recorder.stop(); } catch {}
-      deleteMediaCache(original.current); deleteMediaCache(recorder.uri); setError(errorText(cause)); update('idle'); await resetAudio();
+      deleteMediaCache(original.current); deleteMediaCache(recorder.uri); setError(cause instanceof AccessDenied ? '' : errorText(cause)); update('idle'); await resetAudio();
     }
   }
   async function send() {
@@ -347,11 +350,14 @@ export function MediaComposer({ kind, conversationId, blocked, onClose }: { kind
     </View>
     {['recording', 'stopping'].includes(phase) && <Text style={{ textAlign: 'center', color: '#B03939', fontSize: 25, fontVariant: ['tabular-nums'] }}>● {mediaTime(seconds)} / {mediaTime(MEDIA_SECONDS[kind])}</Text>}
     {!!error && <Text style={styles.error}>{error}</Text>}
-    {phase === 'idle' && <Text style={[styles.info, { textAlign: 'center' }]}> {t('If Android asks for access, allow it and open recording again. Leaving this screen cancels recording.')}</Text>}
+    <PermissionNotice />
+    {phase === 'idle' && !error && <Text style={[styles.info, { textAlign: 'center' }]}> {t('If Android asks for access, allow it and open recording again. Leaving this screen cancels recording.')}</Text>}
     {phase === 'processing' ? <Text style={[styles.info, { textAlign: 'center' }]}>{t('Processing video…')}</Text> : phase === 'preview' || phase === 'sending' ? <Button title={t('Send')} busy={phase === 'sending'} onPress={() => void send()} /> : phase === 'recording' || phase === 'stopping' ? <Button title={t('Stop')} busy={phase === 'stopping'} onPress={() => void stop.current()} /> : <Button title={kind === 'circle' && phase === 'idle' ? t('Turn on camera') : t('Start recording')} busy={phase === 'preparing'} disabled={phase === 'failed' || phase === 'ready' && !cameraReady} onPress={() => void start()} />}
-    {kind === 'circle' && (Platform.OS === 'android' ? ['ready', 'recording'].includes(phase) : phase === 'ready') && <Button title={switching ? t('Switching camera…') : facing === 'front' ? t('Rear camera') : t('Front camera')} secondary busy={!cameraReady || switching} disabled={!cameraReady || switching || phase === 'stopping'} onPress={flipCamera} />}
-    {phase === 'preview' && kind === 'circle' && <Button title={t('Retake')} secondary onPress={retake} />}
     {phase === 'sending' && <Text style={styles.info}> {t('Saving the encrypted message for delivery…')}</Text>}
-    <Button title={draft ? t('Delete and close') : t('Cancel')} secondary disabled={phase === 'sending'} onPress={() => cancelRef.current()} />
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', columnGap: 26, rowGap: 6 }}>
+      {kind === 'circle' && (Platform.OS === 'android' ? ['ready', 'recording'].includes(phase) : phase === 'ready') && <ActionLink icon="camera-reverse-outline" title={switching ? t('Switching camera…') : facing === 'front' ? t('Rear camera') : t('Front camera')} busy={!cameraReady || switching} disabled={!cameraReady || switching || phase === 'stopping'} onPress={flipCamera} />}
+      {phase === 'preview' && kind === 'circle' && <ActionLink icon="refresh-outline" title={t('Retake')} onPress={retake} />}
+      <ActionLink icon={draft ? 'trash-outline' : 'close-outline'} danger={!!draft} title={draft ? t('Delete and close') : t('Cancel')} disabled={phase === 'sending'} onPress={() => cancelRef.current()} />
+    </View>
   </SafeAreaView></Modal>;
 }

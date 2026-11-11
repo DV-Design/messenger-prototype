@@ -1,4 +1,6 @@
 import { t } from './i18n';
+import { reportDenied } from './permission-notice';
+import { AccessDenied } from './permission-notice-model';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import * as Sharing from 'expo-sharing';
@@ -31,7 +33,7 @@ export async function pickDocument(conversationId: string) {
 export async function pickMedia(conversationId: string) {
   const current = client();
   const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (!permission.granted) throw new Error(t('Allow photo and video access in phone settings.'));
+  if (!permission.granted) { reportDenied('photos'); throw new AccessDenied(t('Allow photo and video access in phone settings.')); }
   const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images', 'videos'], allowsMultipleSelection: false });
   const asset = result.assets?.[0];
   if (result.canceled || !asset) return false;

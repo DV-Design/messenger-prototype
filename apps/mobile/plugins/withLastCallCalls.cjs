@@ -47,7 +47,7 @@ module.exports = function withLastCallCalls(config) {
   });
   // expo-notifications keeps Firebase private to its module; LastCallMessagingService extends it.
   config = withAppBuildGradle(config, mod => {
-    for (const line of ["implementation 'com.google.firebase:firebase-messaging:25.0.1'", "implementation 'com.google.mlkit:translate:17.0.3'"]) {
+    for (const line of ["implementation 'com.google.firebase:firebase-messaging:25.0.1'", "implementation 'com.google.mlkit:translate:17.0.3'", "implementation 'com.google.mlkit:language-id:17.0.6'"]) {
       if (mod.modResults.contents.includes(line)) continue;
       if (!/\ndependencies \{/.test(mod.modResults.contents)) throw new Error('LastCall calls plugin requires an app dependencies block');
       mod.modResults.contents = mod.modResults.contents.replace(/\ndependencies \{/, `\ndependencies {\n    ${line}`);

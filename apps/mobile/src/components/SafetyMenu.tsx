@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Linking, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { t } from '../i18n';
 import { colors, styles } from '../styles';
-import { Button } from './ui';
+import { Button, MenuRow } from './ui';
 
 const COMMUNITY_URL = 'https://p2p.lienad.ru/community.html';
 const REASONS = [
@@ -43,6 +44,7 @@ export function SafetyMenu({ visible, group, title, targetId, peer, members, blo
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const blockedSet = new Set(blocked);
+  const insets = useSafeAreaInsets();
 
   function close() {
     setReporting(false); setReported(false); setDetails(''); setError(''); setBusy(false); onClose();
@@ -66,11 +68,11 @@ export function SafetyMenu({ visible, group, title, targetId, peer, members, blo
   }
 
   return <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
-    <View style={{ flex: 1, justifyContent: 'center', padding: 20 }}>
+    <View style={{ flex: 1, justifyContent: 'flex-end' }}>
       <Pressable accessibilityRole="button" accessibilityLabel={t('Close')} onPress={close} style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(12, 24, 30, 0.45)' }} />
-      <View style={{ alignSelf: 'center', width: '100%', maxWidth: 430, maxHeight: '86%', backgroundColor: '#FFFFFF', borderRadius: 20, padding: 20, gap: 12 }}>
-        <Text style={styles.title}>{reporting ? t('Report {title}', { title }) : t('Safety options')}</Text>
-        {reporting ? <>
+      <View style={{ alignSelf: 'center', width: '100%', maxWidth: 520, maxHeight: '86%', backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 18, paddingBottom: 14 + insets.bottom, gap: 10 }}>
+        <Text numberOfLines={1} style={[styles.chatName, { paddingHorizontal: 20 }]}>{reporting ? t('Report {title}', { title }) : title}</Text>
+        {reporting ? <View style={{ paddingHorizontal: 20, gap: 12 }}>
           {reported ? <>
             <Text style={styles.body}>{t('Report sent. We will review it.')}</Text>
             <Button title={t('Close')} onPress={close} />
@@ -86,26 +88,24 @@ export function SafetyMenu({ visible, group, title, targetId, peer, members, blo
               style={{ minHeight: 70, borderWidth: 1, borderColor: '#D7E1E6', borderRadius: 12, padding: 10, color: colors.text, textAlignVertical: 'top' }} />
             {!!error && <Text style={styles.error}>{error}</Text>}
             <Button title={t('Send report')} busy={busy} onPress={() => void sendReport()} />
-            <Button title={t('Back')} secondary onPress={() => { setReporting(false); setError(''); }} />
+            <MenuRow icon="arrow-back" title={t('Back')} onPress={() => { setReporting(false); setError(''); }} />
           </>}
-        </> : <>
-          <Text style={styles.info}>{group ? t('Block a member to hide their messages and calls.') : t('Block this contact to hide messages and calls.')}</Text>
-          {group ? <ScrollView style={{ maxHeight: 260 }} contentContainerStyle={{ gap: 8 }}>
-            {members.map(member => <View key={member.userId} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <Text numberOfLines={1} style={[styles.rowText, styles.flex]}>{member.displayName}</Text>
-              <Button title={blockedSet.has(member.userId) ? t('Unblock') : t('Block')} secondary={blockedSet.has(member.userId)} danger={!blockedSet.has(member.userId)} busy={busy}
-                onPress={() => void change(() => blockedSet.has(member.userId) ? onUnblock(member.userId) : onBlock(member.userId), false)} />
-            </View>)}
-          </ScrollView> : peer && <Button title={blockedSet.has(peer.userId) ? t('Unblock {name}', { name: peer.displayName }) : t('Block {name}', { name: peer.displayName })}
-            secondary={blockedSet.has(peer.userId)} danger={!blockedSet.has(peer.userId)} busy={busy}
-            onPress={() => void change(() => blockedSet.has(peer.userId) ? onUnblock(peer.userId) : onBlock(peer.userId), true)} />}
-          {!!error && <Text style={styles.error}>{error}</Text>}
-          {peer && onSafetyCode && <Button title={t('Safety code')} secondary onPress={() => { close(); onSafetyCode(); }} />}
-          <Button title={t('Report {title}', { title })} secondary onPress={() => { setReporting(true); setError(''); }} />
-          <Button title={t('Community guidelines')} secondary onPress={() => { void Linking.openURL(COMMUNITY_URL).catch(() => setError(t('Could not open community guidelines.'))); }} />
-          {onDeleteChat && <Button title={t('Delete chat')} danger onPress={() => { close(); onDeleteChat(); }} />}
-          {onDeleteContact && <Button title={t('Delete contact')} danger onPress={() => { close(); onDeleteContact(); }} />}
-          <Button title={t('Close')} secondary onPress={close} />
+        </View> : <>
+          <ScrollView>
+            {peer && onSafetyCode && <MenuRow icon="shield-checkmark-outline" title={t('Safety code')} onPress={() => { close(); onSafetyCode(); }} />}
+            {group ? members.map(member => <MenuRow key={member.userId} icon={blockedSet.has(member.userId) ? 'lock-open-outline' : 'ban-outline'} busy={busy} danger={!blockedSet.has(member.userId)}
+              title={blockedSet.has(member.userId) ? t('Unblock {name}', { name: member.displayName }) : t('Block {name}', { name: member.displayName })}
+              onPress={() => void change(() => blockedSet.has(member.userId) ? onUnblock(member.userId) : onBlock(member.userId), false)} />)
+              : peer && <MenuRow icon={blockedSet.has(peer.userId) ? 'lock-open-outline' : 'ban-outline'} busy={busy} danger={!blockedSet.has(peer.userId)}
+                title={blockedSet.has(peer.userId) ? t('Unblock {name}', { name: peer.displayName }) : t('Block {name}', { name: peer.displayName })}
+                subtitle={blockedSet.has(peer.userId) ? undefined : t('Block this contact to hide messages and calls.')}
+                onPress={() => void change(() => blockedSet.has(peer.userId) ? onUnblock(peer.userId) : onBlock(peer.userId), true)} />}
+            <MenuRow icon="flag-outline" title={t('Report {title}', { title })} onPress={() => { setReporting(true); setError(''); }} />
+            <MenuRow icon="book-outline" accessibilityRole="link" title={t('Community guidelines')} onPress={() => { void Linking.openURL(COMMUNITY_URL).catch(() => setError(t('Could not open community guidelines.'))); }} />
+            {onDeleteChat && <MenuRow icon="trash-outline" danger title={t('Delete chat')} onPress={() => { close(); onDeleteChat(); }} />}
+            {onDeleteContact && <MenuRow icon="person-remove-outline" danger title={t('Delete contact')} onPress={() => { close(); onDeleteContact(); }} />}
+          </ScrollView>
+          {!!error && <Text style={[styles.error, { marginHorizontal: 16 }]}>{error}</Text>}
         </>}
       </View>
     </View>

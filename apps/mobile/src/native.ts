@@ -2,6 +2,8 @@ import { t } from './i18n';
 import * as Crypto from 'expo-crypto';
 import { MediaStream as NativeMediaStream, mediaDevices, RTCPeerConnection as NativePeerConnection } from 'react-native-webrtc';
 import { PeerSession } from '@messenger/core';
+import { reportMediaFailure } from './permission-notice';
+import { AccessDenied } from './permission-notice-model';
 
 type SessionOptions = ConstructorParameters<typeof PeerSession>[0];
 type NativeConfiguration = ConstructorParameters<typeof NativePeerConnection>[0];
@@ -12,7 +14,14 @@ type NativeConstraints = Parameters<typeof mediaDevices.getUserMedia>[0];
 export const nativeRtc: Pick<SessionOptions, 'rtcFactory' | 'getUserMedia' | 'randomBytes' | 'createMediaStream'> = {
   randomBytes: length => Crypto.getRandomBytes(length),
   rtcFactory: configuration => new NativePeerConnection(configuration as NativeConfiguration) as unknown as RTCPeerConnection,
-  getUserMedia: async constraints => await mediaDevices.getUserMedia(constraints as NativeConstraints) as unknown as MediaStream,
+  getUserMedia: async constraints => {
+    try { return await mediaDevices.getUserMedia(constraints as NativeConstraints) as unknown as MediaStream; }
+    catch (error) {
+      // Refused camera/microphone access: name it and offer the phone settings.
+      if (await reportMediaFailure(constraints, error)) throw new AccessDenied(t('No access to the microphone or camera. Allow it in the phone settings.'));
+      throw error;
+    }
+  },
   createMediaStream: tracks => new NativeMediaStream(tracks as unknown as ConstructorParameters<typeof NativeMediaStream>[0]) as unknown as MediaStream,
 };
 

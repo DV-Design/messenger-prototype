@@ -4,7 +4,7 @@ import { bindEmail, requestEmailCode, useMessenger } from '../runtime';
 import { emailErrorMessage, emailFlowReducer, emailForServer, emailNoticeMessage, initialEmailFlow, isEmailUnavailable } from '../email-flow-model';
 import { styles } from '../styles';
 import { t } from '../i18n';
-import { Button, Icon } from './ui';
+import { ActionLink, Icon } from './ui';
 import { EmailCodeForm } from './EmailCodeForm';
 
 /** Settings: add or change the address that can restore this account. */
@@ -41,6 +41,6 @@ export function EmailBinding() {
       <EmailCodeForm flow={flow} busy={busy} codeHint={t('We sent a letter to {email}. Enter the 6-digit code from it. If this address already has another account, the letter explains that instead.', { email: flow.email })}
         onSend={email => void send(email)} onConfirm={code => void confirm(code)}
         onBack={() => { setError(''); if (flow.stage === 'code') dispatch({ type: 'back' }); else { dispatch({ type: 'reset' }); setOpen(false); } }} />
-    </> : <Button secondary title={current ? t('Change email') : t('Add email')} onPress={() => setOpen(true)} />}
+    </> : <ActionLink icon={current ? 'create-outline' : 'add-circle-outline'} title={current ? t('Change email') : t('Add email')} onPress={() => setOpen(true)} />}
   </View>;
 }

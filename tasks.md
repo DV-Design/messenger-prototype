@@ -1,3 +1,21 @@
+# Storage, translation, settings pages, compact actions, permission hints (1.0.23)
+
+Status: 1.0.23/code37 built (AAB sha256 07c123c2…c4e658) and emulator-tested; not uploaded to Google Play.
+
+- [X] Data and storage: one folder per chat, open/delete file, delete folder, clear all, irreversible warning (msg-ese)
+  → Artifacts: [model](apps/mobile/src/storage-model.ts), [folders](apps/mobile/src/app/settings/storage/index.tsx), [folder](apps/mobile/src/app/settings/storage/[id].tsx), [tests](apps/mobile/tests/storage-translation-permissions.test.ts)
+- [X] Icon + label actions: bottom-sheet chat and message menus, compact settings actions (msg-cu9)
+  → Artifacts: [components](apps/mobile/src/components/ui.tsx), [safety menu](apps/mobile/src/components/SafetyMenu.tsx), [message menu](apps/mobile/src/components/MessageActions.tsx)
+- [X] Translate chat to my language with on-device ML Kit language ID + translation (msg-p51)
+  → Artifacts: [runtime](apps/mobile/src/chat-translation.ts), [model](apps/mobile/src/chat-translation-model.ts), [native](apps/mobile/plugins/calls/LastCallCaptionsModule.java), [language](apps/mobile/src/app/settings/language.tsx)
+- [X] Settings grouped into sub-pages (msg-ffh)
+  → Artifacts: [main](apps/mobile/src/app/(tabs)/settings.tsx), [pages](apps/mobile/src/app/settings/)
+- [X] Refused camera/microphone/photos: notice with a button to the app's system settings (msg-e9i)
+  → Artifacts: [notice](apps/mobile/src/components/PermissionNotice.tsx), [store](apps/mobile/src/permission-notice.ts), [WebRTC hook](apps/mobile/src/native.ts)
+- [X] Gates: mobile 214, server 133, core 265, e2e 16 PASS / 1 skip
+- [X] Emulators: storage delete removes the voice note from the chat; English → Russian translation; denied mic for recording and calls shows the notice, settings button opens App info, notice clears after granting
+- [ ] Physical phones; upload 1.0.23 to Play when the owner asks
+
 # Haptics and in-chat sounds (msg-bd1, branch `feat/delivery-requests`)
 
 Status: 1.0.22/code36 published to Google Play internal testing on 2026-11-11; `LastCall 1.0.22 closed` (Alpha, 100%) passed pre-review checks and is in Google review. AAB sha256 a8bd4eea…76d0f9; emulator-tested.

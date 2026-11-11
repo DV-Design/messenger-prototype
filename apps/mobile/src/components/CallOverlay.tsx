@@ -4,6 +4,8 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { RTCView, type MediaStream as NativeMediaStream } from 'react-native-webrtc';
 import { callSafetyEmoji } from '@messenger/core';
 import { client, errorText, useMessenger } from '../runtime';
+import { PermissionNotice } from './PermissionNotice';
+import { AccessDenied } from '../permission-notice-model';
 import { answerCurrentSystemCall } from '../system-calls';
 import { useCallAudioRoutes } from '../call-audio';
 import { useCallCaptions } from '../call-captions';
@@ -121,7 +123,7 @@ function CallPanel() {
   };
   async function accept() {
     setBusy(true); setError('');
-    try { if (!(await answerCurrentSystemCall())) await client().acceptCall(); } catch (cause) { setError(errorText(cause)); }
+    try { if (!(await answerCurrentSystemCall())) await client().acceptCall(); } catch (cause) { if (!(cause instanceof AccessDenied)) setError(errorText(cause)); }
     finally { setBusy(false); }
   }
   const controlsStrip = <View style={styles.callControls}>
@@ -152,14 +154,14 @@ function CallPanel() {
             <IconButton name="chevron-down" label={t('Minimize call')} color={colors.white} onPress={() => { controls.interact(); minimize(); }} />
           </View>
           <View style={[styles.callVideoFooter, { paddingBottom: insets.bottom + 16, paddingLeft: insets.left + 16, paddingRight: insets.right + 16 }]}>
-            {!!notice && <Text style={styles.error}>{notice}</Text>}{controlsStrip}
+            {!!notice && <Text style={styles.error}>{notice}</Text>}<PermissionNotice dark />{controlsStrip}
           </View>
         </>}
       </Pressable> : <SafeAreaView style={styles.callScreen}>
         <View style={{ position: 'absolute', right: 15, top: insets.top + 10 }}><IconButton name="chevron-down" label={t('Minimize call')} color={colors.white} onPress={minimize} /></View>
         {!captions.view.enabled && !captions.view.asked && <Avatar name={name} id={call.peerId} size={94} />}<Text style={styles.callName}>{name}</Text><Text style={styles.callSubtitle}>{status}</Text>{!!safetyCode && <Text style={[styles.callSubtitle, { fontSize: 22 }]}> {t('Verification code: {code}', { code: safetyCode })}</Text>}
         <CallCaptions view={captions.view} onEnable={captions.toggle} onDecline={captions.decline} />
-        {!!notice && <Text style={styles.error}>{notice}</Text>}{controlsStrip}
+        {!!notice && <Text style={styles.error}>{notice}</Text>}<PermissionNotice dark />{controlsStrip}
       </SafeAreaView>}
       {menuVisible && <View style={StyleSheet.absoluteFill}>
         <Pressable style={StyleSheet.absoluteFill} accessibilityRole="button" accessibilityLabel={t('Close audio picker')} onPress={() => setAudioMenu(false)} />

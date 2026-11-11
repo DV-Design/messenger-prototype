@@ -21,6 +21,10 @@ import { MediaComposer } from '../../components/MediaComposer';
 import type { MediaKind } from '../../media-model';
 import { chatTimeline, dayLabel, withDays, type ChatTimelineRow } from '../../timeline-model';
 import { haptic, messageSent, setOpenChat } from '../../feedback';
+import { chatTranslationSupported, setChatTranslated, useChatTranslated, useTranslations } from '../../chat-translation';
+import { useMyLanguage } from '../../my-language';
+import { PermissionNotice } from '../../components/PermissionNotice';
+import { AccessDenied } from '../../permission-notice-model';
 
 const FLOATING_DATE_MS = 1200;
 
@@ -55,6 +59,9 @@ export default function Chat() {
   useEffect(() => () => clearTimeout(scrollIdle.current), []);
   const unread = conversation?.unread ?? 0;
   const focused = useIsFocused();
+  const myLanguage = useMyLanguage();
+  const translated = useChatTranslated(id);
+  const translations = useTranslations(translated && chatTranslationSupported, (conversation?.messages ?? []).filter(item => !!item.text), myLanguage.code);
   useEffect(() => focused && id ? setOpenChat(id) : undefined, [focused, id]);
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
   const [interacting, setInteracting] = useState(true);
@@ -90,7 +97,7 @@ export default function Chat() {
   async function action(operation: () => Promise<void>) {
     if (busy) return;
     setBusy(true); setError('');
-    try { await operation(); } catch (cause) { haptic('reject'); setError(errorText(cause)); } finally { setBusy(false); }
+    try { await operation(); } catch (cause) { haptic('reject'); if (!(cause instanceof AccessDenied)) setError(errorText(cause)); } finally { setBusy(false); }
   }
   function send() {
     const text = draft;
@@ -143,18 +150,19 @@ export default function Chat() {
     const expired = item.status === 'expired';
     const label = deliveryLabel(item, group);
     return <Pressable accessibilityHint={t('Hold to react, edit, copy or delete')} accessibilityActions={[{ name: 'longpress', label: t('Message actions') }]} onAccessibilityAction={() => selectMessage(item)} onLongPress={() => selectMessage(item)} style={[styles.bubble, own && styles.bubbleSelf]}>
-      {group && !own && <Text style={styles.senderName}>{sender}</Text>}<Text style={styles.message}>{messageParts(item.text).map((part, index) => part.url
+      {group && !own && <Text style={styles.senderName}>{sender}</Text>}<Text style={styles.message}>{messageParts(translations.texts[item.id] ?? item.text).map((part, index) => part.url
         ? <Text key={index} accessibilityRole="link" style={{ color: colors.blue, textDecorationLine: 'underline' }} onLongPress={() => selectMessage(item)}
           onPress={() => { const url = part.url!; void Linking.openURL(url).catch(() => setError(t('Could not open the link.'))); }}>{part.text}</Text>
         : part.text)}</Text>
       {own && (group || expired) && <Text style={[styles.fileMeta, expired && { color: '#A33535' }]}>{label}</Text>}
-      <View style={styles.messageMeta}>{!!item.editedAt && <Text style={styles.messageTime}>{t('edited')}</Text>}<Text style={styles.messageTime}>{time(item.timestamp)}</Text>{own && <View accessibilityLabel={label}><Icon name={deliveryIcon(item)} size={15} color={expired ? '#A33535' : read ? colors.accent : '#70877D'} /></View>}</View>
+      <View style={styles.messageMeta}>{!!translations.texts[item.id] && <Text style={styles.messageTime}>{t('translated')}</Text>}{!!item.editedAt && <Text style={styles.messageTime}>{t('edited')}</Text>}<Text style={styles.messageTime}>{time(item.timestamp)}</Text>{own && <View accessibilityLabel={label}><Icon name={deliveryIcon(item)} size={15} color={expired ? '#A33535' : read ? colors.accent : '#70877D'} /></View>}</View>
       {reactionBar({ id: item.id, type: 'message', author: item.from }, item.reactions, own)}
     </Pressable>;
   }
   return <SafeAreaView style={styles.whiteScreen} edges={['top', 'bottom']}>
     <View style={styles.chatHeader}><IconButton name="chevron-back" label={t('Back to chats')} onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)')} />
       <Avatar name={conversation.title} id={conversation.id} group={group} size={41} /><View style={[styles.flex, { marginLeft: 7 }]}><Text numberOfLines={1} style={styles.chatName}>{conversation.title}</Text><Text numberOfLines={1} style={[styles.chatStatus, !group && peer?.online && { color: colors.accent }]}>{group ? t('Members: {count}', { count: conversation.memberIds.length }) : lastSeen(!!peer?.online, peer?.lastSeen ?? 0)}</Text></View>
+      {chatTranslationSupported && <IconButton name="language-outline" color={translated ? colors.white : undefined} label={translated ? t('Show original') : t('Translate to {language}', { language: myLanguage.label })} onPress={() => void setChatTranslated(conversation.id, !translated)} active={translated} />}
       <IconButton name="call-outline" label={group ? t('Group calls unavailable') : t('Audio call')} disabled={!canCall || busy} onPress={() => void action(() => client().startCall(conversation.id, false))} />
       <IconButton name="videocam-outline" label={group ? t('Group video calls unavailable') : t('Video call')} disabled={!canCall || busy} onPress={() => void action(() => client().startCall(conversation.id, true))} />
       <IconButton name="ellipsis-horizontal" label={t('Safety options')} onPress={() => setSafetyMenuOpen(true)} />
@@ -162,6 +170,10 @@ export default function Chat() {
     {blockedPeer && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 15, paddingVertical: 9, backgroundColor: '#FDECEF' }}><Icon name="ban-outline" size={17} color="#A22D3B" /><Text style={[styles.info, { flex: 1, color: '#A22D3B' }]}> {t('You blocked this contact. Unblock to see messages and calls.')}</Text></View>}
     {hiddenBlocked && <Text style={[styles.info, { textAlign: 'center', paddingVertical: 8, paddingHorizontal: 15 }]}> {t('Messages from blocked users are hidden.')}</Text>}
     <Pressable accessibilityRole="button" accessibilityLabel={t('Delivery status. Open connection settings')} onPress={() => router.push('/(tabs)/settings')} style={{ paddingHorizontal: 15, paddingVertical: 9, backgroundColor: notice.warning ? '#FFF2D8' : '#EDF5F1' }}><Text style={[styles.info, { color: notice.warning ? '#7B5924' : '#4E7161' }]}>{notice.text}</Text></Pressable>
+    {translated && chatTranslationSupported && <Pressable accessibilityRole="button" accessibilityLabel={t('Show original')} onPress={() => void setChatTranslated(conversation.id, false)} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 15, paddingVertical: 8, backgroundColor: '#EAF3FA' }}>
+      <Icon name="language-outline" size={17} color={colors.blue} /><Text style={[styles.info, { flex: 1, color: '#2A5F82' }]}>{translations.error || (translations.busy ? t('Translating to {language}…', { language: myLanguage.label }) : t('Translated to {language}', { language: myLanguage.label }))}</Text>
+      <Text style={{ color: colors.blue, fontSize: 13, fontWeight: '600' }}>{t('Show original')}</Text>
+    </Pressable>}
     {moved && peer && !blockedPeer && <View accessibilityRole="alert" style={{ gap: 9, paddingHorizontal: 15, paddingVertical: 10, backgroundColor: '#FFF2D8' }}>
       <Text style={[styles.info, { color: '#7B5924' }]}>{t('{name} restored the account on a new key. This is not confirmed to be the same person until you compare the safety code in the new chat. Messages not yet delivered here will not reach the new key and expire after 7 days. This chat stays as history.', { name: peer.displayName })}</Text>
       <Button secondary busy={busy} title={t('Open new chat')} onPress={() => void action(async () => { const next = await client().acceptMovedContact(peer.userId); router.push({ pathname: '/chat/[id]', params: { id: next } }); })} />
@@ -181,6 +193,7 @@ export default function Chat() {
           ListEmptyComponent={<Empty icon="chatbubble-ellipses-outline" title={t('Start a conversation')} text={group ? t('Data syncs between participants’ phones.') : t('Send the first message. If your contact is offline, it waits on your device for up to 7 days.')} />} />
         {scrolling && !!floatingDate && <View pointerEvents="none" style={{ position: 'absolute', top: 8, left: 0, right: 0, alignItems: 'center' }}><DayPill label={floatingDate} /></View>}
       </View>
+      <PermissionNotice />
       {!!error && <Pressable accessibilityRole="button" accessibilityLabel={t('Hide error')} onPress={() => setError('')}><Text style={[styles.error, { borderRadius: 0 }]}>{error}</Text></Pressable>}
       {!blockedPeer && !!editing && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 15, paddingRight: 4, paddingVertical: 4, backgroundColor: '#EDF5F1' }}><Icon name="create-outline" size={17} /><Text style={[styles.info, { flex: 1 }]}>{t('Editing message')}</Text><IconButton name="close" label={t('Cancel editing')} disabled={busy} onPress={cancelEdit} /></View>}
       {!blockedPeer && attachments && !editing && <View><View style={styles.attachmentMenu}>

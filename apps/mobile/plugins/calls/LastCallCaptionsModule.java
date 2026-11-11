@@ -9,6 +9,8 @@ import android.speech.SpeechRecognizer;
 import com.facebook.react.bridge.*;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
 import com.google.mlkit.common.model.DownloadConditions;
+import com.google.mlkit.nl.languageid.LanguageIdentification;
+import com.google.mlkit.nl.languageid.LanguageIdentifier;
 import com.google.mlkit.nl.translate.TranslateLanguage;
 import com.google.mlkit.nl.translate.Translation;
 import com.google.mlkit.nl.translate.Translator;
@@ -31,7 +33,7 @@ public final class LastCallCaptionsModule extends ReactContextBaseJavaModule {
   @ReactMethod public void addListener(String eventName) {}
   @ReactMethod public void removeListeners(Integer count) {}
   @Override public void invalidate() {
-    UiThreadUtil.runOnUiThread(() -> { if (speech != null) { speech.stop(); speech = null; } closeTranslators(); releaseVoiceNow(); });
+    UiThreadUtil.runOnUiThread(() -> { if (speech != null) { speech.stop(); speech = null; } closeTranslators(); releaseVoiceNow(); if (identifier != null) { identifier.close(); identifier = null; } });
     super.invalidate();
   }
   private void emit(String type, String key, String value) {
@@ -207,4 +209,16 @@ public final class LastCallCaptionsModule extends ReactContextBaseJavaModule {
   }
   private void closeTranslators() { for (Translator translator : translators.values()) translator.close(); translators.clear(); }
   @ReactMethod public void releaseTranslation() { UiThreadUtil.runOnUiThread(this::closeTranslators); }
+
+  // Chat translation needs the source language of each message; the model ships in the app.
+  private LanguageIdentifier identifier;
+  /** Resolves a BCP-47 code, or "und" when the language is not recognized with confidence. */
+  @ReactMethod public void identifyLanguage(String text, Promise result) {
+    UiThreadUtil.runOnUiThread(() -> {
+      if (identifier == null) identifier = LanguageIdentification.getClient();
+      identifier.identifyLanguage(text == null ? "" : text)
+        .addOnSuccessListener(result::resolve)
+        .addOnFailureListener(error -> result.resolve("und"));
+    });
+  }
 }
