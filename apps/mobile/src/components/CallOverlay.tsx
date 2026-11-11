@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import { BackHandler, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { AppState, BackHandler, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RTCView, type MediaStream as NativeMediaStream } from 'react-native-webrtc';
 import { callSafetyEmoji } from '@messenger/core';
 import { client, errorText, useMessenger } from '../runtime';
 import { PermissionNotice } from './PermissionNotice';
 import { AccessDenied } from '../permission-notice-model';
-import { answerCurrentSystemCall } from '../system-calls';
+import { answerCurrentSystemCall, unlockForApp } from '../system-calls';
 import { useCallAudioRoutes } from '../call-audio';
 import { useCallCaptions } from '../call-captions';
 import { CallCaptions } from './CallCaptions';
@@ -86,16 +86,22 @@ function CallPanel() {
   // Back and the chevron stay inside the app, as in Telegram. Only Home opens the system PiP window.
   function minimize() {
     setAudioMenu(false);
-    setCallBar({ collapsed: true });
+    // Over the lock screen the chats stay hidden until the phone is unlocked.
+    void unlockForApp().then(unlocked => { if (unlocked) setCallBar({ collapsed: true }); });
   }
+  // A call shows over the lock screen; once the phone locks, the next screen-on must show the call, never the chats.
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const subscription = AppState.addEventListener('change', state => { if (state === 'background') setCallBar({ collapsed: false }); });
+    return () => subscription.remove();
+  }, []);
   // The PiP window shows the call, so leaving it must lead back to the call, not to the bar.
   useEffect(() => { if (pipActive) setCallBar({ collapsed: false }); }, [pipActive]);
   useEffect(() => {
     // Minimized, Back belongs to the app's own navigation; the bar reopens the call.
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       if (collapsed) return false;
-      setAudioMenu(false);
-      setCallBar({ collapsed: true });
+      minimize();
       return true;
     });
     return () => subscription.remove();

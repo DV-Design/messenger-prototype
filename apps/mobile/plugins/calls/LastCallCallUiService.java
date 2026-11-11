@@ -185,6 +185,13 @@ public final class LastCallCallUiService extends Service {
     else if (ACTION_DECLINE.equals(action)) LastCallAudioModule.dispatch(uuid, "end");
   }
 
+  /** The answered call is live: continue it in the app, over the lock screen. */
+  static void handOff(String uuid) {
+    Activity visible = screen.get();
+    if (!(visible instanceof LastCallCallActivity) || uuid == null || !uuid.equals(screenUuid) || !((LastCallCallActivity) visible).answered()) return;
+    visible.runOnUiThread(() -> LastCallLockScreen.handOff(visible, uuid));
+  }
+
   private static void finishScreen(String uuid) {
     Activity visible = screen.get();
     if (visible == null || uuid == null || !uuid.equals(screenUuid)) return;

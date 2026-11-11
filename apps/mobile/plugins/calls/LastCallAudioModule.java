@@ -85,6 +85,17 @@ public final class LastCallAudioModule extends ReactContextBaseJavaModule {
     if (video && getReactApplicationContext().checkSelfPermission("android.permission.CAMERA") != PackageManager.PERMISSION_GRANTED) { promise.reject("CALL_CAMERA_DENIED", "Camera permission must be granted in foreground first"); return; }
     LastCallAudioService.begin(getReactApplicationContext(), id, video, promise);
   }
+  /** Resolves true once the phone is unlocked (at once when it is not locked), false if the person cancels. */
+  @ReactMethod public void unlockForApp(Promise result) {
+    android.app.Activity activity = getCurrentActivity();
+    if (activity == null || !LastCallLockScreen.locked(activity)) { result.resolve(true); return; }
+    UiThreadUtil.runOnUiThread(() -> {
+      final boolean[] done = { false };
+      LastCallLockScreen.requestUnlock(activity, () -> { if (!done[0]) { done[0] = true; result.resolve(true); } });
+      // A cancelled unlock prompt has no callback here; answer after a while so the caller never waits forever.
+      new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> { if (!done[0]) { done[0] = true; result.resolve(!LastCallLockScreen.locked(activity)); } }, 60_000);
+    });
+  }
   @ReactMethod public void stop(String id) { LastCallAudioService.end(getReactApplicationContext(), id); }
   @ReactMethod public void activateCallAudio(String id) { LastCallAudioService.activate(getReactApplicationContext(), id); }
 }

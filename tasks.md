@@ -1,3 +1,17 @@
+# Answer on the lock screen and silence other calls (msg-byd follow-up, 1.0.25)
+
+Status: 1.0.25/code39 built (AAB sha256 4990e519…bcc43cc8) and emulator-tested; not uploaded to Google Play.
+
+- [X] After answering on the call-only screen, the app's call view opens over the keyguard until the call ends
+  → Artifacts: [helper](apps/mobile/plugins/calls/LastCallLockScreen.java), [hand-off](apps/mobile/plugins/calls/LastCallAudioService.java), [plugin](apps/mobile/plugins/withLastCallCalls.cjs), [tests](apps/mobile/tests/lock-screen-answer.test.ts)
+- [X] Minimizing the call on a locked phone asks for unlock first; locking the phone during a call re-expands it
+  → Artifacts: [overlay](apps/mobile/src/components/CallOverlay.tsx)
+- [X] Answer sets the Telecom connection active at once (hold capabilities) and takes voice-call audio focus
+  → Artifacts: [activity](apps/mobile/plugins/calls/LastCallCallActivity.java), [routes](apps/mobile/plugins/calls/LastCallAudioRoutes.java)
+- [X] Gates: mobile 221, server 133, core 266, e2e 16 PASS / 1 skip
+- [X] Emulators: PIN-locked phone answers, call UI over keyguard, minimize shows PIN prompt, relock + wake shows the call, end returns to keyguard; active GSM call goes ON_HOLD when LastCall is answered
+- [ ] Physical: vivo X200 Ultra lock screen; WhatsApp/Telegram call during a LastCall answer
+
 # File storage up to 10 GiB (msg-dlz follow-up, 1.0.24)
 
 Status: 1.0.24/code38 published to Google Play internal testing on 2026-11-11; `LastCall 1.0.24 closed` (Alpha, 100%) passed pre-review checks and is in Google review (1.0.22 closed was approved and stays live until then). AAB sha256 cc0b871c…f595d, no devices lost; emulator-tested.

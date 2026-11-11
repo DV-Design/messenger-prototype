@@ -39,6 +39,7 @@ interface LastCallAudio {
   openOemCallSettings(): void;
   callTrace(): Promise<string[]>;
   prepareCallAccounts(): Promise<boolean>;
+  unlockForApp?(): Promise<boolean>;
 }
 const audio = NativeModules.LastCallAudio as LastCallAudio | undefined;
 const callTasks = new CallTaskRegistry();
@@ -151,6 +152,8 @@ export async function callDiagnosticLines(): Promise<string[]> {
     `Call UI: notifications=${ui?.notifications} channel=${ui?.channel} importance=${ui?.importance} lockscreen=${ui?.lockscreen} fullScreen=${ui?.fullScreen}`,
     'Call trace:', ...(trace.length ? trace : ['—'])];
 }
+/** Before showing the app behind a call that was answered on the lock screen. */
+export const unlockForApp = (): Promise<boolean> => audio?.unlockForApp ? audio.unlockForApp().catch(() => true) : Promise.resolve(true);
 export const answerCurrentSystemCall = () => android ? controller.answer() : Promise.resolve(false);
 export function useSystemCallStatus(): string {
   return useSyncExternalStore(listener => { listeners.add(listener); return () => { listeners.delete(listener); }; }, () => status);

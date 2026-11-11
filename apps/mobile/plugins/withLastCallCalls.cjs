@@ -67,12 +67,15 @@ module.exports = function withLastCallCalls(config) {
       if (!mod.modResults.contents.includes('super.onCreate()')) throw new Error('LastCall calls plugin requires Application.onCreate');
       mod.modResults.contents = mod.modResults.contents.replace('super.onCreate()', `super.onCreate()\n    ${tap}`);
     }
+    // Tracks MainActivity so an answered call can continue over the lock screen.
+    const lock = 'dev.messenger.prototype.calls.LastCallLockScreen.install(this)';
+    if (!mod.modResults.contents.includes(lock)) mod.modResults.contents = mod.modResults.contents.replace(tap, `${tap}\n    ${lock}`);
     return mod;
   });
   return withDangerousMod(config, ['android', async mod => {
     const target = path.join(mod.modRequest.platformProjectRoot, 'app/src/main/java/dev/messenger/prototype/calls');
     await fs.mkdir(target, { recursive: true });
-    for (const file of ['LastCallAudioTap.java', 'LastCallRecognizers.java', 'LastCallSpeechSession.java', 'LastCallCaptionsModule.java', 'LastCallVoice.java', 'LastCallAudioService.java', 'LastCallAudioModule.java', 'LastCallAudioPackage.java', 'LastCallAudioRoutes.java', 'LastCallHeadlessAppLoader.java', 'LastCallHostLease.java', 'LastCallWakeLease.java', 'LastCallCallUiService.java', 'LastCallCallActivity.java', 'LastCallCallSetupService.java', 'LastCallCpuWake.java', 'LastCallCallTrace.java', 'LastCallMessagingService.java']) await fs.copyFile(path.join(__dirname, 'calls', file), path.join(target, file));
+    for (const file of ['LastCallAudioTap.java', 'LastCallRecognizers.java', 'LastCallSpeechSession.java', 'LastCallCaptionsModule.java', 'LastCallVoice.java', 'LastCallAudioService.java', 'LastCallAudioModule.java', 'LastCallAudioPackage.java', 'LastCallAudioRoutes.java', 'LastCallHeadlessAppLoader.java', 'LastCallHostLease.java', 'LastCallWakeLease.java', 'LastCallCallUiService.java', 'LastCallCallActivity.java', 'LastCallCallSetupService.java', 'LastCallCpuWake.java', 'LastCallCallTrace.java', 'LastCallMessagingService.java', 'LastCallLockScreen.java']) await fs.copyFile(path.join(__dirname, 'calls', file), path.join(target, file));
     return mod;
   }]);
 };

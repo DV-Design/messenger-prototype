@@ -5,7 +5,9 @@ import android.content.BroadcastReceiver;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.media.AudioDeviceCallback;
+import android.media.AudioAttributes;
 import android.media.AudioDeviceInfo;
+import android.media.AudioFocusRequest;
 import android.media.AudioManager;
 import android.os.Build;
 import android.os.Handler;
@@ -46,6 +48,27 @@ final class LastCallAudioRoutes {
     return connection != null ? connection : VoiceConnectionService.getConnection(owner);
   }
 
+  // Call audio focus: music and other apps' calls that follow focus go quiet, as they do for a phone call.
+  private static AudioFocusRequest focus;
+  private static final AudioManager.OnAudioFocusChangeListener focusChanges = change -> {};
+  private static void requestFocus(AudioManager manager) {
+    try {
+      if (Build.VERSION.SDK_INT >= 26) {
+        focus = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+          .setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
+          .setOnAudioFocusChangeListener(focusChanges, main).setWillPauseWhenDucked(true).build();
+        manager.requestAudioFocus(focus);
+      } else manager.requestAudioFocus(focusChanges, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN);
+    } catch (RuntimeException ignored) {}
+  }
+  private static void abandonFocus(AudioManager manager) {
+    try {
+      if (Build.VERSION.SDK_INT >= 26) { if (focus != null) manager.abandonAudioFocusRequest(focus); }
+      else manager.abandonAudioFocus(focusChanges);
+    } catch (RuntimeException ignored) {}
+    focus = null;
+  }
+
   static void begin(Context context, String id) {
     if (matches(id)) return;
     if (owner != null) end(owner);
@@ -53,6 +76,7 @@ final class LastCallAudioRoutes {
     audio = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
     if (audio == null) return;
     owner = next; previousSpeaker = audio.isSpeakerphoneOn();
+    requestFocus(audio);
     // MODE_NORMAL below removes this process's own mode request; Android retains other clients' requests.
     // Telecom owns incoming-call mode/routing. Competing app requests can be accepted
     // by AudioManager but never become effective while Telecom controls the mode.
@@ -95,6 +119,7 @@ final class LastCallAudioRoutes {
         try { if (changedSpeaker && manager.isSpeakerphoneOn() == lastSpeaker) manager.setSpeakerphoneOn(previousSpeaker); } catch (RuntimeException ignored) {}
       }
       try { if (ownsMode) manager.setMode(AudioManager.MODE_NORMAL); } catch (RuntimeException ignored) {}
+      abandonFocus(manager);
     }
     audio = null; devices = null; communicationListener = null;
     legacyContext = null; scoEvents = null; scoConnected = false;

@@ -34,7 +34,7 @@ public final class LastCallAudioService extends Service {
     boolean stop = id.equals(runningId) || id.equals(pendingId);
     if (id.equals(pendingId)) { if (pending != null) pending.reject("CALL_CANCELLED", "Call ended or audio service timed out"); pending = null; pendingId = null; }
     if (id.equals(runningId)) { runningId = null; runningActive = false; if (runningDeadline != null) handler.removeCallbacks(runningDeadline); runningDeadline = null; }
-    if (stop) { LastCallAudioRoutes.end(id); context.stopService(new Intent(context, LastCallAudioService.class)); }
+    if (stop) { LastCallAudioRoutes.end(id); LastCallLockScreen.end(id); context.stopService(new Intent(context, LastCallAudioService.class)); }
   }
   static synchronized void endPending(Context context, String id) {
     if (!runningActive || !id.equals(runningId)) end(context, id);
@@ -47,6 +47,7 @@ public final class LastCallAudioService extends Service {
       if (runningDeadline != null) handler.removeCallbacks(runningDeadline); runningDeadline = null;
     }
     LastCallHostLease.activate(id);
+    LastCallCallUiService.handOff(id);
     LastCallCallUiService.stop(context, id);
   }
   @Override public int onStartCommand(Intent intent, int flags, int startId) {
@@ -88,7 +89,7 @@ public final class LastCallAudioService extends Service {
     return START_NOT_STICKY;
   }
   @Override public void onDestroy() {
-    if (boundId != null) LastCallAudioRoutes.end(boundId);
+    if (boundId != null) { LastCallAudioRoutes.end(boundId); LastCallLockScreen.end(boundId); }
     synchronized (LastCallAudioService.class) {
       if (boundId != null && boundId.equals(runningId)) { runningId = null; runningActive = false; if (runningDeadline != null) handler.removeCallbacks(runningDeadline); runningDeadline = null; }
     }

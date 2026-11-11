@@ -108,11 +108,20 @@ public final class LastCallCallActivity extends Activity {
     LastCallCallUiService.silenceRinging();
     LastCallCallTrace.add(this, "answer");
     Connection connection = uuid == null ? null : VoiceConnectionService.getConnection(uuid);
-    if (connection != null) connection.onAnswer();
+    if (connection != null) {
+      connection.onAnswer();
+      // Active at once, not after P2P connects: Telecom then holds (or ends) a call in another
+      // messenger or the phone app, and that call goes quiet as soon as the person answers here.
+      connection.setConnectionCapabilities(connection.getConnectionCapabilities() | Connection.CAPABILITY_HOLD | Connection.CAPABILITY_SUPPORT_HOLD);
+      connection.setActive();
+      LastCallCallTrace.add(this, "telecom-active");
+    }
     else LastCallCallUiService.dispatchAction(this, uuid, LastCallCallUiService.ACTION_ANSWER);
     // Keep this call-only Activity visible while Android grants while-in-use microphone/camera access.
     // Core's actual active session or matching cancel/expiry closes it, never an early answer receipt.
   }
+
+  boolean answered() { return answering; }
 
   private void showConnecting() {
     if (hint != null) hint.setText(getString(R.string.lastcall_connecting));
