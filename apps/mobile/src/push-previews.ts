@@ -8,7 +8,7 @@ import type { MessengerClient, OpenedPushPreview } from '@messenger/core';
 import { messagePreviewScope, registerMessengerObserver, withMessagePreviewClient } from './runtime';
 import { IncomingMessageTracker, PreviewDeduper, messagePreviewBody, notificationIdentity, parseMessagePreview, type SeenPreview } from './push-preview-model';
 
-type NativePresenter = { prepare(): Promise<boolean>; show(id: string, title: string, body: string, conversationId: string, scope: string): Promise<boolean>; contains(id: string): Promise<boolean> };
+type NativePresenter = { prepare(): Promise<boolean>; show(id: string, title: string, body: string, conversationId: string, scope: string, chatTitle: string | null): Promise<boolean>; contains(id: string): Promise<boolean>; clearMessages?(): Promise<number> };
 const nativePresenter = NativeModules.LastCallNotifications as NativePresenter | undefined;
 export const MESSAGE_PREVIEW_CHANNEL = 'lastcall-message-previews';
 const directory = () => new Directory(Paths.document, 'message-notifications');
@@ -44,6 +44,16 @@ export function prepareMessagePreviews(): Promise<boolean> {
   })().catch(() => false).then(success => { if (!success) prepared = undefined; return success; });
   return prepared;
 }
+/** A group notice is titled with the group; a direct chat with the sender, so no title is passed. */
+function chatTitle(manager: MessengerClient, conversationId: string): string | null {
+  const conversation = manager.getSnapshot().conversations.find(item => item.id === conversationId);
+  return conversation?.kind === 'group' ? conversation.title : null;
+}
+/** Opening the app clears message notices, as in Telegram. The native side keeps them while the phone is locked. */
+export function clearMessageNotifications(): void {
+  if (Platform.OS !== 'android' || AppState.currentState !== 'active' || typeof nativePresenter?.clearMessages !== 'function') return;
+  void nativePresenter.clearMessages().catch(() => {});
+}
 type DisplayPreview = Pick<OpenedPushPreview, 'kind' | 'senderId' | 'conversationId' | 'messageId' | 'text' | 'displayName'> & { truncated?: boolean };
 async function displayPreview(manager: MessengerClient, preview: DisplayPreview, allowed: () => boolean) {
   if (Platform.OS !== 'android' || AppState.currentState === 'active' || !allowed()) return;
@@ -55,7 +65,7 @@ async function displayPreview(manager: MessengerClient, preview: DisplayPreview,
   const scopeHash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, scope);
   await deduper.run(`lastcall-message-${digest}`, async () => {
     if (!allowed() || AppState.currentState === 'active') return false;
-    const shown = await nativePresenter?.show(`lastcall-message-${digest}`, preview.displayName, messagePreviewBody(preview.text, preview.truncated), preview.conversationId, scopeHash) ?? false;
+    const shown = await nativePresenter?.show(`lastcall-message-${digest}`, preview.displayName, messagePreviewBody(preview.text, preview.truncated), preview.conversationId, scopeHash, chatTitle(manager, preview.conversationId)) ?? false;
     return shown;
   });
 }

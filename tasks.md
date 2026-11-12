@@ -1,3 +1,14 @@
+# Grouped message notifications, cleared on app entry (msg-45p)
+
+Status: emulator-tested, not released.
+
+- [X] One notice per chat (MessagingStyle, earlier lines read back from the shown notice, no text on disk), group summary, dedup IDs kept in the notice extras
+  → Artifacts: [native](apps/mobile/plugins/notifications/LastCallNotificationsModule.java), [JS](apps/mobile/src/push-previews.ts), [strings](apps/mobile/plugins/strings/values/lastcall_strings.xml)
+- [X] Opening the app clears message notices only (calls and delivery progress stay); nothing is cleared while the phone is locked
+  → Artifacts: [bridge](apps/mobile/src/components/NotificationNavigationBridge.tsx)
+- [X] Gates: mobile typecheck, lint, 221 tests; Android 16 emulators: 2 DMs + 1 group message stack as 2 chats under one header, launcher open clears all, a later message starts a fresh notice, tapping it opens the chat
+- [ ] Physical phones (vivo/Samsung shades), the locked-phone case, a missed FCM preview path
+
 # Answer on the lock screen and silence other calls (msg-byd follow-up, 1.0.25)
 
 Status: 1.0.25/code39 published to Google Play internal testing on 2026-11-11; `LastCall 1.0.25 closed` (Alpha, 100%) passed pre-review checks and is in Google review (1.0.24 closed stays live until then). AAB sha256 4990e519…bcc43cc8, no devices lost; emulator-tested.

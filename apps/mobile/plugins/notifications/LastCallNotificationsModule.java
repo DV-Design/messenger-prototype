@@ -3,6 +3,7 @@ package dev.messenger.prototype.notifications;
 import android.Manifest;
 import dev.messenger.prototype.R;
 import android.app.NotificationChannel;
+import android.app.KeyguardManager;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
@@ -13,8 +14,10 @@ import android.media.AudioAttributes;
 import android.media.AudioManager;
 import android.media.SoundPool;
 import android.os.Build;
+import android.os.Bundle;
 import android.service.notification.StatusBarNotification;
 import androidx.core.app.NotificationCompat;
+import androidx.core.app.Person;
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
@@ -25,6 +28,9 @@ import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
 import org.json.JSONObject;
 import java.util.UUID;
+import java.util.ArrayList;
+import java.util.List;
+import java.security.MessageDigest;
 import java.util.Map;
 import java.nio.charset.StandardCharsets;
 
@@ -32,6 +38,15 @@ import java.nio.charset.StandardCharsets;
 public final class LastCallNotificationsModule extends ReactContextBaseJavaModule {
   private static final String CHANNEL = "lastcall-message-previews";
   private static final int NOTIFICATION_ID = 1;
+  /** Older builds posted one notice per message under this tag prefix; they are still found and cleared. */
+  private static final String MESSAGE_PREFIX = "lastcall-message-";
+  private static final String CHAT_PREFIX = "lastcall-chat-";
+  private static final String SUMMARY_TAG = "lastcall-summary";
+  private static final String GROUP = "dev.messenger.prototype.MESSAGES";
+  private static final String EXTRA_IDS = "lastcallMessageIds";
+  private static final String LEGACY_CHANNEL = "lastcall-messages";
+  private static final int MAX_LINES = 8;
+  private static final int MAX_IDS = 64;
   private final ReactApplicationContext context;
   private static final String OPEN = "dev.messenger.prototype.OPEN_MESSAGE.";
   private final SharedPreferences routes;
@@ -103,16 +118,74 @@ public final class LastCallNotificationsModule extends ReactContextBaseJavaModul
     try {
       NotificationManager manager = manager();
       if (manager != null) for (StatusBarNotification item : manager.getActiveNotifications()) {
-        if (id.equals(item.getTag()) && item.getId() == NOTIFICATION_ID) { promise.resolve(true); return; }
+        if (item.getId() != NOTIFICATION_ID) continue;
+        if (id.equals(item.getTag()) || shownIds(item).contains(id)) { promise.resolve(true); return; }
       }
       promise.resolve(false);
     } catch (RuntimeException error) { promise.resolve(false); }
   }
-  @ReactMethod public synchronized void show(String id, String title, String body, String conversation, String scope, Promise promise) {
+  /** One notice per chat: identity is the hash of account scope and conversation, never the readable ID. */
+  private static String chatTag(String scope, String conversation) throws Exception {
+    byte[] hash = MessageDigest.getInstance("SHA-256").digest((scope + "|" + conversation).getBytes(StandardCharsets.UTF_8));
+    StringBuilder tag = new StringBuilder(CHAT_PREFIX);
+    for (byte value : hash) tag.append(String.format("%02x", value));
+    return tag.toString();
+  }
+  private static ArrayList<String> shownIds(StatusBarNotification item) {
+    ArrayList<String> ids = item == null ? null : item.getNotification().extras.getStringArrayList(EXTRA_IDS);
+    return ids == null ? new ArrayList<>() : new ArrayList<>(ids);
+  }
+  private static boolean isChat(StatusBarNotification item) { return item.getId() == NOTIFICATION_ID && item.getTag() != null && item.getTag().startsWith(CHAT_PREFIX); }
+  private static boolean isMessage(StatusBarNotification item) {
+    String tag = item.getTag();
+    if (tag != null && item.getId() == NOTIFICATION_ID && (tag.startsWith(MESSAGE_PREFIX) || tag.startsWith(CHAT_PREFIX) || tag.equals(SUMMARY_TAG))) return true;
+    return Build.VERSION.SDK_INT >= 26 && LEGACY_CHANNEL.equals(item.getNotification().getChannelId());
+  }
+  private NotificationCompat.Builder base() {
+    return new NotificationCompat.Builder(context, CHANNEL)
+      .setSmallIcon(android.R.drawable.sym_action_chat)
+      .setColor(0xFF6B35B8)
+      .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+      .setGroup(GROUP)
+      .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
+      .setAutoCancel(true);
+  }
+  /** The group header. Android needs it to stack chats; it never sounds on its own. */
+  private void showSummary(NotificationManager manager, String currentTag, int currentCount) {
+    int chats = 1, messages = currentCount;
+    for (StatusBarNotification item : manager.getActiveNotifications()) if (isChat(item) && !currentTag.equals(item.getTag())) { chats++; messages += Math.max(1, shownIds(item).size()); }
+    Intent intent = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+    if (intent == null) return;
+    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+    PendingIntent open = PendingIntent.getActivity(context, 1, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+    String text = context.getString(R.string.lastcall_notification_summary, messages, chats);
+    manager.notify(SUMMARY_TAG, NOTIFICATION_ID, base()
+      .setContentTitle("LastCall").setContentText(text)
+      .setStyle(new NotificationCompat.InboxStyle().setSummaryText(text))
+      .setGroupSummary(true).setSilent(true).setContentIntent(open).build());
+  }
+  /** Removes message notices only; calls and delivery progress stay. Nothing is removed while the phone is locked. */
+  @ReactMethod public synchronized void clearMessages(Promise promise) {
+    try {
+      KeyguardManager keyguard = (KeyguardManager) context.getSystemService(Context.KEYGUARD_SERVICE);
+      NotificationManager manager = manager();
+      if (manager == null || (keyguard != null && keyguard.isKeyguardLocked())) { promise.resolve(0); return; }
+      int removed = 0;
+      for (StatusBarNotification item : manager.getActiveNotifications()) if (isMessage(item)) { manager.cancel(item.getTag(), item.getId()); removed++; }
+      promise.resolve(removed);
+    } catch (RuntimeException error) { promise.resolve(0); }
+  }
+  @ReactMethod public synchronized void show(String id, String title, String body, String conversation, String scope, String chatTitle, Promise promise) {
     if (!validId(id) || !validConversation(conversation) || !validScope(scope) || title == null || title.isEmpty() || title.length() > 200 || body == null || body.isEmpty() || body.getBytes(StandardCharsets.UTF_8).length > 850) { promise.resolve(false); return; }
     try {
       NotificationManager manager = manager();
       if (!ensureChannel(manager)) { promise.resolve(false); return; }
+      boolean group = chatTitle != null && !chatTitle.isEmpty() && chatTitle.length() <= 200;
+      String tag = chatTag(scope, conversation);
+      StatusBarNotification previous = null;
+      for (StatusBarNotification item : manager.getActiveNotifications()) if (isChat(item) && tag.equals(item.getTag())) { previous = item; break; }
+      ArrayList<String> ids = shownIds(previous);
+      if (ids.contains(id)) { promise.resolve(true); return; }
       Intent intent = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
       if (intent == null) { promise.resolve(false); return; }
       intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
@@ -137,19 +210,32 @@ public final class LastCallNotificationsModule extends ReactContextBaseJavaModul
       intent.putExtra("lastcallConversation", conversation); intent.putExtra("lastcallScope", scope);
       // Extras contain no sender, message text, file name, keys or external URL.
       PendingIntent open = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-      NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL)
-        .setSmallIcon(android.R.drawable.sym_action_chat)
-        .setColor(0xFF6B35B8)
-        .setContentTitle(title)
+      // Earlier lines come back from the notice itself, so message text is never written to disk here.
+      NotificationCompat.MessagingStyle style = new NotificationCompat.MessagingStyle(new Person.Builder().setName(context.getString(R.string.lastcall_notification_you)).build());
+      if (group) { style.setConversationTitle(chatTitle); style.setGroupConversation(true); }
+      NotificationCompat.MessagingStyle old = previous == null ? null : NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(previous.getNotification());
+      if (old != null) {
+        List<NotificationCompat.MessagingStyle.Message> lines = old.getMessages();
+        for (int index = Math.max(0, lines.size() - (MAX_LINES - 1)); index < lines.size(); index++) style.addMessage(lines.get(index));
+      }
+      long now = System.currentTimeMillis();
+      style.addMessage(new NotificationCompat.MessagingStyle.Message(body, now, new Person.Builder().setName(title).build()));
+      ids.add(id);
+      while (ids.size() > MAX_IDS) ids.remove(0);
+      Bundle extras = new Bundle(); extras.putStringArrayList(EXTRA_IDS, ids);
+      NotificationCompat.Builder builder = base()
+        .setContentTitle(group ? chatTitle : title)
         .setContentText(body)
-        .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
-        .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+        .setStyle(style)
+        .setNumber(ids.size())
+        .setWhen(now).setShowWhen(true)
+        .setCategory(NotificationCompat.CATEGORY_MESSAGE)
         .setPriority(NotificationCompat.PRIORITY_HIGH)
         .setDefaults(android.app.Notification.DEFAULT_SOUND | android.app.Notification.DEFAULT_VIBRATE)
-        .setAutoCancel(true)
-        .setOnlyAlertOnce(true)
+        .addExtras(extras)
         .setContentIntent(open);
-      manager.notify(id, NOTIFICATION_ID, builder.build());
+      manager.notify(tag, NOTIFICATION_ID, builder.build());
+      showSummary(manager, tag, ids.size());
       promise.resolve(true);
     } catch (Exception error) { promise.resolve(false); }
   }

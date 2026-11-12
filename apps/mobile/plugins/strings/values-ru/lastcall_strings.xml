@@ -4,6 +4,8 @@
   <string name="lastcall_call_end_video">Завершить видеозвонок</string>
   <string name="lastcall_notification_channel_preview">Текст сообщений LastCall</string>
   <string name="lastcall_notification_channel_preview_desc">Имя отправителя и текст сообщения на экране блокировки</string>
+  <string name="lastcall_notification_you">Вы</string>
+  <string name="lastcall_notification_summary">Новых сообщений: %1$d · чатов: %2$d</string>
   <string name="lastcall_call_active_channel">Разговор LastCall</string>
   <string name="lastcall_call_active_title">LastCall · разговор</string>
   <string name="lastcall_call_active_video_text">Камера и микрофон включены для звонка</string>

@@ -4,6 +4,7 @@ import { router, useRootNavigationState } from 'expo-router';
 import * as Crypto from 'expo-crypto';
 import { client, messagePreviewScope, useMessenger } from '../runtime';
 import { NotificationNavigationQueue } from '../notification-navigation-model';
+import { clearMessageNotifications } from '../push-previews';
 
 const native = NativeModules.LastCallNotifications;
 export function NotificationNavigationBridge() {
@@ -18,8 +19,8 @@ export function NotificationNavigationBridge() {
       if (active && queue.current.offer(value)) changed(value => value + 1);
     }).catch(() => {}); };
     const opened = new NativeEventEmitter(native).addListener('LastCallNotificationOpened', read);
-    const resumed = AppState.addEventListener('change', state => { if (state === 'active') { read(); changed(value => value + 1); } });
-    read();
+    const resumed = AppState.addEventListener('change', state => { if (state === 'active') { read(); changed(value => value + 1); clearMessageNotifications(); } });
+    read(); clearMessageNotifications();
     return () => { active = false; opened.remove(); resumed.remove(); };
   }, []);
   useEffect(() => {
