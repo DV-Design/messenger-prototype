@@ -1,6 +1,6 @@
 # Grouped message notifications, cleared on app entry (msg-45p)
 
-Status: 1.0.26/code40 published to Google Play internal testing on 2026-11-12 (AAB sha256 818e5b11…dc38d587); the exact AAB was emulator-tested first.
+Status: 1.0.26/code40 published to Google Play internal testing on 2026-11-12; `LastCall 1.0.26 closed` (Alpha, 100%, no devices lost) passed the pre-review check and was sent to Google review (1.0.25 closed, approved, stays live until then). AAB sha256 818e5b11…dc38d587; the exact AAB was emulator-tested first.
 
 - [X] One notice per chat (MessagingStyle, earlier lines read back from the shown notice, no text on disk), group summary, dedup IDs kept in the notice extras
   → Artifacts: [native](apps/mobile/plugins/notifications/LastCallNotificationsModule.java), [JS](apps/mobile/src/push-previews.ts), [strings](apps/mobile/plugins/strings/values/lastcall_strings.xml)
