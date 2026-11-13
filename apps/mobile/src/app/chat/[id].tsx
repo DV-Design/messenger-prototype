@@ -25,6 +25,12 @@ import { chatTranslationSupported, setChatTranslated, useChatTranslated, useTran
 import { useMyLanguage } from '../../my-language';
 import { PermissionNotice } from '../../components/PermissionNotice';
 import { AccessDenied } from '../../permission-notice-model';
+import { LocationPicker } from '../../components/LocationPicker';
+import { LocationCard, ContactCard } from '../../components/LocationContactCard';
+import { formatLocationText, parseContactText, parseLocationText } from '../../location-contact';
+import { startLiveLocation } from '../../live-location';
+import { pickContactText } from '../../contacts';
+import type { LiveDurationMin } from '../../live-location-model';
 
 const FLOATING_DATE_MS = 1200;
 
@@ -38,6 +44,7 @@ export default function Chat() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [recording, setRecording] = useState<MediaKind>();
+  const [locationOpen, setLocationOpen] = useState(false);
   const [safetyOpen, setSafetyOpen] = useState(false);
   const [safetyMenuOpen, setSafetyMenuOpen] = useState(false);
   const [selected, setSelected] = useState<MessageTarget>();
@@ -61,7 +68,8 @@ export default function Chat() {
   const focused = useIsFocused();
   const myLanguage = useMyLanguage();
   const translated = useChatTranslated(id);
-  const translations = useTranslations(translated && chatTranslationSupported, (conversation?.messages ?? []).filter(item => !!item.text), myLanguage.code);
+  // Coordinates and phone numbers never go to the translation backend; they would not translate sensibly, and would leak location/contact data to it.
+  const translations = useTranslations(translated && chatTranslationSupported, (conversation?.messages ?? []).filter(item => !!item.text && !parseLocationText(item.text) && !parseContactText(item.text)), myLanguage.code);
   useEffect(() => focused && id ? setOpenChat(id) : undefined, [focused, id]);
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
   const [interacting, setInteracting] = useState(true);
@@ -115,6 +123,19 @@ export default function Chat() {
     void action(async () => { if (await (kind === 'media' ? pickMedia(conversation!.id) : pickDocument(conversation!.id))) messageSent(); });
   }
   function record(kind: MediaKind) { if (busy || snapshot.activeCall) return; setAttachments(false); setRecording(kind); }
+  function openLocation() { setAttachments(false); setLocationOpen(true); }
+  function sendLocation(lat: number, lng: number) {
+    setLocationOpen(false);
+    void action(async () => { await client().sendText(conversation!.id, formatLocationText(t('Location'), lat, lng, false)); messageSent(); });
+  }
+  function shareLiveLocation(lat: number, lng: number, minutes: LiveDurationMin) {
+    setLocationOpen(false);
+    void action(async () => { await startLiveLocation(conversation!.id, identity!.userId, lat, lng, minutes); messageSent(); });
+  }
+  function sendContact() {
+    setAttachments(false);
+    void action(async () => { const text = await pickContactText(); if (text) { await client().sendText(conversation!.id, text); messageSent(); } });
+  }
   function selectMessage(item: MessengerMessage) { haptic('longPress'); setSelected({ id: item.id, type: 'message', author: item.from, own: item.from === identity?.userId, expired: item.status === 'expired', text: item.text, reaction: myReaction(item.reactions, identity?.userId) }); }
   function selectFile(file: MessengerFile) { haptic('longPress'); setSelected({ id: file.id, type: 'file', author: file.senderId, own: file.senderId === identity?.userId, expired: file.deliveryStatus === 'expired', reaction: myReaction(file.reactions, identity?.userId) }); }
   function react(record: { id: string; type: 'message' | 'file'; author: string }, emoji: ReactionEmoji | undefined) {
@@ -149,11 +170,14 @@ export default function Chat() {
     const read = deliveryStage(item) === 'read';
     const expired = item.status === 'expired';
     const label = deliveryLabel(item, group);
+    const location = parseLocationText(item.text);
+    const contact = !location ? parseContactText(item.text) : undefined;
     return <Pressable accessibilityHint={t('Hold to react, edit, copy or delete')} accessibilityActions={[{ name: 'longpress', label: t('Message actions') }]} onAccessibilityAction={() => selectMessage(item)} onLongPress={() => selectMessage(item)} style={[styles.bubble, own && styles.bubbleSelf]}>
-      {group && !own && <Text style={styles.senderName}>{sender}</Text>}<Text style={styles.message}>{messageParts(translations.texts[item.id] ?? item.text).map((part, index) => part.url
+      {group && !own && <Text style={styles.senderName}>{sender}</Text>}
+      {location ? <LocationCard location={location} onError={setError} /> : contact ? <ContactCard contact={contact} /> : <Text style={styles.message}>{messageParts(translations.texts[item.id] ?? item.text).map((part, index) => part.url
         ? <Text key={index} accessibilityRole="link" style={{ color: colors.blue, textDecorationLine: 'underline' }} onLongPress={() => selectMessage(item)}
           onPress={() => { const url = part.url!; void Linking.openURL(url).catch(() => setError(t('Could not open the link.'))); }}>{part.text}</Text>
-        : part.text)}</Text>
+        : part.text)}</Text>}
       {own && (group || expired) && <Text style={[styles.fileMeta, expired && { color: '#A33535' }]}>{label}</Text>}
       <View style={styles.messageMeta}>{!!translations.texts[item.id] && <Text style={styles.messageTime}>{t('translated')}</Text>}{!!item.editedAt && <Text style={styles.messageTime}>{t('edited')}</Text>}<Text style={styles.messageTime}>{time(item.timestamp)}</Text>{own && <View accessibilityLabel={label}><Icon name={deliveryIcon(item)} size={15} color={expired ? '#A33535' : read ? colors.accent : '#70877D'} /></View>}</View>
       {reactionBar({ id: item.id, type: 'message', author: item.from }, item.reactions, own)}
@@ -202,6 +226,9 @@ export default function Chat() {
       </View><View style={styles.attachmentMenu}>
         <Pressable style={[styles.attachment, !!snapshot.activeCall && styles.disabled]} disabled={busy || !!snapshot.activeCall} accessibilityRole="button" onPress={() => record('voice')}><Icon name="mic-outline" size={27} /><Text style={styles.rowText}> {t('Voice message')}</Text></Pressable>
         <Pressable style={[styles.attachment, !!snapshot.activeCall && styles.disabled]} disabled={busy || !!snapshot.activeCall} accessibilityRole="button" onPress={() => record('circle')}><Icon name="videocam-outline" size={27} /><Text style={styles.rowText}> {t('Video circle')}</Text></Pressable>
+      </View><View style={styles.attachmentMenu}>
+        <Pressable style={styles.attachment} accessibilityRole="button" onPress={openLocation}><Icon name="location-outline" size={27} /><Text style={styles.rowText}> {t('Location')}</Text></Pressable>
+        <Pressable style={styles.attachment} accessibilityRole="button" onPress={sendContact}><Icon name="person-outline" size={27} /><Text style={styles.rowText}> {t('Share contact')}</Text></Pressable>
       </View></View>}
       {!blockedPeer && <View style={styles.composer}>{!editing && <IconButton name={attachments ? 'close' : 'attach'} label={t('Attach file')} disabled={busy} onPress={() => setAttachments(!attachments)} />}
         <TextInput style={styles.composerInput} value={draft} onChangeText={setDraft} multiline maxLength={4000} placeholder={t('Message')} placeholderTextColor={colors.secondary} accessibilityLabel={t('Message text')} />
@@ -210,6 +237,7 @@ export default function Chat() {
       </View>}
     </KeyboardAvoidingView>
     {!!recording && focused && <MediaComposer key={`${id}:${recording}`} kind={recording} conversationId={conversation.id} blocked={!!snapshot.activeCall} onClose={() => setRecording(undefined)} />}
+    <LocationPicker visible={locationOpen} busy={busy} onClose={() => setLocationOpen(false)} onSendPoint={sendLocation} onStartLive={shareLiveLocation} />
     {!group && peer && identity && <SafetyCode visible={safetyOpen} title={peer.displayName} code={safety} verified={peerVerified} sessionReady={!!conversation.session?.contentE2E} onClose={() => setSafetyOpen(false)} onVerify={() => void action(async () => { await client().markContactVerified(peer.userId); setSafetyOpen(false); })} />}
     <MessageActions target={selected} onClose={() => setSelected(undefined)} onError={setError} onDelete={deleteMessage} onReact={blockedPeer ? undefined : (target, emoji) => react(target, emoji)} onEdit={target => { if (!editing) unsentDraft.current = draft; setAttachments(false); setEditing(target.id); setDraft(target.text ?? ''); }} />
     {identity && <SafetyMenu visible={safetyMenuOpen} group={group} title={conversation.title} targetId={conversation.id}

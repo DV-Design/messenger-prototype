@@ -8,6 +8,8 @@ const googleServicesFile = process.env.MESSENGER_GOOGLE_SERVICES_FILE;
 const distribution = process.env.LASTCALL_DISTRIBUTION === 'store' ? 'store' : 'direct';
 const androidPackage = process.env.LASTCALL_ANDROID_PACKAGE ?? (distribution === 'store' ? 'ru.lastcall.app' : 'dev.messenger.prototype');
 const iosBundleIdentifier = process.env.LASTCALL_IOS_BUNDLE_ID ?? (distribution === 'store' ? 'ru.lastcall.app' : 'dev.messenger.prototype');
+// Android needs the Google Maps SDK for the location picker; iOS uses Apple Maps and needs no key.
+const androidGoogleMapsApiKey = process.env.LASTCALL_ANDROID_MAPS_API_KEY;
 const config: ExpoConfig = {
   name: 'LastCall',
   slug: 'messenger-prototype',
@@ -37,7 +39,7 @@ const config: ExpoConfig = {
     allowBackup: false,
     adaptiveIcon: { foregroundImage: './assets/lastcall-icon.png', backgroundColor: '#FFFFFF' },
     ...(googleServicesFile ? { googleServicesFile } : {}),
-    permissions: ['INTERNET', 'ACCESS_NETWORK_STATE', 'RECORD_AUDIO', 'CAMERA', 'MODIFY_AUDIO_SETTINGS', 'USE_FULL_SCREEN_INTENT', ...(distribution === 'direct' ? ['REQUEST_INSTALL_PACKAGES'] : [])],
+    permissions: ['INTERNET', 'ACCESS_NETWORK_STATE', 'RECORD_AUDIO', 'CAMERA', 'MODIFY_AUDIO_SETTINGS', 'USE_FULL_SCREEN_INTENT', 'ACCESS_FINE_LOCATION', 'ACCESS_COARSE_LOCATION', ...(distribution === 'direct' ? ['REQUEST_INSTALL_PACKAGES'] : [])],
     // Self-managed calls need no phone-number/phone-state access or Phone-app account setup.
     blockedPermissions: ['android.permission.READ_CONTACTS', 'android.permission.WRITE_CONTACTS', 'android.permission.READ_CALL_LOG', 'android.permission.WRITE_CALL_LOG', 'android.permission.READ_PHONE_NUMBERS', 'android.permission.CALL_PHONE', 'android.permission.READ_PHONE_STATE', 'android.permission.SYSTEM_ALERT_WINDOW'],
     // Only development builds permit local HTTP; release servers must use HTTPS.
@@ -73,6 +75,18 @@ const config: ExpoConfig = {
       cameraPermission: 'Camera is used for video calls you start yourself.',
       microphonePermission: 'Microphone is used for voice and video calls.',
     }],
+    ['expo-location', {
+      locationWhenInUsePermission: 'Used to show your position on the map and to share your location with a contact.',
+      // Never "Always"/background access: location is shared only while LastCall is open or its own
+      // foreground-service notification is visible, never behind the OS's back.
+      locationAlwaysAndWhenInUsePermission: false,
+      locationAlwaysPermission: false,
+      isIosBackgroundLocationEnabled: false,
+      isAndroidBackgroundLocationEnabled: false,
+      // Keeps the process alive, with a visible notification, only while a live share is running.
+      isAndroidForegroundServiceEnabled: true,
+    }],
+    ['react-native-maps', { ...(androidGoogleMapsApiKey ? { androidGoogleMapsApiKey } : {}) }],
   ],
 };
 

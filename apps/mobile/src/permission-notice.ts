@@ -14,6 +14,7 @@ export const openPermissionSettings = () => Linking.openSettings();
 const ANDROID: Partial<Record<MediaPermission, string>> = {
   microphone: PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
   camera: PermissionsAndroid.PERMISSIONS.CAMERA,
+  location: PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
 };
 async function granted(kind: MediaPermission) {
   const name = ANDROID[kind];

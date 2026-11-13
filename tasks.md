@@ -1,3 +1,40 @@
+# Location and contact sharing (msg-jd3)
+
+Mobile-only, like Telegram's attach menu: no core/protocol change, no stored-state version
+bump — a location or contact is a plain text message in a recognizable, backward-compatible
+shape (`apps/mobile/src/location-contact.ts`).
+
+- [X] One-time location (drop/drag a pin or send current position) and live location
+  (15 min / 1 h / 8 h) updated by editing the same message through the existing
+  `MessageChange` mechanism; throttled client-side (20s floor, 15m move, 60s forced refresh)
+  → Artifacts: [picker](apps/mobile/src/components/LocationPicker.tsx), [live manager](apps/mobile/src/live-location.ts), [model](apps/mobile/src/live-location-model.ts), [global bar](apps/mobile/src/components/LiveLocationBar.tsx)
+- [X] Contact sharing via the system contact picker (`presentContactPickerAsync`) — no
+  `READ_CONTACTS`, `blockedPermissions` untouched
+  → Artifacts: [contacts.ts](apps/mobile/src/contacts.ts)
+- [X] Chat bubble cards, attachment-menu icons, excluded from chat translation
+  → Artifacts: [cards](apps/mobile/src/components/LocationContactCard.tsx), [chat screen](apps/mobile/src/app/chat/%5Bid%5D.tsx)
+  [Контракт](docs/LOCATION-CONTACT.md)
+- [X] Gates: `npm run check` — PASS, 247 mobile unit tests (13 new), core/server unchanged at
+  266/133; `npm run test:e2e` not affected (no core change)
+- [X] Native: `expo prebuild` + `gradlew :app:assembleDebug` — BUILD SUCCESSFUL with
+  `react-native-maps`/`expo-location`/`expo-task-manager`/`expo-contacts` linked; manifest
+  confirmed `ACCESS_FINE_LOCATION`/`FOREGROUND_SERVICE_LOCATION` present, no
+  `ACCESS_BACKGROUND_LOCATION`, `READ_CONTACTS`/`WRITE_CONTACTS` still `tools:node="remove"`
+- [X] Dev-client smoke test on an Android emulator caught a real bug before release: the new
+  global live-location bar's `useSyncExternalStore` snapshot returned a fresh object every
+  call, causing "Maximum update depth exceeded" on every screen. Fixed by caching the
+  snapshot; rebooted cleanly afterward with no render error.
+  → Side effect: the debug-signed test build forced a reinstall over the existing
+  Maria Petrova identity on that emulator, which is now gone (Android wipes app data on a
+  signing-key mismatch); re-register when that emulator is next used for QA.
+- [ ] `LASTCALL_ANDROID_MAPS_API_KEY` is not set yet — the map picker will show a gray map
+  until a key is created and added (instructions given to the user, not run here: creating
+  an API key needs their Google Cloud Console access)
+- [ ] Physical phones: live location across OEM battery optimizers (no headless resume after
+  a full process kill — documented, not tested), the contact picker on a real device, iOS
+  (Apple Maps path never built/run, only type-checked)
+- [ ] Not released to any test track yet; no version bump
+
 # Grouped message notifications, cleared on app entry (msg-45p)
 
 Status: 1.0.26/code40 published to Google Play internal testing on 2026-11-12; `LastCall 1.0.26 closed` (Alpha, 100%, no devices lost) passed the pre-review check and was sent to Google review (1.0.25 closed, approved, stays live until then). AAB sha256 818e5b11…dc38d587; the exact AAB was emulator-tested first.
