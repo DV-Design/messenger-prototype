@@ -27,9 +27,17 @@ shape (`apps/mobile/src/location-contact.ts`).
   → Side effect: the debug-signed test build forced a reinstall over the existing
   Maria Petrova identity on that emulator, which is now gone (Android wipes app data on a
   signing-key mismatch); re-register when that emulator is next used for QA.
-- [ ] `LASTCALL_ANDROID_MAPS_API_KEY` is not set yet — the map picker will show a gray map
-  until a key is created and added (instructions given to the user, not run here: creating
-  an API key needs their Google Cloud Console access)
+- [X] User created `LASTCALL_ANDROID_MAPS_API_KEY` and saved it to
+  `~/.config/lastcall/android-maps-api-key.txt`; both build scripts now read it from there
+  automatically when the env var isn't already exported
+  → Artifacts: [infra/build-android-release.sh](infra/build-android-release.sh), [infra/build-android-store.sh](infra/build-android-store.sh)
+- [X] `expo prebuild` confirmed the key lands in `AndroidManifest.xml`'s
+  `com.google.android.geo.API_KEY` meta-data; rebuilt the debug APK with it
+- [ ] Could not visually confirm real map tiles render: the dev-client rebuild forced another
+  fresh install on emulator-5560 (no account yet to restore), and this build's server
+  requires email confirmation to register — stopped there rather than handling an email/code.
+  The key's presence in the manifest and a clean native build are confirmed; only the
+  on-device tile render is unverified.
 - [ ] Physical phones: live location across OEM battery optimizers (no headless resume after
   a full process kill — documented, not tested), the contact picker on a real device, iOS
   (Apple Maps path never built/run, only type-checked)

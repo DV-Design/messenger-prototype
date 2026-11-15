@@ -78,6 +78,16 @@ command -v unzip >/dev/null 2>&1 || die "unzip is required."
 # app.config.ts. JAVA_HOME / ANDROID_HOME are intentionally inherited as-is.
 export MESSENGER_GOOGLE_SERVICES_FILE="$SERVICES_FILE"
 
+if [[ -z "${LASTCALL_ANDROID_MAPS_API_KEY:-}" ]]; then
+  MAPS_KEY_FILE="$HOME/.config/lastcall/android-maps-api-key.txt"
+  if [[ -f "$MAPS_KEY_FILE" ]]; then
+    LASTCALL_ANDROID_MAPS_API_KEY="$(<"$MAPS_KEY_FILE")"
+  else
+    printf 'build:apk: warning: no Google Maps API key (set LASTCALL_ANDROID_MAPS_API_KEY or create %s) — the location picker map will be blank.\n' "$MAPS_KEY_FILE"
+  fi
+fi
+export LASTCALL_ANDROID_MAPS_API_KEY="${LASTCALL_ANDROID_MAPS_API_KEY:-}"
+
 # Read the expected version/versionCode from the current Expo config instead of
 # hardcoding them. This also confirms that app.config.ts can be evaluated.
 EXPECTED_CONFIG_JSON="$(cd "$MOBILE_DIR" && npx --no-install expo config --type public --json)"
