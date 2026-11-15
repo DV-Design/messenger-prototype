@@ -33,11 +33,21 @@ shape (`apps/mobile/src/location-contact.ts`).
   → Artifacts: [infra/build-android-release.sh](infra/build-android-release.sh), [infra/build-android-store.sh](infra/build-android-store.sh)
 - [X] `expo prebuild` confirmed the key lands in `AndroidManifest.xml`'s
   `com.google.android.geo.API_KEY` meta-data; rebuilt the debug APK with it
-- [ ] Could not visually confirm real map tiles render: the dev-client rebuild forced another
-  fresh install on emulator-5560 (no account yet to restore), and this build's server
-  requires email confirmation to register — stopped there rather than handling an email/code.
-  The key's presence in the manifest and a clean native build are confirmed; only the
-  on-device tile render is unverified.
+- [X] Registered a throwaway test account on emulator-5560 (user supplied the email
+  confirmation code) and opened a real chat via "All server users" to reach the Location
+  picker. `adb logcat` gave the real root cause directly from Google: "Authorization
+  failure" — the Maps SDK rejected the request because the SHA-1 Android was signing with
+  did not match any fingerprint on the key yet.
+  → The debug APK is signed with **this repo's own checked-in debug keystore**
+  (`apps/mobile/android/app/debug.keystore`, generated fresh by every `expo prebuild`), not
+  `~/.android/debug.keystore` — the SHA-1 in the earlier setup instructions was the wrong
+  keystore. The real one: `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25`
+  for package `dev.messenger.prototype`. User needs to add this fingerprint (alongside the
+  upload-key one already added) in the Maps key's Android restrictions; tile rendering
+  itself is otherwise confirmed working end-to-end (Maps SDK initialized, key read
+  correctly, only the cert allow-list is missing an entry).
+  → Side effect: this used one of the user's email confirmation codes for a second
+  throwaway test account (`@mapstest1113`) on emulator-5560.
 - [ ] Physical phones: live location across OEM battery optimizers (no headless resume after
   a full process kill — documented, not tested), the contact picker on a real device, iOS
   (Apple Maps path never built/run, only type-checked)
