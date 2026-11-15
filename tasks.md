@@ -1,3 +1,32 @@
+# Quoted replies and newest-first chat loading (msg-2z1)
+
+Both mobile-only, no core/protocol change.
+
+- [X] Reply: same text-message convention as location/contact
+  (`↩️ message|file:<author>:<id>\n<body>`) — an old client shows the marker line as plain
+  text with the body fully readable below it; a current client parses it, shows a
+  Telegram-style quote chip (author + live-looked-up snippet) above the bubble and above the
+  composer while replying, and can tap it to jump to the quoted message
+  → Artifacts: [reply.ts](apps/mobile/src/reply.ts), [ReplyChip.tsx](apps/mobile/src/components/ReplyChip.tsx), [chat screen](apps/mobile/src/app/chat/%5Bid%5D.tsx), [MessageActions.tsx](apps/mobile/src/components/MessageActions.tsx)
+  Editing a reply keeps its quote; the quote is excluded from chat translation.
+- [X] Chat opens already showing the newest messages (`FlatList inverted`, newest-first data)
+  instead of rendering the whole history from the top and jumping down with `scrollToEnd`
+- [X] Gates: `npm run check` — PASS, 242 mobile unit tests (8 new: 7 for `reply.ts`, 1 for the
+  location/contact edit-lock interaction with `reply`); core/server unaffected (no core change)
+- [X] Emulator (dev-client, same debug-signed build as msg-jd3; user supplied a second email
+  restore code to get a registered test account again): caught and fixed a real bug —
+  `inverted`'s `ListEmptyComponent` rendered the empty-chat text upside down (a known RN
+  quirk). Fixed by rendering the empty state as a plain sibling instead of a FlatList prop,
+  not by fighting the transform. After the fix: sent messages land at the bottom without a
+  jump; long-press → Reply → the quote chip shows the correct author and snippet on send;
+  editing a reply shows only its body in the composer and keeps the quote after saving; no
+  crashes. Tap-to-scroll-to-quoted was exercised but not provably tested (the quoted message
+  was already on screen in this short test history).
+- [ ] Physical phones; a longer history to actually exercise scroll-to-quoted-message and
+  day-pill positioning while scrolling; images/video inside the inverted list (only text
+  messages were sent in this test — RN's per-cell counter-flip is supposed to cover any
+  content uniformly, but only text was actually seen upright)
+
 # Location and contact sharing (msg-jd3)
 
 Mobile-only, like Telegram's attach menu: no core/protocol change, no stored-state version

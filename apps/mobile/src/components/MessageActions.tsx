@@ -10,15 +10,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export interface MessageTarget { id: string; type: 'message' | 'file'; author: string; own: boolean; expired: boolean; text?: string; reaction?: ReactionEmoji }
 
-const LABELS: Record<MessageAction, string> = { edit: 'Edit', copy: 'Copy', deleteForEveryone: 'Delete for everyone', deleteForMe: 'Delete for me' };
-const ICONS: Record<MessageAction, IconName> = { edit: 'create-outline', copy: 'copy-outline', deleteForEveryone: 'trash-outline', deleteForMe: 'trash-bin-outline' };
+const LABELS: Record<MessageAction, string> = { reply: 'Reply', edit: 'Edit', copy: 'Copy', deleteForEveryone: 'Delete for everyone', deleteForMe: 'Delete for me' };
+const ICONS: Record<MessageAction, IconName> = { reply: 'arrow-undo-outline', edit: 'create-outline', copy: 'copy-outline', deleteForEveryone: 'trash-outline', deleteForMe: 'trash-bin-outline' };
 
-export function MessageActions({ target, onClose, onEdit, onDelete, onReact, onError }: { target?: MessageTarget; onClose: () => void; onEdit: (target: MessageTarget) => void; onReact?: (target: MessageTarget, emoji: ReactionEmoji | undefined) => void; onDelete: (target: MessageTarget, scope: 'me' | 'everyone') => void; onError: (message: string) => void }) {
+export function MessageActions({ target, onClose, onReply, onEdit, onDelete, onReact, onError }: { target?: MessageTarget; onClose: () => void; onReply: (target: MessageTarget) => void; onEdit: (target: MessageTarget) => void; onReact?: (target: MessageTarget, emoji: ReactionEmoji | undefined) => void; onDelete: (target: MessageTarget, scope: 'me' | 'everyone') => void; onError: (message: string) => void }) {
   const insets = useSafeAreaInsets();
   function run(action: MessageAction) {
     if (!target) return;
     onClose();
-    if (action === 'edit') onEdit(target);
+    if (action === 'reply') onReply(target);
+    else if (action === 'edit') onEdit(target);
     else if (action === 'copy') void Clipboard.setStringAsync(target.text ?? '').catch(() => onError(t('Could not copy the text.')));
     else if (action === 'deleteForEveryone') Alert.alert(t('Delete message for everyone?'), t('The other person\'s app removes it when both devices are online within 7 days. An older or modified app can keep it.'), [
       { text: t('Cancel'), style: 'cancel' },

@@ -3,14 +3,18 @@ import test from 'node:test';
 import type { Conversation, DirectoryUser } from '@messenger/core';
 import { messageActions, myContacts } from '../src/message-actions-model';
 
-test('only the author edits or deletes for everyone', () => {
-  assert.deepEqual(messageActions({ own: true, type: 'message', expired: false }), ['edit', 'copy', 'deleteForEveryone', 'deleteForMe']);
-  assert.deepEqual(messageActions({ own: false, type: 'message', expired: false }), ['copy', 'deleteForMe']);
+test('only the author edits or deletes for everyone; anything can be replied to', () => {
+  assert.deepEqual(messageActions({ own: true, type: 'message', expired: false }), ['reply', 'edit', 'copy', 'deleteForEveryone', 'deleteForMe']);
+  assert.deepEqual(messageActions({ own: false, type: 'message', expired: false }), ['reply', 'copy', 'deleteForMe']);
 });
 test('an expired message and a file cannot be edited', () => {
-  assert.deepEqual(messageActions({ own: true, type: 'message', expired: true }), ['copy', 'deleteForEveryone', 'deleteForMe']);
-  assert.deepEqual(messageActions({ own: true, type: 'file', expired: false }), ['deleteForEveryone', 'deleteForMe']);
-  assert.deepEqual(messageActions({ own: false, type: 'file', expired: false }), ['deleteForMe']);
+  assert.deepEqual(messageActions({ own: true, type: 'message', expired: true }), ['reply', 'copy', 'deleteForEveryone', 'deleteForMe']);
+  assert.deepEqual(messageActions({ own: true, type: 'file', expired: false }), ['reply', 'deleteForEveryone', 'deleteForMe']);
+  assert.deepEqual(messageActions({ own: false, type: 'file', expired: false }), ['reply', 'deleteForMe']);
+});
+test('a location or contact card cannot be edited even by its author', () => {
+  const location = '📍 Location\nhttps://maps.google.com/?q=1,2';
+  assert.deepEqual(messageActions({ own: true, type: 'message', expired: false, text: location }), ['reply', 'copy', 'deleteForEveryone', 'deleteForMe']);
 });
 const user = (userId: string, displayName: string, username: string): DirectoryUser => ({ userId, publicKey: 'k', username, displayName, online: false, lastSeen: 0 });
 const direct = (member: string, extra: Partial<Conversation> = {}): Conversation => ({ id: member, kind: 'direct', title: member, memberIds: ['me', member], messages: [], files: [], unread: 0, updatedAt: 0, ...extra });

@@ -31,6 +31,9 @@ import { formatLocationText, parseContactText, parseLocationText } from '../../l
 import { startLiveLocation } from '../../live-location';
 import { pickContactText } from '../../contacts';
 import type { LiveDurationMin } from '../../live-location-model';
+import { ReplyChip } from '../../components/ReplyChip';
+import { formatReplyText, parseReplyText, quotedMessageSnippet, replyBody, type ParsedReply } from '../../reply';
+import { mediaKind } from '../../media-model';
 
 const FLOATING_DATE_MS = 1200;
 
@@ -49,6 +52,7 @@ export default function Chat() {
   const [safetyMenuOpen, setSafetyMenuOpen] = useState(false);
   const [selected, setSelected] = useState<MessageTarget>();
   const [editing, setEditing] = useState<string>();
+  const [replying, setReplying] = useState<MessageTarget>();
   const unsentDraft = useRef('');
   const list = useRef<ComponentRef<typeof FlatList<ChatTimelineRow>>>(null);
   // Like Telegram: while the history scrolls, the date of the topmost message floats above it.
@@ -57,8 +61,10 @@ export default function Chat() {
   const scrollIdle = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const now = useToday();
   // FlatList requires a handler that never changes; the label is computed when it runs.
-  const onViewable = useCallback(({ viewableItems }: { viewableItems: { item: ChatTimelineRow | null }[] }) => {
-    const top = viewableItems.find(token => token.item)?.item;
+  // The list is inverted (newest message at the bottom, loaded first, like Telegram); the
+  // topmost ON SCREEN row is therefore the highest-index visible item, not viewableItems[0].
+  const onViewable = useCallback(({ viewableItems }: { viewableItems: { item: ChatTimelineRow | null; index: number | undefined }[] }) => {
+    const top = viewableItems.reduce<{ item: ChatTimelineRow | null; index: number | undefined } | undefined>((highest, token) => !highest || (token.index ?? -1) > (highest.index ?? -1) ? token : highest, undefined)?.item;
     if (top) setFloatingDate(dayLabel(top.timestamp, Date.now(), intlLocale, { today: t('Today'), yesterday: t('Yesterday') }));
   }, []);
   const scrollStarted = useCallback(() => { clearTimeout(scrollIdle.current); setScrolling(true); }, []);
@@ -69,7 +75,12 @@ export default function Chat() {
   const myLanguage = useMyLanguage();
   const translated = useChatTranslated(id);
   // Coordinates and phone numbers never go to the translation backend; they would not translate sensibly, and would leak location/contact data to it.
-  const translations = useTranslations(translated && chatTranslationSupported, (conversation?.messages ?? []).filter(item => !!item.text && !parseLocationText(item.text) && !parseContactText(item.text)), myLanguage.code);
+  // A reply's own quote marker line is never sent either — only the typed body is translated.
+  const translations = useTranslations(translated && chatTranslationSupported,
+    (conversation?.messages ?? [])
+      .map(item => ({ ...item, text: replyBody(item.text) }))
+      .filter(item => !!item.text && !parseLocationText(item.text) && !parseContactText(item.text)),
+    myLanguage.code);
   useEffect(() => focused && id ? setOpenChat(id) : undefined, [focused, id]);
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
   const [interacting, setInteracting] = useState(true);
@@ -90,6 +101,9 @@ export default function Chat() {
   const blocked = new Set(snapshot.blockedContacts);
   const timeline = withDays(chatTimeline(conversation.messages.filter(item => !blocked.has(item.from)), conversation.files.filter(item => !blocked.has(item.senderId))),
     timestamp => dayLabel(timestamp, now, intlLocale, { today: t('Today'), yesterday: t('Yesterday') }));
+  // Reversed for an inverted FlatList: newest first, so the chat opens already showing the
+  // latest messages instead of rendering the whole history from the start, like Telegram.
+  const reversedTimeline = [...timeline].reverse();
   const peer = snapshot.contacts.find(item => conversation.memberIds.includes(item.userId) && item.userId !== identity?.userId);
   const group = conversation.kind === 'group';
   const blockedPeer = !group && !!peer && blocked.has(peer.userId);
@@ -110,12 +124,21 @@ export default function Chat() {
   function send() {
     const text = draft;
     const edited = editing;
+    const replyTarget = replying;
     void action(async () => {
-      if (edited) await client().editMessage(conversation!.id, edited, text);
-      else { await client().sendText(conversation!.id, text); messageSent(); }
-      setEditing(undefined); setDraft(edited ? unsentDraft.current : '');
+      if (edited) {
+        // An edit keeps whatever quote the message already carried; only the typed body changes.
+        const original = conversation!.messages.find(m => m.id === edited);
+        const quote = original ? parseReplyText(original.text) : undefined;
+        await client().editMessage(conversation!.id, edited, quote ? formatReplyText(quote, text) : text);
+      } else if (replyTarget) {
+        await client().sendText(conversation!.id, formatReplyText({ type: replyTarget.type, author: replyTarget.author, id: replyTarget.id }, text));
+        messageSent();
+      } else { await client().sendText(conversation!.id, text); messageSent(); }
+      setEditing(undefined); setReplying(undefined); setDraft(edited ? unsentDraft.current : '');
     });
   }
+  function cancelReply() { setReplying(undefined); }
   function attach(kind: 'media' | 'document') {
     // The manager establishes recipient sessions on demand, including group
     // members without a separate DM. Chat-list rows are not transport state.
@@ -136,8 +159,27 @@ export default function Chat() {
     setAttachments(false);
     void action(async () => { const text = await pickContactText(); if (text) { await client().sendText(conversation!.id, text); messageSent(); } });
   }
+  function fileLabel(file: MessengerFile): string {
+    const kind = mediaKind(file.name, file.mime);
+    return kind === 'voice' ? t('Voice message') : kind === 'circle' ? t('Video circle') : file.name;
+  }
   function selectMessage(item: MessengerMessage) { haptic('longPress'); setSelected({ id: item.id, type: 'message', author: item.from, own: item.from === identity?.userId, expired: item.status === 'expired', text: item.text, reaction: myReaction(item.reactions, identity?.userId) }); }
-  function selectFile(file: MessengerFile) { haptic('longPress'); setSelected({ id: file.id, type: 'file', author: file.senderId, own: file.senderId === identity?.userId, expired: file.deliveryStatus === 'expired', reaction: myReaction(file.reactions, identity?.userId) }); }
+  function selectFile(file: MessengerFile) { haptic('longPress'); setSelected({ id: file.id, type: 'file', author: file.senderId, own: file.senderId === identity?.userId, expired: file.deliveryStatus === 'expired', text: fileLabel(file), reaction: myReaction(file.reactions, identity?.userId) }); }
+  function authorName(userId: string): string { return userId === identity?.userId ? t('You') : snapshot.contacts.find(contact => contact.userId === userId)?.displayName ?? t('Member'); }
+  /** Looks the quoted record up live, so an edit or a later rename of the author shows through; a missing record (expired, deleted) falls back to a plain notice. */
+  function quotedPreview(reply: ParsedReply): { authorName: string; text: string } {
+    if (reply.type === 'file') {
+      const file = conversation!.files.find(item => item.id === reply.id && item.senderId === reply.author);
+      return { authorName: authorName(reply.author), text: file ? fileLabel(file) : t('Original message not found') };
+    }
+    const message = conversation!.messages.find(item => item.id === reply.id && item.from === reply.author);
+    return { authorName: authorName(reply.author), text: message ? quotedMessageSnippet(message.text) : t('Original message not found') };
+  }
+  function scrollToQuoted(reply: ParsedReply) {
+    const key = JSON.stringify([reply.type === 'file' ? 'attachment' : 'message', reply.author, reply.id]);
+    const index = reversedTimeline.findIndex(entry => entry.key === key);
+    if (index >= 0) list.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
+  }
   function react(record: { id: string; type: 'message' | 'file'; author: string }, emoji: ReactionEmoji | undefined) {
     // Not through action(): a reaction must not wait behind, or block, a send in progress.
     setError(''); haptic('tick');
@@ -170,11 +212,14 @@ export default function Chat() {
     const read = deliveryStage(item) === 'read';
     const expired = item.status === 'expired';
     const label = deliveryLabel(item, group);
-    const location = parseLocationText(item.text);
-    const contact = !location ? parseContactText(item.text) : undefined;
-    return <Pressable accessibilityHint={t('Hold to react, edit, copy or delete')} accessibilityActions={[{ name: 'longpress', label: t('Message actions') }]} onAccessibilityAction={() => selectMessage(item)} onLongPress={() => selectMessage(item)} style={[styles.bubble, own && styles.bubbleSelf]}>
+    const reply = parseReplyText(item.text);
+    const body = reply ? reply.text : item.text;
+    const location = parseLocationText(body);
+    const contact = !location ? parseContactText(body) : undefined;
+    return <Pressable accessibilityHint={t('Hold to reply, react, edit, copy or delete')} accessibilityActions={[{ name: 'longpress', label: t('Message actions') }]} onAccessibilityAction={() => selectMessage(item)} onLongPress={() => selectMessage(item)} style={[styles.bubble, own && styles.bubbleSelf]}>
       {group && !own && <Text style={styles.senderName}>{sender}</Text>}
-      {location ? <LocationCard location={location} onError={setError} /> : contact ? <ContactCard contact={contact} /> : <Text style={styles.message}>{messageParts(translations.texts[item.id] ?? item.text).map((part, index) => part.url
+      {reply && <ReplyChip own={own} {...quotedPreview(reply)} onPress={() => scrollToQuoted(reply)} />}
+      {location ? <LocationCard location={location} onError={setError} /> : contact ? <ContactCard contact={contact} /> : <Text style={styles.message}>{messageParts(translations.texts[item.id] ?? body).map((part, index) => part.url
         ? <Text key={index} accessibilityRole="link" style={{ color: colors.blue, textDecorationLine: 'underline' }} onLongPress={() => selectMessage(item)}
           onPress={() => { const url = part.url!; void Linking.openURL(url).catch(() => setError(t('Could not open the link.'))); }}>{part.text}</Text>
         : part.text)}</Text>}
@@ -206,20 +251,26 @@ export default function Chat() {
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={styles.conversation}>
         {group && <Text style={[styles.info, { textAlign: 'center', paddingVertical: 8, paddingHorizontal: 15 }]}> {t('Group up to 8 members · group calls are not available yet')}</Text>}
-        <FlatList ref={list} data={timeline} keyExtractor={entry => entry.key} contentContainerStyle={styles.messages} keyboardShouldPersistTaps="handled" onContentSizeChange={() => list.current?.scrollToEnd({ animated: true })}
+        {reversedTimeline.length === 0
+          // An inverted FlatList's own ListEmptyComponent renders upside down (a known RN
+          // quirk); rendering the empty state as a plain sibling instead of a FlatList prop
+          // sidesteps it entirely rather than fighting the list's transform.
+          ? <Empty icon="chatbubble-ellipses-outline" title={t('Start a conversation')} text={group ? t('Data syncs between participants’ phones.') : t('Send the first message. If your contact is offline, it waits on your device for up to 7 days.')} />
+          : <FlatList ref={list} inverted data={reversedTimeline} keyExtractor={entry => entry.key} contentContainerStyle={styles.messages} keyboardShouldPersistTaps="handled"
           onViewableItemsChanged={onViewable} viewabilityConfig={VIEWABILITY} onScrollBeginDrag={scrollStarted} onMomentumScrollBegin={scrollStarted} onScrollEndDrag={scrollStopped} onMomentumScrollEnd={scrollStopped}
+          onScrollToIndexFailed={info => { list.current?.scrollToOffset({ offset: info.averageItemLength * info.index, animated: false }); setTimeout(() => list.current?.scrollToIndex({ index: info.index, animated: true, viewPosition: 0.5 }), 60); }}
           renderItem={({ item: entry }) => {
             if (entry.kind === 'day') return <DayPill label={entry.label} />;
             if (entry.kind === 'message') return renderMessage(entry.item);
             const file = entry.item;
             return <View style={{ marginTop: 9 }}><AttachmentCard file={file} self={file.senderId === identity?.userId} group={group} sender={group ? snapshot.contacts.find(contact => contact.userId === file.senderId)?.displayName : undefined} mediaDisabled={!focused || !!snapshot.activeCall || !!recording} onOpen={() => void action(() => shareFile(file))} onLongPress={() => selectFile(file)} />{reactionBar({ id: file.id, type: 'file', author: file.senderId }, file.reactions, file.senderId === identity?.userId)}</View>;
-          }}
-          ListEmptyComponent={<Empty icon="chatbubble-ellipses-outline" title={t('Start a conversation')} text={group ? t('Data syncs between participants’ phones.') : t('Send the first message. If your contact is offline, it waits on your device for up to 7 days.')} />} />
+          }} />}
         {scrolling && !!floatingDate && <View pointerEvents="none" style={{ position: 'absolute', top: 8, left: 0, right: 0, alignItems: 'center' }}><DayPill label={floatingDate} /></View>}
       </View>
       <PermissionNotice />
       {!!error && <Pressable accessibilityRole="button" accessibilityLabel={t('Hide error')} onPress={() => setError('')}><Text style={[styles.error, { borderRadius: 0 }]}>{error}</Text></Pressable>}
       {!blockedPeer && !!editing && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 15, paddingRight: 4, paddingVertical: 4, backgroundColor: '#EDF5F1' }}><Icon name="create-outline" size={17} /><Text style={[styles.info, { flex: 1 }]}>{t('Editing message')}</Text><IconButton name="close" label={t('Cancel editing')} disabled={busy} onPress={cancelEdit} /></View>}
+      {!blockedPeer && !editing && !!replying && <View style={{ paddingLeft: 15, paddingRight: 4, backgroundColor: '#EDF5F1' }}><ReplyChip authorName={authorName(replying.author)} text={quotedMessageSnippet(replying.text ?? '')} onClose={cancelReply} /></View>}
       {!blockedPeer && attachments && !editing && <View><View style={styles.attachmentMenu}>
         <Pressable style={styles.attachment} accessibilityRole="button" onPress={() => attach('media')}><Icon name="images-outline" size={27} /><Text style={styles.rowText}> {t('Photos and video')}</Text></Pressable>
         <Pressable style={styles.attachment} accessibilityRole="button" onPress={() => attach('document')}><Icon name="document-outline" size={27} /><Text style={styles.rowText}> {t('File up to 5 MiB')}</Text></Pressable>
@@ -239,7 +290,9 @@ export default function Chat() {
     {!!recording && focused && <MediaComposer key={`${id}:${recording}`} kind={recording} conversationId={conversation.id} blocked={!!snapshot.activeCall} onClose={() => setRecording(undefined)} />}
     <LocationPicker visible={locationOpen} busy={busy} onClose={() => setLocationOpen(false)} onSendPoint={sendLocation} onStartLive={shareLiveLocation} />
     {!group && peer && identity && <SafetyCode visible={safetyOpen} title={peer.displayName} code={safety} verified={peerVerified} sessionReady={!!conversation.session?.contentE2E} onClose={() => setSafetyOpen(false)} onVerify={() => void action(async () => { await client().markContactVerified(peer.userId); setSafetyOpen(false); })} />}
-    <MessageActions target={selected} onClose={() => setSelected(undefined)} onError={setError} onDelete={deleteMessage} onReact={blockedPeer ? undefined : (target, emoji) => react(target, emoji)} onEdit={target => { if (!editing) unsentDraft.current = draft; setAttachments(false); setEditing(target.id); setDraft(target.text ?? ''); }} />
+    <MessageActions target={selected} onClose={() => setSelected(undefined)} onError={setError} onDelete={deleteMessage} onReact={blockedPeer ? undefined : (target, emoji) => react(target, emoji)}
+      onReply={target => { setEditing(undefined); setAttachments(false); setReplying(target); }}
+      onEdit={target => { if (!editing) unsentDraft.current = draft; setAttachments(false); setReplying(undefined); setEditing(target.id); setDraft(replyBody(target.text ?? '')); }} />
     {identity && <SafetyMenu visible={safetyMenuOpen} group={group} title={conversation.title} targetId={conversation.id}
       peer={!group && peer ? { userId: peer.userId, displayName: peer.displayName } : undefined} members={groupMembers} blocked={snapshot.blockedContacts}
       onClose={() => setSafetyMenuOpen(false)}

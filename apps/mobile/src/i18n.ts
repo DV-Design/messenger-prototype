@@ -555,7 +555,7 @@ const ru: Record<string, string> = {
   'Confirmed address: {email}': 'Подтверждённый адрес: {email}',
   'The profile key is stored on this device. A confirmed email restores your @username after reinstalling, but not chats or contacts. Compare safety codes with your contacts afterwards. The server helps find friends and see their status; messages and calls travel between participants.': 'Ключ профиля хранится на этом устройстве. Подтверждённая почта вернёт ваш @логин после переустановки, но не чаты и контакты. После восстановления сверьте коды безопасности с собеседниками. Сервер помогает находить друзей и видеть их статус; сообщения и звонки идут между участниками.',
   'Allow LastCall calls.': 'Разрешите звонки LastCall.',
-  'Hold to react, edit, copy or delete': 'Удерживайте, чтобы поставить реакцию, изменить, скопировать или удалить',
+  'Hold to reply, react, edit, copy or delete': 'Удерживайте, чтобы ответить, поставить реакцию, изменить, скопировать или удалить',
   'Reactions': 'Реакции',
   'React with {emoji}': 'Реакция {emoji}',
   'Remove reaction {emoji}': 'Убрать реакцию {emoji}',
@@ -616,6 +616,12 @@ const ru: Record<string, string> = {
   'Unnamed contact': 'Контакт без имени',
   '{count} h': '{count} ч',
   '{count} min': '{count} мин',
+  'Reply': 'Ответить',
+  'Cancel reply': 'Отменить ответ',
+  'Go to the quoted message': 'К сообщению, на которое отвечали',
+  'Replying to {name}': 'Ответ для {name}',
+  'Original message not found': 'Исходное сообщение не найдено',
+  'You': 'Вы',
 };
 
 export function t(template: string, values?: Record<string, string | number>): string {

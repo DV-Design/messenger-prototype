@@ -1,11 +1,11 @@
 import type { Conversation, DirectoryUser } from '@messenger/core';
 import { parseContactText, parseLocationText } from './location-contact';
 
-export type MessageAction = 'edit' | 'copy' | 'deleteForEveryone' | 'deleteForMe';
+export type MessageAction = 'reply' | 'edit' | 'copy' | 'deleteForEveryone' | 'deleteForMe';
 
-/** Only the author can change a record for others; anyone can remove their own copy. A location or contact card has no free-text edit — a live share updates it on its own. */
+/** Only the author can change a record for others; anyone can remove their own copy. A location or contact card has no free-text edit — a live share updates it on its own. Anything can be replied to. */
 export function messageActions(input: { own: boolean; type: 'message' | 'file'; expired: boolean; text?: string }): MessageAction[] {
-  const actions: MessageAction[] = [];
+  const actions: MessageAction[] = ['reply'];
   const card = input.text !== undefined && (!!parseLocationText(input.text) || !!parseContactText(input.text));
   if (input.own && input.type === 'message' && !input.expired && !card) actions.push('edit');
   if (input.type === 'message') actions.push('copy');
