@@ -1,3 +1,29 @@
+# Release 1.0.27 / code41 — Google Play internal testing (2026-11-16)
+
+- [X] `artifacts/LastCall-1.0.27-store.aab` (ignored binary), sha256
+  `260f3e7db64f595f2c6ad93351eb521ec078884788a151ecfd6e1227c7096718`; published to the internal
+  track as "LastCall 1.0.27 internal", status "Доступен внутренним тестировщикам"
+- [X] Release-only startup crash found in the smoke test and fixed: R8 stripped the generated
+  `WorkDatabase` constructor (androidx.work/Room, pulled in by react-native-maps) →
+  "Failed to create an instance of class androidx.work.impl.WorkDatabase". Fixed with a
+  `-keep class * extends androidx.room.RoomDatabase { <init>(); }` rule added by config plugin
+  → Artifacts: [withRoomKeep.cjs](apps/mobile/plugins/withRoomKeep.cjs), [room-keep-plugin.test.ts](apps/mobile/tests/room-keep-plugin.test.ts)
+- [X] A point picked on the map was sent with 14-15 decimals and arrived as plain text, not a
+  card. Coordinates are now rounded to 6 decimals on send, and the parser accepts full precision
+  so already-sent points render as cards
+  → Artifacts: [location-contact.ts](apps/mobile/src/location-contact.ts), [location-contact.test.ts](apps/mobile/tests/location-contact.test.ts)
+- [X] Gates: `npm run check` — PASS (266 core, 133 server, 244 mobile); `npm run build:aab` — PASS
+- [X] Smoke test of this exact AAB (bundletool universal APK, upload-key signed) on two
+  emulators: startup, chat opens at newest messages (voice note renders in the inverted list),
+  quoted reply delivered, map tiles render, location card opens Google Maps
+- [ ] Play warns that 7 previously supported devices (2 phones, 5 tablets) are dropped:
+  the bundle now requires `glEsVersion 0x00020000` (react-native-maps) and likely the implied
+  `android.hardware.location.gps` feature from the location permission. Declare the location
+  features `required="false"` in the next build
+- [ ] Maps key: add the Play App Signing SHA-1 to the key's Android restriction if not done yet,
+  otherwise Play-installed builds may show a grey map (only the upload-key build was checked)
+- [ ] Physical phones, contact picker with real contacts, live location in the background
+
 # Quoted replies and newest-first chat loading (msg-2z1)
 
 Both mobile-only, no core/protocol change.
@@ -53,9 +79,9 @@ shape (`apps/mobile/src/location-contact.ts`).
   global live-location bar's `useSyncExternalStore` snapshot returned a fresh object every
   call, causing "Maximum update depth exceeded" on every screen. Fixed by caching the
   snapshot; rebooted cleanly afterward with no render error.
-  → Side effect: the debug-signed test build forced a reinstall over the existing
-  Maria Petrova identity on that emulator, which is now gone (Android wipes app data on a
-  signing-key mismatch); re-register when that emulator is next used for QA.
+  → Correction (2026-11-16): the debug build is a separate package
+  (`dev.messenger.prototype`); the store app `ru.lastcall.app` with the existing test
+  identities on both emulators was never touched.
 - [X] User created `LASTCALL_ANDROID_MAPS_API_KEY` and saved it to
   `~/.config/lastcall/android-maps-api-key.txt`; both build scripts now read it from there
   automatically when the env var isn't already exported

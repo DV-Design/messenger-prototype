@@ -7,14 +7,17 @@
 const LOCATION_MARK = '📍';
 const LIVE_MARK = '🔴';
 const CONTACT_MARK = '👤';
-const COORD = '-?\\d{1,3}(?:\\.\\d{1,8})?';
+// Accepts full double precision so a point sent before rounding (1.0.27 pre-release) still parses.
+const COORD = '-?\\d{1,3}(?:\\.\\d{1,17})?';
 const LOCATION_RE = new RegExp(`^(${LOCATION_MARK}|${LIVE_MARK})[^\\n]*\\n.*https://maps\\.google\\.com/\\?q=(${COORD}),(${COORD})`, 's');
 const PHONE_RE = /^[+\d][\d\s()-]{2,19}$/;
 
 export interface ParsedLocation { lat: number; lng: number; live: boolean }
 export interface ParsedContact { name: string; phones: string[] }
 
-export function mapsUrl(lat: number, lng: number): string { return `https://maps.google.com/?q=${lat},${lng}`; }
+/** 6 decimals is about 0.1 m: as precise as a phone fix gets, and never in exponent notation. */
+const coord = (value: number) => String(Number(value.toFixed(6)));
+export function mapsUrl(lat: number, lng: number): string { return `https://maps.google.com/?q=${coord(lat)},${coord(lng)}`; }
 
 /** `label` is already localized by the caller; this just assembles the recognizable, backward-compatible text. */
 export function formatLocationText(label: string, lat: number, lng: number, live: boolean): string {
