@@ -14,7 +14,7 @@ const config: ExpoConfig = {
   name: 'LastCall',
   slug: 'messenger-prototype',
   icon: './assets/lastcall-icon.png',
-  version: '1.0.28',
+  version: '1.0.29',
   scheme: 'messenger-preview',
   orientation: 'default',
   userInterfaceStyle: 'light',
@@ -36,7 +36,7 @@ const config: ExpoConfig = {
   },
   android: {
     package: androidPackage,
-    versionCode: 42,
+    versionCode: 43,
     allowBackup: false,
     adaptiveIcon: { foregroundImage: './assets/lastcall-icon.png', backgroundColor: '#FFFFFF' },
     ...(googleServicesFile ? { googleServicesFile } : {}),
