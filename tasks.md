@@ -7,8 +7,17 @@
   have a number, and the whole contact (all numbers, de-duplicated) is sent. iOS gets
   `NSContactsUsageDescription`
   → Artifacts: [contacts.ts](apps/mobile/src/contacts.ts), [contacts-model.ts](apps/mobile/src/contacts-model.ts), [ContactPicker.tsx](apps/mobile/src/components/ContactPicker.tsx), [contacts-model.test.ts](apps/mobile/tests/contacts-model.test.ts)
-- [ ] Play Console: update Data safety for contacts access before this build goes beyond
-  internal testing (contacts are read on-device only; one picked contact is sent to the chat)
+- [X] Published to the internal track as "LastCall 1.0.28 internal" (2026-11-16); Play's
+  review showed no warnings and the same supported-device count as 1.0.27
+- [X] Data safety: added "Precise location" and "Contacts", answered like the existing
+  "Other in-app messages" entry (collected, not ephemeral, optional, app functionality) —
+  both only leave the phone as a chat message the person sends. Submitted for review
+- [X] Foreground-service declaration: Play blocked the submission because
+  FOREGROUND_SERVICE_LOCATION (live location, since 1.0.27) was undeclared. Declared as
+  "user-initiated location sharing" with an emulator demo video:
+  [location](https://p2p.lienad.ru/demo/lastcall-foreground-location.mp4) (file in
+  `~/server/proxy/sites/messenger-public/demo/`). Submitted together with Data safety;
+  Google review pending
 - [X] Grey map in the Play build: the Maps key restricted `ru.lastcall.app` to the upload-key
   SHA-1 only; Play installs are signed with the app-signing key (SHA-1
   `60:31:AF:1D:06:B6:43:78:1F:68:FD:AA:1D:A3:48:D9:B1:52:56:12`). The user is adding it to the
