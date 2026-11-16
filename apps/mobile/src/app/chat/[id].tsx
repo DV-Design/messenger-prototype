@@ -26,10 +26,11 @@ import { useMyLanguage } from '../../my-language';
 import { PermissionNotice } from '../../components/PermissionNotice';
 import { AccessDenied } from '../../permission-notice-model';
 import { LocationPicker } from '../../components/LocationPicker';
-import { LocationCard, ContactCard } from '../../components/LocationContactCard';
-import { formatLocationText, parseContactText, parseLocationText } from '../../location-contact';
-import { startLiveLocation } from '../../live-location';
-import { pickContactText } from '../../contacts';
+import { LocationCard, LocationViewer, ContactCard } from '../../components/LocationContactCard';
+import { formatContactText, formatLocationText, parseContactText, parseLocationText } from '../../location-contact';
+import { isLiveLocationMessage, startLiveLocation, stopLiveLocation } from '../../live-location';
+import { ContactPicker } from '../../components/ContactPicker';
+import type { PhoneContact } from '../../contacts-model';
 import type { LiveDurationMin } from '../../live-location-model';
 import { ReplyChip } from '../../components/ReplyChip';
 import { formatReplyText, parseReplyText, quotedMessageSnippet, replyBody, type ParsedReply } from '../../reply';
@@ -48,6 +49,9 @@ export default function Chat() {
   const [error, setError] = useState('');
   const [recording, setRecording] = useState<MediaKind>();
   const [locationOpen, setLocationOpen] = useState(false);
+  const [viewingLocation, setViewingLocation] = useState<string>();
+  const [contactsOpen, setContactsOpen] = useState(false);
+  const closeContacts = useCallback(() => setContactsOpen(false), []);
   const [safetyOpen, setSafetyOpen] = useState(false);
   const [safetyMenuOpen, setSafetyMenuOpen] = useState(false);
   const [selected, setSelected] = useState<MessageTarget>();
@@ -155,9 +159,10 @@ export default function Chat() {
     setLocationOpen(false);
     void action(async () => { await startLiveLocation(conversation!.id, identity!.userId, lat, lng, minutes); messageSent(); });
   }
-  function sendContact() {
-    setAttachments(false);
-    void action(async () => { const text = await pickContactText(); if (text) { await client().sendText(conversation!.id, text); messageSent(); } });
+  function sendContact() { setAttachments(false); setContactsOpen(true); }
+  function sendPickedContact(contact: PhoneContact) {
+    setContactsOpen(false);
+    void action(async () => { await client().sendText(conversation!.id, formatContactText(contact.name, contact.phones)); messageSent(); });
   }
   function fileLabel(file: MessengerFile): string {
     const kind = mediaKind(file.name, file.mime);
@@ -206,6 +211,16 @@ export default function Chat() {
       { text: t('Delete'), style: 'destructive', onPress: () => void action(async () => { await client().removeContact(userId); router.replace('/(tabs)'); }) },
     ]);
   }
+  /** Looks the message up on every render, so a live share's pin moves as the sender's edits arrive. */
+  function locationViewer() {
+    const message = viewingLocation ? conversation?.messages.find(m => m.id === viewingLocation) : undefined;
+    const parsed = message ? parseLocationText(parseReplyText(message.text)?.text ?? message.text) : undefined;
+    const own = !!message && message.from === identity?.userId;
+    const author = own ? t('You') : snapshot.contacts.find(contact => contact.userId === message?.from)?.displayName ?? conversation?.title ?? '';
+    return <LocationViewer location={parsed} updatedAt={message ? message.editedAt ?? message.timestamp : 0} title={author}
+      canStop={own && !!parsed?.live && !!message && isLiveLocationMessage(message.id)}
+      onStop={() => void stopLiveLocation()} onClose={() => setViewingLocation(undefined)} onError={setError} />;
+  }
   function renderMessage(item: MessengerMessage) {
     const own = item.from === identity?.userId;
     const sender = snapshot.contacts.find(contact => contact.userId === item.from)?.displayName ?? t('Member');
@@ -219,7 +234,7 @@ export default function Chat() {
     return <Pressable accessibilityHint={t('Hold to reply, react, edit, copy or delete')} accessibilityActions={[{ name: 'longpress', label: t('Message actions') }]} onAccessibilityAction={() => selectMessage(item)} onLongPress={() => selectMessage(item)} style={[styles.bubble, own && styles.bubbleSelf]}>
       {group && !own && <Text style={styles.senderName}>{sender}</Text>}
       {reply && <ReplyChip own={own} {...quotedPreview(reply)} onPress={() => scrollToQuoted(reply)} />}
-      {location ? <LocationCard location={location} onError={setError} /> : contact ? <ContactCard contact={contact} /> : <Text style={styles.message}>{messageParts(translations.texts[item.id] ?? body).map((part, index) => part.url
+      {location ? <LocationCard location={location} updatedAt={item.editedAt ?? item.timestamp} onOpen={() => setViewingLocation(item.id)} /> : contact ? <ContactCard contact={contact} /> : <Text style={styles.message}>{messageParts(translations.texts[item.id] ?? body).map((part, index) => part.url
         ? <Text key={index} accessibilityRole="link" style={{ color: colors.blue, textDecorationLine: 'underline' }} onLongPress={() => selectMessage(item)}
           onPress={() => { const url = part.url!; void Linking.openURL(url).catch(() => setError(t('Could not open the link.'))); }}>{part.text}</Text>
         : part.text)}</Text>}
@@ -288,6 +303,8 @@ export default function Chat() {
       </View>}
     </KeyboardAvoidingView>
     {!!recording && focused && <MediaComposer key={`${id}:${recording}`} kind={recording} conversationId={conversation.id} blocked={!!snapshot.activeCall} onClose={() => setRecording(undefined)} />}
+    {locationViewer()}
+    <ContactPicker visible={contactsOpen} onClose={closeContacts} onPick={sendPickedContact} />
     <LocationPicker visible={locationOpen} busy={busy} onClose={() => setLocationOpen(false)} onSendPoint={sendLocation} onStartLive={shareLiveLocation} />
     {!group && peer && identity && <SafetyCode visible={safetyOpen} title={peer.displayName} code={safety} verified={peerVerified} sessionReady={!!conversation.session?.contentE2E} onClose={() => setSafetyOpen(false)} onVerify={() => void action(async () => { await client().markContactVerified(peer.userId); setSafetyOpen(false); })} />}
     <MessageActions target={selected} onClose={() => setSelected(undefined)} onError={setError} onDelete={deleteMessage} onReact={blockedPeer ? undefined : (target, emoji) => react(target, emoji)}

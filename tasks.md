@@ -1,3 +1,41 @@
+# 1.0.28 / code42 — fixes from the 1.0.27 phone test (2026-11-16)
+
+- [X] Contact sharing crashed: expo-contacts 58 makes the top-level `presentContactPickerAsync`
+  throw ("deprecated, use the class-based API"). Per the user's choice, contacts now work like
+  Telegram: READ_CONTACTS is requested on first "Share contact" (removed from
+  `blockedPermissions`; WRITE_CONTACTS stays blocked), an in-app searchable list of contacts that
+  have a number, and the whole contact (all numbers, de-duplicated) is sent. iOS gets
+  `NSContactsUsageDescription`
+  → Artifacts: [contacts.ts](apps/mobile/src/contacts.ts), [contacts-model.ts](apps/mobile/src/contacts-model.ts), [ContactPicker.tsx](apps/mobile/src/components/ContactPicker.tsx), [contacts-model.test.ts](apps/mobile/tests/contacts-model.test.ts)
+- [ ] Play Console: update Data safety for contacts access before this build goes beyond
+  internal testing (contacts are read on-device only; one picked contact is sent to the chat)
+- [X] Grey map in the Play build: the Maps key restricted `ru.lastcall.app` to the upload-key
+  SHA-1 only; Play installs are signed with the app-signing key (SHA-1
+  `60:31:AF:1D:06:B6:43:78:1F:68:FD:AA:1D:A3:48:D9:B1:52:56:12`). The user is adding it to the
+  key in Google Cloud (project mojordomo-1007, key "LastCall"); no code change
+- [X] Live location felt static: the bubble had no map and the link opened a fixed point.
+  Now the bubble shows a lite map whose pin moves with each edit plus "updated N min ago", and
+  tapping opens a full-screen viewer that follows the pin (pan to stop, target button to
+  resume) with Stop sharing for the sender. Sender side: `distanceInterval` 15 m → 0, so a
+  phone standing still still sends the once-a-minute refresh
+  → Artifacts: [LocationContactCard.tsx](apps/mobile/src/components/LocationContactCard.tsx), [live-location.ts](apps/mobile/src/live-location.ts), [live-location-model.ts](apps/mobile/src/live-location-model.ts)
+- [X] Full-screen modals (location picker/viewer, contact list) under the call or live-location
+  bar drew their header under the status bar: those bars zero the top inset for the screens
+  below them. The modals now measure their own window with the native `SafeAreaView`
+- [X] "My location" did nothing after "No thanks" to Google's Location Accuracy prompt; the
+  picker now falls back to the last known position
+- [X] `artifacts/LastCall-1.0.28-store.aab` (ignored binary), sha256
+  `bd04a71c41340a0ffffed145cbc128e942745b96d887c10f36f18c75a1b7de34`; `npm run check` — PASS
+  (266 core, 133 server, 248 mobile). Not uploaded to Google Play yet
+- [X] "Stop sharing" in the viewer is shown only on the message the running share edits, not on
+  an older live card left behind when a share was cut off by a reinstall or kill
+- [X] Emulator check of the 1.0.28 store AAB (one emulator; the second one failed to boot for
+  lack of memory): contacts permission → list → search by number → send; map preview in
+  bubbles; live share pin moves in the bubble and in the full-screen viewer as the emulator
+  GPS moves
+- [ ] Not checked: a second device receiving live edits, physical phones, live sharing with the
+  app in the background
+
 # Release 1.0.27 / code41 — Google Play internal testing (2026-11-16)
 
 - [X] `artifacts/LastCall-1.0.27-store.aab` (ignored binary), sha256

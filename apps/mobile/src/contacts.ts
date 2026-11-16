@@ -1,17 +1,22 @@
-import * as Contacts from 'expo-contacts';
+import { Contact, ContactField, ContactsSortOrder, requestPermissionsAsync } from 'expo-contacts';
 import { t } from './i18n';
-import { formatContactText } from './location-contact';
+import { reportDenied } from './permission-notice';
+import { AccessDenied } from './permission-notice-model';
+import { uniquePhones, type PhoneContact } from './contacts-model';
 
 /**
- * The system contact picker (ACTION_PICK on Android, CNContactPickerViewController on iOS) runs
- * out of process and hands back only the one contact the person chose — no READ_CONTACTS /
- * contacts runtime permission is requested or needed, and LastCall never reads the address book.
+ * Asks for contacts access only when the person opens "Share contact", then reads names and
+ * phone numbers for the in-app list. Nothing is uploaded or kept: the list lives in the picker
+ * while it is open, and only the one contact the person taps is sent, as a text message.
  */
-export async function pickContactText(): Promise<string | undefined> {
-  const result = await Contacts.presentContactPickerAsync();
-  if (!result) return;
-  const name = [result.firstName, result.lastName].filter(Boolean).join(' ').trim() || result.name?.trim() || t('Unnamed contact');
-  const phones = (result.phoneNumbers ?? []).map(entry => entry.number).filter((value): value is string => !!value?.trim());
-  if (!phones.length) throw new Error(t('This contact has no phone number.'));
-  return formatContactText(name, phones);
+export async function loadPhoneContacts(): Promise<PhoneContact[]> {
+  const permission = await requestPermissionsAsync();
+  if (!permission.granted) { reportDenied('contacts'); throw new AccessDenied(t('Allow access to contacts in the phone settings.')); }
+  const rows = await Contact.getAllDetails([ContactField.FULL_NAME, ContactField.PHONES], { sortOrder: ContactsSortOrder.UserDefault });
+  const list: PhoneContact[] = [];
+  for (const row of rows) {
+    const phones = uniquePhones((row.phones ?? []).map(phone => phone.number));
+    if (phones.length) list.push({ id: row.id, name: row.fullName?.trim() || t('Unnamed contact'), phones });
+  }
+  return list;
 }

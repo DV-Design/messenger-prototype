@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, Text, View } from 'react-native';
 import MapView, { Marker, type LatLng, type MapPressEvent, type MarkerDragStartEndEvent } from 'react-native-maps';
 import * as Location from 'expo-location';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { t } from '../i18n';
 import { colors, styles } from '../styles';
 import { Button, Icon, IconButton } from './ui';
@@ -12,6 +12,16 @@ import { LIVE_DURATIONS_MIN, type LiveDurationMin } from '../live-location-model
 // Shown before the current position is known; centers on Moscow, same fallback as the rest of the app's Russian-network focus.
 const DEFAULT_REGION = { latitude: 55.751244, longitude: 37.618423, latitudeDelta: 0.08, longitudeDelta: 0.08 };
 const CLOSE_REGION = { latitudeDelta: 0.01, longitudeDelta: 0.01 };
+
+/**
+ * A fresh fix, or the last known one when that fails — e.g. the person said "No thanks" to
+ * Google's Location Accuracy prompt, which makes getCurrentPositionAsync reject outright.
+ */
+async function currentPoint(): Promise<LatLng | undefined> {
+  const fix = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
+    .catch(() => Location.getLastKnownPositionAsync().catch(() => null));
+  return fix ? { latitude: fix.coords.latitude, longitude: fix.coords.longitude } : undefined;
+}
 
 function durationLabel(minutes: LiveDurationMin): string {
   return minutes < 60 ? t('{count} min', { count: minutes }) : t('{count} h', { count: minutes / 60 });
@@ -25,7 +35,6 @@ export function LocationPicker({ visible, busy, onClose, onSendPoint, onStartLiv
   onSendPoint: (lat: number, lng: number) => void;
   onStartLive: (lat: number, lng: number, minutes: LiveDurationMin) => void;
 }) {
-  const insets = useSafeAreaInsets();
   const map = useRef<MapView>(null);
   const [point, setPoint] = useState<LatLng>();
   const [locating, setLocating] = useState(false);
@@ -36,8 +45,8 @@ export function LocationPicker({ visible, busy, onClose, onSendPoint, onStartLiv
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
       if (!permission.granted) { reportDenied('location'); return; }
-      const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const next = { latitude: current.coords.latitude, longitude: current.coords.longitude };
+      const next = await currentPoint();
+      if (!next) return;
       setPoint(next);
       map.current?.animateToRegion({ ...next, ...CLOSE_REGION }, 400);
     } catch { /* The map still works for picking a point by hand. */ }
@@ -52,9 +61,8 @@ export function LocationPicker({ visible, busy, onClose, onSendPoint, onStartLiv
       const permission = await Location.requestForegroundPermissionsAsync();
       if (!active) return;
       if (!permission.granted) { reportDenied('location'); return; }
-      const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }).catch(() => undefined);
-      if (!active || !current) return;
-      const next = { latitude: current.coords.latitude, longitude: current.coords.longitude };
+      const next = await currentPoint();
+      if (!active || !next) return;
       setPoint(next);
       map.current?.animateToRegion({ ...next, ...CLOSE_REGION }, 400);
     })();
@@ -64,7 +72,7 @@ export function LocationPicker({ visible, busy, onClose, onSendPoint, onStartLiv
   const move = (coordinate: LatLng) => setPoint(coordinate);
   function close() { setLiveOpen(false); setPoint(undefined); onClose(); }
   return <Modal visible={visible} animationType="slide" onRequestClose={close}>
-    <View style={{ flex: 1, paddingTop: insets.top, backgroundColor: colors.white }}>
+    <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: colors.white }}>
       <View style={[styles.chatHeader, { borderBottomWidth: 0 }]}>
         <IconButton name="close" label={t('Close')} onPress={close} />
         <Text style={[styles.chatName, { flex: 1 }]}>{t('Location')}</Text>
@@ -74,7 +82,7 @@ export function LocationPicker({ visible, busy, onClose, onSendPoint, onStartLiv
         onPress={(event: MapPressEvent) => move(event.nativeEvent.coordinate)}>
         {point && <Marker coordinate={point} draggable onDragEnd={(event: MarkerDragStartEndEvent) => move(event.nativeEvent.coordinate)} />}
       </MapView>
-      <View style={{ padding: 14, paddingBottom: 14 + insets.bottom, gap: 10 }}>
+      <View style={{ padding: 14, gap: 10 }}>
         {!liveOpen ? <>
           <Button title={t('Send this location')} disabled={busy || !point} onPress={() => { if (point) { onSendPoint(point.latitude, point.longitude); setLiveOpen(false); setPoint(undefined); } }} />
           <Pressable accessibilityRole="button" disabled={busy || !point} onPress={() => setLiveOpen(true)}
@@ -94,6 +102,6 @@ export function LocationPicker({ visible, busy, onClose, onSendPoint, onStartLiv
           </Pressable>
         </>}
       </View>
-    </View>
+    </SafeAreaView>
   </Modal>;
 }

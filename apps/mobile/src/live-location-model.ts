@@ -26,4 +26,7 @@ export function shouldUpdateLiveLocation(last: { lastSentAt: number; lastLat: nu
 
 export function liveLocationExpired(until: number, now: number): boolean { return now >= until; }
 
+/** Whole minutes since the last point arrived, for "updated N min ago"; never negative under clock skew. */
+export function minutesSinceUpdate(updatedAt: number, now: number): number { return Math.max(0, Math.floor((now - updatedAt) / 60000)); }
+
 export function untilFromDuration(minutes: LiveDurationMin, now: number): number { return now + minutes * 60000; }

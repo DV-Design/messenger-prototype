@@ -22,7 +22,8 @@ export function liveShareSnapshot(): LiveShareBar {
   if (share !== cachedSource) { cachedSource = share; cachedBar = share ? { active: true, conversationId: share.conversationId, until: share.until } : { active: false }; }
   return cachedBar;
 }
-export const isSharingLiveLocation = (conversationId: string) => share?.conversationId === conversationId;
+/** True only for the message the running share keeps editing, not an older live card left by a killed share. */
+export const isLiveLocationMessage = (messageId: string) => share?.messageId === messageId;
 
 // The task must be defined unconditionally at module load — Android looks it up by name when
 // the foreground service wakes the process, not only while a share is actually running.
@@ -64,7 +65,9 @@ export async function startLiveLocation(conversationId: string, ownId: string, l
   publish();
   try {
     await Location.startLocationUpdatesAsync(TASK_NAME, {
-      accuracy: Location.Accuracy.Balanced, timeInterval: 20000, distanceInterval: 15,
+      // distanceInterval 0: a phone standing still must keep reporting, or the once-a-minute
+      // refresh in shouldUpdateLiveLocation never runs and the other side sees a stale point.
+      accuracy: Location.Accuracy.High, timeInterval: 10000, distanceInterval: 0,
       foregroundService: { notificationTitle: 'LastCall', notificationBody: t('Sharing your location until {time}', { time: time(until) }) },
     });
   } catch (cause) { share = undefined; publish(); throw cause; }

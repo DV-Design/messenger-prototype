@@ -14,7 +14,7 @@ const config: ExpoConfig = {
   name: 'LastCall',
   slug: 'messenger-prototype',
   icon: './assets/lastcall-icon.png',
-  version: '1.0.27',
+  version: '1.0.28',
   scheme: 'messenger-preview',
   orientation: 'default',
   userInterfaceStyle: 'light',
@@ -31,17 +31,19 @@ const config: ExpoConfig = {
         : { NSAllowsLocalNetworking: false },
       NSLocalNetworkUsageDescription: 'Connect to your test server on the local network.',
       CFBundleAllowMixedLocalizations: true,
+      NSContactsUsageDescription: 'Choose a contact to send in a chat. Contacts stay on this phone.',
     },
   },
   android: {
     package: androidPackage,
-    versionCode: 41,
+    versionCode: 42,
     allowBackup: false,
     adaptiveIcon: { foregroundImage: './assets/lastcall-icon.png', backgroundColor: '#FFFFFF' },
     ...(googleServicesFile ? { googleServicesFile } : {}),
-    permissions: ['INTERNET', 'ACCESS_NETWORK_STATE', 'RECORD_AUDIO', 'CAMERA', 'MODIFY_AUDIO_SETTINGS', 'USE_FULL_SCREEN_INTENT', 'ACCESS_FINE_LOCATION', 'ACCESS_COARSE_LOCATION', ...(distribution === 'direct' ? ['REQUEST_INSTALL_PACKAGES'] : [])],
+    permissions: ['INTERNET', 'ACCESS_NETWORK_STATE', 'RECORD_AUDIO', 'CAMERA', 'MODIFY_AUDIO_SETTINGS', 'USE_FULL_SCREEN_INTENT', 'ACCESS_FINE_LOCATION', 'ACCESS_COARSE_LOCATION', 'READ_CONTACTS', ...(distribution === 'direct' ? ['REQUEST_INSTALL_PACKAGES'] : [])],
     // Self-managed calls need no phone-number/phone-state access or Phone-app account setup.
-    blockedPermissions: ['android.permission.READ_CONTACTS', 'android.permission.WRITE_CONTACTS', 'android.permission.READ_CALL_LOG', 'android.permission.WRITE_CALL_LOG', 'android.permission.READ_PHONE_NUMBERS', 'android.permission.CALL_PHONE', 'android.permission.READ_PHONE_STATE', 'android.permission.SYSTEM_ALERT_WINDOW'],
+    // READ_CONTACTS is asked only when the person shares a contact; LastCall never writes to the book.
+    blockedPermissions: ['android.permission.WRITE_CONTACTS', 'android.permission.READ_CALL_LOG', 'android.permission.WRITE_CALL_LOG', 'android.permission.READ_PHONE_NUMBERS', 'android.permission.CALL_PHONE', 'android.permission.READ_PHONE_STATE', 'android.permission.SYSTEM_ALERT_WINDOW'],
     // Only development builds permit local HTTP; release servers must use HTTPS.
   },
   extra: { nativeFcmConfigured: !!googleServicesFile, distribution, directUpdates: distribution === 'direct' },

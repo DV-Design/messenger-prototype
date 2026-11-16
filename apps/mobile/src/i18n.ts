@@ -622,6 +622,17 @@ const ru: Record<string, string> = {
   'Replying to {name}': 'Ответ для {name}',
   'Original message not found': 'Исходное сообщение не найдено',
   'You': 'Вы',
+  'updated just now': 'обновлено только что',
+  'updated {count} min ago': 'обновлено {count} мин назад',
+  'updated at {time}': 'обновлено в {time}',
+  'Opens the map': 'Открывает карту',
+  'Follow the location': 'Следить за точкой',
+  'contacts': 'контактам',
+  'Choose a contact': 'Выбор контакта',
+  'Search contacts': 'Поиск по контактам',
+  'No contacts with a phone number': 'Нет контактов с номером телефона',
+  'Allow access to contacts in the phone settings.': 'Разрешите доступ к контактам в настройках телефона.',
+  'Loading contacts…': 'Загружаем контакты…',
 };
 
 export function t(template: string, values?: Record<string, string | number>): string {

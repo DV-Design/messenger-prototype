@@ -5,13 +5,13 @@ import { formatContactText, formatLocationText, mapsUrl, parseContactText, parse
 test('a one-time location round-trips and renders as a plain Google Maps link for older clients', () => {
   const text = formatLocationText('Location', 55.751244, 37.618423, false);
   assert.equal(text, '📍 Location\nhttps://maps.google.com/?q=55.751244,37.618423');
-  assert.deepEqual(parseLocationText(text), { lat: 55.751244, lng: 37.618423, live: false });
+  assert.deepEqual(parseLocationText(text), { lat: 55.751244, lng: 37.618423, live: false, label: 'Location' });
 });
 
 test('a live location is marked distinctly and still carries the same link', () => {
   const text = formatLocationText('Live location · until 18:45', 10, -20.5, true);
   assert.ok(text.startsWith('🔴 '));
-  assert.deepEqual(parseLocationText(text), { lat: 10, lng: -20.5, live: true });
+  assert.deepEqual(parseLocationText(text), { lat: 10, lng: -20.5, live: true, label: 'Live location · until 18:45' });
   assert.equal(mapsUrl(10, -20.5), 'https://maps.google.com/?q=10,-20.5');
 });
 
@@ -19,9 +19,9 @@ test('a map tap with full double precision is rounded on send, and a full-precis
   // A real map tap: 14-15 decimals. This once arrived as plain text instead of a card.
   const text = formatLocationText('Location', 55.75687925044944, 37.615831308066845, false);
   assert.equal(text, '📍 Location\nhttps://maps.google.com/?q=55.756879,37.615831');
-  assert.deepEqual(parseLocationText(text), { lat: 55.756879, lng: 37.615831, live: false });
+  assert.deepEqual(parseLocationText(text), { lat: 55.756879, lng: 37.615831, live: false, label: 'Location' });
   assert.deepEqual(parseLocationText('📍 Location\nhttps://maps.google.com/?q=55.75687925044944,37.615831308066845'),
-    { lat: 55.75687925044944, lng: 37.615831308066845, live: false });
+    { lat: 55.75687925044944, lng: 37.615831308066845, live: false, label: 'Location' });
   assert.equal(mapsUrl(0.0000001, -0.0000004), 'https://maps.google.com/?q=0,0'); // never exponent notation
 });
 

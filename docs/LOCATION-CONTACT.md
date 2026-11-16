@@ -54,18 +54,33 @@ position; "Send this location" sends a one-time point.
   share stop with it — there is no headless re-launch after a full kill. This has not been
   verified on a physical phone across OEM skins.
 
+## Viewing a location
+
+The bubble (`LocationCard` in `components/LocationContactCard.tsx`) shows a `react-native-maps`
+**lite-mode** map with the pin — rendered by the same Maps SDK and Android key as the picker,
+not the Static Maps web API, so no second key is exposed. A live share also shows "updated N min
+ago" from the message's `editedAt`. Tapping opens `LocationViewer`: a full-screen map that is
+re-rendered from the current message on every snapshot change, so the pin moves as the sender's
+edits arrive; the camera follows the pin until the person pans, and the target button resumes
+following. The sender sees Stop sharing there too.
+
+Sender side, `startLocationUpdatesAsync` uses `distanceInterval: 0` and a 10 s interval: with a
+distance filter a phone standing still reports nothing, and the once-a-minute refresh above
+never runs.
+
 ## Contact sharing
 
-`contacts.ts` calls `expo-contacts`'s `presentContactPickerAsync()` — the system contact
-picker runs out of process (`ACTION_PICK` on Android, `CNContactPickerViewController` on
-iOS) and hands back only the one contact chosen. **No `READ_CONTACTS` permission is
-requested, and LastCall's own `blockedPermissions` entry for the phone's address book in
-`app.config.ts` is untouched** — the app still never reads the contact list itself; sharing
-a specific contact the person explicitly picked is a different thing from that boundary.
+Since 1.0.28 contacts work like Telegram. On the first "Share contact" the app asks for
+`READ_CONTACTS` (Android) / Contacts (iOS, `NSContactsUsageDescription`), then shows its own
+searchable list of contacts that have a phone number (`contacts.ts` →
+`Contact.getAllDetails([FULL_NAME, PHONES])`, `components/ContactPicker.tsx`). The list lives
+only while the picker is open; nothing is uploaded or stored. The tapped contact is sent with
+all its numbers (de-duplicated, up to 5). `WRITE_CONTACTS` stays in `blockedPermissions`.
+
+1.0.27 used the system picker without the permission, but expo-contacts 58 turned the
+top-level `presentContactPickerAsync` into a function that always throws, and both of its
+Android APIs need `READ_CONTACTS` to read the picked contact anyway.
 
 ## Not implemented
 
-Place search (Places API) for the map picker; a static-map thumbnail in the chat bubble
-(it would need a second, separately-restricted Google key exposed to the client — the card
-shows an icon and an "Open in Google Maps" link instead); sharing more than one live
-location at once.
+Place search (Places API) for the map picker; sharing more than one live location at once.

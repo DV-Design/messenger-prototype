@@ -9,10 +9,11 @@ const LIVE_MARK = '🔴';
 const CONTACT_MARK = '👤';
 // Accepts full double precision so a point sent before rounding (1.0.27 pre-release) still parses.
 const COORD = '-?\\d{1,3}(?:\\.\\d{1,17})?';
-const LOCATION_RE = new RegExp(`^(${LOCATION_MARK}|${LIVE_MARK})[^\\n]*\\n.*https://maps\\.google\\.com/\\?q=(${COORD}),(${COORD})`, 's');
+const LOCATION_RE = new RegExp(`^(${LOCATION_MARK}|${LIVE_MARK}) ?([^\\n]*)\\n.*https://maps\\.google\\.com/\\?q=(${COORD}),(${COORD})`, 's');
 const PHONE_RE = /^[+\d][\d\s()-]{2,19}$/;
 
-export interface ParsedLocation { lat: number; lng: number; live: boolean }
+/** `label` is the sender's own first line (already in their language), e.g. "Live location · until 18:45". */
+export interface ParsedLocation { lat: number; lng: number; live: boolean; label: string }
 export interface ParsedContact { name: string; phones: string[] }
 
 /** 6 decimals is about 0.1 m: as precise as a phone fix gets, and never in exponent notation. */
@@ -27,9 +28,9 @@ export function formatLocationText(label: string, lat: number, lng: number, live
 export function parseLocationText(text: string): ParsedLocation | undefined {
   const match = LOCATION_RE.exec(text);
   if (!match) return;
-  const lat = Number(match[2]), lng = Number(match[3]);
+  const lat = Number(match[3]), lng = Number(match[4]);
   if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return;
-  return { lat, lng, live: match[1] === LIVE_MARK };
+  return { lat, lng, live: match[1] === LIVE_MARK, label: (match[2] ?? '').trim() };
 }
 
 export function formatContactText(name: string, phones: string[]): string {

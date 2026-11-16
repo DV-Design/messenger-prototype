@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { distanceMeters, liveLocationExpired, shouldUpdateLiveLocation, untilFromDuration } from '../src/live-location-model';
+import { distanceMeters, liveLocationExpired, minutesSinceUpdate, shouldUpdateLiveLocation, untilFromDuration } from '../src/live-location-model';
 
 test('distance between two close points is a small, plausible number of meters', () => {
   // Red Square to the Kremlin: a few hundred meters, not kilometers and not zero.
@@ -37,4 +37,11 @@ test('expiry and duration arithmetic', () => {
   assert.equal(liveLocationExpired(1000, 1001), true);
   assert.equal(untilFromDuration(15, 0), 15 * 60000);
   assert.equal(untilFromDuration(480, 1000), 1000 + 480 * 60000);
+});
+
+test('"updated N min ago" counts whole minutes and never goes negative when the sender clock runs ahead', () => {
+  assert.equal(minutesSinceUpdate(1000, 1000 + 59999), 0);
+  assert.equal(minutesSinceUpdate(1000, 1000 + 60000), 1);
+  assert.equal(minutesSinceUpdate(1000, 1000 + 7 * 60000 + 5000), 7);
+  assert.equal(minutesSinceUpdate(10_000, 1000), 0);
 });
