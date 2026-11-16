@@ -1,4 +1,6 @@
-# Chat, groups and ticks after the 1.0.29 test (2026-11-16, in progress)
+# 1.0.30 / code44 — chat, groups, ticks and large files after the 1.0.29 test (2026-11-16)
+
+- [X] `artifacts/LastCall-1.0.30-store.aab` (ignored binary), sha256 `e41f8ce60886b1fa8d757c731ceef3a69355750a9e7d112421fea768bb267edf`; starts and opens a chat on the emulator; `npm run check` and the full Playwright suite pass. Not uploaded yet
 
 - [X] Delivery ticks like WhatsApp/Telegram: clock while still on this phone; one grey tick once a
   push request for every recipient was handed to the server (`notifiedTo`, set after
