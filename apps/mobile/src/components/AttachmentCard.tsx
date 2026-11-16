@@ -36,11 +36,12 @@ export function AttachmentCard({ file, self, group = false, sender, onOpen, onLo
     }).catch(() => {});
     return () => { canceled = true; };
   }, [ready, id, senderId, conversationId, data, mime, blobKey, deliveryStatus, previewKey]);
-  const available = !!(file.data || file.blobKey) && file.deliveryStatus !== 'expired';
+  // A large file is a plain file in app storage: the sender always has it, the recipient once it is complete.
+  const available = file.large ? (self || file.status === 'complete') && file.deliveryStatus !== 'expired' : !!(file.data || file.blobKey) && file.deliveryStatus !== 'expired';
   const label = self ? deliveryLabel(file, group) : file.status === 'receiving' ? t('Receiving…') : file.status === 'error' ? t('Could not receive') : t('Received');
   const note = mediaKind(file.name, file.mime);
   const receipt = self ? <View accessibilityLabel={label}><Icon name={deliveryIcon(file)} size={15} color={deliveryColor(file)} /></View> : null;
-  if (note && available) return <Pressable accessibilityHint={t('Hold to delete')} onLongPress={onLongPress} style={[styles.bubble, self && styles.bubbleSelf]}>
+  if (note && available && !file.large) return <Pressable accessibilityHint={t('Hold to delete')} onLongPress={onLongPress} style={[styles.bubble, self && styles.bubbleSelf]}>
     {!!sender && !self && <Text style={styles.senderName}>{sender}</Text>}
     {receipt}
     <MediaAttachment file={file} kind={note} disabled={mediaDisabled} />
@@ -51,8 +52,15 @@ export function AttachmentCard({ file, self, group = false, sender, onOpen, onLo
     {receipt}
     {available && preview?.key === previewKey && <Image source={{ uri: preview.uri }} style={styles.previewImage} resizeMode="cover" />}
     <View style={styles.row}><Icon name={file.mime.startsWith('video/') ? 'videocam-outline' : file.mime.startsWith('image/') ? 'image-outline' : 'document-text-outline'} size={25} /><View><Text numberOfLines={2} style={styles.fileName}>{file.name}</Text><Text style={styles.fileMeta}>{fileSize(file.size)} · {label}</Text>
-      {file.status === 'receiving' && <Text style={styles.fileMeta}>{Math.min(100, Math.round(file.receivedBytes / Math.max(1, file.size) * 100))}%</Text>}
+      {file.status === 'receiving' && <Text style={styles.fileMeta}>{transferText(file.receivedBytes, file.size)}</Text>}
+      {self && file.large && file.deliveryStatus !== 'delivered' && file.deliveryStatus !== 'expired' && file.receivedBytes > 0 && <Text style={styles.fileMeta}>{t('Sending')} · {transferText(file.receivedBytes, file.size)}</Text>}
       {available && <Text style={[styles.fileMeta, { color: colors.accent }]}> {t('Tap to open or save')}</Text>}
     </View></View>
   </Pressable>;
+}
+
+/** "37% · 380 MB of 1 GB" — large files take minutes, so the bytes matter as much as the percent. */
+function transferText(done: number, size: number): string {
+  const percent = Math.min(100, Math.floor(done / Math.max(1, size) * 100));
+  return size > 5 * 1024 * 1024 ? `${percent}% · ${fileSize(done)} / ${fileSize(size)}` : `${percent}%`;
 }

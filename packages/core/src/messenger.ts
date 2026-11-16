@@ -6,24 +6,28 @@ import { z } from 'zod';
 import { bytesToHex, randomChecked, secureRandomBytes, type RandomBytes } from './crypto.js';
 import {MAX_DELIVERY_PEERS, directoryClientFrameSchema, directoryServerFrameSchema, directoryUserSchema, directConversationId, conversationInvite, endpointUrl, signAuthentication, usernameSchema, displayNameSchema, validateDeviceIdentity, pushPreviewSchema,pushPreviewEnvelopeSchema, type DeviceIdentity, type DirectoryUser, type DirectoryClientFrame, type DirectoryServerFrame, type PhoneMatch, type DirectoryPage, type WakeKind,type WakeIntent } from './directory.js';
 import {encryptPushPreview,decryptPushPreview,type OpenedPushPreview} from './push-preview.js';
-import { conversationIdSchema, MAX_FILE_BYTES, MAX_TEXT_CHARS, peerIdSchema, roomIdSchema } from './protocol.js';
+import { conversationIdSchema, MAX_BULK_BYTES, MAX_FILE_BYTES, MAX_TEXT_CHARS, peerIdSchema, roomIdSchema } from './protocol.js';
+import type { BulkOffer, BulkSink } from './bulk.js';
 import { openAttachment, sealAttachment, openLocalState, sealLocalState } from './persistence.js';
 import { PeerSession, type PeerSessionOptions, type SessionSnapshot, type SharedFile, type ChatMessage } from './session.js';
-import {OUTBOX_TTL_MS,groupDefinitionSchema,signGroupDefinition,verifyGroupDefinition,rosterVersion,signGroupOrigin,parseGroupOrigin,contentHash,receiptSchema,signGroupReceipt,verifyGroupReceipt,attachmentKey,type GroupDefinition,type GroupOrigin,type GroupReceipt} from './group-sync.js';
+import {OUTBOX_TTL_MS,groupDefinitionSchema,signGroupDefinition,verifyGroupDefinition,rosterVersion,signGroupOrigin,parseGroupOrigin,contentHash,receiptSchema,signGroupReceipt,verifyGroupReceipt,attachmentKey,bulkHash,type GroupDefinition,type GroupOrigin,type GroupReceipt} from './group-sync.js';
 import {encodeDirectFileTiming,parseDirectFileTiming} from './direct-file.js';
 import {readReceiptSchema,signReadReceipt,verifyReadReceipt,type ReadReceipt} from './read-receipt.js';
 import {messageChangeSchema,signMessageChange,verifyMessageChange,type MessageChange} from './message-change.js';
 import {messageReactionSchema,signMessageReaction,verifyMessageReaction,type MessageReaction,type ReactionEmoji} from './message-reaction.js';
 export {OUTBOX_TTL_MS} from './group-sync.js';
 export interface MessengerMessage {id:string;text:string;from:string;timestamp:number;status:'pending'|'sent'|'delivered'|'received'|'expired';conversationId:string;expiresAt?:number;metadata?:string;recipientIds?:string[];deliveredTo?:string[];readBy?:string[];notifiedTo?:string[];editedAt?:number;originalText?:string;reactions?:ReactionView[];}
-export interface MessengerFile extends SharedFile {timestamp:number;senderId:string;conversationId:string;deliveryStatus?:'pending'|'sent'|'delivered'|'received'|'expired';expiresAt?:number;blobKey?:string;recipientIds?:string[];deliveredTo?:string[];readBy?:string[];notifiedTo?:string[];reactions?:ReactionView[];}
+export interface MessengerFile extends SharedFile {timestamp:number;senderId:string;conversationId:string;deliveryStatus?:'pending'|'sent'|'delivered'|'received'|'expired';expiresAt?:number;blobKey?:string;recipientIds?:string[];deliveredTo?:string[];readBy?:string[];notifiedTo?:string[];reactions?:ReactionView[];large?:true;}
 /** One member's current reaction, oldest first. */
 export interface ReactionView {userId:string;emoji:ReactionEmoji;}
 export interface Conversation {id:string;kind:'direct'|'group';title:string;memberIds:string[];creatorId?:string;formerIds?:string[];removed?:boolean;messages:MessengerMessage[];files:MessengerFile[];unread:number;updatedAt:number;session?:SessionSnapshot;hidden?:boolean;implicit?:boolean;}
 export interface PendingIncomingCall extends OpenedCallPush {state:'ringing'|'accepted';revision:number;}
 interface OutgoingInvitation extends CallInvitation {peerId:string;conversationId:string;video:boolean;serverEpoch?:string;offered:boolean;offering:boolean;ringing:boolean;sessionStarted:boolean;revision:number;operation:PendingOperation;timer?:ReturnType<typeof setTimeout>;expiry?:ReturnType<typeof setTimeout>;}
 export interface MessengerSnapshot {status:'idle'|'connecting'|'online'|'offline'|'error';self?:DirectoryUser;contacts:DirectoryUser[];conversations:Conversation[];activeCall?:{conversationId:string;peerId:string;session:SessionSnapshot};pendingIncomingCall?:PendingIncomingCall;verifiedContacts:string[];blockedContacts:string[];movedContacts?:Record<string,DirectoryUser>;error?:string;}
-export interface MessengerOptions {callCaptions?:boolean;reconcileDeliveryOnConnect?:boolean;serverUrl:string;identity:DeviceIdentity;username:string;displayName:string;emailProof?:string;randomBytes?:RandomBytes;rtcFactory?:PeerSessionOptions['rtcFactory'];getUserMedia?:PeerSessionOptions['getUserMedia'];createMediaStream?:PeerSessionOptions['createMediaStream'];onChange?:(snapshot:MessengerSnapshot)=>void;loadState?:()=>Promise<string|null>;saveState?:(sealed:string)=>Promise<void>;saveAttachment?:(key:string,sealed:string)=>Promise<void>;loadAttachment?:(key:string)=>Promise<string|null>;deleteAttachment?:(key:string)=>Promise<void>;}
+export interface MessengerOptions {callCaptions?:boolean;reconcileDeliveryOnConnect?:boolean;serverUrl:string;identity:DeviceIdentity;username:string;displayName:string;emailProof?:string;randomBytes?:RandomBytes;rtcFactory?:PeerSessionOptions['rtcFactory'];getUserMedia?:PeerSessionOptions['getUserMedia'];createMediaStream?:PeerSessionOptions['createMediaStream'];onChange?:(snapshot:MessengerSnapshot)=>void;loadState?:()=>Promise<string|null>;saveState?:(sealed:string)=>Promise<void>;saveAttachment?:(key:string,sealed:string)=>Promise<void>;loadAttachment?:(key:string)=>Promise<string|null>;deleteAttachment?:(key:string)=>Promise<void>;
+  /** Large files (up to 1 GiB) live as plain files in app storage under the attachment key; the core only streams them. Without it this client neither sends nor accepts them. */
+  bulkFiles?:BulkFileStore;}
+export interface BulkFileStore {read(key:string,name:string,offset:number,length:number):Promise<Uint8Array>;openIncoming(key:string,name:string,size:number):Promise<BulkSink>;}
 export const MAX_CONTACTS=100;
 export const MAX_GROUPS=32;
 export const MAX_HISTORY_MESSAGES=500;
@@ -48,7 +52,7 @@ const MAX_APPLICATION_BODY=16000;
 const utf8=new TextEncoder();
 const withReactions=(reactions?:ReactionView[])=>reactions?{reactions}:{};
 const messageSchema=z.object({id:peerIdSchema,text:z.string().min(1).max(MAX_TEXT_CHARS),from:roomIdSchema,timestamp:z.number().finite().nonnegative(),status:z.enum(['pending','sent','delivered','received','expired']),conversationId:conversationIdSchema,expiresAt:z.number().finite().nonnegative().optional(),metadata:z.string().max(12000).optional(),recipientIds:z.array(roomIdSchema).max(7).optional(),deliveredTo:z.array(roomIdSchema).max(7).optional(),readBy:z.array(roomIdSchema).max(7).optional(),notifiedTo:z.array(roomIdSchema).max(7).optional(),editedAt:z.number().finite().nonnegative().optional(),originalText:z.string().min(1).max(MAX_TEXT_CHARS).optional()}).strict();
-const fileSchema=z.object({id:peerIdSchema,name:z.string().min(1).max(255),mime:z.string().max(255),size:z.number().int().min(0).max(MAX_FILE_BYTES),timestamp:z.number().finite().nonnegative(),from:z.enum(['self','peer']),status:z.enum(['sending','receiving','complete','error']),receivedBytes:z.number().nonnegative(),senderId:roomIdSchema,conversationId:conversationIdSchema,metadata:z.string().max(12000).optional(),expiresAt:z.number().finite().nonnegative().optional(),deliveryStatus:z.enum(['pending','sent','delivered','received','expired']).optional(),blobKey:roomIdSchema.optional(),recipientIds:z.array(roomIdSchema).max(7).optional(),deliveredTo:z.array(roomIdSchema).max(7).optional(),readBy:z.array(roomIdSchema).max(7).optional(),notifiedTo:z.array(roomIdSchema).max(7).optional()}).strict();
+const fileSchema=z.object({id:peerIdSchema,name:z.string().min(1).max(255),mime:z.string().max(255),size:z.number().int().min(0).max(MAX_BULK_BYTES),large:z.literal(true).optional(),timestamp:z.number().finite().nonnegative(),from:z.enum(['self','peer']),status:z.enum(['sending','receiving','complete','error']),receivedBytes:z.number().nonnegative(),senderId:roomIdSchema,conversationId:conversationIdSchema,metadata:z.string().max(12000).optional(),expiresAt:z.number().finite().nonnegative().optional(),deliveryStatus:z.enum(['pending','sent','delivered','received','expired']).optional(),blobKey:roomIdSchema.optional(),recipientIds:z.array(roomIdSchema).max(7).optional(),deliveredTo:z.array(roomIdSchema).max(7).optional(),readBy:z.array(roomIdSchema).max(7).optional(),notifiedTo:z.array(roomIdSchema).max(7).optional()}).strict().refine(f=>f.large||f.size<=MAX_FILE_BYTES,'File exceeds 5 MiB limit');
 const tombstoneSchema=z.object({id:peerIdSchema,author:roomIdSchema,type:z.enum(['message','file']),expiresAt:z.number().finite().nonnegative()}).strict();
 type Tombstone=z.infer<typeof tombstoneSchema>;
 interface InternalConversation extends Conversation {creatorId?:string;definition?:GroupDefinition;notifyRemoved?:string[];joinedAt?:Record<string,number>;receipts?:GroupReceipt[];readReceipts?:ReadReceipt[];changes?:MessageChange[];tombstones?:Tombstone[];reactions?:MessageReaction[];}
@@ -327,7 +331,7 @@ export class MessengerClient {
     let pair=this.pairs.get(peerId);
     if(!pair){
       if(this.pairs.size>=MAX_SESSIONS){const idle=[...this.pairs.entries()].filter(([id,p])=>!p.flushing&&!p.connecting&&p.session.getSnapshot().callState==='idle'&&!p.session.getSnapshot().files.some(f=>f.status==='sending'||f.status==='receiving')&&!this.pending.some(m=>m.remaining.includes(id))).sort((a,b)=>a[1].lastUsed-b[1].lastUsed)[0];if(!idle)throw new Error('Active peer capacity exceeded (16)');this.pairs.delete(idle[0]);clearTimeout(idle[1].retry);clearTimeout(idle[1].pump);idle[1].session.disconnect();}
-      const session=new PeerSession({serverUrl:this.options.serverUrl,expectPeer:true,getIceServers:()=>this.getIceServers(),invite:conversationInvite(this.options.identity,user.publicKey),callCaptions:this.options.callCaptions,contentIdentity:this.options.identity,remoteIdentityPublicKey:user.publicKey,randomBytes:this.random,rtcFactory:this.options.rtcFactory,getUserMedia:this.options.getUserMedia,createMediaStream:this.options.createMediaStream,onChange:snapshot=>this.pairChanged(peerId,snapshot),onMessage:message=>this.receiveMessage(peerId,message),onApplication:payload=>this.receiveApplication(peerId,payload),onFile:file=>this.receiveFile(peerId,file),allowConversation:id=>this.validConversation(peerId,id)});
+      const session=new PeerSession({serverUrl:this.options.serverUrl,expectPeer:true,getIceServers:()=>this.getIceServers(),invite:conversationInvite(this.options.identity,user.publicKey),callCaptions:this.options.callCaptions,contentIdentity:this.options.identity,remoteIdentityPublicKey:user.publicKey,randomBytes:this.random,rtcFactory:this.options.rtcFactory,getUserMedia:this.options.getUserMedia,createMediaStream:this.options.createMediaStream,onChange:snapshot=>this.pairChanged(peerId,snapshot),onMessage:message=>this.receiveMessage(peerId,message),onApplication:payload=>this.receiveApplication(peerId,payload),onFile:file=>this.receiveFile(peerId,file),allowConversation:id=>this.validConversation(peerId,id),...(this.options.bulkFiles?{onBulkOffer:offer=>this.receiveBulkOffer(peerId,offer),onBulkProgress:(id,bytes,direction)=>this.bulkProgress(peerId,id,bytes,direction)}:{})});
       pair={session,attempt:0,flushing:false,notified:false,lastUsed:Date.now(),lastSent:new Map(),definitions:new Set()};this.pairs.set(peerId,pair);
     }
     pair.lastUsed=Date.now();
@@ -510,7 +514,7 @@ export class MessengerClient {
   private expirePending(){return this.closing?Promise.resolve():this.track(this.expirePendingWork());}
   private async expirePendingWork(){
     clearTimeout(this.expiryTimer);this.expiryTimer=undefined;const now=Date.now();const expired=this.pending.filter(p=>p.expiresAt!==undefined&&now>=p.expiresAt);const removed:string[]=[];
-    for(const p of expired){const c=this.conversations.get(p.conversationId);if(!c)continue;if(p.type==='file'){const file=c.files.find(f=>f.id===p.messageId&&f.senderId===(p.author??this.options.identity.userId));if(file){file.deliveryStatus='expired';file.status='error';if(file.blobKey)removed.push(file.blobKey);file.blobKey=undefined;file.data=undefined;}}else{const message=c.messages.find(m=>m.id===p.messageId&&m.from===(p.author??this.options.identity.userId));if(message)message.status='expired';}this.committed.delete(this.pendingKey(p));}
+    for(const p of expired){const c=this.conversations.get(p.conversationId);if(!c)continue;if(p.type==='file'){const file=c.files.find(f=>f.id===p.messageId&&f.senderId===(p.author??this.options.identity.userId));if(file){file.deliveryStatus='expired';file.status='error';if(file.blobKey)removed.push(file.blobKey);if(file.large)removed.push(attachmentKey(file.senderId,file.id,c.id));file.blobKey=undefined;file.data=undefined;}}else{const message=c.messages.find(m=>m.id===p.messageId&&m.from===(p.author??this.options.identity.userId));if(message)message.status='expired';}this.committed.delete(this.pendingKey(p));}
     if(expired.length){this.pending=this.pending.filter(p=>!expired.includes(p));await this.durable();for(const key of removed){this.blobs.delete(key);await this.options.deleteAttachment?.(key);}}
     if(this.pending.length&&!this.closing){const deadline=Math.min(...this.pending.map(p=>p.expiresAt??Infinity));this.expiryTimer=setTimeout(()=>{void this.expirePending().catch(e=>this.report(e));},Math.max(1,Math.min(2147483647,deadline-Date.now())));}
   }
@@ -530,6 +534,7 @@ export class MessengerClient {
         // Retained signed history is a bounded anti-entropy source for group peers.
         if(c.kind==='group'&&c.definition){const since=c.joinedAt?.[peerId]??0;for(const m of c.messages)if(m.from!==peerId&&m.from!==own&&c.memberIds.includes(m.from)&&m.timestamp>=since&&m.metadata&&Date.now()<(m.expiresAt??0))records.push({type:'message',item:m,author:m.from});for(const f of c.files)if(f.senderId!==peerId&&f.senderId!==own&&c.memberIds.includes(f.senderId)&&f.timestamp>=since&&f.metadata&&f.blobKey&&Date.now()<(f.expiresAt??0))records.push({type:'file',item:f,author:f.senderId});}
         for(const {type,item,author} of records){
+          if(type==='file'&&(item as MessengerFile).large){if(author===own)this.startBulk(peerId,pair,c,item as MessengerFile);continue;}
           if(c.kind==='group'&&(c.receipts??[]).some(r=>r.id===item.id&&r.author===author&&r.recipient===peerId))continue;
           if(c.kind==='group'&&author===own&&!item.metadata&&c.definition){item.metadata=JSON.stringify(signGroupOrigin(this.options.identity,{groupId:c.id,id:item.id,type,timestamp:item.timestamp,expiresAt:item.expiresAt??item.timestamp+OUTBOX_TTL_MS,hash:type==='message'?contentHash('message',(item as MessengerMessage).originalText??(item as MessengerMessage).text):contentHash('file',(await this.getFileData(c.id,item.id,author))!, (item as MessengerFile).name,(item as MessengerFile).mime)}));await this.durable();}const key=c.id+':'+author+':'+item.id;if(Date.now()-(pair.lastSent.get(key)??0)<5000)continue;pair.lastSent.set(key,Date.now());
           try{if(type==='message'){const message=item as MessengerMessage;await pair.session.sendText(message.originalText??message.text,{messageId:message.id,conversationId:c.id,metadata:message.metadata,timestamp:message.timestamp});}
@@ -584,6 +589,68 @@ export class MessengerClient {
     await this.putBlob(key,file.data);const record:MessengerFile={id,name:file.name,mime:file.mime,size:file.data.length,from:'self',status:'sending',receivedBytes:0,timestamp,senderId:own,conversationId,blobKey:key,metadata,expiresAt,deliveryStatus:'pending',recipientIds:peers,deliveredTo:[]};const p:PendingMessage={conversationId,messageId:id,remaining:peers,type:'file',author:own,createdAt:timestamp,expiresAt};const hidden=c.hidden,implicit=c.implicit;c.hidden=undefined;c.implicit=undefined;c.files.push(record);this.pending.push(p);c.updatedAt=timestamp;
     try{await this.durable();}catch(error){c.files=c.files.filter(f=>f!==record);this.pending=this.pending.filter(item=>item!==p);this.blobs.delete(key);c.hidden=hidden;c.implicit=implicit;this.dirty=true;throw error;}this.committed.add(this.pendingKey(p));await this.expirePending();this.kick(c);
   });}
+  /**
+   * Queues a large file (up to 1 GiB). `adopt` moves the picked file into app storage under the
+   * attachment key before anything is recorded, so the outbox never points at a missing file. It
+   * then waits like text, up to 7 days, and streams straight to each recipient over a direct path.
+   */
+  async sendLargeFile(conversationId:string,file:{name:string;mime:string;size:number},adopt:(key:string)=>Promise<void>):Promise<void>{return this.serial(async()=>{
+    await this.restore();await this.expirePending();if(!this.options.bulkFiles)throw new Error('Large files are not supported on this device');
+    if(!Number.isInteger(file.size)||file.size<=0||file.size>MAX_BULK_BYTES)throw new Error('File exceeds 1 GiB limit');
+    const c=this.conversations.get(conversationId);if(!c)throw new Error('Unknown conversation');if(c.removed)throw new Error('You are no longer a member of this group');
+    if(!file.name||file.name.length>255||typeof file.mime!=='string'||file.mime.length>127)throw new Error('Invalid file metadata');
+    if(this.pending.filter(p=>p.type==='file').length>=MAX_PENDING_FILES)throw new Error('Local file outbox is full (16 files waiting for delivery); waiting content was preserved');
+    const timestamp=Date.now(),expiresAt=timestamp+OUTBOX_TTL_MS,id=this.id(),own=this.options.identity.userId;const key=attachmentKey(own,id,conversationId);const peers=c.memberIds.filter(peer=>peer!==own);
+    const metadata=c.kind==='group'?JSON.stringify(signGroupOrigin(this.options.identity,{groupId:this.definition(c).id,id,type:'file',timestamp,expiresAt,hash:bulkHash(file.name,file.mime,file.size)})):encodeDirectFileTiming({id,conversationId,timestamp,expiresAt});
+    await adopt(key);
+    const record:MessengerFile={id,name:file.name,mime:file.mime,size:file.size,from:'self',status:'sending',receivedBytes:0,timestamp,senderId:own,conversationId,metadata,expiresAt,deliveryStatus:'pending',recipientIds:peers,deliveredTo:[],large:true};
+    const p:PendingMessage={conversationId,messageId:id,remaining:peers,type:'file',author:own,createdAt:timestamp,expiresAt};const hidden=c.hidden,implicit=c.implicit;c.hidden=undefined;c.implicit=undefined;c.files.push(record);this.pending.push(p);c.updatedAt=timestamp;
+    try{await this.durable();}catch(error){c.files=c.files.filter(f=>f!==record);this.pending=this.pending.filter(item=>item!==p);c.hidden=hidden;c.implicit=implicit;this.dirty=true;throw error;}
+    this.committed.add(this.pendingKey(p));await this.expirePending();this.kick(c);
+  });}
+  /** One large file at a time per recipient; the next starts when this one ends, a failed one is retried. */
+  private bulkActive=new Set<string>();
+  private startBulk(peerId:string,pair:Pair,c:InternalConversation,file:MessengerFile){
+    const store=this.options.bulkFiles;if(!store||this.bulkActive.has(peerId)||!pair.session.supportsBulk())return;
+    this.bulkActive.add(peerId);const own=this.options.identity.userId;
+    void (async()=>{
+      let sent=false;
+      try{
+        if(await pair.session.currentRoute()!=='direct')return; // direct phone-to-phone only: wait for a direct path rather than use TURN
+        const key=attachmentKey(own,file.id,c.id);
+        await pair.session.sendBulk({id:file.id,conversationId:c.id,name:file.name,mime:file.mime,size:file.size,metadata:file.metadata},(offset,length)=>store.read(key,file.name,offset,length));
+        sent=true;const p=this.pending.find(item=>item.type==='file'&&item.conversationId===c.id&&item.messageId===file.id&&(item.author??own)===own);
+        if(p&&p.remaining.includes(peerId)&&Date.now()<p.expiresAt!)await this.acknowledge(p,peerId,file);
+        this.emit();
+      }catch(error){if(/free space|did not accept|update LastCall/.test(String((error as Error)?.message)))this.report(error);}
+      finally{
+        this.bulkActive.delete(peerId);
+        if(!this.closing)setTimeout(()=>{void this.flushPeer(peerId).catch(e=>this.report(e));},sent?0:30000);
+      }
+    })();
+  }
+  private bulkProgress(peerId:string,id:string,bytes:number,direction:'in'|'out'){
+    const own=this.options.identity.userId;
+    for(const c of this.conversations.values()){const file=c.files.find(f=>f.id===id&&f.large&&(direction==='in'?f.senderId===peerId:f.senderId===own));if(file){file.receivedBytes=Math.min(file.size,bytes);this.emit();return;}}
+  }
+  private receiveBulkOffer(peerId:string,offer:BulkOffer):Promise<BulkSink|undefined>{return this.closing?Promise.resolve(undefined):this.track(this.receiveBulkOfferWork(peerId,offer));}
+  private async receiveBulkOfferWork(peerId:string,offer:BulkOffer):Promise<BulkSink|undefined>{
+    const store=this.options.bulkFiles;if(!store||!this.validConversation(peerId,offer.conversationId)||this.blocked.has(peerId))return;
+    const c=this.conversations.get(offer.conversationId!)!;if(c.removed)return;
+    const origin=this.origin(c,offer.metadata,offer.id,'file',bulkHash(offer.name,offer.mime,offer.size));const timing=c.kind==='direct'?parseDirectFileTiming(offer.metadata,offer.id,c.id,Date.now()):undefined;
+    const author=origin?.author??peerId;if(author!==peerId||this.isRemoved(c,author,offer.id,'file'))return; // large files come only from their author, never relayed
+    let target=c.files.find(f=>f.id===offer.id&&f.senderId===author);
+    if(target&&(!target.large||target.name!==offer.name||target.mime!==offer.mime||target.size!==offer.size))throw new Error('Conflicting file replay');
+    if(!target){
+      target={id:offer.id,name:offer.name,mime:offer.mime,size:offer.size,from:'peer',status:'receiving',receivedBytes:0,senderId:author,conversationId:c.id,metadata:offer.metadata,large:true,deliveryStatus:'received',expiresAt:origin?.expiresAt??timing?.expiresAt??Date.now()+OUTBOX_TTL_MS,timestamp:origin?.timestamp??timing?.timestamp??Date.now()};
+      c.files.push(target);c.updatedAt=Date.now();c.hidden=undefined;c.implicit=undefined;await this.durable();this.emit();
+    }
+    const file=target;const sink=await store.openIncoming(attachmentKey(author,offer.id,c.id),offer.name,offer.size);file.receivedBytes=sink.offset;this.emit();
+    return {offset:sink.offset,write:bytes=>sink.write(bytes),abort:()=>sink.abort(),pause:()=>sink.pause?.(),finish:async()=>{
+      await sink.finish();const fresh=file.status!=='complete';file.status='complete';file.receivedBytes=file.size;
+      if(fresh){c.unread=Math.min(100,c.unread+1);c.updatedAt=Date.now();}await this.durable();this.emit();
+    }};
+  }
   private changeKey(change:MessageChange){return 'change:'+change.conversationId+':'+change.author+':'+change.type+':'+change.id+':'+change.revision;}
   /** Each stored change goes once per connected session, and only to a peer that declared support. */
   private unsentChanges(c:InternalConversation,peerId:string,pair:Pair):MessageChange[]{if(!c.changes?.length||!pair.session.supportsMessageChanges())return [];return c.changes.filter(x=>x.author!==peerId&&Date.now()<x.expiresAt&&!pair.lastSent.has(this.changeKey(x)));}
@@ -634,7 +701,7 @@ export class MessengerClient {
   /** Removes a record and its outbox entry from memory. The caller persists, then forgets the returned blob and keys. */
   private removeRecord(c:InternalConversation,author:string,id:string,type:'message'|'file'):{blobKey?:string;pending:PendingMessage[]}{
     const own=this.options.identity.userId;const pending=this.pending.filter(p=>p.conversationId===c.id&&p.messageId===id&&(p.type??'message')===type&&(p.author??own)===author);this.pending=this.pending.filter(p=>!pending.includes(p));let blobKey:string|undefined;
-    if(type==='file'){blobKey=c.files.find(f=>f.id===id&&f.senderId===author)?.blobKey;c.files=c.files.filter(f=>!(f.id===id&&f.senderId===author));}
+    if(type==='file'){const file=c.files.find(f=>f.id===id&&f.senderId===author);blobKey=file?.large?attachmentKey(author,id,c.id):file?.blobKey;c.files=c.files.filter(f=>!(f.id===id&&f.senderId===author));}
     else{const message=c.messages.find(m=>m.id===id&&m.from===author);if(message&&author!==own&&!c.readReceipts?.some(r=>r.id===id&&r.type==='message'&&r.author===author&&r.reader===own))c.unread=Math.max(0,c.unread-1);c.messages=c.messages.filter(m=>m!==message);}
     return {blobKey,pending};
   }
@@ -670,7 +737,7 @@ export class MessengerClient {
   /** Local only: the other side keeps its copy, and tombstones stop replays from bringing the content back. */
   async deleteChat(conversationId:string):Promise<void>{return this.serial(async()=>{
     await this.restore();const c=this.conversations.get(conversationId);if(!c)throw new Error('Unknown conversation');const state=this.conversationState(c);const now=Date.now();
-    const pending=this.pending.filter(p=>p.conversationId===c.id);const blobKeys=c.files.map(f=>f.blobKey);this.pending=this.pending.filter(p=>p.conversationId!==c.id);
+    const pending=this.pending.filter(p=>p.conversationId===c.id);const blobKeys=c.files.map(f=>f.large?attachmentKey(f.senderId,f.id,c.id):f.blobKey);this.pending=this.pending.filter(p=>p.conversationId!==c.id);
     for(const m of c.messages){const expiresAt=m.expiresAt??m.timestamp+OUTBOX_TTL_MS;if(now<expiresAt)this.putTombstone(c,{id:m.id,author:m.from,type:'message',expiresAt});}
     for(const f of c.files){const expiresAt=f.expiresAt??f.timestamp+OUTBOX_TTL_MS;if(now<expiresAt)this.putTombstone(c,{id:f.id,author:f.senderId,type:'file',expiresAt});}
     c.messages=[];c.files=[];c.receipts=undefined;c.readReceipts=undefined;c.reactions=undefined;c.unread=0;c.hidden=true;this.fitChangeBudget();
@@ -683,7 +750,7 @@ export class MessengerClient {
     const contact=this.contacts.get(userId)!,wasVerified=this.verified.has(userId),moved=this.moved.get(userId),allPending=this.pending;const pending=allPending.filter(p=>p.conversationId===id);const inGroup=[...this.conversations.values()].some(g=>g.kind==='group'&&g.memberIds.includes(userId));
     this.conversations.delete(id);this.pending=allPending.filter(p=>p.conversationId!==id);this.verified.delete(userId);this.moved.delete(userId);if(!inGroup&&!this.blocked.has(userId))this.contacts.delete(userId);
     try{await this.durable();}catch(error){this.conversations.set(id,c);this.pending=allPending;this.contacts.set(userId,contact);if(wasVerified)this.verified.add(userId);if(moved)this.moved.set(userId,moved);this.dirty=true;throw error;}
-    await this.forgetRemoved({blobKeys:c.files.map(f=>f.blobKey),pending});
+    await this.forgetRemoved({blobKeys:c.files.map(f=>f.large?attachmentKey(f.senderId,f.id,c.id):f.blobKey),pending});
     const pair=this.pairs.get(userId);if(pair&&!inGroup){this.pairs.delete(userId);clearTimeout(pair.retry);clearTimeout(pair.pump);pair.session.disconnect();}
     try{this.watch();}catch{/* The next directory connection sends the current watch list. */}this.emit();
   });}

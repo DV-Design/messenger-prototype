@@ -20,8 +20,12 @@
   version string, snapshot publishes are coalesced (16 ms, immediate in background), lite maps and
   decrypted image previews wait for the open transition, and previews are cached for the
   foreground session instead of being decrypted again on every open
-- [ ] Owner add/remove on two real devices (the second emulator would not boot: memory/VM)
-- [ ] Large files up to 1 GB, direct phone-to-phone only (no TURN), waiting like text when offline
+- [X] Owner rename/remove/add verified across four real browsers over WebRTC (`tests/e2e/group-roster.spec.ts`): everyone converges, the removed member stops receiving, the new one gets no earlier history
+- [ ] Owner add/remove on real phones (the second emulator would not boot: memory/VM)
+- [X] Large files over 5 MiB up to 1 GiB, direct phone-to-phone only (no TURN), waiting like
+  text when offline, resuming after a cut; old clients never receive them (SDP capability)
+  → Artifacts: [LARGE-FILES.md](docs/LARGE-FILES.md), [bulk.ts](packages/core/src/bulk.ts), [session.ts](packages/core/src/session.ts), [bulk-files.ts](apps/mobile/src/bulk-files.ts), [large-file.spec.ts](tests/e2e/large-file.spec.ts)
+- [ ] Large file between two real phones (speed under Hermes, CGNAT, app killed mid-transfer)
 
 # Release 1.0.29 / code43 — Google Play internal testing (2026-11-16)
 

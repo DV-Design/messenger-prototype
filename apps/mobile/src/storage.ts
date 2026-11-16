@@ -1,4 +1,5 @@
 import { t } from './i18n';
+import { deleteAllBulkFiles, deleteBulkFiles } from './bulk-files';
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import { Directory, File, Paths } from 'expo-file-system';
@@ -59,6 +60,7 @@ export async function deleteLocalAccount(): Promise<void> {
   try {
     const directory = new Directory(Paths.document, 'messenger-v2');
     if (directory.exists) directory.delete();
+    deleteAllBulkFiles();
   } catch { /* Local files are best-effort after the server account is gone. */ }
   await SecureStore.deleteItemAsync(IDENTITY_KEY);
   await SecureStore.deleteItemAsync(PROFILE_KEY);
@@ -148,6 +150,7 @@ export async function sealedStateAdapter(identity: DeviceIdentity, serverUrl: st
     deleteAttachment: (key: string) => {
       const source = attachment(key);
       return serialized(async () => {
+        deleteBulkFiles(key); // a large file is stored under the same key, outside the sealed store
         if (source.exists) source.delete();
         const binary = attachment(key, '.bin');
         if (binary.exists) binary.delete();

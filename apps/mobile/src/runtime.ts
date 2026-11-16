@@ -6,6 +6,7 @@ import { EmailAuthError, MessengerClient, resolveDeviceProfile, startEmailChalle
 import { isAccountMoved, type BoundEmail } from './email-flow-model';
 import { nativeRtc, validateServerUrl } from './native';
 import { CanonicalProfileStore, profileSignature, registrationCandidate } from './registration-model';
+import { bulkFiles } from './bulk-files';
 import { DEFAULT_SERVER, deleteLocalAccount, loadBoundEmail, loadEmailReminderDismissed, loadIdentity, loadExistingIdentity, loadProfile, saveBoundEmail, saveEmailReminderDismissed, saveProfile, sealedStateAdapter, type LocalProfile } from './storage';
 import { monitorNetworkRecovery, shouldForceNetworkResume } from './network-recovery';
 import { ConnectionSupervisor } from './connection-supervisor';
@@ -51,7 +52,7 @@ function acceptCanonical(serverUrl: string, user: DirectoryUser) {
 }
 async function buildManager(profile: LocalProfile, signal?: AbortSignal): Promise<MessengerClient> {
   if (!state.identity) throw new Error(t('The device key is not loaded yet.'));
-  const persistence = await sealedStateAdapter(state.identity, profile.serverUrl);
+  const persistence = { ...await sealedStateAdapter(state.identity, profile.serverUrl), bulkFiles };
   if (signal?.aborted) throw new Error('Wake expired');
   const current = ++generation;
   const emailProof = pendingEmailProof; pendingEmailProof = undefined;

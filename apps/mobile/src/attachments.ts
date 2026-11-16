@@ -5,14 +5,22 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import * as Sharing from 'expo-sharing';
 import { Directory, File, Paths } from 'expo-file-system';
-import type { MessengerClient, MessengerFile } from '@messenger/core';
+import { attachmentKey, MAX_BULK_BYTES, type MessengerClient, type MessengerFile } from '@messenger/core';
+import { adoptBulkFile, bulkFile } from './bulk-files';
 import { client } from './runtime';
 import { readMediaForSend, type createMediaScope } from './media-model';
 const MAX_FILE = 5 * 1024 * 1024;
 async function transmit(current: MessengerClient, conversationId: string, uri: string, name: string, mime: string, reportedSize?: number) {
   const file = new File(uri);
   try {
-    if ((reportedSize ?? file.size) > MAX_FILE || file.size > MAX_FILE) throw new Error(t('Files must be 5 MiB or smaller.'));
+    const size = Math.max(reportedSize ?? 0, file.size);
+    if (size > MAX_FILE) {
+      // Over 5 MiB: streamed phone to phone from app storage, up to 1 GiB, never loaded whole.
+      if (size > MAX_BULK_BYTES) throw new Error(t('Files must be 1 GB or smaller.'));
+      if (client() !== current) throw new Error(t('The server changed. Open the chat again.'));
+      await current.sendLargeFile(conversationId, { name, mime, size: file.size }, async key => adoptBulkFile(key, name, file.uri));
+      return;
+    }
     const data = await file.bytes();
     if (data.byteLength > MAX_FILE) throw new Error(t('The file is larger than 5 MiB.'));
     if (client() !== current) throw new Error(t('The server changed. Open the chat again.'));
@@ -70,6 +78,13 @@ export async function sendRecordedMedia(current: MessengerClient, conversationId
   await current.sendFile(conversationId, { name: draft.name, mime: draft.mime, data });
 }
 export async function shareFile(item: MessengerFile) {
+  if (item.large) {
+    const file = bulkFile(attachmentKey(item.senderId, item.id, item.conversationId), item.name);
+    if (!file.exists) throw new Error(t('The file is no longer stored on this device.'));
+    if (!(await Sharing.isAvailableAsync())) throw new Error(t('The file sharing menu is unavailable on this device.'));
+    await Sharing.shareAsync(file.uri, { mimeType: item.mime, dialogTitle: t('Save or open file') });
+    return;
+  }
   const data = await loadFileData(item);
   if (!data) throw new Error(t('The file is no longer stored on this device.'));
   if (!(await Sharing.isAvailableAsync())) throw new Error(t('The file sharing menu is unavailable on this device.'));

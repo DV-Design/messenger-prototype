@@ -1,5 +1,7 @@
 import { z } from 'zod';
 export const MAX_FILE_BYTES = 5 * 1024 * 1024;
+/** Large files stream from disk to disk, phone to phone; they are never held whole in memory. */
+export const MAX_BULK_BYTES = 1024 * 1024 * 1024;
 export const FILE_CHUNK_BYTES = 12 * 1024;
 export const MAX_TEXT_CHARS = 4000;
 export const MAX_WIRE_BYTES = 96 * 1024;
@@ -52,5 +54,12 @@ export const dataFrameSchema = z.discriminatedUnion('kind',[
   z.object({kind:z.literal('file-chunk'),id,offset:z.number().int().min(0).max(MAX_FILE_BYTES),hex:z.string().max(FILE_CHUNK_BYTES*2).regex(/^(?:[0-9a-f]{2})+$/)}).strict(),
   z.object({kind:z.literal('file-end'),id}).strict(),
   z.object({kind:z.literal('file-ack'),id}).strict(),
+  // Large-file control, only ever sent sealed and only to peers that announced bulkV1; the bytes themselves travel as binary chunks.
+  z.object({kind:z.literal('bulk-offer'),id,conversationId,name:z.string().min(1).max(255),mime:z.string().max(127),size:z.number().int().min(1).max(MAX_BULK_BYTES),metadata,key:hex(64)}).strict(),
+  z.object({kind:z.literal('bulk-want'),id,offset:z.number().int().min(0).max(MAX_BULK_BYTES)}).strict(),
+  z.object({kind:z.literal('bulk-progress'),id,offset:z.number().int().min(0).max(MAX_BULK_BYTES)}).strict(),
+  z.object({kind:z.literal('bulk-end'),id,size:z.number().int().min(1).max(MAX_BULK_BYTES)}).strict(),
+  z.object({kind:z.literal('bulk-ack'),id}).strict(),
+  z.object({kind:z.literal('bulk-cancel'),id,reason:z.enum(['space','refused','error','cancelled'])}).strict(),
 ]);
 export type DataFrame = z.infer<typeof dataFrameSchema>;

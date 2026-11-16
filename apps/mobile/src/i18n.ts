@@ -659,6 +659,14 @@ const ru: Record<string, string> = {
   'Opens group info': 'Открывает данные группы',
   'Only the group owner can change the group': 'Изменять группу может только владелец',
   'The owner cannot remove themselves': 'Владелец не может удалить себя',
+  'Files must be 1 GB or smaller.': 'Файл должен быть не больше 1 ГБ.',
+  'File up to 1 GB': 'Файл до 1 ГБ',
+  'Sending': 'Отправка',
+  'Large files are not supported on this device': 'Большие файлы на этом устройстве не поддерживаются',
+  'File exceeds 1 GiB limit': 'Файл больше 1 ГБ',
+  'Not enough free space on the recipient phone': 'На телефоне получателя не хватает места',
+  'The recipient did not accept the file': 'Получатель не принял файл',
+  'The recipient needs to update LastCall to receive large files': 'Чтобы получать большие файлы, получателю нужно обновить LastCall',
 };
 
 export function t(template: string, values?: Record<string, string | number>): string {

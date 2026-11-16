@@ -294,7 +294,7 @@ export default function Chat() {
       {!blockedPeer && !editing && !!replying && <View style={{ paddingLeft: 15, paddingRight: 4, backgroundColor: '#EDF5F1' }}><ReplyChip authorName={authorName(replying.author)} text={quotedMessageSnippet(replying.text ?? '')} onClose={cancelReply} /></View>}
       {!blockedPeer && attachments && !editing && <View><View style={styles.attachmentMenu}>
         <Pressable style={styles.attachment} accessibilityRole="button" onPress={() => attach('media')}><Icon name="images-outline" size={27} /><Text style={styles.rowText}> {t('Photos and video')}</Text></Pressable>
-        <Pressable style={styles.attachment} accessibilityRole="button" onPress={() => attach('document')}><Icon name="document-outline" size={27} /><Text style={styles.rowText}> {t('File up to 5 MiB')}</Text></Pressable>
+        <Pressable style={styles.attachment} accessibilityRole="button" onPress={() => attach('document')}><Icon name="document-outline" size={27} /><Text style={styles.rowText}> {t('File up to 1 GB')}</Text></Pressable>
       </View><View style={styles.attachmentMenu}>
         <Pressable style={[styles.attachment, !!snapshot.activeCall && styles.disabled]} disabled={busy || !!snapshot.activeCall} accessibilityRole="button" onPress={() => record('voice')}><Icon name="mic-outline" size={27} /><Text style={styles.rowText}> {t('Voice message')}</Text></Pressable>
         <Pressable style={[styles.attachment, !!snapshot.activeCall && styles.disabled]} disabled={busy || !!snapshot.activeCall} accessibilityRole="button" onPress={() => record('circle')}><Icon name="videocam-outline" size={27} /><Text style={styles.rowText}> {t('Video circle')}</Text></Pressable>

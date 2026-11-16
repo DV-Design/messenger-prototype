@@ -4,6 +4,7 @@ import { endpointUrl, userIdFromPublicKey, validateDeviceIdentity, type DeviceId
 import { ContentCipher, createContentHello, verifyContentHello } from './content-crypto.js';
 import { audioPolicy } from './audio.js';
 import { AdaptiveVideoPolicy, type VideoTarget } from './video.js';
+import { BULK_CHUNK_BYTES, isBulkChunk, openBulkChunk, sealBulkChunk, type BulkOffer, type BulkSink } from './bulk.js';
 import { bytesToHex, hexToBytes, randomChecked, secureRandomBytes, SignalingCipher, type RandomBytes } from './crypto.js';
 import { dataFrameSchema, FILE_CHUNK_BYTES, MAX_FILE_BYTES, MAX_FILES, MAX_TEXT_CHARS, MAX_WIRE_BYTES, roomIdSchema, serverFrameSchema, type ClientFrame, type ContentHello, type DataFrame, type SignalBody } from './protocol.js';
 
@@ -31,6 +32,10 @@ export interface PeerSessionOptions {
   onApplication?:(payload:unknown)=>void|Promise<void>;
   onFile?:(file:SharedFile)=>boolean|void|Promise<boolean|void>;
   allowConversation?:(conversationId:string|undefined)=>boolean;
+  /** Large files: the app opens a disk sink for an accepted offer; undefined refuses it. */
+  onBulkOffer?:(offer:BulkOffer)=>Promise<BulkSink|undefined>;
+  /** Bytes confirmed so far: written to disk on this side ('in') or confirmed by the receiver ('out'). */
+  onBulkProgress?:(id:string,bytes:number,direction:'in'|'out')=>void;
 }
 const initialSnapshot=():SessionSnapshot=>({status:'idle',messages:[],callState:'idle',muted:false,route:'unknown',stats:{},files:[]});
 interface PendingTransfer {id:string;resolve:()=>void;reject:(e:Error)=>void;timer:ReturnType<typeof setTimeout>;ended:boolean;}
@@ -38,6 +43,11 @@ const MAX_DATA_FRAME=96*1024;
 // One maximum-size transfer (hex encoded), plus bounded control traffic.
 const MAX_RECEIVE_FRAMES=512;
 const MAX_RECEIVE_BYTES=12*1024*1024;
+/** Unconfirmed large-file bytes in flight; also bounds what the receiver may have queued for disk. */
+const BULK_WINDOW=6*1024*1024;
+const BULK_PROGRESS_EVERY=1024*1024;
+const BULK_STALL_MS=90000;
+interface BulkOutState {id:string;size:number;want?:number;acked:number;ended:boolean;confirmed:boolean;cancelled?:string;lastMove:number}
 const BUFFER_HIGH=256*1024;
 const BUFFER_LOW=64*1024;
 const REQUEST_TIMEOUT=120000;
@@ -47,13 +57,15 @@ const CONTENT_E2E_ATTRIBUTE='a=x-lastcall-content-e2e:1';
 const MESSAGE_CHANGE_ATTRIBUTE='a=x-lastcall-message-change:1';
 const CALL_CAPTIONS_ATTRIBUTE='a=x-lastcall-call-captions:1';
 const REACTIONS_ATTRIBUTE='a=x-lastcall-reactions:1';
-const sessionMarker=(line:string)=>line===DATA_READY_ATTRIBUTE||line===CONTENT_E2E_ATTRIBUTE||line===MESSAGE_CHANGE_ATTRIBUTE||line===CALL_CAPTIONS_ATTRIBUTE||line===REACTIONS_ATTRIBUTE;
+/** This client streams large files (bulk-* frames and binary chunks). Old clients drop the session on unknown sealed frames, so nothing bulk is sent without it. */
+const BULK_ATTRIBUTE='a=x-lastcall-bulk:1';
+const sessionMarker=(line:string)=>line===DATA_READY_ATTRIBUTE||line===CONTENT_E2E_ATTRIBUTE||line===MESSAGE_CHANGE_ATTRIBUTE||line===CALL_CAPTIONS_ATTRIBUTE||line===REACTIONS_ATTRIBUTE||line===BULK_ATTRIBUTE;
 const DATA_READY_TIMEOUT=5000;
 const DATA_READY_RETRY=250;
-function readySdp(sdp:string,content:boolean,captions:boolean):string{
+function readySdp(sdp:string,content:boolean,captions:boolean,bulk=false):string{
   const lines=sdp.split(/\r?\n/).filter(line=>!sessionMarker(line));
   const media=lines.findIndex(line=>line.startsWith('m='));
-  lines.splice(media<0?Math.max(0,lines.length-1):media,0,...(content?[CONTENT_E2E_ATTRIBUTE,DATA_READY_ATTRIBUTE,MESSAGE_CHANGE_ATTRIBUTE,REACTIONS_ATTRIBUTE]:[DATA_READY_ATTRIBUTE,MESSAGE_CHANGE_ATTRIBUTE,REACTIONS_ATTRIBUTE]),...(captions?[CALL_CAPTIONS_ATTRIBUTE]:[]));
+  lines.splice(media<0?Math.max(0,lines.length-1):media,0,...(content?[CONTENT_E2E_ATTRIBUTE,DATA_READY_ATTRIBUTE,MESSAGE_CHANGE_ATTRIBUTE,REACTIONS_ATTRIBUTE]:[DATA_READY_ATTRIBUTE,MESSAGE_CHANGE_ATTRIBUTE,REACTIONS_ATTRIBUTE]),...(captions?[CALL_CAPTIONS_ATTRIBUTE]:[]),...(content&&bulk?[BULK_ATTRIBUTE]:[]));
   return lines.join('\r\n');
 }
 export class PeerSession {
@@ -75,6 +87,7 @@ export class PeerSession {
   private remoteContentE2E=false;
   private remoteMessageChanges=false;
   private remoteReactions=false;
+  private remoteBulk=false;
   private remoteCallCaptions=false;
   private contentRemoteUserId?:string;
   private contentPrivateKey?:Uint8Array;
@@ -116,6 +129,8 @@ export class PeerSession {
   private callTimer?:ReturnType<typeof setTimeout>;
   private incoming?:{id:string;bytes:Uint8Array;offset:number;timer:ReturnType<typeof setTimeout>};
   private outgoing?:PendingTransfer;
+  private bulkOut?:BulkOutState;
+  private bulkIn?:{id:string;key:string;size:number;offset:number;sink:BulkSink;reported:number};
   private openReject?: (error:Error)=>void;
   private transportTimer?:ReturnType<typeof setTimeout>;
   private hasTurn=false;
@@ -156,7 +171,7 @@ export class PeerSession {
   private wsSend(frame:ClientFrame){if(this.socket?.readyState!==1)throw new Error('Signaling connection is unavailable');this.socket.send(JSON.stringify(frame));}
   private signal(body:SignalBody){
     if(!this.remoteId)throw new Error('Remote peer identity unavailable');
-    if(body.kind==='description')body={...body,description:{...body.description,sdp:readySdp(body.description.sdp,this.contentConfigured,!!this.options.callCaptions)}};
+    if(body.kind==='description')body={...body,description:{...body.description,sdp:readySdp(body.description.sdp,this.contentConfigured,!!this.options.callCaptions,!!this.options.onBulkOffer)}};
     if(this.state.recovering&&(!this.socketJoined||this.socket?.readyState!==1)){if(this.signalBacklog.length>=128)throw new Error('Signaling recovery queue capacity exceeded');this.signalBacklog.push(body);return;}
     this.wsSend({type:'signal',payload:this.cipher.seal(body,this.remoteId)});
     if(body.kind==='description'){this.localDataReady=true;if(this.channel?.readyState==='open')this.channelOpened(this.channel);}
@@ -287,7 +302,8 @@ export class PeerSession {
     if(this.channel&&this.channel!==channel){channel.close();return;}this.channel=channel;channel.bufferedAmountLowThreshold=BUFFER_LOW;
     // RN can expose an already-open channel. Install its message listener before
     // announcing readiness; native transport-open does not prove remote JS is listening.
-    channel.onmessage=event=>{if(this.channel!==channel)return;try{if(typeof event.data!=='string'||event.data.length>MAX_DATA_FRAME)throw new Error('Oversized data frame');const frame=dataFrameSchema.parse(JSON.parse(event.data));if(frame.kind==='ready'||frame.kind==='ready-ack'){this.handleReady(frame,channel);return;}
+    channel.binaryType='arraybuffer';
+    channel.onmessage=event=>{if(this.channel!==channel)return;try{if(typeof event.data!=='string'&&this.bulkIn){this.enqueueBulk(new Uint8Array(event.data as ArrayBuffer),channel);return;}if(typeof event.data!=='string'||event.data.length>MAX_DATA_FRAME)throw new Error('Oversized data frame');const frame=dataFrameSchema.parse(JSON.parse(event.data));if(frame.kind==='ready'||frame.kind==='ready-ack'){this.handleReady(frame,channel);return;}
       if(frame.kind==='sealed'){
         if(!this.contentConfigured||!this.contentCipher)throw new Error('Unexpected encrypted content');
         let inner:DataFrame;
@@ -387,9 +403,10 @@ export class PeerSession {
       const changeCapability=lines.slice(0,media<0?undefined:media).includes(MESSAGE_CHANGE_ATTRIBUTE);
       const captionCapability=lines.slice(0,media<0?undefined:media).includes(CALL_CAPTIONS_ATTRIBUTE);
       const reactionCapability=lines.slice(0,media<0?undefined:media).includes(REACTIONS_ATTRIBUTE);
+      const bulkCapability=lines.slice(0,media<0?undefined:media).includes(BULK_ATTRIBUTE);
       // Parse before awaiting native SDP: it may emit datachannel/open during the await.
       if(!pc.remoteDescription){
-        this.remoteDataReady=capability;this.remoteContentE2E=this.contentConfigured&&contentCapability;this.remoteMessageChanges=changeCapability;this.remoteReactions=reactionCapability;this.remoteCallCaptions=captionCapability;
+        this.remoteDataReady=capability;this.remoteContentE2E=this.contentConfigured&&contentCapability;this.remoteMessageChanges=changeCapability;this.remoteReactions=reactionCapability;this.remoteCallCaptions=captionCapability;this.remoteBulk=this.contentConfigured&&bulkCapability;
         // No plaintext fallback: a peer without the marker must update first.
         if(this.contentConfigured&&!contentCapability){this.failTransport('peer does not support end-to-end content encryption; update both apps');return;}
       }
@@ -511,6 +528,18 @@ export class PeerSession {
   supportsMessageChanges():boolean{return this.remoteMessageChanges;}
   /** Older apps reject an unknown application record, so reactions wait until the peer announces support. */
   supportsReactions():boolean{return this.remoteReactions;}
+  /** The ICE pair in use: large files go only over a direct path, never through TURN. */
+  async currentRoute():Promise<'direct'|'relay'|'unknown'>{
+    const pc=this.pc;if(!pc)return 'unknown';
+    try{
+      const report=await pc.getStats();let pair:any;
+      report.forEach((value:any)=>{if(!pair&&value.type==='candidate-pair'&&value.state==='succeeded'&&(value.nominated||value.selected))pair=value;});
+      if(!pair)return 'unknown';const local=report.get(pair.localCandidateId),remote=report.get(pair.remoteCandidateId);
+      return local?.candidateType==='relay'||remote?.candidateType==='relay'?'relay':'direct';
+    }catch{return 'unknown';}
+  }
+  /** Both sides stream large files over an end-to-end encrypted session. */
+  supportsBulk():boolean{return this.remoteBulk&&!!this.options.onBulkOffer&&!!this.contentCipher&&this.channelReady();}
   /** Only sealed end-to-end content may carry a call's words. */
   supportsCallCaptions():boolean{return !!this.options.callCaptions&&this.remoteCallCaptions&&!!this.contentCipher&&this.channelReady();}
   async sendApplication(payload:unknown):Promise<void>{
@@ -544,6 +573,82 @@ export class PeerSession {
       await this.waitForBuffer(id);if(this.outgoing?.id!==id)throw new Error('Transfer cancelled');this.outgoing.ended=true;this.dataSend({kind:'file-end',id});await acknowledged;
     }catch(error){if(this.outgoing?.id===id)this.failOutgoing(error instanceof Error?error:new Error('File transfer failed'));throw error;}
   }
+  /**
+   * Streams one large file: offer, wait for the receiver's resume offset, then send encrypted
+   * binary chunks read from disk, never more than BULK_WINDOW ahead of what the receiver has
+   * confirmed writing. Resolves only on the receiver's final acknowledgement; any disconnect,
+   * cancel or stall rejects, and the next attempt resumes from what the receiver already has.
+   */
+  async sendBulk(offer:BulkOffer,read:(offset:number,length:number)=>Promise<Uint8Array>):Promise<void>{
+    if(this.bulkOut)throw new Error('One outgoing large file at a time');
+    if(!this.remoteBulk)throw new Error('The recipient needs to update LastCall to receive large files');
+    if(!this.contentConfigured||!this.contentCipher||!this.remoteContentE2E)throw new Error('Large files need an end-to-end encrypted session');
+    if(!this.channelReady())throw new Error('Peer data channel is not connected or application-ready');
+    const key=bytesToHex(randomChecked(this.random,32));const channel=this.channel!;
+    const state:BulkOutState={id:offer.id,size:offer.size,acked:0,ended:false,confirmed:false,lastMove:Date.now()};this.bulkOut=state;
+    const alive=()=>{
+      if(this.bulkOut!==state||this.channel!==channel||channel.readyState!=='open')throw new Error('Transfer disconnected');
+      if(state.cancelled)throw new Error(state.cancelled==='space'?'Not enough free space on the recipient phone':'The recipient did not accept the file');
+      if(Date.now()-state.lastMove>BULK_STALL_MS)throw new Error('Large file transfer stalled');
+    };
+    const sleep=()=>new Promise(resolve=>setTimeout(resolve,20));
+    try{
+      this.dataSend(dataFrameSchema.parse({kind:'bulk-offer',id:offer.id,conversationId:offer.conversationId,name:offer.name,mime:offer.mime,size:offer.size,metadata:offer.metadata,key}));
+      while(state.want===undefined){alive();await sleep();}
+      let offset=state.want;state.acked=offset;
+      while(offset<offer.size){
+        while(offset-state.acked>BULK_WINDOW||(channel.bufferedAmount??0)>BUFFER_HIGH*4){alive();await sleep();}
+        alive();
+        const length=Math.min(BULK_CHUNK_BYTES,offer.size-offset);const data=await read(offset,length);
+        if(data.length!==length)throw new Error('The file changed or could not be read');
+        alive();channel.send(sealBulkChunk(key,offer.id,offset,data));offset+=length;
+      }
+      state.ended=true;this.dataSend({kind:'bulk-end',id:offer.id,size:offer.size});
+      while(!state.confirmed){alive();await sleep();}
+    }finally{if(this.bulkOut===state)this.bulkOut=undefined;}
+  }
+  private async handleBulkControl(frame:Extract<DataFrame,{kind:`bulk-${string}`}>,current:()=>boolean){
+    const out=this.bulkOut;
+    if(frame.kind==='bulk-offer'){
+      if(this.options.allowConversation?.(frame.conversationId)===false||!this.options.onBulkOffer){this.dataSend({kind:'bulk-cancel',id:frame.id,reason:'refused'});return;}
+      if(this.bulkIn){this.dataSend({kind:'bulk-cancel',id:frame.id,reason:'refused'});return;}
+      let sink:BulkSink|undefined;
+      try{sink=await this.options.onBulkOffer({id:frame.id,conversationId:frame.conversationId,name:frame.name,mime:frame.mime,size:frame.size,metadata:frame.metadata});}
+      catch(error){if(current())this.dataSend({kind:'bulk-cancel',id:frame.id,reason:/space/i.test(String((error as Error)?.message))?'space':'error'});throw error;}
+      if(!current())return;
+      if(!sink){this.dataSend({kind:'bulk-cancel',id:frame.id,reason:'refused'});return;}
+      if(sink.offset<0||sink.offset>frame.size)throw new Error('Invalid resume offset');
+      this.bulkIn={id:frame.id,key:frame.key,size:frame.size,offset:sink.offset,sink,reported:sink.offset};
+      this.dataSend({kind:'bulk-want',id:frame.id,offset:sink.offset});
+    }else if(frame.kind==='bulk-want'){if(out?.id===frame.id&&out.want===undefined&&frame.offset<=out.size){out.want=frame.offset;out.lastMove=Date.now();}}
+    else if(frame.kind==='bulk-progress'){if(out?.id===frame.id&&frame.offset>=out.acked&&frame.offset<=out.size){out.acked=frame.offset;out.lastMove=Date.now();this.options.onBulkProgress?.(frame.id,frame.offset,'out');}}
+    else if(frame.kind==='bulk-ack'){if(out?.id===frame.id&&out.ended){out.confirmed=true;out.acked=out.size;this.options.onBulkProgress?.(frame.id,out.size,'out');}}
+    else if(frame.kind==='bulk-cancel'){if(out?.id===frame.id)out.cancelled=frame.reason;if(this.bulkIn?.id===frame.id){const sink=this.bulkIn.sink;this.bulkIn=undefined;await sink.abort();}}
+    else if(frame.kind==='bulk-end'){
+      const incoming=this.bulkIn;if(!incoming||incoming.id!==frame.id)return;
+      if(incoming.offset!==incoming.size||frame.size!==incoming.size){this.bulkIn=undefined;throw new Error('Incomplete large file');}
+      await incoming.sink.finish();if(!current())return;
+      this.bulkIn=undefined;this.options.onBulkProgress?.(frame.id,incoming.size,'in');this.dataSend({kind:'bulk-ack',id:frame.id});
+    }
+  }
+  /** Binary chunks join the same ordered queue as control frames, so a write never races the offer or the end. */
+  private enqueueBulk(bytes:Uint8Array,channel:RTCDataChannel){
+    if(this.receiveFrames>=MAX_RECEIVE_FRAMES||this.receiveBytes+bytes.length>MAX_RECEIVE_BYTES){this.failTransport('receive queue capacity exceeded');return;}
+    const generation=this.receiveGeneration;const current=()=>generation===this.receiveGeneration&&this.channel===channel&&channel.readyState==='open';
+    ++this.receiveFrames;this.receiveBytes+=bytes.length;
+    const work=this.receiveQueue.then(async()=>{if(current())await this.writeBulkChunk(bytes);})
+      .catch(error=>{if(current())this.report(error);})
+      .finally(()=>{if(generation===this.receiveGeneration){--this.receiveFrames;this.receiveBytes-=bytes.length;}});
+    this.receiveQueue=work;this.receiving.add(work);void work.then(()=>this.receiving.delete(work),()=>this.receiving.delete(work));
+  }
+  private async writeBulkChunk(bytes:Uint8Array){
+    const incoming=this.bulkIn;if(!incoming||!isBulkChunk(bytes))return;
+    const chunk=openBulkChunk(incoming.key,bytes);
+    if(chunk.id!==incoming.id||chunk.offset!==incoming.offset||chunk.offset+chunk.data.length>incoming.size){this.bulkIn=undefined;throw new Error('Invalid large-file chunk ordering or bounds');}
+    await incoming.sink.write(chunk.data);if(this.bulkIn!==incoming)return;
+    incoming.offset+=chunk.data.length;
+    if(incoming.offset-incoming.reported>=BULK_PROGRESS_EVERY||incoming.offset===incoming.size){incoming.reported=incoming.offset;this.dataSend({kind:'bulk-progress',id:incoming.id,offset:incoming.offset});this.options.onBulkProgress?.(incoming.id,incoming.offset,'in');}
+  }
   private async waitForBuffer(id:string){
     const start=Date.now();
     while((this.channel?.bufferedAmount??0)>BUFFER_HIGH){
@@ -569,6 +674,8 @@ export class PeerSession {
   private async handleData(frame:DataFrame,current:()=>boolean=()=>true){
     if(frame.kind==='application'){
       await this.options.onApplication?.(JSON.parse(frame.body));
+    }else if(frame.kind==='bulk-offer'||frame.kind==='bulk-want'||frame.kind==='bulk-progress'||frame.kind==='bulk-end'||frame.kind==='bulk-ack'||frame.kind==='bulk-cancel'){
+      await this.handleBulkControl(frame,current);
     }else if(frame.kind==='text-ack'){
       const message=this.state.messages.find(x=>x.id===frame.id&&x.conversationId===frame.conversationId&&x.from==='self');
       if(message){await this.options.onMessage?.({...message,status:'delivered'});if(!current())return;message.status='delivered';this.emit();}
@@ -606,7 +713,7 @@ export class PeerSession {
   }
   private failOutgoing(error:Error){const outgoing=this.outgoing;if(!outgoing)return;clearTimeout(outgoing.timer);this.outgoing=undefined;const file=this.state.files.find(x=>x.id===outgoing.id);if(file)file.status='error';outgoing.reject(error);this.emit();}
   private failIncoming(){if(!this.incoming)return;clearTimeout(this.incoming.timer);const file=this.state.files.find(x=>x.id===this.incoming!.id);if(file)file.status='error';this.incoming=undefined;this.emit();}
-  private failTransfers(){this.failIncoming();this.failOutgoing(new Error('Transfer disconnected'));}
+  private failTransfers(){this.failIncoming();this.failOutgoing(new Error('Transfer disconnected'));const partial=this.bulkIn;this.bulkIn=undefined;partial?.sink.pause?.();/* the sender loop notices the closed channel itself */}
   /** Called only within the SDP/sender queue, with fresh transaction IDs and no live-cache mutations. */
   private async applyEncoderTarget(pc:RTCPeerConnection,sender:RTCRtpSender,track:MediaStreamTrack,callId:string|undefined,target:number|VideoTarget){
     const valid=()=>this.pc===pc&&this.callId===callId&&sender.track===track&&track.readyState!=='ended'&&pc.getSenders().includes(sender);
@@ -712,7 +819,7 @@ export class PeerSession {
     // A promise from a closed RTCPeerConnection may never settle. Work queued behind it must
     // not hold negotiation for the replacement connection until the transport deadline.
     ++this.peerEpoch;this.queue=Promise.resolve();
-    this.resetReady();this.remoteDataReady=false;this.localDataReady=false;this.remoteContentE2E=false;this.remoteMessageChanges=false;this.remoteReactions=false;this.remoteCallCaptions=false;
+    this.resetReady();this.remoteDataReady=false;this.localDataReady=false;this.remoteContentE2E=false;this.remoteMessageChanges=false;this.remoteReactions=false;this.remoteCallCaptions=false;this.remoteBulk=false;
     clearTimeout(this.recoveryTimer);this.recoveryTimer=undefined;clearTimeout(this.resumeTimer);this.resumeTimer=undefined;this.hadConnected=false;this.restartPending=false;this.signalBacklog=[];this.state.recovering=false;
     this.resetReceiveQueue();
     clearTimeout(this.transportTimer);this.transportTimer=undefined;clearInterval(this.statsTimer);this.statsTimer=undefined;this.stopCall();this.failTransfers();

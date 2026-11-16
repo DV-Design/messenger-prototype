@@ -16,3 +16,5 @@ export * from './call-captions.js';
 export * from './call-push.js';
 export * from './content-crypto.js';
 export * from './update-signature.js';
+export * from './bulk.js';
+export { attachmentKey } from './group-sync.js';
