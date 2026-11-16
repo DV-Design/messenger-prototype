@@ -149,6 +149,17 @@ describe('delivery requests',()=>{
    expect(syncs(f.sent).at(-1).peers).toEqual([]);
   }finally{f.client.disconnect();}
  });
+ it('marks the single tick once the push request is handed over, and never calls that delivery',async()=>{
+  const f=await ready();try{
+   await f.client.sendText(f.id,'private');await vi.advanceTimersByTimeAsync(2000);
+   expect(f.client.getSnapshot().conversations[0]!.messages[0]!.notifiedTo).toBeUndefined();
+   await vi.advanceTimersByTimeAsync(1000);const message=f.client.getSnapshot().conversations[0]!.messages[0]!;
+   expect(message.notifiedTo).toEqual([bob.userId]);expect(message.status).toBe('pending');expect(message.deliveredTo??[]).toEqual([]);
+  }finally{f.client.disconnect();}
+ });
+ it('leaves no single tick on a server without delivery requests unless a wake went out',async()=>{
+  const f=await ready(false);f.internal.services={...f.internal.services,push:false};try{await f.client.sendText(f.id,'private');await vi.advanceTimersByTimeAsync(95000);expect(f.client.getSnapshot().conversations[0]!.messages[0]!.notifiedTo).toBeUndefined();}finally{f.client.disconnect();}
+ });
  it('never sends the frame to a server that did not offer it',async()=>{
   const f=await ready(false);try{await f.client.sendText(f.id,'private');await vi.advanceTimersByTimeAsync(95000);expect(syncs(f.sent)).toHaveLength(0);}finally{f.client.disconnect();}
  });

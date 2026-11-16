@@ -25,6 +25,8 @@ let pendingEmailProof: string | undefined;
 let profiles = new CanonicalProfileStore(saveProfile);
 let networkRecovery: ReturnType<typeof monitorNetworkRecovery> | undefined;
 let resumeSubscription: ReturnType<typeof AppState.addEventListener> | undefined;
+let latestSnapshot: MessengerSnapshot | undefined;
+let snapshotFrame: ReturnType<typeof setTimeout> | undefined;
 const publish = (update: Partial<Runtime>) => { state = { ...state, ...update }; listeners.forEach(listener => listener()); supervisor.poke(); };
 // Core stops on some server errors and waits for a caller; the foreground app is that caller.
 const supervisor = new ConnectionSupervisor({
@@ -56,7 +58,17 @@ async function buildManager(profile: LocalProfile, signal?: AbortSignal): Promis
   const next = new MessengerClient({ reconcileDeliveryOnConnect: true, callCaptions: Platform.OS === 'android' && Number(Platform.Version) >= 33 && !!NativeModules.LastCallCaptions, ...profile, ...(emailProof ? { emailProof } : {}), identity: state.identity, ...nativeRtc, ...persistence,
     onChange: snapshot => {
       if (current !== generation) return;
-      publish({ snapshot, ...(isAccountMoved(snapshot.error) ? { retired: true } : {}) });
+      // Bursts of core changes (opening a chat marks it read, saves, sends receipts) reach React once per frame.
+      // A timer, not requestAnimationFrame: frames stop in the background, where the connection
+      // supervisor still has to see status changes; there it is published at once.
+      latestSnapshot = snapshot;
+      const flush = () => {
+        clearTimeout(snapshotFrame); snapshotFrame = undefined;
+        const latest = latestSnapshot; latestSnapshot = undefined;
+        if (latest && current === generation) publish({ snapshot: latest, ...(isAccountMoved(latest.error) ? { retired: true } : {}) });
+      };
+      if (AppState.currentState !== 'active') flush();
+      else if (!snapshotFrame) snapshotFrame = setTimeout(flush, 16);
       for (const observer of observers) { try { observer(snapshot, next); } catch { /* An optional native presenter cannot break delivery. */ } }
       if (snapshot.status === 'online' && snapshot.self) acceptCanonical(profile.serverUrl, snapshot.self);
     },

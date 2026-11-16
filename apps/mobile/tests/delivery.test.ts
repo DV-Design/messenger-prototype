@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { canMarkRead, deliveryIcon, deliveryLabel, deliveryStage, readContentVersion, waitingForDelivery } from '../src/delivery-model';
+import { canMarkRead, deliveryColor, deliveryIcon, deliveryLabel, deliveryStage, readContentVersion, waitingForDelivery } from '../src/delivery-model';
 import { transportNotice } from '../src/transport-notice';
 
 test('only final recipient receipts contribute to group delivery progress', () => {
   const item = { status: 'sent', recipientIds: ['alice', 'bob', 'alice'], deliveredTo: ['alice', 'alice', 'relay'] };
   assert.equal(deliveryLabel(item, true), 'Delivered 1 of 2 · Read 0 of 2');
-  assert.equal(deliveryLabel({ status: 'sent' }, false), 'Awaiting confirmation');
+  assert.equal(deliveryLabel({ status: 'sent' }, false), 'Awaiting delivery · up to 7 days');
   assert.equal(waitingForDelivery(item), true);
   assert.equal(deliveryLabel({ deliveryStatus: 'expired', recipientIds: ['alice'], deliveredTo: [] }, true), 'Not delivered within 7 days');
   assert.equal(waitingForDelivery({ deliveryStatus: 'expired', status: 'complete' }), false);
@@ -18,14 +18,24 @@ test('pending files and group sync copy describe sender retention without promis
   assert.match(transportNotice({ directory: 'online', group: true, pending: 0 }).text, /phones/);
 });
 
-test('clock, one check and two checks distinguish delivery from reading for messages and files', () => {
+test('clock, one tick, two ticks and two blue ticks, for messages and files', () => {
   const item = { status: 'sent', recipientIds: ['a', 'b'], deliveredTo: ['a'], readBy: ['a'] };
   assert.equal(deliveryIcon(item), 'time-outline');
-  assert.equal(deliveryIcon({ ...item, status: 'delivered' }), 'checkmark');
+  assert.equal(deliveryIcon({ ...item, notifiedTo: ['b'] }), 'checkmark'); // a delivered, b notified
+  assert.equal(deliveryIcon({ ...item, status: 'delivered' }), 'checkmark-done');
+  assert.equal(deliveryColor({ ...item, status: 'delivered' }), '#70877D');
   assert.equal(deliveryIcon({ ...item, status: 'delivered', readBy: ['a', 'b', 'relay'] }), 'checkmark-done');
+  assert.equal(deliveryColor({ ...item, status: 'delivered', readBy: ['a', 'b'] }), '#2F8FE0');
   assert.equal(deliveryLabel({ status: 'delivered', recipientIds: ['a'], readBy: ['a'] }, false), 'Read');
-  assert.equal(deliveryStage({ deliveryStatus: 'expired', recipientIds: ['a'], readBy: ['a'] }), 'expired');
-  assert.equal(deliveryIcon({ deliveryStatus: 'delivered', status: 'complete', recipientIds: ['a'], readBy: [] }), 'checkmark');
+  assert.equal(deliveryStage({ deliveryStatus: 'expired', recipientIds: ['a'], readBy: ['a'], notifiedTo: ['a'] }), 'expired');
+  assert.equal(deliveryIcon({ deliveryStatus: 'delivered', status: 'complete', recipientIds: ['a'], readBy: [] }), 'checkmark-done');
+  assert.equal(deliveryIcon({ deliveryStatus: 'pending', status: 'complete', recipientIds: ['a'], notifiedTo: ['a'] }), 'checkmark');
+});
+test('a push request is never shown as delivery: one tick only, and only when every recipient was notified', () => {
+  assert.equal(deliveryStage({ status: 'pending', recipientIds: ['a', 'b'], notifiedTo: ['a'] }), 'sending');
+  assert.equal(deliveryStage({ status: 'pending', recipientIds: ['a', 'b'], notifiedTo: ['a', 'b'] }), 'notified');
+  assert.equal(deliveryLabel({ status: 'pending', recipientIds: ['a'], notifiedTo: ['a'] }, false), 'Sent · the recipient was notified');
+  assert.equal(deliveryStage({ status: 'pending' }), 'sending');
 });
 test('background, locked, unfocused and notification-drawer chat routes do not read content', () => {
   assert.equal(canMarkRead(true, 'active'), true);

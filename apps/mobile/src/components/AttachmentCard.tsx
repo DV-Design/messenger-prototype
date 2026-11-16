@@ -7,16 +7,22 @@ import { colors, styles } from '../styles';
 import { Icon, fileSize } from './ui';
 import { t } from '../i18n';
 import { client } from '../runtime';
-import { deliveryIcon, deliveryLabel } from '../delivery-model';
+import { deliveryColor, deliveryIcon, deliveryLabel } from '../delivery-model';
 import { mediaKind } from '../media-model';
 import { MediaAttachment } from './MediaAttachment';
+import { useAfterTransition } from '../after-transition';
+import { cachedPreview, rememberPreview } from '../preview-cache';
 
 export function AttachmentCard({ file, self, group = false, sender, onOpen, onLongPress, mediaDisabled = false }: { file: MessengerFile; self: boolean; group?: boolean; sender?: string; onOpen: () => void; onLongPress?: () => void; mediaDisabled?: boolean }) {
   const [preview, setPreview] = useState<{ key: string; uri: string }>();
   const { id, senderId, conversationId, data, mime, blobKey, deliveryStatus } = file;
   const previewKey = `${conversationId}:${senderId}:${id}:${blobKey ?? ''}`;
+  const ready = useAfterTransition();
   useEffect(() => {
-    if ((!data && !blobKey) || !mime.startsWith('image/') || deliveryStatus === 'expired') return;
+    if (!ready || (!data && !blobKey) || !mime.startsWith('image/') || deliveryStatus === 'expired') return;
+    const known = cachedPreview(previewKey);
+    // Already decrypted earlier in this foreground session: show it without touching the blob again.
+    if (known) { void Promise.resolve().then(() => setPreview({ key: previewKey, uri: known })); return; }
     let canceled = false;
     const current = client();
     const suffix = Array.from(Crypto.getRandomBytes(8), value => value.toString(16).padStart(2, '0')).join('');
@@ -24,15 +30,16 @@ export function AttachmentCard({ file, self, group = false, sender, onOpen, onLo
     void Promise.resolve(data ?? current.getFileData(conversationId, id, senderId)).then(async bytes => {
       if (!bytes || canceled || client() !== current) return;
       await temporary.write(bytes);
-      if (canceled) { if (temporary.exists) temporary.delete(); }
-      else setPreview({ key: previewKey, uri: temporary.uri });
+      if (canceled) { if (temporary.exists) temporary.delete(); return; }
+      rememberPreview(previewKey, temporary.uri);
+      setPreview({ key: previewKey, uri: temporary.uri });
     }).catch(() => {});
-    return () => { canceled = true; if (temporary.exists) temporary.delete(); };
-  }, [id, senderId, conversationId, data, mime, blobKey, deliveryStatus, previewKey]);
+    return () => { canceled = true; };
+  }, [ready, id, senderId, conversationId, data, mime, blobKey, deliveryStatus, previewKey]);
   const available = !!(file.data || file.blobKey) && file.deliveryStatus !== 'expired';
   const label = self ? deliveryLabel(file, group) : file.status === 'receiving' ? t('Receiving…') : file.status === 'error' ? t('Could not receive') : t('Received');
   const note = mediaKind(file.name, file.mime);
-  const receipt = self ? <View accessibilityLabel={label}><Icon name={deliveryIcon(file)} size={15} /></View> : null;
+  const receipt = self ? <View accessibilityLabel={label}><Icon name={deliveryIcon(file)} size={15} color={deliveryColor(file)} /></View> : null;
   if (note && available) return <Pressable accessibilityHint={t('Hold to delete')} onLongPress={onLongPress} style={[styles.bubble, self && styles.bubbleSelf]}>
     {!!sender && !self && <Text style={styles.senderName}>{sender}</Text>}
     {receipt}

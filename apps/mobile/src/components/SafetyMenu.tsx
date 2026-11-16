@@ -21,13 +21,12 @@ export interface SafetyMember { userId: string; displayName: string }
  * Reports are sent through the authenticated directory with report metadata
  * and optional details; message content is never attached automatically.
  */
-export function SafetyMenu({ visible, group, title, targetId, peer, members, blocked, onClose, onBlock, onUnblock, onSafetyCode, onReport, onDeleteChat, onDeleteContact }: {
+export function SafetyMenu({ visible, group, title, targetId, peer, blocked, onClose, onBlock, onUnblock, onSafetyCode, onReport, onDeleteChat, onDeleteContact }: {
   visible: boolean;
   group: boolean;
   title: string;
   targetId: string;
   peer?: SafetyMember;
-  members: SafetyMember[];
   blocked: string[];
   onClose: () => void;
   onBlock: (userId: string) => Promise<void>;
@@ -93,10 +92,8 @@ export function SafetyMenu({ visible, group, title, targetId, peer, members, blo
         </View> : <>
           <ScrollView>
             {peer && onSafetyCode && <MenuRow icon="shield-checkmark-outline" title={t('Safety code')} onPress={() => { close(); onSafetyCode(); }} />}
-            {group ? members.map(member => <MenuRow key={member.userId} icon={blockedSet.has(member.userId) ? 'lock-open-outline' : 'ban-outline'} busy={busy} danger={!blockedSet.has(member.userId)}
-              title={blockedSet.has(member.userId) ? t('Unblock {name}', { name: member.displayName }) : t('Block {name}', { name: member.displayName })}
-              onPress={() => void change(() => blockedSet.has(member.userId) ? onUnblock(member.userId) : onBlock(member.userId), false)} />)
-              : peer && <MenuRow icon={blockedSet.has(peer.userId) ? 'lock-open-outline' : 'ban-outline'} busy={busy} danger={!blockedSet.has(peer.userId)}
+            {/* Group members are blocked from the group info screen, like WhatsApp; this menu stays about the chat. */}
+            {!group && peer && <MenuRow icon={blockedSet.has(peer.userId) ? 'lock-open-outline' : 'ban-outline'} busy={busy} danger={!blockedSet.has(peer.userId)}
                 title={blockedSet.has(peer.userId) ? t('Unblock {name}', { name: peer.displayName }) : t('Block {name}', { name: peer.displayName })}
                 subtitle={blockedSet.has(peer.userId) ? undefined : t('Block this contact to hide messages and calls.')}
                 onPress={() => void change(() => blockedSet.has(peer.userId) ? onUnblock(peer.userId) : onBlock(peer.userId), true)} />}

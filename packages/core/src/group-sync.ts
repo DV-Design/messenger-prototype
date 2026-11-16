@@ -6,7 +6,7 @@ import {directoryUserSchema,userIdFromPublicKey,type DeviceIdentity} from './dir
 import {peerIdSchema,roomIdSchema} from './protocol.js';
 export const OUTBOX_TTL_MS=7*24*60*60*1000;
 const signature=z.string().regex(/^[a-f0-9]{128}$/);
-export const groupDefinitionSchema=z.object({kind:z.literal('group-definition'),id:z.string().regex(/^group:[a-f0-9]{32}$/),title:z.string().min(1).max(64),creatorId:roomIdSchema,members:z.array(directoryUserSchema).min(2).max(8),signature:signature.optional()}).strict();
+export const groupDefinitionSchema=z.object({kind:z.literal('group-definition'),id:z.string().regex(/^group:[a-f0-9]{32}$/),title:z.string().min(1).max(64),creatorId:roomIdSchema,members:z.array(directoryUserSchema).min(2).max(8),version:z.number().int().min(2).max(1_000_000).optional(),signature:signature.optional()}).strict();
 export type GroupDefinition=z.infer<typeof groupDefinitionSchema>;
 const originSchema=z.object({kind:z.literal('group-origin'),groupId:z.string().regex(/^group:[a-f0-9]{32}$/),author:roomIdSchema,id:peerIdSchema,type:z.enum(['message','file']),timestamp:z.number().int().nonnegative(),expiresAt:z.number().int().positive(),hash:roomIdSchema,signature}).strict();
 export type GroupOrigin=z.infer<typeof originSchema>;
@@ -15,7 +15,9 @@ export type GroupReceipt=z.infer<typeof receiptSchema>;
 const utf8=(s:string)=>new TextEncoder().encode(s);
 function sign(identity:DeviceIdentity,value:unknown){return bytesToHex(ed25519.sign(utf8(JSON.stringify(value)),hexToBytes(identity.privateKey)));}
 function verify(publicKey:string,signature:string,value:unknown){try{return ed25519.verify(hexToBytes(signature),utf8(JSON.stringify(value)),hexToBytes(publicKey),{zip215:false});}catch{return false;}}
-function rosterPayload(g:GroupDefinition){return ['lastcall/group-roster/v1',g.id,g.title,g.creatorId,...g.members.map(m=>[m.userId,m.publicKey,m.username,m.displayName])];}
+/** v1 (no version) is the original immutable roster, still sent unchanged so old clients keep working; v2 adds a monotonically increasing version the creator bumps on every edit. */
+function rosterPayload(g:GroupDefinition){const members=g.members.map(m=>[m.userId,m.publicKey,m.username,m.displayName]);return g.version===undefined?['lastcall/group-roster/v1',g.id,g.title,g.creatorId,...members]:['lastcall/group-roster/v2',g.id,g.title,g.creatorId,g.version,...members];}
+export function rosterVersion(g:GroupDefinition|undefined):number {return g?.version??1;}
 export function signGroupDefinition(identity:DeviceIdentity,group:GroupDefinition):GroupDefinition {const g=groupDefinitionSchema.parse(group);if(g.creatorId!==identity.userId)throw new Error('Group creator mismatch');return {...g,signature:sign(identity,rosterPayload(g))};}
 export function verifyGroupDefinition(group:GroupDefinition):boolean {const creator=group.members.find(m=>m.userId===group.creatorId);return !!creator&&!!group.signature&&new Set(group.members.map(m=>m.userId)).size===group.members.length&&verify(creator.publicKey,group.signature,rosterPayload(group));}
 export function contentHash(type:'message'|'file',value:string|Uint8Array,name='',mime=''):string {if(type==='message')return bytesToHex(sha256(utf8(JSON.stringify(['lastcall/text/v1',value]))));const data=value as Uint8Array;return bytesToHex(sha256(utf8(JSON.stringify(['lastcall/file/v1',name,mime,data.length,bytesToHex(sha256(data))]))));}

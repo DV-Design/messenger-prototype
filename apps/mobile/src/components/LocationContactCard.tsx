@@ -7,6 +7,7 @@ import { colors, styles } from '../styles';
 import { mapsUrl, type ParsedContact, type ParsedLocation } from '../location-contact';
 import { minutesSinceUpdate } from '../live-location-model';
 import { Avatar, Button, Icon, IconButton, time } from './ui';
+import { useAfterTransition } from '../after-transition';
 
 const CARD = { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, paddingVertical: 2, minWidth: 190, maxWidth: 230 };
 
@@ -36,12 +37,14 @@ const pointRegion = (location: ParsedLocation, delta: number) => ({ latitude: lo
  */
 export function LocationCard({ location, updatedAt, onOpen }: { location: ParsedLocation; updatedAt: number; onOpen: () => void }) {
   const now = useNow(location.live ? 30000 : 0);
+  // A lite map is a native view per bubble; it waits until the chat has finished opening.
+  const mapReady = useAfterTransition();
   return <Pressable accessibilityRole="button" accessibilityLabel={location.live ? t('Live location') : t('Location')} accessibilityHint={t('Opens the map')} onPress={onOpen} style={{ width: 236, gap: 7 }}>
-    <View pointerEvents="none" style={{ height: 128, borderRadius: 12, overflow: 'hidden', backgroundColor: '#E4ECE8' }}>
-      <MapView liteMode style={{ flex: 1 }} region={pointRegion(location, 0.006)} toolbarEnabled={false}
+    <View pointerEvents="none" style={{ height: 128, borderRadius: 12, overflow: 'hidden', backgroundColor: '#E4ECE8', alignItems: 'center', justifyContent: 'center' }}>
+      {!mapReady ? <Icon name="location" size={30} color={location.live ? colors.danger : colors.accent} /> : <MapView liteMode style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }} region={pointRegion(location, 0.006)} toolbarEnabled={false}
         scrollEnabled={false} zoomEnabled={false} rotateEnabled={false} pitchEnabled={false}>
         <Marker coordinate={{ latitude: location.lat, longitude: location.lng }} pinColor={location.live ? colors.danger : colors.accent} />
-      </MapView>
+      </MapView>}
     </View>
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
       <Icon name={location.live ? 'radio' : 'location'} size={18} color={location.live ? colors.danger : colors.accent} />

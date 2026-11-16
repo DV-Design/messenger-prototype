@@ -143,3 +143,62 @@ describe('group recipient file readiness',()=>{
     await vi.waitFor(()=>expect(sends).toHaveLength(2));expect(created.sort()).toEqual([alice.userId,charlie.userId].sort());expect(sends.sort()).toEqual([alice.userId,charlie.userId].sort());client.disconnect();
   });
 });
+
+describe('editable group roster (v2)',()=>{
+  const id='group:'+'ad'.repeat(16);
+  const v1=()=>signGroupDefinition(alice,{kind:'group-definition',id,title:'Team',creatorId:alice.userId,members:[user(alice,'alice'),user(bob,'bob')]});
+  async function bobWithGroup(save?:(s:string)=>void,load?:()=>string|undefined){
+    const client=new MessengerClient({serverUrl:'https://lienad.ru/messenger',identity:bob,username:'bob',displayName:'Bob',...(save?{saveState:async(s:string)=>save(s)}:{}),...(load?{loadState:async()=>load()??null}:{})});
+    await client.addContact(user(alice,'alice'));
+    const internal=client as unknown as {receiveApplication:(peer:string,payload:unknown)=>Promise<void>};
+    await internal.receiveApplication(alice.userId,v1());return {client,internal};
+  }
+  it('adopts a newer creator-signed roster with a new member and a new title, from any member',async()=>{
+    const {client,internal}=await bobWithGroup();try{
+      const v2=signGroupDefinition(alice,{kind:'group-definition',id,title:'Team 2',creatorId:alice.userId,version:2,members:[user(alice,'alice'),user(bob,'bob'),user(charlie,'charlie')]});
+      await internal.receiveApplication(alice.userId,v2);
+      const c=client.getSnapshot().conversations.find(x=>x.id===id)!;expect(c.memberIds).toEqual([alice.userId,bob.userId,charlie.userId].sort());expect(c.title).toBe('Team 2');expect(c.creatorId).toBe(alice.userId);
+      await internal.receiveApplication(alice.userId,v1()); // a stale copy is ignored, not an error
+      expect(client.getSnapshot().conversations.find(x=>x.id===id)!.memberIds).toHaveLength(3);
+    }finally{client.disconnect();}
+  });
+  it('rejects a roster edit that the creator did not sign',async()=>{
+    const {client,internal}=await bobWithGroup();try{
+      const forged=signGroupDefinition(bob,{kind:'group-definition',id,title:'Mine now',creatorId:bob.userId,version:2,members:[user(alice,'alice'),user(bob,'bob')]});
+      await expect(internal.receiveApplication(alice.userId,forged)).rejects.toThrow();
+      const tampered={...signGroupDefinition(alice,{kind:'group-definition',id,title:'Team',creatorId:alice.userId,version:2,members:[user(alice,'alice'),user(bob,'bob')]}),title:'Changed'};
+      await expect(internal.receiveApplication(alice.userId,tampered)).rejects.toThrow(/signature/);
+      expect(client.getSnapshot().conversations.find(x=>x.id===id)!.title).toBe('Team');
+    }finally{client.disconnect();}
+  });
+  it('a removed member keeps the history read-only, and the state still loads afterwards',async()=>{
+    let saved:string|undefined;
+    const {client,internal}=await bobWithGroup(s=>{saved=s;},()=>saved);
+    try{
+      const removed=signGroupDefinition(alice,{kind:'group-definition',id,title:'Team',creatorId:alice.userId,version:2,members:[user(alice,'alice'),user(charlie,'charlie')]});
+      await internal.receiveApplication(alice.userId,removed);
+      const c=client.getSnapshot().conversations.find(x=>x.id===id)!;expect(c.removed).toBe(true);expect(c.memberIds).toEqual([bob.userId]);expect(c.formerIds).toContain(alice.userId);
+      await expect(client.sendText(id,'still here?')).rejects.toThrow(/no longer a member/);
+      await (client as any).persist();
+    }finally{client.disconnect();}
+    const again=new MessengerClient({serverUrl:'https://lienad.ru/messenger',identity:bob,username:'bob',displayName:'Bob',loadState:async()=>saved??null});
+    try{await (again as any).restore();expect(again.getSnapshot().conversations.find(x=>x.id===id)?.removed).toBe(true);}finally{again.disconnect();}
+  });
+  it('only the owner edits, the owner stays, and size stays 2–8',async()=>{
+    const {client}=await bobWithGroup();try{
+      await expect(client.updateGroup(id,{title:'x'})).rejects.toThrow(/owner/);
+    }finally{client.disconnect();}
+    const owner=new MessengerClient({serverUrl:'https://lienad.ru/messenger',identity:alice,username:'alice',displayName:'Alice'});
+    try{
+      await owner.addContact(user(bob,'bob'));await owner.addContact(user(charlie,'charlie'));
+      const internal=owner as any;internal.self=user(alice,'alice');const g='group:'+'ae'.repeat(16);
+      internal.conversations.set(g,{id:g,kind:'group',title:'Mine',memberIds:[alice.userId,bob.userId,charlie.userId].sort(),creatorId:alice.userId,messages:[],files:[],unread:0,updatedAt:1});
+      await expect(owner.updateGroup(g,{remove:[alice.userId]})).rejects.toThrow(/owner cannot remove/);
+      await owner.updateGroup(g,{remove:[charlie.userId],title:'Renamed'});
+      const c=owner.getSnapshot().conversations.find(x=>x.id===g)!;expect(c.memberIds).toEqual([alice.userId,bob.userId].sort());expect(c.formerIds).toEqual([charlie.userId]);expect(c.title).toBe('Renamed');
+      expect(internal.conversations.get(g).definition.version).toBe(2); // the implicit v1 roster becomes v2
+      expect(internal.conversations.get(g).notifyRemoved).toEqual([charlie.userId]);
+      await expect(owner.updateGroup(g,{remove:[bob.userId]})).rejects.toThrow(/2–8/);
+    }finally{owner.disconnect();}
+  });
+});

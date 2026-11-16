@@ -1,4 +1,35 @@
-# 1.0.28 / code42 — fixes from the 1.0.27 phone test (2026-11-16)
+# Chat, groups and ticks after the 1.0.29 test (2026-11-16, in progress)
+
+- [X] Delivery ticks like WhatsApp/Telegram: clock while still on this phone; one grey tick once a
+  push request for every recipient was handed to the server (`notifiedTo`, set after
+  `delivery-sync`/`wake` over a live socket — no server change, so it also shows when the server
+  did not push, e.g. no push consent); two grey ticks on the recipient's authenticated receipt;
+  two blue ticks when read
+  → Artifacts: [messenger.ts](packages/core/src/messenger.ts), [delivery-model.ts](apps/mobile/src/delivery-model.ts), [wake.test.ts](packages/core/src/wake.test.ts), [delivery.test.ts](apps/mobile/tests/delivery.test.ts)
+- [X] Swipe a message left to reply (Telegram), with a haptic tick at the trigger point
+  → Artifacts: [SwipeToReply.tsx](apps/mobile/src/components/SwipeToReply.tsx), [swipe-reply-model.ts](apps/mobile/src/swipe-reply-model.ts)
+- [X] Safety-code banner removed from the top of chats; it stays in the ⋮ menu. The group ⋮ menu no
+  longer lists per-member blocking; blocking moved to the member sheet on the group screen
+- [X] Group info (tap the group header): members, owner badge, message/block a member; the owner
+  renames, adds and removes members. Core: versioned creator-signed roster (v2), gossiped by any
+  member, stale copies ignored, removed members keep read-only history (`formerIds`, `removed`),
+  new members get no history from before they joined (`joinedAt`)
+  → Artifacts: [group-sync.ts](packages/core/src/group-sync.ts), [group/[id].tsx](apps/mobile/src/app/group/%5Bid%5D.tsx), [group-model.ts](apps/mobile/src/group-model.ts), [v2.test.ts](packages/core/src/v2.test.ts)
+- [X] Chat opening: measured on the emulator — first render 4–10 ms, commit 20–45 ms, then 5–6
+  full re-renders in the first second, each re-rendering every row. Rows are now memoized on a
+  version string, snapshot publishes are coalesced (16 ms, immediate in background), lite maps and
+  decrypted image previews wait for the open transition, and previews are cached for the
+  foreground session instead of being decrypted again on every open
+- [ ] Owner add/remove on two real devices (the second emulator would not boot: memory/VM)
+- [ ] Large files up to 1 GB, direct phone-to-phone only (no TURN), waiting like text when offline
+
+# Release 1.0.29 / code43 — Google Play internal testing (2026-11-16)
+
+- [X] Maps key: `ru.lastcall.app` + Play app-signing SHA-1
+  `60:31:AF:1D:06:B6:43:78:1F:68:FD:AA:1D:A3:48:D9:B1:52:56:12` added to the "LastCall" key
+  (project mojordomo-1007); verified the build embeds that same key. Map works per the user
+- [X] Rebuilt unchanged code as 1.0.29/code43 on the user's request; the user uploaded it
+
 
 - [X] Contact sharing crashed: expo-contacts 58 makes the top-level `presentContactPickerAsync`
   throw ("deprecated, use the class-based API"). Per the user's choice, contacts now work like

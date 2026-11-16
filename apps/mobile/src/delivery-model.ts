@@ -1,8 +1,9 @@
 import { t } from './i18n';
 
-type Delivery = { status?: string; deliveryStatus?: string; recipientIds?: string[]; deliveredTo?: string[]; readBy?: string[] };
+type Delivery = { status?: string; deliveryStatus?: string; recipientIds?: string[]; deliveredTo?: string[]; readBy?: string[]; notifiedTo?: string[] };
+export type DeliveryStage = 'sending' | 'notified' | 'delivered' | 'read' | 'expired';
 
-/** Only authenticated recipient receipts count; transport send success does not. */
+/** Only authenticated recipient receipts count as delivery; a handed-over push request is only the single tick. */
 export function deliveryLabel(item: Delivery, group: boolean): string {
   const status = item.deliveryStatus ?? item.status;
   if (status === 'expired') return t('Not delivered within 7 days');
@@ -11,9 +12,11 @@ export function deliveryLabel(item: Delivery, group: boolean): string {
   const delivered = recipients.filter(id => item.deliveredTo?.includes(id)).length;
   const read = recipients.filter(id => item.readBy?.includes(id)).length;
   if (group && recipients.length) return t('Delivered {delivered} of {total} · Read {read} of {total}', { delivered, total: recipients.length, read });
-  if (deliveryStage(item) === 'read') return t('Read');
-  if (status === 'delivered') return t('Delivered');
-  return status === 'sent' ? t('Awaiting confirmation') : t('Awaiting delivery · up to 7 days');
+  const stage = deliveryStage(item);
+  if (stage === 'read') return t('Read');
+  if (stage === 'delivered') return t('Delivered');
+  if (stage === 'notified') return t('Sent · the recipient was notified');
+  return t('Awaiting delivery · up to 7 days');
 }
 
 export function waitingForDelivery(item: Delivery): boolean {
@@ -21,16 +24,28 @@ export function waitingForDelivery(item: Delivery): boolean {
   return status === 'pending' || status === 'sent';
 }
 
-/** Full group completion means every intended recipient, never an intermediary. */
-export function deliveryStage(item: Delivery): 'sending' | 'delivered' | 'read' | 'expired' {
+/**
+ * WhatsApp/Telegram ticks: clock while still on this phone, one tick once every recipient was
+ * reached or notified by push, two ticks when every recipient's phone confirmed it, two blue
+ * ticks when everyone read it. Full group completion means every intended recipient.
+ */
+export function deliveryStage(item: Delivery): DeliveryStage {
   const status = item.deliveryStatus ?? item.status;
   if (status === 'expired') return 'expired';
   const recipients = [...new Set(item.recipientIds ?? [])];
   if (recipients.length && recipients.every(id => item.readBy?.includes(id))) return 'read';
-  return status === 'delivered' ? 'delivered' : 'sending';
+  if (status === 'delivered') return 'delivered';
+  const reached = (id: string) => !!item.deliveredTo?.includes(id) || !!item.notifiedTo?.includes(id);
+  if (recipients.length ? recipients.every(reached) : !!item.notifiedTo?.length) return 'notified';
+  return 'sending';
 }
 export function deliveryIcon(item: Delivery): 'time-outline' | 'checkmark' | 'checkmark-done' | 'alert-circle-outline' {
-  return { sending: 'time-outline', delivered: 'checkmark', read: 'checkmark-done', expired: 'alert-circle-outline' }[deliveryStage(item)] as ReturnType<typeof deliveryIcon>;
+  return ({ sending: 'time-outline', notified: 'checkmark', delivered: 'checkmark-done', read: 'checkmark-done', expired: 'alert-circle-outline' } as const)[deliveryStage(item)];
+}
+/** Blue only for read, red for expired, the muted meta color otherwise. */
+export function deliveryColor(item: Delivery): string {
+  const stage = deliveryStage(item);
+  return stage === 'read' ? '#2F8FE0' : stage === 'expired' ? '#A33535' : '#70877D';
 }
 /** An open route behind the lock screen/notification drawer is not a read. */
 export function canMarkRead(focused: boolean, appState: string, interacting = true): boolean {

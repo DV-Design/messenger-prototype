@@ -4,19 +4,16 @@ import { Alert, AppState, FlatList, KeyboardAvoidingView, Linking, Platform, Pre
 import { SafeAreaView } from '../../components/SafeArea';
 import { safetyEmoji, type MessengerFile, type MessengerMessage, type ReactionEmoji, type ReactionView } from '@messenger/core';
 import { intlLocale, t } from '../../i18n';
-import { messageParts } from '../../message-links';
 import { pickDocument, pickMedia, shareFile } from '../../attachments';
-import { AttachmentCard } from '../../components/AttachmentCard';
 import { MessageActions, type MessageTarget } from '../../components/MessageActions';
-import { ReactionBar } from '../../components/Reactions';
-import { myReaction, nextReaction } from '../../reaction-model';
+import { myReaction } from '../../reaction-model';
 import { SafetyCode } from '../../components/SafetyCode';
 import { SafetyMenu } from '../../components/SafetyMenu';
-import { Avatar, Button, Empty, Icon, IconButton, lastSeen, time } from '../../components/ui';
+import { Avatar, Button, Empty, Icon, IconButton, lastSeen } from '../../components/ui';
 import { client, errorText, useMessenger } from '../../runtime';
 import { colors, styles } from '../../styles';
 import { transportNotice } from '../../transport-notice';
-import { canMarkRead, deliveryIcon, deliveryLabel, deliveryStage, readContentVersion, waitingForDelivery } from '../../delivery-model';
+import { canMarkRead, readContentVersion, waitingForDelivery } from '../../delivery-model';
 import { MediaComposer } from '../../components/MediaComposer';
 import type { MediaKind } from '../../media-model';
 import { chatTimeline, dayLabel, withDays, type ChatTimelineRow } from '../../timeline-model';
@@ -26,13 +23,15 @@ import { useMyLanguage } from '../../my-language';
 import { PermissionNotice } from '../../components/PermissionNotice';
 import { AccessDenied } from '../../permission-notice-model';
 import { LocationPicker } from '../../components/LocationPicker';
-import { LocationCard, LocationViewer, ContactCard } from '../../components/LocationContactCard';
+import { LocationViewer } from '../../components/LocationContactCard';
 import { formatContactText, formatLocationText, parseContactText, parseLocationText } from '../../location-contact';
 import { isLiveLocationMessage, startLiveLocation, stopLiveLocation } from '../../live-location';
 import { ContactPicker } from '../../components/ContactPicker';
 import type { PhoneContact } from '../../contacts-model';
 import type { LiveDurationMin } from '../../live-location-model';
 import { ReplyChip } from '../../components/ReplyChip';
+import { ChatRowHandlers, FileRow, MessageRow, rowVersion } from '../../components/ChatRow';
+import { TransitionGate } from '../../after-transition';
 import { formatReplyText, parseReplyText, quotedMessageSnippet, replyBody, type ParsedReply } from '../../reply';
 import { mediaKind } from '../../media-model';
 
@@ -51,6 +50,7 @@ export default function Chat() {
   const [locationOpen, setLocationOpen] = useState(false);
   const [viewingLocation, setViewingLocation] = useState<string>();
   const [contactsOpen, setContactsOpen] = useState(false);
+  const [rowHandlers] = useState(() => new ChatRowHandlers());
   const closeContacts = useCallback(() => setContactsOpen(false), []);
   const [safetyOpen, setSafetyOpen] = useState(false);
   const [safetyMenuOpen, setSafetyMenuOpen] = useState(false);
@@ -112,7 +112,6 @@ export default function Chat() {
   const group = conversation.kind === 'group';
   const blockedPeer = !group && !!peer && blocked.has(peer.userId);
   const hiddenBlocked = group && conversation.memberIds.some(id => id !== identity?.userId && blocked.has(id));
-  const groupMembers = group ? conversation.memberIds.filter(id => id !== identity?.userId).map(id => ({ userId: id, displayName: snapshot.contacts.find(contact => contact.userId === id)?.displayName ?? t('Member') })) : [];
   const safety = peer && identity ? safetyEmoji(identity.publicKey, peer.publicKey) : '';
   const peerVerified = !!peer && snapshot.verifiedContacts.includes(peer.userId);
   const moved = !group && peer ? snapshot.movedContacts?.[peer.userId] : undefined;
@@ -168,8 +167,11 @@ export default function Chat() {
     const kind = mediaKind(file.name, file.mime);
     return kind === 'voice' ? t('Voice message') : kind === 'circle' ? t('Video circle') : file.name;
   }
-  function selectMessage(item: MessengerMessage) { haptic('longPress'); setSelected({ id: item.id, type: 'message', author: item.from, own: item.from === identity?.userId, expired: item.status === 'expired', text: item.text, reaction: myReaction(item.reactions, identity?.userId) }); }
-  function selectFile(file: MessengerFile) { haptic('longPress'); setSelected({ id: file.id, type: 'file', author: file.senderId, own: file.senderId === identity?.userId, expired: file.deliveryStatus === 'expired', text: fileLabel(file), reaction: myReaction(file.reactions, identity?.userId) }); }
+  const messageTarget = (item: MessengerMessage): MessageTarget => ({ id: item.id, type: 'message', author: item.from, own: item.from === identity?.userId, expired: item.status === 'expired', text: item.text, reaction: myReaction(item.reactions, identity?.userId) });
+  const fileTarget = (file: MessengerFile): MessageTarget => ({ id: file.id, type: 'file', author: file.senderId, own: file.senderId === identity?.userId, expired: file.deliveryStatus === 'expired', text: fileLabel(file), reaction: myReaction(file.reactions, identity?.userId) });
+  function selectMessage(item: MessengerMessage) { haptic('longPress'); setSelected(messageTarget(item)); }
+  function selectFile(file: MessengerFile) { haptic('longPress'); setSelected(fileTarget(file)); }
+  function startReply(target: MessageTarget) { setEditing(undefined); setAttachments(false); setReplying(target); }
   function authorName(userId: string): string { return userId === identity?.userId ? t('You') : snapshot.contacts.find(contact => contact.userId === userId)?.displayName ?? t('Member'); }
   /** Looks the quoted record up live, so an edit or a later rename of the author shows through; a missing record (expired, deleted) falls back to a plain notice. */
   function quotedPreview(reply: ParsedReply): { authorName: string; text: string } {
@@ -189,10 +191,6 @@ export default function Chat() {
     // Not through action(): a reaction must not wait behind, or block, a send in progress.
     setError(''); haptic('tick');
     void client().react(conversation!.id, record, emoji).catch(cause => setError(errorText(cause)));
-  }
-  function reactionBar(record: { id: string; type: 'message' | 'file'; author: string }, reactions: ReactionView[] | undefined, own: boolean) {
-    return <ReactionBar reactions={reactions} selfId={identity?.userId} blocked={blocked} own={own} names={userId => snapshot.contacts.find(contact => contact.userId === userId)?.displayName ?? t('Member')}
-      onChoose={emoji => react(record, nextReaction(myReaction(reactions, identity?.userId), emoji))} />;
   }
   function cancelEdit() { setEditing(undefined); setDraft(unsentDraft.current); }
   function deleteMessage(target: MessageTarget, scope: 'me' | 'everyone') {
@@ -221,31 +219,44 @@ export default function Chat() {
       canStop={own && !!parsed?.live && !!message && isLiveLocationMessage(message.id)}
       onStop={() => void stopLiveLocation()} onClose={() => setViewingLocation(undefined)} onError={setError} />;
   }
-  function renderMessage(item: MessengerMessage) {
-    const own = item.from === identity?.userId;
-    const sender = snapshot.contacts.find(contact => contact.userId === item.from)?.displayName ?? t('Member');
-    const read = deliveryStage(item) === 'read';
-    const expired = item.status === 'expired';
-    const label = deliveryLabel(item, group);
-    const reply = parseReplyText(item.text);
-    const body = reply ? reply.text : item.text;
-    const location = parseLocationText(body);
-    const contact = !location ? parseContactText(body) : undefined;
-    return <Pressable accessibilityHint={t('Hold to reply, react, edit, copy or delete')} accessibilityActions={[{ name: 'longpress', label: t('Message actions') }]} onAccessibilityAction={() => selectMessage(item)} onLongPress={() => selectMessage(item)} style={[styles.bubble, own && styles.bubbleSelf]}>
-      {group && !own && <Text style={styles.senderName}>{sender}</Text>}
-      {reply && <ReplyChip own={own} {...quotedPreview(reply)} onPress={() => scrollToQuoted(reply)} />}
-      {location ? <LocationCard location={location} updatedAt={item.editedAt ?? item.timestamp} onOpen={() => setViewingLocation(item.id)} /> : contact ? <ContactCard contact={contact} /> : <Text style={styles.message}>{messageParts(translations.texts[item.id] ?? body).map((part, index) => part.url
-        ? <Text key={index} accessibilityRole="link" style={{ color: colors.blue, textDecorationLine: 'underline' }} onLongPress={() => selectMessage(item)}
-          onPress={() => { const url = part.url!; void Linking.openURL(url).catch(() => setError(t('Could not open the link.'))); }}>{part.text}</Text>
-        : part.text)}</Text>}
-      {own && (group || expired) && <Text style={[styles.fileMeta, expired && { color: '#A33535' }]}>{label}</Text>}
-      <View style={styles.messageMeta}>{!!translations.texts[item.id] && <Text style={styles.messageTime}>{t('translated')}</Text>}{!!item.editedAt && <Text style={styles.messageTime}>{t('edited')}</Text>}<Text style={styles.messageTime}>{time(item.timestamp)}</Text>{own && <View accessibilityLabel={label}><Icon name={deliveryIcon(item)} size={15} color={expired ? '#A33535' : read ? colors.accent : '#70877D'} /></View>}</View>
-      {reactionBar({ id: item.id, type: 'message', author: item.from }, item.reactions, own)}
-    </Pressable>;
+  // Rows are memoized on a version string; the handlers object is stable and always holds today's closures.
+  const nameOf = (userId: string) => userId === identity?.userId ? t('You') : snapshot.contacts.find(contact => contact.userId === userId)?.displayName ?? t('Member');
+  const reactorNames = (reactions: ReactionView[] | undefined) => Object.fromEntries((reactions ?? []).map(reaction => [reaction.userId, nameOf(reaction.userId)]));
+  // The closures read refs (the list, for scrolling) but only run from row events, never during render.
+  // eslint-disable-next-line react-hooks/refs
+  rowHandlers.update({
+    selectMessage, selectFile,
+    replyToMessage: item => startReply(messageTarget(item)), replyToFile: file => startReply(fileTarget(file)),
+    react, openLocation: setViewingLocation, scrollToQuoted,
+    openLink: url => void Linking.openURL(url).catch(() => setError(t('Could not open the link.'))),
+    openFile: file => void action(() => shareFile(file)),
+  });
+  const swipe = !blockedPeer && !editing && !conversation.removed;
+  const blockedKey = snapshot.blockedContacts.join();
+  const mediaDisabled = !focused || !!snapshot.activeCall || !!recording;
+  function renderRow(entry: ChatTimelineRow) {
+    if (entry.kind === 'day') return <DayPill label={entry.label} />;
+    if (entry.kind === 'message') {
+      const item = entry.item;
+      const reply = parseReplyText(item.text);
+      const quote = reply ? quotedPreview(reply) : undefined;
+      const translation = translations.texts[item.id];
+      const sender = nameOf(item.from);
+      const names = reactorNames(item.reactions);
+      return <MessageRow item={item} sender={sender} quote={quote} translation={translation} handlers={rowHandlers} selfId={identity?.userId} group={group} blocked={blocked} swipe={swipe} names={names}
+        version={rowVersion(item, [sender, quote, translation, group, swipe, blockedKey, names])} />;
+    }
+    const file = entry.item;
+    const sender = group ? nameOf(file.senderId) : undefined;
+    const names = reactorNames(file.reactions);
+    return <FileRow file={file} sender={sender} mediaDisabled={mediaDisabled} handlers={rowHandlers} selfId={identity?.userId} group={group} blocked={blocked} swipe={swipe} names={names}
+      version={rowVersion(file, [sender, mediaDisabled, group, swipe, blockedKey, names])} />;
   }
   return <SafeAreaView style={styles.whiteScreen} edges={['top', 'bottom']}>
     <View style={styles.chatHeader}><IconButton name="chevron-back" label={t('Back to chats')} onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)')} />
-      <Avatar name={conversation.title} id={conversation.id} group={group} size={41} /><View style={[styles.flex, { marginLeft: 7 }]}><Text numberOfLines={1} style={styles.chatName}>{conversation.title}</Text><Text numberOfLines={1} style={[styles.chatStatus, !group && peer?.online && { color: colors.accent }]}>{group ? t('Members: {count}', { count: conversation.memberIds.length }) : lastSeen(!!peer?.online, peer?.lastSeen ?? 0)}</Text></View>
+      <Pressable accessibilityRole={group ? 'button' : 'header'} accessibilityHint={group ? t('Opens group info') : undefined} disabled={!group} onPress={() => router.push({ pathname: '/group/[id]', params: { id: conversation.id } })} style={{ flexDirection: 'row', alignItems: 'center', flex: 1, minWidth: 0 }}>
+        <Avatar name={conversation.title} id={conversation.id} group={group} size={41} /><View style={[styles.flex, { marginLeft: 7 }]}><Text numberOfLines={1} style={styles.chatName}>{conversation.title}</Text><Text numberOfLines={1} style={[styles.chatStatus, !group && peer?.online && { color: colors.accent }]}>{group ? (conversation.removed ? t('You are no longer a member') : t('Members: {count}', { count: conversation.memberIds.length })) : lastSeen(!!peer?.online, peer?.lastSeen ?? 0)}</Text></View>
+      </Pressable>
       {chatTranslationSupported && <IconButton name="language-outline" color={translated ? colors.white : undefined} label={translated ? t('Show original') : t('Translate to {language}', { language: myLanguage.label })} onPress={() => void setChatTranslated(conversation.id, !translated)} active={translated} />}
       <IconButton name="call-outline" label={group ? t('Group calls unavailable') : t('Audio call')} disabled={!canCall || busy} onPress={() => void action(() => client().startCall(conversation.id, false))} />
       <IconButton name="videocam-outline" label={group ? t('Group video calls unavailable') : t('Video call')} disabled={!canCall || busy} onPress={() => void action(() => client().startCall(conversation.id, true))} />
@@ -262,8 +273,7 @@ export default function Chat() {
       <Text style={[styles.info, { color: '#7B5924' }]}>{t('{name} restored the account on a new key. This is not confirmed to be the same person until you compare the safety code in the new chat. Messages not yet delivered here will not reach the new key and expire after 7 days. This chat stays as history.', { name: peer.displayName })}</Text>
       <Button secondary busy={busy} title={t('Open new chat')} onPress={() => void action(async () => { const next = await client().acceptMovedContact(peer.userId); router.push({ pathname: '/chat/[id]', params: { id: next } }); })} />
     </View>}
-    {!group && peer && !peerVerified && !moved && <Pressable accessibilityRole="button" accessibilityLabel={t('Verify contact safety code')} onPress={() => setSafetyOpen(true)} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 15, paddingVertical: 8, backgroundColor: '#FFF6E4' }}><Icon name="shield-outline" size={17} color="#7B5924" /><Text style={[styles.info, { flex: 1, color: '#7B5924' }]}> {t('Contact key is not verified. Compare the safety code.')}</Text><Icon name="chevron-forward" size={17} color="#7B5924" /></Pressable>}
-    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <TransitionGate><KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={styles.conversation}>
         {group && <Text style={[styles.info, { textAlign: 'center', paddingVertical: 8, paddingHorizontal: 15 }]}> {t('Group up to 8 members · group calls are not available yet')}</Text>}
         {reversedTimeline.length === 0
@@ -272,14 +282,10 @@ export default function Chat() {
           // sidesteps it entirely rather than fighting the list's transform.
           ? <Empty icon="chatbubble-ellipses-outline" title={t('Start a conversation')} text={group ? t('Data syncs between participants’ phones.') : t('Send the first message. If your contact is offline, it waits on your device for up to 7 days.')} />
           : <FlatList ref={list} inverted data={reversedTimeline} keyExtractor={entry => entry.key} contentContainerStyle={styles.messages} keyboardShouldPersistTaps="handled"
+          initialNumToRender={12} maxToRenderPerBatch={8} windowSize={9}
           onViewableItemsChanged={onViewable} viewabilityConfig={VIEWABILITY} onScrollBeginDrag={scrollStarted} onMomentumScrollBegin={scrollStarted} onScrollEndDrag={scrollStopped} onMomentumScrollEnd={scrollStopped}
           onScrollToIndexFailed={info => { list.current?.scrollToOffset({ offset: info.averageItemLength * info.index, animated: false }); setTimeout(() => list.current?.scrollToIndex({ index: info.index, animated: true, viewPosition: 0.5 }), 60); }}
-          renderItem={({ item: entry }) => {
-            if (entry.kind === 'day') return <DayPill label={entry.label} />;
-            if (entry.kind === 'message') return renderMessage(entry.item);
-            const file = entry.item;
-            return <View style={{ marginTop: 9 }}><AttachmentCard file={file} self={file.senderId === identity?.userId} group={group} sender={group ? snapshot.contacts.find(contact => contact.userId === file.senderId)?.displayName : undefined} mediaDisabled={!focused || !!snapshot.activeCall || !!recording} onOpen={() => void action(() => shareFile(file))} onLongPress={() => selectFile(file)} />{reactionBar({ id: file.id, type: 'file', author: file.senderId }, file.reactions, file.senderId === identity?.userId)}</View>;
-          }} />}
+          renderItem={({ item: entry }) => renderRow(entry)} />}
         {scrolling && !!floatingDate && <View pointerEvents="none" style={{ position: 'absolute', top: 8, left: 0, right: 0, alignItems: 'center' }}><DayPill label={floatingDate} /></View>}
       </View>
       <PermissionNotice />
@@ -296,22 +302,23 @@ export default function Chat() {
         <Pressable style={styles.attachment} accessibilityRole="button" onPress={openLocation}><Icon name="location-outline" size={27} /><Text style={styles.rowText}> {t('Location')}</Text></Pressable>
         <Pressable style={styles.attachment} accessibilityRole="button" onPress={sendContact}><Icon name="person-outline" size={27} /><Text style={styles.rowText}> {t('Share contact')}</Text></Pressable>
       </View></View>}
-      {!blockedPeer && <View style={styles.composer}>{!editing && <IconButton name={attachments ? 'close' : 'attach'} label={t('Attach file')} disabled={busy} onPress={() => setAttachments(!attachments)} />}
+      {conversation.removed && <Text style={[styles.info, { textAlign: 'center', padding: 14, backgroundColor: '#F3F5F6' }]}>{t('You were removed from this group. The history stays on this phone.')}</Text>}
+      {!blockedPeer && !conversation.removed && <View style={styles.composer}>{!editing && <IconButton name={attachments ? 'close' : 'attach'} label={t('Attach file')} disabled={busy} onPress={() => setAttachments(!attachments)} />}
         <TextInput style={styles.composerInput} value={draft} onChangeText={setDraft} multiline maxLength={4000} placeholder={t('Message')} placeholderTextColor={colors.secondary} accessibilityLabel={t('Message text')} />
          {!draft.trim() && !editing && <IconButton name="mic-outline" label={t('Record voice message')} disabled={busy || !!snapshot.activeCall} onPress={() => record('voice')} />}
         {!!draft.trim() && <Pressable style={[styles.send, busy && styles.disabled]} accessibilityRole="button" accessibilityLabel={editing ? t('Save changes') : t('Send message')} disabled={busy} onPress={send}><Icon name={editing ? 'checkmark' : 'arrow-up'} color={colors.white} size={25} /></Pressable>}
       </View>}
-    </KeyboardAvoidingView>
+    </KeyboardAvoidingView></TransitionGate>
     {!!recording && focused && <MediaComposer key={`${id}:${recording}`} kind={recording} conversationId={conversation.id} blocked={!!snapshot.activeCall} onClose={() => setRecording(undefined)} />}
     {locationViewer()}
     <ContactPicker visible={contactsOpen} onClose={closeContacts} onPick={sendPickedContact} />
     <LocationPicker visible={locationOpen} busy={busy} onClose={() => setLocationOpen(false)} onSendPoint={sendLocation} onStartLive={shareLiveLocation} />
     {!group && peer && identity && <SafetyCode visible={safetyOpen} title={peer.displayName} code={safety} verified={peerVerified} sessionReady={!!conversation.session?.contentE2E} onClose={() => setSafetyOpen(false)} onVerify={() => void action(async () => { await client().markContactVerified(peer.userId); setSafetyOpen(false); })} />}
     <MessageActions target={selected} onClose={() => setSelected(undefined)} onError={setError} onDelete={deleteMessage} onReact={blockedPeer ? undefined : (target, emoji) => react(target, emoji)}
-      onReply={target => { setEditing(undefined); setAttachments(false); setReplying(target); }}
+      onReply={startReply}
       onEdit={target => { if (!editing) unsentDraft.current = draft; setAttachments(false); setReplying(undefined); setEditing(target.id); setDraft(replyBody(target.text ?? '')); }} />
     {identity && <SafetyMenu visible={safetyMenuOpen} group={group} title={conversation.title} targetId={conversation.id}
-      peer={!group && peer ? { userId: peer.userId, displayName: peer.displayName } : undefined} members={groupMembers} blocked={snapshot.blockedContacts}
+      peer={!group && peer ? { userId: peer.userId, displayName: peer.displayName } : undefined} blocked={snapshot.blockedContacts}
       onClose={() => setSafetyMenuOpen(false)}
       onBlock={userId => client().blockContact(userId)} onUnblock={userId => client().unblockContact(userId)}
       onSafetyCode={!group && peer ? () => setSafetyOpen(true) : undefined}
