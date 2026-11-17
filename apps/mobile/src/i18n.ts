@@ -710,6 +710,16 @@ const ru: Record<string, string> = {
   'Share invitation': 'Поделиться приглашением',
   'LastCall invitation. Install LastCall, choose Register and paste this whole message or the code:\n{code}\nThe code works once and expires in 7 days.': 'Приглашение в LastCall. Установите LastCall, выберите «Регистрация» и вставьте это сообщение целиком или только код:\n{code}\nКод одноразовый и действует 7 дней.',
   'Could not open the share menu.': 'Не удалось открыть меню «Поделиться».',
+  'Opens contact info': 'Открывает профиль собеседника',
+  'Info': 'Профиль',
+  'Write a message': 'Написать',
+  'Username · tap to copy': 'Имя пользователя · нажмите, чтобы скопировать',
+  'Could not copy.': 'Не удалось скопировать.',
+  'Verified': 'Проверен',
+  'Not verified · compare it with {name}': 'Не проверен · сверьте его с {name}',
+  'Groups in common: {count}': 'Общие группы: {count}',
+  'Media and files: {count}': 'Медиа и файлы: {count}',
+  'Countries for sign-up: {countries}': 'Страны для регистрации: {countries}',
 };
 
 export function t(template: string, values?: Record<string, string | number>): string {

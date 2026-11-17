@@ -22,7 +22,7 @@ export default function RootLayout() {
   return <SafeAreaProvider><StatusBar style="dark" />
     {!ready ? <View style={[styles.screen, { justifyContent: 'center' }]}><ActivityIndicator color={colors.accent} size="large" /></View> : <>
       <CallBarLayout><LiveLocationBarLayout><Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
-        <Stack.Screen name="(tabs)" /><Stack.Screen name="onboarding" /><Stack.Screen name="chat/[id]" /><Stack.Screen name="group/[id]" />
+        <Stack.Screen name="(tabs)" /><Stack.Screen name="onboarding" /><Stack.Screen name="chat/[id]" /><Stack.Screen name="group/[id]" /><Stack.Screen name="contact/[id]" />
         <Stack.Screen name="new-group" options={{ presentation: 'modal' }} />
         <Stack.Screen name="permissions" options={{ presentation: 'modal' }} />
       </Stack></LiveLocationBarLayout></CallBarLayout><PermissionSetupGate /><PushBridge /><NotificationNavigationBridge /><UpdateNotice /><CallOverlay />

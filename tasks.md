@@ -1,3 +1,20 @@
+# 1.0.33 / code47 — contact profile and phone-reported sign-up countries (2026-11-17)
+
+- [X] Server: sign-up policy counts countries the phone reports (Google Play account, mobile
+  network; SIM only without a network), only toward caution; deployed (only `messenger-signaling`
+  rebuilt). Live check: no countries → invite, RS → open, RS+RU → invite
+  → Artifacts: [registration-invites.ts](apps/server/src/registration-invites.ts), [REGISTRATION-INVITES.md](docs/REGISTRATION-INVITES.md)
+- [X] App: native `lastcall-country` module (Play Billing BillingConfig, TelephonyManager); hints
+  sent with the policy check, email start and registration; shown in Connection diagnostics.
+  Emulator reports "US" (its network); Play Billing does not connect on the emulator, so the
+  Play country is unverified. The library adds `com.android.vending.BILLING` to the manifest
+  → Artifacts: [LastCallCountryModule.kt](apps/mobile/modules/lastcall-country/android/src/main/java/ru/lastcall/country/LastCallCountryModule.kt), [country-hints-model.ts](apps/mobile/src/country-hints-model.ts)
+- [X] Contact profile like Telegram (tap the header of a direct chat): avatar, status, message /
+  audio / video, @username copy, safety code, groups in common, media and files, block, delete
+  → Artifacts: [contact/[id].tsx](apps/mobile/src/app/contact/%5Bid%5D.tsx), [contact-info-model.ts](apps/mobile/src/contact-info-model.ts)
+- [X] `artifacts/LastCall-1.0.33-store.aab`, sha256 `7f2deaa60d4700f4123499a7400c7bbcc8386edeabb2cc68952809a2660f117d`; also carries the blank-screen fix and invitation sharing
+- [ ] Privacy policy paragraph (country check, phone countries) still only in the repository
+
 # Invitation system review (2026-11-17)
 
 - [X] Code review of the Codex invites work: gate, single use, hashing, quotas, admins — sound
