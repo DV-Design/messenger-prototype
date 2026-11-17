@@ -13,6 +13,13 @@ services:
       ALLOWED_ORIGINS: https://lienad.ru,https://p2p.lienad.ru
       DIRECTORY_DB_PATH: /data/directory.sqlite
       DIRECTORY_MAX_USERS: 10000
+      # Market registration: open outside the configured markets, invite-only inside.
+      # Unknown country is restricted (fail closed), never open.
+      REGISTRATION_MODE: ${REGISTRATION_MODE:-market}
+      REGISTRATION_RESTRICTED_COUNTRIES: ${REGISTRATION_RESTRICTED_COUNTRIES:-RU,CN,VN,KZ,TM,ID,TR,AE}
+      REGISTRATION_GEOIP_DB: /app/dbip-country.mmdb
+      # Optional comma-separated stable 64-hex directory user IDs, never usernames.
+      REGISTRATION_ADMIN_USER_IDS: ${REGISTRATION_ADMIN_USER_IDS:-}
       MAX_CONNECTIONS: 256
       MAX_CONNECTIONS_PER_IP: 32
       MAX_ROOMS: 256

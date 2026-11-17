@@ -2,7 +2,7 @@ import { locale, t } from './i18n';
 import { useEffect, useSyncExternalStore } from 'react';
 import { AppState, NativeModules, Platform } from 'react-native';
 import * as Network from 'expo-network';
-import { EmailAuthError, MessengerClient, resolveDeviceProfile, startEmailChallenge, verifyEmailChallenge, type DeviceIdentity, type DirectoryUser, type EmailPurpose, type MessengerSnapshot } from '@messenger/core';
+import { EmailAuthError, MessengerClient, fetchRegistrationPolicy, resolveDeviceProfile, startEmailChallenge, verifyEmailChallenge, type DeviceIdentity, type DirectoryUser, type EmailPurpose, type MessengerOptions, type MessengerSnapshot } from '@messenger/core';
 import { isAccountMoved, type BoundEmail } from './email-flow-model';
 import { nativeRtc, validateServerUrl } from './native';
 import { CanonicalProfileStore, profileSignature, registrationCandidate } from './registration-model';
@@ -21,8 +21,7 @@ const observers = new Set<(snapshot: MessengerSnapshot, manager: MessengerClient
 const managers = new SharedWakeRuntime<MessengerClient>();
 let bootPromise: Promise<void> | null = null;
 let generation = 0;
-/** Spent by the one manager built for a registration attempt; never persisted. */
-let pendingEmailProof: string | undefined;
+type RegistrationCredentials = Pick<MessengerOptions, 'emailProof' | 'inviteCode'>;
 let profiles = new CanonicalProfileStore(saveProfile);
 let networkRecovery: ReturnType<typeof monitorNetworkRecovery> | undefined;
 let resumeSubscription: ReturnType<typeof AppState.addEventListener> | undefined;
@@ -50,13 +49,12 @@ function acceptCanonical(serverUrl: string, user: DirectoryUser) {
   }
   return profile;
 }
-async function buildManager(profile: LocalProfile, signal?: AbortSignal): Promise<MessengerClient> {
+async function buildManager(profile: LocalProfile, signal?: AbortSignal, registration?: RegistrationCredentials): Promise<MessengerClient> {
   if (!state.identity) throw new Error(t('The device key is not loaded yet.'));
   const persistence = { ...await sealedStateAdapter(state.identity, profile.serverUrl), bulkFiles };
   if (signal?.aborted) throw new Error('Wake expired');
   const current = ++generation;
-  const emailProof = pendingEmailProof; pendingEmailProof = undefined;
-  const next = new MessengerClient({ reconcileDeliveryOnConnect: true, callCaptions: Platform.OS === 'android' && Number(Platform.Version) >= 33 && !!NativeModules.LastCallCaptions, ...profile, ...(emailProof ? { emailProof } : {}), identity: state.identity, ...nativeRtc, ...persistence,
+  const next = new MessengerClient({ reconcileDeliveryOnConnect: true, callCaptions: Platform.OS === 'android' && Number(Platform.Version) >= 33 && !!NativeModules.LastCallCaptions, ...profile, ...registration, identity: state.identity, ...nativeRtc, ...persistence,
     onChange: snapshot => {
       if (current !== generation) return;
       // Bursts of core changes (opening a chat marks it read, saves, sends receipts) reach React once per frame.
@@ -78,8 +76,8 @@ async function buildManager(profile: LocalProfile, signal?: AbortSignal): Promis
   publish({ snapshot: next.getSnapshot() });
   return next;
 }
-function installManager(profile: LocalProfile): Promise<MessengerClient> {
-  return managers.replace(() => buildManager(profile));
+function installManager(profile: LocalProfile, registration?: RegistrationCredentials): Promise<MessengerClient> {
+  return managers.replace(() => buildManager(profile, undefined, registration));
 }
 export const messagePreviewScope = (manager: MessengerClient): string | null => previewScopes.get(manager) ?? null;
 export function registerMessengerObserver(observer: (snapshot: MessengerSnapshot, manager: MessengerClient) => void): () => void {
@@ -111,8 +109,8 @@ async function connectResolved(serverUrl: string, user: DirectoryUser) {
   publish({ ready: true });
   await current.connect();
 }
-async function connectCanonical(profile: LocalProfile) {
-  const current = await installManager(profile);
+async function connectCanonical(profile: LocalProfile, registration?: RegistrationCredentials) {
+  const current = await installManager(profile, registration);
   publish({ ready: true });
   try { await current.connect(); }
   catch (error) {
@@ -235,12 +233,13 @@ async function rememberEmail(email: string, serverUrl: string) {
   try { await saveBoundEmail(boundEmail); } catch { /* Kept for this session. */ }
 }
 const emailServer = () => validateServerUrl(state.profile?.serverUrl ?? DEFAULT_SERVER);
+export const checkNewAccountPolicy = () => fetchRegistrationPolicy(emailServer());
 /** Null means another operation was already running. Refusals stay with the caller, which shows them in place. */
-export async function requestEmailCode(purpose: EmailPurpose, email: string): Promise<string | null> {
+export async function requestEmailCode(purpose: EmailPurpose, email: string, inviteCode?: string): Promise<string | null> {
   if (state.busy) return null;
   if (!state.identity) throw new Error(t('The device key is not loaded yet.'));
   publish({ busy: true, error: undefined });
-  try { return await startEmailChallenge(emailServer(), state.identity, { purpose, email, locale }); }
+  try { return await startEmailChallenge(emailServer(), state.identity, { purpose, email, locale, ...(purpose === 'register' && inviteCode ? { inviteCode } : {}) }); }
   finally { publish({ busy: false }); }
 }
 /** Registration: returns the proof to send with the next registration attempt. */
@@ -299,7 +298,7 @@ export async function recoverAccount(challengeId: string, code: string, email: s
     }
   } finally { publish({ busy: false }); }
 }
-export async function registerProfile(displayName: string, username: string, emailProof?: string, email?: string): Promise<void> {
+export async function registerProfile(displayName: string, username: string, emailProof?: string, email?: string, inviteCode?: string): Promise<void> {
   if (state.busy || state.profile || state.registration !== 'unregistered') return;
   const proposed = { displayName: displayName.trim(), username: username.trim().replace(/^@/, '').toLowerCase(), serverUrl: validateServerUrl(DEFAULT_SERVER) };
   if (!proposed.displayName || proposed.displayName.length > 48) throw new Error(t('The name must contain 1–48 characters.'));
@@ -308,12 +307,11 @@ export async function registerProfile(displayName: string, username: string, ema
   const identity = state.identity;
   publish({ busy: true, error: undefined });
   try {
-    const profile = await registrationCandidate(proposed, () => resolveDeviceProfile(proposed.serverUrl, identity));
-    pendingEmailProof = emailProof;
-    await connectCanonical(profile);
+    const candidate = await registrationCandidate(proposed, () => resolveDeviceProfile(proposed.serverUrl, identity));
+    await connectCanonical(candidate.profile, candidate.isNew ? { emailProof, inviteCode } : undefined);
     if (!state.profile) throw new Error(t('The server did not confirm the profile.'));
     await profiles.remember(state.profile);
-    if (email && emailProof) await rememberEmail(email, proposed.serverUrl);
+    if (candidate.isNew && email && emailProof) await rememberEmail(email, proposed.serverUrl);
   } catch (error) {
     // A connection may have registered the key before its ACK/save was lost.
     // Resolve again; never offer another login until the server confirms null.
@@ -326,7 +324,7 @@ export async function registerProfile(displayName: string, username: string, ema
     }
     publish({ error: errorText(error) });
     throw error;
-  } finally { pendingEmailProof = undefined; publish({ busy: false }); }
+  } finally { publish({ busy: false }); }
 }
 export async function reconnect(): Promise<void> {
   if (state.retired) return;

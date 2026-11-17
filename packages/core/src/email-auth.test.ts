@@ -56,6 +56,18 @@ describe('email frames',()=>{
  });
 });
 describe('bounded email helpers',()=>{
+ it('sends the invitation only when requesting a registration email', async () => {
+  const inviteCode = 'de'.repeat(32);
+  const instances = fakeSocket(socket => socket.push({type:'challenge',challenge}), (_frame, socket) => socket.push({type:'email-started',challengeId}));
+  try {
+   for (const purpose of ['register', 'recover', 'bind'] as const) {
+    await startEmailChallenge('https://example.com', identity, { purpose, email, locale: 'en', inviteCode });
+   }
+   expect(instances[0].sent[0].inviteCode).toBe(inviteCode);
+   expect(instances[1].sent[0]).not.toHaveProperty('inviteCode');
+   expect(instances[2].sent[0]).not.toHaveProperty('inviteCode');
+  } finally { vi.unstubAllGlobals(); }
+ });
  it('normalizes, signs and closes after email-started',async()=>{
   const instances=fakeSocket(socket=>socket.push({type:'challenge',challenge}),(frame,socket)=>{expect(frame.email).toBe(email);expect(verifyEmailStart(frame.publicKey,challenge,'register',email,'ru',frame.signature)).toBe(true);socket.push({type:'email-started',challengeId});});
   try{expect(await startEmailChallenge('https://example.com/messenger',identity,{purpose:'register',email:' User@Example.com ',locale:'ru'})).toBe(challengeId);expect(instances[0].url).toBe('wss://example.com/messenger/directory');expect(instances[0].closed).toBe(true);}finally{vi.unstubAllGlobals();}

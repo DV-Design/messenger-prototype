@@ -57,6 +57,10 @@ export function validEmail(input: string): string | null {
 }
 export const sanitizeCode = (input: string) => input.replace(/[^0-9]/g, '').slice(0, 6);
 export const validCode = (input: string) => /^[0-9]{6}$/.test(input);
+export function normalizeInviteCode(input: string): string | undefined {
+  const code = input.trim().toLowerCase();
+  return /^[0-9a-f]{64}$/.test(code) ? code : undefined;
+}
 export function resendSecondsLeft(sentAt: number | undefined, now: number): number {
   if (sentAt === undefined) return 0;
   return Math.min(RESEND_SECONDS, Math.max(0, Math.ceil((sentAt + RESEND_SECONDS * 1000 - now) / 1000)));
@@ -76,6 +80,9 @@ const refusals = (code: string): string => {
     case 'device-already-registered': return t('This device already has a registered username. Restore the profile from the server.');
     case 'account-moved': return t('This account was restored on another device. This phone can no longer use it.');
     case 'auth-failed': case 'auth-expired': return t('The server could not confirm this request. Try again.');
+    case 'invite-required': return t('An invitation code is required to register.');
+    case 'invite-invalid': return t('The invitation code is invalid, expired or already used. Ask for a new code.');
+    case 'registration-closed': return t('New account registration is currently closed. You can still restore an existing account.');
     default: return t('The server refused the request. Try again later.');
   }
 };
@@ -91,7 +98,7 @@ export function emailNoticeMessage(notice: EmailNotice | undefined): string {
 }
 /** `connect()` reports terminal refusals as `<code>: <message>`. */
 export function registrationErrorCode(message: string | undefined): string | undefined {
-  return /^(username-taken|device-already-registered|email-required|email-taken|account-moved)\b/.exec(message ?? '')?.[1];
+  return /^(username-taken|device-already-registered|email-required|email-taken|account-moved|invite-required|invite-invalid|registration-closed)\b/.exec(message ?? '')?.[1];
 }
 export function registrationErrorMessage(message: string): string {
   const code = registrationErrorCode(message);

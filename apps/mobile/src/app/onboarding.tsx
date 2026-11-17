@@ -1,11 +1,12 @@
 import { useReducer, useState } from 'react';
+import type { RegistrationPolicy } from '@messenger/core';
 import { Redirect } from 'expo-router';
 import { Image, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from '../components/SafeArea';
 import { EmailCodeForm } from '../components/EmailCodeForm';
 import { Button, Icon } from '../components/ui';
-import { emailErrorCode, emailErrorMessage, emailFlowReducer, emailNoticeMessage, initialEmailFlow, isEmailUnavailable, registrationErrorCode, registrationErrorMessage } from '../email-flow-model';
-import { checkRegistration, confirmRegistrationEmail, errorText, recoverAccount, registerProfile, requestEmailCode, useMessenger } from '../runtime';
+import { emailErrorCode, emailErrorMessage, emailFlowReducer, emailNoticeMessage, initialEmailFlow, isEmailUnavailable, normalizeInviteCode, registrationErrorCode, registrationErrorMessage } from '../email-flow-model';
+import { checkNewAccountPolicy, checkRegistration, confirmRegistrationEmail, errorText, recoverAccount, registerProfile, requestEmailCode, useMessenger } from '../runtime';
 import { colors, styles } from '../styles';
 import { t } from '../i18n';
 export default function Onboarding() {
@@ -15,18 +16,51 @@ export default function Onboarding() {
   const [username, setUsername] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [localError, setLocalError] = useState('');
+  const [policy, setPolicy] = useState<RegistrationPolicy>();
+  const [policyLoading, setPolicyLoading] = useState(false);
+  const [inviteInput, setInviteInput] = useState('');
+  const needsInvite = flow.mode === 'register' && policy === 'invite';
+  const inviteCode = needsInvite ? normalizeInviteCode(inviteInput) : undefined;
   const shownError = localError || (error ? registrationErrorMessage(error) : '');
   if (profile) return <Redirect href="/(tabs)" />;
+  async function createAccount() {
+    setPolicyLoading(true);
+    setInviteInput('');
+    setLocalError('');
+    try {
+      const next = await checkNewAccountPolicy();
+      setPolicy(next);
+      if (next === 'closed') setLocalError(registrationErrorMessage('registration-closed'));
+      else dispatch({ type: 'choose', mode: 'register' });
+    } catch {
+      setLocalError(t('Could not check registration availability. Try again.'));
+    } finally {
+      setPolicyLoading(false);
+    }
+  }
+  function registrationRefusal(code: string | undefined) {
+    if (flow.mode !== 'register') return;
+    if (code === 'invite-required' || code === 'invite-invalid') {
+      setPolicy('invite');
+      if (code === 'invite-invalid') setInviteInput('');
+    } else if (code === 'registration-closed') {
+      setInviteInput('');
+      setPolicy('closed');
+      dispatch({ type: 'reset' });
+    }
+  }
   /** The server already holds a profile for this key, so it must be picked up rather than created. */
   function refused(cause: unknown) {
     setLocalError(emailErrorMessage(cause));
-    if (emailErrorCode(cause) === 'device-already-registered') void checkRegistration();
+    const code = emailErrorCode(cause);
+    registrationRefusal(code);
+    if (code === 'device-already-registered') void checkRegistration();
   }
   async function send(email: string) {
-    if (!flow.mode) return;
+    if (!flow.mode || (needsInvite && !inviteCode)) return;
     setLocalError('');
     try {
-      const challengeId = await requestEmailCode(flow.mode, email);
+      const challengeId = await requestEmailCode(flow.mode, email, inviteCode);
       if (challengeId) dispatch({ type: 'code-sent', email, challengeId, at: Date.now() });
     } catch (cause) {
       if (isEmailUnavailable(cause)) dispatch({ type: 'unavailable' });
@@ -45,16 +79,22 @@ export default function Onboarding() {
     } catch (cause) { refused(cause); }
   }
   async function register() {
+    if (needsInvite && !inviteCode) return;
     setLocalError('');
-    try { await registerProfile(displayName, username, flow.proof, flow.email); }
+    try { await registerProfile(displayName, username, flow.proof, flow.email, inviteCode); }
     catch (cause) {
       const code = registrationErrorCode(errorText(cause));
+      registrationRefusal(code);
       if (code) dispatch({ type: 'registration-failed', code });
       setLocalError(registrationErrorMessage(errorText(cause)));
     }
   }
   const notice = emailNoticeMessage(flow.notice);
-  const back = () => { setLocalError(''); dispatch({ type: 'back' }); };
+  const back = () => {
+    setLocalError('');
+    if (flow.stage === 'email') setInviteInput('');
+    dispatch({ type: 'back' });
+  };
   const profileForm = flow.stage === 'profile';
   return <SafeAreaView style={styles.whiteScreen}><KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1 }}>
@@ -62,11 +102,15 @@ export default function Onboarding() {
         <View><Text style={[styles.title, { textAlign: 'center', fontSize: 32 }]}>LastCall</Text>
           <Text style={[styles.body, { textAlign: 'center', marginTop: 12 }]}>{registration !== 'unregistered' || flow.stage === 'choose' ? t('A private messenger with a unique username. Messages and calls travel between participants.') : flow.mode === 'recover' ? t('Restoring returns your @username and name to this phone. Chat history and contacts do not come back, the old device stops working, and your contacts will see that your key changed.') : profileForm ? t('Choose a unique username. The server binds it to this device key; it cannot be changed after registration.') : t('Your email confirms the account and lets you restore it after reinstalling the app.')}</Text></View>
         {registration === 'unregistered' && flow.stage === 'choose' && <View style={{ gap: 12 }}>
-          <Button title={t('Create account')} disabled={!identity} onPress={() => { setLocalError(''); dispatch({ type: 'choose', mode: 'register' }); }} />
-          <Button secondary title={t('Restore account')} disabled={!identity} onPress={() => { setLocalError(''); dispatch({ type: 'choose', mode: 'recover' }); }} />
+          <Button title={t('Create account')} busy={policyLoading} disabled={!identity || busy} onPress={() => void createAccount()} />
+          <Button secondary title={t('Restore account')} disabled={!identity || busy || policyLoading} onPress={() => { setLocalError(''); setInviteInput(''); dispatch({ type: 'choose', mode: 'recover' }); }} />
         </View>}
         {registration === 'unregistered' && !!notice && !profileForm && <Text accessibilityRole="alert" style={styles.error}>{notice}</Text>}
-        {registration === 'unregistered' && (flow.stage === 'email' || flow.stage === 'code') && <EmailCodeForm flow={flow} busy={busy} disabled={!identity}
+        {registration === 'unregistered' && needsInvite && <View>
+          <Text style={styles.label}>{t('Invitation code')}</Text>
+          <TextInput style={styles.input} value={inviteInput} onChangeText={setInviteInput} editable={!busy} maxLength={128} autoCapitalize="none" autoCorrect={false} textContentType="none" placeholder={t('Paste the code you received')} placeholderTextColor={colors.secondary} accessibilityLabel={t('Invitation code')} />
+        </View>}
+        {registration === 'unregistered' && (flow.stage === 'email' || flow.stage === 'code') && <EmailCodeForm flow={flow} busy={busy} disabled={!identity} sendDisabled={needsInvite && !inviteCode}
           codeHint={flow.mode === 'recover' ? t('We sent a letter to {email}. Enter the 6-digit code from it. If no account uses this address, the letter says so instead.', { email: flow.email }) : t('We sent a letter to {email}. Enter the 6-digit code from it. If this address already has an account, the letter explains how to restore it instead.', { email: flow.email })}
           onSend={email => void send(email)} onConfirm={code => void confirm(code)} onBack={back} />}
         {registration === 'unregistered' && profileForm && <>
@@ -85,7 +129,7 @@ export default function Onboarding() {
         </>}
         {!!shownError && <Text accessibilityRole="alert" style={styles.error}>{shownError}</Text>}
         {registration !== 'unregistered' && <><Text style={styles.body}>{registration === 'checking' ? t('Checking this device registration…') : t('Could not check registration. Try again when online. A new username is unavailable until the server confirms no binding.')}</Text><Button title={t('Check again')} busy={busy} disabled={!identity} onPress={() => { void checkRegistration(); }} /></>}
-        {registration === 'unregistered' && profileForm && <><Button title={t('Register')} busy={busy} disabled={!identity || !displayName.trim() || username.trim().length < 3 || !termsAccepted} onPress={() => void register()} />
+        {registration === 'unregistered' && profileForm && <><Button title={t('Register')} busy={busy} disabled={!identity || !displayName.trim() || username.trim().length < 3 || !termsAccepted || (needsInvite && !inviteCode)} onPress={() => void register()} />
           <Pressable accessibilityRole="button" disabled={busy} onPress={back}><Text style={{ color: colors.accent, textAlign: 'center' }}>{t('Back')}</Text></Pressable></>}
         <Text style={[styles.info, { textAlign: 'center' }]}> {t('The profile key is stored on this device. A confirmed email restores your @username after reinstalling, but not chats or contacts. Compare safety codes with your contacts afterwards. The server helps find friends and see their status; messages and calls travel between participants.')}</Text>
       </View>

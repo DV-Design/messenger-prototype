@@ -14,8 +14,6 @@ MOBILE_DIR="$REPO_ROOT/apps/mobile"
 ANDROID_DIR="$MOBILE_DIR/android"
 AAB_PATH="$ANDROID_DIR/app/build/outputs/bundle/release/app-release.aab"
 PACKAGE=ru.lastcall.app
-VERSION=1.0.30
-VERSION_CODE=44
 
 die() { printf 'build:aab: ERROR: %s\n' "$*" >&2; exit 1; }
 command -v node >/dev/null || die "node is required"
@@ -64,6 +62,11 @@ export MESSENGER_GOOGLE_SERVICES_FILE="$SERVICES_FILE"
 export LASTCALL_ANDROID_MAPS_API_KEY="${LASTCALL_ANDROID_MAPS_API_KEY:-}"
 export ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
 [[ -d "$ANDROID_HOME" ]] || die "ANDROID_HOME does not exist"
+
+# Use the source configuration independently of the packaged metadata.
+EXPECTED_CONFIG_JSON="$(cd "$MOBILE_DIR" && npx --no-install expo config --type public --json)"
+VERSION="$(jq -er '.version | strings | select(length > 0)' <<<"$EXPECTED_CONFIG_JSON")"
+VERSION_CODE="$(jq -er '.android.versionCode | numbers | select(. > 0 and floor == .)' <<<"$EXPECTED_CONFIG_JSON")"
 
 printf 'build:aab: [1/3] Expo prebuild (store)\n'
 (cd "$MOBILE_DIR" && npx --no-install expo prebuild --platform android --no-install)

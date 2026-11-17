@@ -1,3 +1,17 @@
+# LastCall Android 1.0.31 (code 45)
+
+Registration by country and delegated invitations. See the [QA report](../docs/reports/testing/2026-11/registration-invites-1031.md).
+
+| Artifact | Package | Bytes | SHA-256 |
+| --- | --- | ---: | --- |
+| [APK](https://p2p.lienad.ru/download/LastCall-1.0.31.apk) ([mirror](https://lienad.ru/messenger/download/LastCall-1.0.31.apk)) | `dev.messenger.prototype` | 73,882,762 | `24ace058ee6a7ec7f8dcb493f5f1f6c35205dae119461c4eed98c0b74439961a` |
+| `artifacts/LastCall-1.0.31-store.aab` (awaiting Play upload) | `ru.lastcall.app` | 58,686,323 | `a292caccc75df2ab032edb2b85d321f7e2d40e7867705101af7dc1379286e32e` |
+
+The direct APK matches the previous direct distribution signing certificate.
+The store bundle passed package, version, signature and Firebase configuration checks.
+
+---
+
 # LastCall Android 1.0.13 (test APK, not offered as an update)
 
 1.0.12 plus automatic reconnection and locked-screen call handling. Checked on emulators:

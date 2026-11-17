@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { EmailAuthError } from '@messenger/core';
-import { emailErrorMessage, emailFlowReducer, emailForServer, emailNoticeMessage, initialEmailFlow, isAccountMoved, isEmailUnavailable, registrationErrorCode, registrationErrorMessage, resendSecondsLeft, sanitizeCode, shouldShowEmailReminder, validCode, validEmail, type EmailFlowState } from '../src/email-flow-model';
+import { emailErrorMessage, emailFlowReducer, emailForServer, emailNoticeMessage, initialEmailFlow, isAccountMoved, isEmailUnavailable, normalizeInviteCode, registrationErrorCode, registrationErrorMessage, resendSecondsLeft, sanitizeCode, shouldShowEmailReminder, validCode, validEmail, type EmailFlowState } from '../src/email-flow-model';
 import { setLocale, t } from '../src/i18n';
 
 const sent = (state: EmailFlowState) => emailFlowReducer(state, { type: 'code-sent', email: 'a@example.com', challengeId: 'c'.repeat(32), at: 1000 });
@@ -128,6 +128,19 @@ test('terminal connect errors map to readable text', () => {
   assert.equal(registrationErrorMessage('Some other failure'), 'Some other failure');
   assert.equal(isAccountMoved('account-moved: raw'), true);
   assert.equal(isAccountMoved('auth-failed: raw'), false);
+});
+
+test('pasted invitation codes preserve the full token and refusals keep the email proof for retry', () => {
+  assert.equal(normalizeInviteCode(` ${'AB'.repeat(32)}\n`), 'ab'.repeat(32));
+  assert.equal(normalizeInviteCode('a'.repeat(63)), undefined);
+  assert.equal(normalizeInviteCode('g'.repeat(64)), undefined);
+  const verified = emailFlowReducer(sent(choose('register')), { type: 'verified', proof: 'p'.repeat(64) });
+  for (const code of ['invite-required', 'invite-invalid', 'registration-closed']) {
+    assert.equal(registrationErrorCode(`${code}: details`), code);
+    assert.equal(isEmailUnavailable(new EmailAuthError(code, 'details')), false);
+    assert.doesNotMatch(emailErrorMessage(new EmailAuthError(code, 'details')), /details/);
+    assert.equal(emailFlowReducer(verified, { type: 'registration-failed', code }), verified);
+  }
 });
 
 test('a binding counts only for the server that confirmed it', () => {

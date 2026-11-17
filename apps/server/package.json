@@ -7,14 +7,15 @@
     "dev": "tsx watch src/main.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "build": "esbuild src/main.ts --bundle --platform=node --target=node24 --format=esm --external:ws --external:firebase-admin/* --external:nodemailer --outfile=dist/main.js",
+    "build": "esbuild src/main.ts --bundle --platform=node --target=node24 --format=esm --external:ws --external:firebase-admin/* --external:nodemailer --external:maxmind --outfile=dist/main.js",
     "start": "node dist/main.js"
   },
   "dependencies": {
     "@messenger/core": "*",
-    "ws": "^8.18.3",
     "firebase-admin": "^14.5.0",
-    "nodemailer": "^10.3.1"
+    "maxmind": "5.1.0",
+    "nodemailer": "^10.3.1",
+    "ws": "^8.18.3"
   },
   "devDependencies": {
     "@types/nodemailer": "^8.0.2",

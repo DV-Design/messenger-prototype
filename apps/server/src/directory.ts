@@ -5,6 +5,7 @@ import { DatabaseSync } from 'node:sqlite';
 import type { WebSocket } from 'ws';
 import { DirectoryServices, ServiceError, type ServiceOptions } from './services.js';
 import { EmailAuth, type EmailOutcome } from './email-auth.js';
+import { RegistrationInvites, type RegistrationMode } from './registration-invites.js';
 import { directoryClientFrameSchema, userIdFromPublicKey, verifyAuthentication, verifyEmailStart, verifyEmailVerify, verifyProfileResolve, wakeIntentSchema, type DirectoryUser } from '@messenger/core';
 
 /** Directory pages and search results; a person types more to narrow a search instead of scrolling hundreds. */
@@ -15,6 +16,7 @@ type ProfileRow = { user_id: string; public_key: string; username: string; displ
 interface Connection {
   ws: WebSocket;
   ip: string;
+  registrationMode: RegistrationMode;
   identityMovedV1?: boolean;
   challenge?: string;
   expiresAt: number;
@@ -23,6 +25,7 @@ interface Connection {
   callInviteV1?:boolean;
 }
 export interface DirectoryOptions extends ServiceOptions {
+  registrationAdminUserIds?: string[];
   iceServers: () => RTCIceServer[];
   dbPath: string;
   maxUsers: number;
@@ -39,6 +42,7 @@ export class Directory {
   private closed = false;
   private services: DirectoryServices;
   private email: EmailAuth;
+  private invites: RegistrationInvites;
   constructor(private options: DirectoryOptions) {
     if (options.dbPath !== ':memory:') mkdirSync(dirname(options.dbPath), { recursive: true, mode: 0o700 });
     this.db = new DatabaseSync(options.dbPath);
@@ -62,15 +66,16 @@ export class Directory {
     this.db.function('lastcall_fold', { deterministic: true }, (value) => String(value ?? '').normalize('NFKC').toLowerCase());
     this.services = new DirectoryServices(this.db, options, (id) => { const row = this.row(id); return row && this.user(row); }, options.iceServers,state=>{for(const id of [state.callerId,state.calleeId]){const target=this.online.get(id);if(target?.callInviteV1)this.options.send(target.ws,{type:'call-state',...state});}},(recipient,invite)=>{const target=this.online.get(recipient);if(target?.callInviteV1)this.options.send(target.ws,{type:'call-invitation',invite});});
     this.email = new EmailAuth(this.db, options, (quotas) => this.services.reserveQuotas(quotas));
+    this.invites = new RegistrationInvites(this.db, options.registrationAdminUserIds ?? [], options.serviceNow);
   }
-  open(ws: WebSocket, ip = '') {
+  open(ws: WebSocket, ip = '', registrationMode: RegistrationMode = 'open') {
     const challenge = randomBytes(32).toString('hex');
-    this.connections.set(ws, { ws, ip, challenge, expiresAt: Date.now() + (this.options.challengeTtlMs ?? 15_000), watches: new Set() });
+    this.connections.set(ws, { ws, ip, registrationMode, challenge, expiresAt: Date.now() + (this.options.challengeTtlMs ?? 15_000), watches: new Set() });
     this.options.send(ws, { type: 'challenge', challenge });
   }
   isAuthenticated(ws: WebSocket) { return Boolean(this.connections.get(ws)?.userId); }
   expire(now: number) {
-    try { this.services.expire(); this.email.expire(); } catch { console.error('Directory quota cleanup failed'); }
+    try { this.services.expire(); this.email.expire(); this.invites.expire(); } catch { console.error('Directory quota cleanup failed'); }
     void this.services.deliveryTick(this.isOnline).catch(() => { /* Retried on the next tick. */ });
     for (const connection of this.connections.values()) {
       if (!connection.userId && now >= connection.expiresAt) this.options.reject(connection.ws, 'auth-expired', 'Authentication challenge expired', true);
@@ -125,6 +130,7 @@ export class Directory {
     if (!old) throw new ServiceError('email-code-invalid', 'The code is invalid or expired');
     this.services.atomically(() => {
       this.services.deleteAccountInside(old.user_id);
+      this.invites.revokeIssuer(old.user_id);
       this.email.unbindInside(old.user_id);
       this.db.prepare('DELETE FROM directory_users WHERE user_id = ?').run(old.user_id);
       this.db.prepare('INSERT INTO directory_users (user_id, public_key, username, display_name, last_seen) VALUES (?, ?, ?, ?, ?)')
@@ -161,6 +167,7 @@ export class Directory {
       if (frame.type === 'email-start') {
         return this.oneShot(connection, (challenge: string) => {
           if (!verifyEmailStart(frame.publicKey, challenge, frame.purpose, frame.email, frame.locale, frame.signature)) throw new ServiceError('auth-failed', 'Signature verification failed');
+          if (frame.purpose === 'register') this.invites.assertRegistration(connection.registrationMode, frame.inviteCode);
           if (!this.email.enabled) throw new ServiceError('email-unavailable', 'Email is not configured on this server');
           const { userId, hasProfile } = this.emailKeyState(frame.publicKey);
           // These depend only on the signing key, so they reveal nothing about the address.
@@ -184,6 +191,7 @@ export class Directory {
         if (this.email.movedTo(userId)) return this.options.reject(ws, 'account-moved', 'This account was restored on another device', true);
         const existing = this.row(userId);
         if (existing && existing.username !== frame.username) return this.options.reject(ws, 'device-already-registered', 'This installation already owns a username', true);
+        if (!existing) this.invites.assertRegistration(connection.registrationMode, frame.inviteCode);
         const occupied = this.db.prepare('SELECT user_id FROM directory_users WHERE username = ? AND user_id <> ?').get(frame.username, userId);
         if (occupied) return this.options.reject(ws, 'username-taken', 'This username is already registered', true);
         const count = this.db.prepare('SELECT COUNT(*) AS total FROM directory_users').get() as { total: number };
@@ -194,6 +202,7 @@ export class Directory {
         if (emailHash && this.email.ownerOf(emailHash)) return this.options.reject(ws, 'email-taken', 'This address belongs to another account', true);
         if (existing) this.db.prepare('UPDATE directory_users SET last_seen = ? WHERE user_id = ?').run(Date.now(), userId);
         else this.services.atomically(() => {
+          this.invites.assertRegistration(connection.registrationMode, frame.inviteCode, true);
           this.db.prepare('INSERT INTO directory_users (user_id, public_key, username, display_name, last_seen) VALUES (?, ?, ?, ?, ?)')
             .run(userId, frame.publicKey, frame.username, frame.displayName, Date.now());
           if (emailHash) this.email.bindInside(userId, emailHash);
@@ -214,7 +223,11 @@ export class Directory {
         this.services.deleteAccount(userId);
         this.online.delete(userId);
         this.notify(userId);
-        this.services.atomically(() => { this.email.deleteAccountInside(userId); this.db.prepare('DELETE FROM directory_users WHERE user_id = ?').run(userId); });
+        this.services.atomically(() => {
+          this.invites.revokeIssuer(userId);
+          this.email.deleteAccountInside(userId);
+          this.db.prepare('DELETE FROM directory_users WHERE user_id = ?').run(userId);
+        });
         this.connections.delete(ws);
         this.options.send(ws, { type: 'account-deleted', requestId: frame.requestId });
         ws.close(1000, 'Account deleted');
@@ -225,7 +238,21 @@ export class Directory {
         this.options.send(ws, { type: 'report-received', requestId: frame.requestId });
         return;
       }
-      if (frame.type === 'list-users') {
+      if (frame.type === 'invite-status') {
+        this.options.send(ws, { type: 'invite-status', requestId: frame.requestId, ...this.invites.status(connection.userId) });
+      } else if (frame.type === 'invite-create') {
+        const userId = connection.userId;
+        const invitation = this.services.atomically(() => this.invites.create(userId));
+        this.options.send(ws, { type: 'invite-created', requestId: frame.requestId, ...invitation });
+      } else if (frame.type === 'invite-revoke') {
+        const userId = connection.userId;
+        this.services.atomically(() => this.invites.revoke(userId, frame.inviteId));
+        this.options.send(ws, { type: 'invite-updated', requestId: frame.requestId });
+      } else if (frame.type === 'invite-grant') {
+        const userId = connection.userId;
+        this.services.atomically(() => this.invites.setGrant(userId, frame.username, frame.enabled));
+        this.options.send(ws, { type: 'invite-updated', requestId: frame.requestId });
+      } else if (frame.type === 'list-users') {
         // Small pages keep a scroll through the directory cheap; older clients follow nextCursor the same way.
         const rows = this.db.prepare(`SELECT * FROM directory_users WHERE username > ? ORDER BY username LIMIT ${DIRECTORY_PAGE + 1}`).all(frame.cursor ?? '') as ProfileRow[];
         const page = rows.slice(0, DIRECTORY_PAGE);

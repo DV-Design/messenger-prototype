@@ -1,60 +1,47 @@
 {
-  "run_id": "lastcall-073-video-pip-routes-2026-10-31",
+  "run_id": "lastcall-1031-registration-invites-2026-11-16",
   "max_cycles": 6,
-  "cycles_started": 4,
-  "status": "developing",
+  "cycles_started": 2,
+  "status": "completed_pass",
   "agent": "lastcall-release-tester",
-  "prior_run": "docs/qa/runs/lastcall-072-media-audio-2026-10-31.json",
-  "authorization": "New explicit user-requested scope after completed0.7.2 release: above-app live video/PiP, timed controls, camera switching plus reported audio routing failures. Standing owner limit is six allocations per distinct run. Previous run preserved unchanged. User subsequently names same candidate first release1.0.0 and changes default endpoint to https://p2p.lienad.ru; existing allocation unchanged.",
+  "prior_run": "docs/qa/runs/lastcall-073-video-pip-routes-2026-10-31.json",
+  "authorization": "New explicit user scope: delegated invites with a daily quota and market registration.",
   "stop_on_same_failure_without_new_evidence": 2,
   "cycles": [
     {
       "cycle": 1,
-      "allocation": "lastcall-073-video-pip-routes-2026-10-31:1",
-      "candidate_base_commit": "90a1c43",
-      "candidate_version": "1.0.0/code13",
+      "allocation": "lastcall-1031-registration-invites-2026-11-16:1",
+      "candidate_base_commit": "1eb17d5",
+      "candidate_version": "1.0.31/code45",
       "status": "failed",
-      "scope": "Native Android live-call PiP, video control auto-hide/tap, call+circle camera switch, actual native audio ownership/false error fixes.",
-      "finding": "Native packaging preflight: expo-video supportsPictureInPicture=false removed final MainActivity PiP flag because mod callbacks execute in reverse order. First native build interrupted before APK publication; no independent tester invoked.",
-      "native_build": "interrupted_manifest_preflight"
+      "scope": "Market registration and delegated one-use invitations with a five-per-day quota.",
+      "unit_tests_passed": 684,
+      "unit_tests_failed": 1,
+      "browser_tests_status": "not_run",
+      "finding": "The test inspected parsed configuration by starting market mode without its required Docker GeoIP database. The test now checks the list separately and asserts failure for a deliberately missing data file.",
+      "skills": "READ_FALLBACK"
     },
     {
       "cycle": 2,
-      "allocation": "lastcall-073-video-pip-routes-2026-10-31:2",
-      "candidate_base_commit": "90a1c43",
-      "candidate_version": "1.0.0/code13",
-      "status": "failed",
-      "scope": "Same release scope, place PiP config plugin before expo-video so final generated manifest retains supportsPictureInPicture; verify actual prebuild before native build.",
-      "native_build": "compile_failed",
-      "finding": "Kotlin compile: generated MainActivity used nonexistent PictureInPictureUiState.isTransitioning. Installedandroid37.0 android.jar javap confirms isTransitioningToPip(). No independenttester invoked."
-    },
-    {
-      "cycle": 3,
-      "allocation": "lastcall-073-video-pip-routes-2026-10-31:3",
-      "candidate_base_commit": "90a1c43",
-      "candidate_version": "1.0.0/code13",
-      "status": "failed",
-      "scope": "Same release scope; use exact installedAndroid37.0 PictureInPictureUiState.isTransitioningToPip getter, with corrected PiP manifest plugin order. Native build+one bounded independentQA planned.",
-      "native_build": "passed",
-      "apk_sha256": "3bf81dfa8e2f8fba0da6503659223dc091993ae1f59377713eda157b9aba14d7",
-      "candidate_url": "https://p2p.lienad.ru/download/LastCall-1.0.0-candidate.apk",
-      "finding": "NativeAPK PiP/livevideo/camera/5scontrols initiallypass; returningtoforegroundforcednetworkrecoverywithunchangedWiFi and10s timeout endedhealthycall. Independenttester notyetinvoked. CandidatepublishedatuserexplicitparallelAPKrequest, notacceptedrelease."
-    },
-    {
-      "cycle": 4,
-      "allocation": "lastcall-073-video-pip-routes-2026-10-31:4",
-      "candidate_base_commit": "90a1c43",
-      "candidate_version": "1.0.0/code14",
-      "status": "developing",
-      "scope": "Same release plus confirmedPiP foreground-resume forcednetwork-reset regression; preserve healthyactivecalls while retaining actual network transition/retry recovery."
+      "allocation": "lastcall-1031-registration-invites-2026-11-16:2",
+      "candidate_base_commit": "1eb17d5",
+      "candidate_version": "1.0.31/code45",
+      "status": "passed",
+      "scope": "Recheck registration and invitation candidate after isolating the GeoIP configuration test.",
+      "exit_code": 0,
+      "unit_tests_passed": 685,
+      "unit_tests_failed": 0,
+      "browser_tests_passed": 18,
+      "browser_tests_skipped": 1,
+      "browser_tests_failed": 0,
+      "browser_tests_status": "passed",
+      "skills": "READ_FALLBACK",
+      "report": "docs/reports/testing/2026-11/registration-invites-1031.md"
     }
   ],
-  "requires_user_resume": false,
-  "last_verdict": null,
-  "skill_loading_verified": {},
   "activity": {
-    "cycle": 4,
-    "stage": "build",
-    "updated_at": "2026-10-31T18:00:18.876500+00:00"
+    "cycle": 2,
+    "stage": "review",
+    "updated_at": "2026-11-16T21:22:15.323301+00:00"
   }
 }

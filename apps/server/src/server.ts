@@ -5,9 +5,11 @@ import { clientFrameSchema } from '@messenger/core';
 import { Directory } from './directory.js';
 import { createFcmPushProvider, createSmtpEmailSender } from './providers.js';
 import { clientIp, rateKey } from './client-ip.js';
+import { createRegistrationCountryLookup } from './registration-geoip.js';
 import type { ServiceOptions } from './services.js';
+import { DEFAULT_RESTRICTED_COUNTRIES, registrationPolicy, type RegistrationOptions } from './registration-invites.js';
 
-export interface ServerOptions extends ServiceOptions {
+export interface ServerOptions extends ServiceOptions, RegistrationOptions {
   requireIceAuth?: boolean;
   host?: string;
   port?: number;
@@ -64,6 +66,7 @@ export function createSignalingServer(options: ServerOptions = {}) {
     trustedProxyCidrs: options.trustedProxyCidrs ?? [],
   };
   if (config.turnTtlSeconds < 60 || config.turnTtlSeconds > 3600) throw new Error('TURN TTL must be 60–3600 seconds');
+  const policyForIp = registrationPolicy(options);
   const peers = new Map<WebSocket, Peer>();
   const rooms = new Map<string, Map<string, Peer>>();
   const resumes = new Map<string,{token:string;role:Role;expiresAt:number}>();
@@ -91,7 +94,8 @@ export function createSignalingServer(options: ServerOptions = {}) {
   });
   const originAllowed = (request: IncomingMessage) => request.headers.origin === undefined || allowed.has(request.headers.origin);
   // Headers are trusted only when the direct peer is in an explicitly configured proxy allowlist.
-  const ipOf = (request: IncomingMessage) => rateKey(clientIp(request.socket.remoteAddress ?? '', request.headers['x-forwarded-for'], config.trustedProxyCidrs));
+  const clientIpOf = (request: IncomingMessage) => clientIp(request.socket.remoteAddress ?? '', request.headers['x-forwarded-for'], config.trustedProxyCidrs);
+  const ipOf = (request: IncomingMessage) => rateKey(clientIpOf(request));
   function acceptRequest(request: IncomingMessage) {
     const now = Date.now();
     const ip = ipOf(request);
@@ -119,6 +123,7 @@ export function createSignalingServer(options: ServerOptions = {}) {
     }
     if (request.method !== 'GET') return respond(405, { error: 'GET required' });
     if (request.url === '/health') return respond(200, { status: 'ok' });
+    if (request.url === '/registration-policy') return respond(200, { mode: policyForIp(clientIpOf(request)) });
     if (request.url === '/ice') {
       return respond(200, { iceServers: iceServers(!options.requireIceAuth) });
     }
@@ -224,7 +229,7 @@ export function createSignalingServer(options: ServerOptions = {}) {
         if (!other) return reject(peer, 'peer-unavailable', 'The other peer is not connected');
         send(other, { type: 'signal', from: peer.peerId, payload: frame.payload });
       });
-      if (peer.kind === 'directory') directory.open(ws, peer.ip);
+      if (peer.kind === 'directory') directory.open(ws, peer.ip, policyForIp(clientIpOf(request)));
     });
   });
   const heartbeat = setInterval(() => {
@@ -277,6 +282,10 @@ export function optionsFromEnv(env: NodeJS.ProcessEnv = process.env): ServerOpti
   if (!emailEnabled && emailValues.some(Boolean)) throw new Error('SMTP_HOST, SMTP_USER, SMTP_PASS, SMTP_FROM and EMAIL_HASH_SECRET must be configured together');
   if (emailEnabled && Buffer.byteLength(env.EMAIL_HASH_SECRET!) < 32) throw new Error('EMAIL_HASH_SECRET must contain at least 32 bytes');
   if (env.EMAIL_REQUIRED === '1' && !emailEnabled) throw new Error('EMAIL_REQUIRED needs SMTP configuration');
+  const registrationMode = env.REGISTRATION_MODE || 'open';
+  if (registrationMode !== 'open' && registrationMode !== 'invite' && registrationMode !== 'market' && registrationMode !== 'closed') {
+    throw new Error('REGISTRATION_MODE must be open, invite, market, or closed');
+  }
   return {
     host: env.HOST || '127.0.0.1', port: numberEnv(env, 'PORT', 8787, 0, 65535),
     ...(env.ALLOWED_ORIGINS !== undefined ? { allowedOrigins: list('ALLOWED_ORIGINS') } : {}),
@@ -289,6 +298,12 @@ export function optionsFromEnv(env: NodeJS.ProcessEnv = process.env): ServerOpti
       emailHashSecret: env.EMAIL_HASH_SECRET,
     } : {}),
     emailRequired: env.EMAIL_REQUIRED === '1',
+    registrationMode,
+    registrationRestrictedCountries: env.REGISTRATION_RESTRICTED_COUNTRIES === undefined ? [...DEFAULT_RESTRICTED_COUNTRIES] : list('REGISTRATION_RESTRICTED_COUNTRIES'),
+    registrationAdminUserIds: list('REGISTRATION_ADMIN_USER_IDS'),
+    ...(registrationMode === 'market' ? {
+      registrationCountryForIp: createRegistrationCountryLookup(env.REGISTRATION_GEOIP_DB || '/app/dbip-country.mmdb'),
+    } : {}),
     emailGlobalPerHour: numberEnv(env, 'EMAIL_GLOBAL_PER_HOUR', 200, 1, 100_000),
     turnTtlSeconds: numberEnv(env, 'TURN_TTL_SECONDS', 600, 60, 3600),
     directoryDbPath: env.DIRECTORY_DB_PATH || ':memory:',

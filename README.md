@@ -4,18 +4,23 @@ Android/iOS мессенджер с приоритетом прямого P2P.
 Целевая среда — в том числе российские мобильные и домашние сети.
 Боты, каналы и резервные копии исключены из объёма.
 
+Для LastCall 1.0.31 правила регистрации по странам и права выдачи инвайтов
+описаны в [руководстве по приглашениям](docs/REGISTRATION-INVITES.md).
+
 ## Скачать APK для Android
 
 | Версия | Основная ссылка | Резервная ссылка | Состояние |
 | --- | --- | --- | --- |
+| 1.0.31 | [LastCall-1.0.31.apk](https://p2p.lienad.ru/download/LastCall-1.0.31.apk) | [зеркало](https://lienad.ru/messenger/download/LastCall-1.0.31.apk) | Приглашения и правила регистрации по странам. Серверные проверки пройдены. Проверка интерфейса на телефонах ещё предстоит |
 | 1.0.13 | [LastCall-1.0.13.apk](https://p2p.lienad.ru/download/LastCall-1.0.13.apk) | [зеркало](https://lienad.ru/messenger/download/LastCall-1.0.13.apk) | Тестовая: звонки на заблокированном экране, автопереподключение. На телефонах не проверена |
 | 1.0.12 | [LastCall-1.0.12.apk](https://p2p.lienad.ru/download/LastCall-1.0.12.apk) | [зеркало](https://lienad.ru/messenger/download/LastCall-1.0.12.apk) | Тестовая: почта, правка и удаление, исправлено переподключение. Проверена на эмуляторах |
 | 1.0.11 | [LastCall-1.0.11.apk](https://p2p.lienad.ru/download/LastCall-1.0.11.apk) | [зеркало](https://lienad.ru/messenger/download/LastCall-1.0.11.apk) | Тестовая, заменена 1.0.12: зависание соединения до 30 секунд |
 | 1.0.10 | [LastCall-1.0.10.apk](https://p2p.lienad.ru/download/LastCall-1.0.10.apk) | [зеркало](https://lienad.ru/messenger/download/LastCall-1.0.10.apk) | Тестовая: почта. На телефонах не проверена |
 | 1.0.7 | [LastCall-1.0.7.apk](https://p2p.lienad.ru/download/LastCall-1.0.7.apk) | [зеркало](https://lienad.ru/messenger/download/LastCall-1.0.7.apk) | Её предлагает обновление внутри приложения |
 
-Все подписаны тестовым сертификатом. Версию из Google Play сначала нужно удалить, и
-при этом пропадут ключ и история на телефоне. Размеры и SHA256 — в [артефактах](artifacts/README.md).
+APK с сайта используют подпись этого канала. Если LastCall установлен через Google
+Play, дождитесь обновления в том же канале: при удалении приложения пропадут ключ
+и история на телефоне. Размеры и SHA-256 — в [артефактах](artifacts/README.md).
 
 ## Сборка 1.0.28 / Android code42 (внутреннее тестирование Google Play)
 

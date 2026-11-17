@@ -1,9 +1,11 @@
 export type Profile = { username: string; displayName: string; serverUrl: string };
 export const profileSignature = (profile: Profile) => JSON.stringify([profile.serverUrl, profile.username, profile.displayName]);
 /** A rejected resolver is never equivalent to an unregistered device. */
-export async function registrationCandidate(proposed: Profile, resolve: () => Promise<{ username: string; displayName: string } | null>): Promise<Profile> {
+export async function registrationCandidate(proposed: Profile, resolve: () => Promise<{ username: string; displayName: string } | null>) {
   const bound = await resolve();
-  return bound ? { ...proposed, username: bound.username, displayName: bound.displayName } : proposed;
+  return bound
+    ? { profile: { ...proposed, username: bound.username, displayName: bound.displayName }, isNew: false }
+    : { profile: proposed, isNew: true };
 }
 /** Serial, deduplicated canonical writes. A failed save never undoes server binding. */
 export class CanonicalProfileStore {

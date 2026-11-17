@@ -4,7 +4,7 @@ handle /messenger {
     redir /messenger/ 308
 }
 handle_path /messenger/* {
-    @messenger_service path /signal /directory /ice /health
+    @messenger_service path /signal /directory /ice /health /registration-policy
     handle @messenger_service {
         reverse_proxy messenger-signaling:8787 {
             header_down Cache-Control "no-store"

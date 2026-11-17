@@ -17,8 +17,15 @@ COPY apps/server/package.json ./apps/server/package.json
 COPY packages/core/package.json ./packages/core/package.json
 RUN npm ci --omit=dev --workspace @messenger/server --include-workspace-root && npm cache clean --force
 
+FROM node:24-bookworm-slim AS country-data
+# Pin the official DB-IP Country Lite file and verify it before extraction.
+ADD https://download.db-ip.com/free/dbip-country-lite-2026-11.mmdb.gz /dbip-country.mmdb.gz
+RUN echo '75fe430010f6d38a8c4331c202bf0df6ce3221a6e6d823b9e5a6d951e4cf9758  /dbip-country.mmdb.gz' | sha256sum -c - \
+    && gzip -dc /dbip-country.mmdb.gz > /dbip-country.mmdb
+
 FROM node:24-bookworm-slim AS runtime
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=8787
+LABEL org.lastcall.geoip.attribution="IP Geolocation by DB-IP (https://db-ip.com/), CC BY 4.0"
 WORKDIR /app
 COPY --from=production-deps /app/package.json ./package.json
 COPY --from=production-deps /app/apps/server/package.json ./apps/server/package.json
@@ -26,6 +33,7 @@ COPY --from=production-deps /app/packages/core/package.json ./packages/core/pack
 # Includes firebase-admin and its locked transitive dependencies; ws-only copying is insufficient.
 COPY --from=production-deps /app/node_modules ./node_modules
 COPY --from=build /app/apps/server/dist ./dist
+COPY --from=country-data /dbip-country.mmdb ./dbip-country.mmdb
 RUN mkdir -p /data && chown node:node /data
 USER node
 EXPOSE 8787

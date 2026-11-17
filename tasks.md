@@ -1,3 +1,12 @@
+# 1.0.31 / code45 — market registration and delegated invitations (2026-11-16)
+
+- [X] Enforce market registration on the server and restrict invite grants to the administrator. Enabled on both public gateways. Verified the administrator binding against the existing account and tested restricted, unrestricted, and unknown addresses through the trusted proxy.
+  → Artifacts: [server policy](apps/server/src/registration-invites.ts), [server tests](apps/server/test/registration-invites.test.ts), [operator guide](docs/REGISTRATION-INVITES.md)
+- [X] Package Android registration and invitation management. The signed APK is available at [LastCall 1.0.31](https://p2p.lienad.ru/download/LastCall-1.0.31.apk), SHA-256 `24ace058ee6a7ec7f8dcb493f5f1f6c35205dae119461c4eed98c0b74439961a`.
+  → Artifacts: [onboarding](apps/mobile/src/app/onboarding.tsx), [invitation settings](apps/mobile/src/app/settings/invitations.tsx), [QA report](docs/reports/testing/2026-11/registration-invites-1031.md)
+- [X] Build and verify the signed Google Play bundle. `artifacts/LastCall-1.0.31-store.aab`, SHA-256 `a292caccc75df2ab032edb2b85d321f7e2d40e7867705101af7dc1379286e32e`. Awaiting Play upload.
+- [ ] Verify invitation management and registration on physical Android and iOS devices (`msg-zbk`).
+
 # 1.0.30 / code44 — chat, groups, ticks and large files after the 1.0.29 test (2026-11-16)
 
 - [X] `artifacts/LastCall-1.0.30-store.aab` (ignored binary), sha256 `e41f8ce60886b1fa8d757c731ceef3a69355750a9e7d112421fea768bb267edf`; starts and opens a chat on the emulator; `npm run check` and the full Playwright suite pass. Not uploaded yet

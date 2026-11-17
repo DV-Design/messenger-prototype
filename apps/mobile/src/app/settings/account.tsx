@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Alert, Text, View } from 'react-native';
-import { ActionLink, SettingsPage } from '../../components/ui';
+import { router } from 'expo-router';
+import { ActionLink, MenuGroup, MenuRow, SettingsPage } from '../../components/ui';
 import { AccountMovedNotice } from '../../components/AccountMovedNotice';
 import { EmailBinding } from '../../components/EmailBinding';
 import { deleteAccount, errorText, useMessenger } from '../../runtime';
@@ -16,6 +17,7 @@ export default function AccountSettings() {
     {!retired && <>
       <Text style={styles.sectionTitle}>{t('EMAIL')}</Text>
       <View style={[styles.section, styles.content, { marginTop: 0 }]}><EmailBinding /></View>
+      <MenuGroup><MenuRow icon="person-add-outline" title={t('Invitations')} chevron onPress={() => router.push('/settings/invitations')} /></MenuGroup>
       <Text style={styles.sectionTitle}>{t('DELETE ACCOUNT')}</Text>
       <View style={[styles.section, styles.content, { marginTop: 0, gap: 10 }]}>
         <Text style={styles.body}>{t('Deleting the account removes the profile and push consents on the server, plus the device key, contacts and history on this phone. This cannot be undone.')}</Text>

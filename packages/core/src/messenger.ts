@@ -5,6 +5,7 @@ import { normalizePhone, iceServersSchema, type ServiceCapabilities, type PhoneC
 import { z } from 'zod';
 import { bytesToHex, randomChecked, secureRandomBytes, type RandomBytes } from './crypto.js';
 import {MAX_DELIVERY_PEERS, directoryClientFrameSchema, directoryServerFrameSchema, directoryUserSchema, directConversationId, conversationInvite, endpointUrl, signAuthentication, usernameSchema, displayNameSchema, validateDeviceIdentity, pushPreviewSchema,pushPreviewEnvelopeSchema, type DeviceIdentity, type DirectoryUser, type DirectoryClientFrame, type DirectoryServerFrame, type PhoneMatch, type DirectoryPage, type WakeKind,type WakeIntent } from './directory.js';
+import { inviteCodeSchema, InviteRequestError, type CreatedInvite, type InviteStatus } from './directory.js';
 import {encryptPushPreview,decryptPushPreview,type OpenedPushPreview} from './push-preview.js';
 import { conversationIdSchema, MAX_BULK_BYTES, MAX_FILE_BYTES, MAX_TEXT_CHARS, peerIdSchema, roomIdSchema } from './protocol.js';
 import type { BulkOffer, BulkSink } from './bulk.js';
@@ -24,7 +25,7 @@ export interface Conversation {id:string;kind:'direct'|'group';title:string;memb
 export interface PendingIncomingCall extends OpenedCallPush {state:'ringing'|'accepted';revision:number;}
 interface OutgoingInvitation extends CallInvitation {peerId:string;conversationId:string;video:boolean;serverEpoch?:string;offered:boolean;offering:boolean;ringing:boolean;sessionStarted:boolean;revision:number;operation:PendingOperation;timer?:ReturnType<typeof setTimeout>;expiry?:ReturnType<typeof setTimeout>;}
 export interface MessengerSnapshot {status:'idle'|'connecting'|'online'|'offline'|'error';self?:DirectoryUser;contacts:DirectoryUser[];conversations:Conversation[];activeCall?:{conversationId:string;peerId:string;session:SessionSnapshot};pendingIncomingCall?:PendingIncomingCall;verifiedContacts:string[];blockedContacts:string[];movedContacts?:Record<string,DirectoryUser>;error?:string;}
-export interface MessengerOptions {callCaptions?:boolean;reconcileDeliveryOnConnect?:boolean;serverUrl:string;identity:DeviceIdentity;username:string;displayName:string;emailProof?:string;randomBytes?:RandomBytes;rtcFactory?:PeerSessionOptions['rtcFactory'];getUserMedia?:PeerSessionOptions['getUserMedia'];createMediaStream?:PeerSessionOptions['createMediaStream'];onChange?:(snapshot:MessengerSnapshot)=>void;loadState?:()=>Promise<string|null>;saveState?:(sealed:string)=>Promise<void>;saveAttachment?:(key:string,sealed:string)=>Promise<void>;loadAttachment?:(key:string)=>Promise<string|null>;deleteAttachment?:(key:string)=>Promise<void>;
+export interface MessengerOptions {callCaptions?:boolean;reconcileDeliveryOnConnect?:boolean;serverUrl:string;identity:DeviceIdentity;username:string;displayName:string;emailProof?:string;inviteCode?:string;randomBytes?:RandomBytes;rtcFactory?:PeerSessionOptions['rtcFactory'];getUserMedia?:PeerSessionOptions['getUserMedia'];createMediaStream?:PeerSessionOptions['createMediaStream'];onChange?:(snapshot:MessengerSnapshot)=>void;loadState?:()=>Promise<string|null>;saveState?:(sealed:string)=>Promise<void>;saveAttachment?:(key:string,sealed:string)=>Promise<void>;loadAttachment?:(key:string)=>Promise<string|null>;deleteAttachment?:(key:string)=>Promise<void>;
   /** Large files (up to 1 GiB) live as plain files in app storage under the attachment key; the core only streams them. Without it this client neither sends nor accepts them. */
   bulkFiles?:BulkFileStore;}
 export interface BulkFileStore {read(key:string,name:string,offset:number,length:number):Promise<Uint8Array>;openIncoming(key:string,name:string,size:number):Promise<BulkSink>;}
@@ -75,7 +76,17 @@ export class MessengerClient {
   private random:RandomBytes;private stopped=true;private opening?:Promise<void>;private loaded=false;private restorePromise?:Promise<void>;
   private reconnect?:ReturnType<typeof setTimeout>;private attempt=0;private epoch=0;private savedTimer?:ReturnType<typeof setTimeout>;private saveQueue=Promise.resolve();private dirty=false;private cancelOpening?:()=>void;
   private callCaptionListeners=new Set<(frame:CallCaptionFrame)=>void>();
-  constructor(private options:MessengerOptions){validateDeviceIdentity(options.identity);usernameSchema.parse(options.username);displayNameSchema.parse(options.displayName);endpointUrl(options.serverUrl,'directory');this.random=options.randomBytes??secureRandomBytes;}
+  private options: Omit<MessengerOptions, 'inviteCode'>;
+  private inviteCode?: string;
+  constructor({ inviteCode, ...options }: MessengerOptions) {
+    validateDeviceIdentity(options.identity);
+    usernameSchema.parse(options.username);
+    displayNameSchema.parse(options.displayName);
+    endpointUrl(options.serverUrl, 'directory');
+    this.inviteCode = inviteCodeSchema.optional().parse(inviteCode);
+    this.options = options;
+    this.random = options.randomBytes ?? secureRandomBytes;
+  }
   private id(){return bytesToHex(randomChecked(this.random,16));}
   getSnapshot():MessengerSnapshot {
     const conversations=[...this.conversations.values()].map(c=>{const reactions=this.reactionViews(c);return {id:c.id,kind:c.kind,title:c.title,memberIds:[...c.memberIds],...(c.kind==='group'?{creatorId:c.creatorId,formerIds:c.formerIds?[...c.formerIds]:undefined,removed:c.removed}:{}),messages:c.messages.map(m=>({...m,recipientIds:m.recipientIds?[...m.recipientIds]:undefined,deliveredTo:m.deliveredTo?[...m.deliveredTo]:undefined,readBy:m.readBy?[...m.readBy]:undefined,notifiedTo:m.notifiedTo?[...m.notifiedTo]:undefined,...withReactions(reactions.get('message:'+m.from+':'+m.id))})),files:c.files.map(f=>({...f,recipientIds:f.recipientIds?[...f.recipientIds]:undefined,deliveredTo:f.deliveredTo?[...f.deliveredTo]:undefined,readBy:f.readBy?[...f.readBy]:undefined,notifiedTo:f.notifiedTo?[...f.notifiedTo]:undefined,...withReactions(reactions.get('file:'+f.senderId+':'+f.id))})),unread:c.unread,updatedAt:c.updatedAt,session:c.kind==='direct'?this.pairs.get(c.memberIds.find(id=>id!==this.options.identity.userId)!)?.session.getSnapshot():undefined,...(c.hidden?{hidden:true}:{}),...(c.implicit?{implicit:true}:{})};});
@@ -144,17 +155,18 @@ export class MessengerClient {
           const frame=directoryServerFrameSchema.parse(JSON.parse(event.data));
           if(frame.type==='challenge'){
             if(challenged||ready)throw new Error('Unexpected directory challenge');challenged=true;
-            this.directorySend({type:'authenticate',publicKey:this.options.identity.publicKey,username:this.options.username,displayName:this.options.displayName,signature:signAuthentication(this.options.identity,frame.challenge,this.options.username,this.options.displayName),...(this.options.emailProof?{emailProof:this.options.emailProof}:{})});
+            this.directorySend({type:'authenticate',publicKey:this.options.identity.publicKey,username:this.options.username,displayName:this.options.displayName,signature:signAuthentication(this.options.identity,frame.challenge,this.options.username,this.options.displayName),...(this.options.emailProof?{emailProof:this.options.emailProof}:{}),...(this.inviteCode?{inviteCode:this.inviteCode}:{})});
           }else if(frame.type==='ready'){
             if(!challenged||ready||frame.self.userId!==this.options.identity.userId||frame.self.publicKey!==this.options.identity.publicKey)throw new Error('Directory identity mismatch');
+            this.inviteCode = undefined;
             ready=true;this.deliverySent=undefined;this.services=undefined;this.servicesRequest=undefined;this.wakeCapabilitiesRequest=undefined;this.self=frame.self;this.status='online';this.attempt=0;this.error=undefined;finish();this.watch();this.wakePending();this.emit();
             void this.refreshContacts().catch(e=>this.report(e));
           }else if(frame.type==='error'){
             const request=frame.requestId?this.requests.get(frame.requestId):undefined;
             // A server without this feature rejects the field and closes; ask without it after the reconnect.
             if(!request&&frame.code==='invalid-frame'&&this.deliveryProbe===socket){this.deliveryRefused=true;return;}
-            if(request){clearTimeout(request.timer);this.requests.delete(frame.requestId!);request.reject(new Error(frame.message));}
-            else if(!ready){if(['username-taken','auth-failed','auth-expired','session-replaced','device-already-registered','email-required','email-taken','account-moved'].includes(frame.code)){this.stopped=true;this.status='error';this.report(new Error(`${frame.code}: ${frame.message}`));}finish(new Error(`${frame.code}: ${frame.message}`));socket.close();}
+            if(request){clearTimeout(request.timer);this.requests.delete(frame.requestId!);request.reject(request.expected.startsWith('invite-') ? new InviteRequestError(frame.code, frame.message) : new Error(frame.message));}
+            else if(!ready){if(['username-taken','auth-failed','auth-expired','session-replaced','device-already-registered','email-required','email-taken','account-moved','invite-required','invite-invalid','registration-closed'].includes(frame.code)){this.stopped=true;this.status='error';this.report(new Error(`${frame.code}: ${frame.message}`));}finish(new Error(`${frame.code}: ${frame.message}`));socket.close();}
             else if(frame.code==='session-replaced'||frame.code==='device-already-registered'||frame.code==='account-moved'||frame.code==='email-required'||frame.code==='email-taken'){this.stopped=true;this.status='error';this.report(new Error(frame.code==='session-replaced'?'This identity connected on another client':frame.code==='device-already-registered'?'This device is already registered on this server; resolve its existing profile':`${frame.code}: ${frame.message}`));socket.close();}
             else if(frame.code!=='peer-offline'&&(frame.requestId!==undefined||!['wake-expired','wake-not-allowed','provider-failed','service-rate-limit','service-busy','service-unavailable'].includes(frame.code)))this.report(new Error(frame.message));
           }else {
@@ -202,6 +214,20 @@ export class MessengerClient {
   async verifyPhone(challengeId:string,code:string):Promise<void>{await this.requestFrame({type:'phone-verify',challengeId,code},'phone-verified');if(this.services)this.services={...this.services,phoneVerified:true};}
   async discoverPhones(hashes:string[]):Promise<PhoneMatch[]>{return (await this.requestFrame({type:'phone-discover',hashes},'phone-matches')).matches;}
   async deleteAccount():Promise<void>{await this.requestFrame({type:'delete-account'},'account-deleted');this.stopped=true;}
+  async getInviteStatus(): Promise<InviteStatus> {
+    const { isAdmin, canInvite, remaining, resetAt, active, granted } = await this.requestFrame({ type: 'invite-status' }, 'invite-status');
+    return { isAdmin, canInvite, remaining, resetAt, active, granted };
+  }
+  async createInvite(): Promise<CreatedInvite> {
+    const { id, code, expiresAt } = await this.requestFrame({ type: 'invite-create' }, 'invite-created');
+    return { id, code, expiresAt };
+  }
+  async revokeInvite(inviteId: string): Promise<void> {
+    await this.requestFrame({ type: 'invite-revoke', inviteId }, 'invite-updated');
+  }
+  async grantInvites(username: string, enabled: boolean): Promise<void> {
+    await this.requestFrame({ type: 'invite-grant', username, enabled }, 'invite-updated');
+  }
   async registerPushToken(token:string,backgroundSync=false,messagePreview=false,callInviteV1=false,deliveryV1=false):Promise<void>{if(typeof backgroundSync!=='boolean'||typeof messagePreview!=='boolean'||typeof callInviteV1!=='boolean'||typeof deliveryV1!=='boolean')throw new Error('Invalid push capability mode');await this.requestFrame({type:'push-register',token,...(backgroundSync?{backgroundSync:true}:{}),...(messagePreview?{messagePreview:true}:{}),...(callInviteV1?{callInviteV1:true}:{}),...(deliveryV1?{deliveryV1:true}:{})},'push-registered');}
   /** Decrypt notification copy without inserting chat history or acknowledging delivery. */
   openPushPreview(envelope:string,intent:WakeIntent):Promise<OpenedPushPreview>{this.assertActive();return this.track(this.openPushPreviewWork(envelope,intent));}

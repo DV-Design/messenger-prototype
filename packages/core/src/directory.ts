@@ -66,6 +66,31 @@ export const directoryUserSchema=z.object({userId:roomIdSchema,publicKey:roomIdS
 export type DirectoryUser=z.infer<typeof directoryUserSchema>;
 export const directoryPageSchema=z.object({users:z.array(directoryUserSchema).max(100),nextCursor:usernameSchema.optional()}).strict();
 export type DirectoryPage=z.infer<typeof directoryPageSchema>;
+export const inviteCodeSchema = roomIdSchema;
+const inviteTimestampSchema = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
+const pendingInviteSchema = z.object({ id: peerIdSchema, expiresAt: inviteTimestampSchema }).strict();
+const inviteStatusSchema = z.object({
+  isAdmin: z.boolean(),
+  canInvite: z.boolean(),
+  remaining: z.number().int().min(0).max(5),
+  resetAt: inviteTimestampSchema,
+  active: z.array(pendingInviteSchema).max(35),
+  granted: z.array(usernameSchema).max(100),
+}).strict();
+const createdInviteSchema = pendingInviteSchema.extend({ code: inviteCodeSchema });
+export type InviteStatus = z.infer<typeof inviteStatusSchema>;
+export type CreatedInvite = z.infer<typeof createdInviteSchema>;
+const registrationPolicySchema = z.object({ mode: z.enum(['open', 'invite', 'closed']) }).strict();
+export type RegistrationPolicy = z.infer<typeof registrationPolicySchema>['mode'];
+export interface RegistrationPolicyInfo { mode: RegistrationPolicy; supportsInvites: boolean; }
+
+/** A correlated refusal of an invitation-management request. */
+export class InviteRequestError extends Error {
+  constructor(readonly code: string, message: string) {
+    super(message);
+    this.name = 'InviteRequestError';
+  }
+}
 export const phoneMatchSchema=z.object({hash:roomIdSchema,user:directoryUserSchema}).strict();
 export type PhoneMatch=z.infer<typeof phoneMatchSchema>;
 export const MAX_DELIVERY_PEERS=64;
@@ -92,9 +117,14 @@ export const directoryClientFrameSchema=z.discriminatedUnion('type',[
   /** The complete list of peers still waiting for this phone's queue. Who and until when, never what. */
   z.object({type:z.literal('delivery-sync'),peers:z.array(z.object({to:roomIdSchema,expiresAt:wakeIntentSchema.shape.expiresAt}).strict()).max(MAX_DELIVERY_PEERS)}).strict(),
   z.object({type:z.literal('wake'),to:roomIdSchema,kind:wakeIntentSchema.shape.kind.optional(),intentId:peerIdSchema.optional(),expiresAt:wakeIntentSchema.shape.expiresAt.optional(),preview:pushPreviewSchema.optional()}).strict().refine(frame=>[frame.kind,frame.intentId,frame.expiresAt].filter(value=>value!==undefined).length%3===0&&(frame.preview===undefined||((frame.kind==='message'||frame.kind==='file')&&pushPreviewSchema.safeParse(frame.preview).success&&JSON.parse(frame.preview).kind===frame.kind)),{message:'Wake metadata must be supplied together; previews require matching message/file intent'}),
-  z.object({type:z.literal('authenticate'),publicKey:roomIdSchema,username:usernameSchema,displayName:displayNameSchema,signature:z.string().regex(/^[0-9a-f]{128}$/),emailProof:roomIdSchema.optional()}).strict(),
-  z.object({type:z.literal('email-start'),purpose:emailPurposeSchema,email:emailAddressSchema,locale:emailLocaleSchema,publicKey:roomIdSchema,signature:z.string().regex(/^[0-9a-f]{128}$/)}).strict(),
+  z.object({type:z.literal('authenticate'),publicKey:roomIdSchema,username:usernameSchema,displayName:displayNameSchema,signature:z.string().regex(/^[0-9a-f]{128}$/),emailProof:roomIdSchema.optional(),inviteCode:inviteCodeSchema.optional()}).strict(),
+  z.object({type:z.literal('email-start'),purpose:emailPurposeSchema,email:emailAddressSchema,locale:emailLocaleSchema,publicKey:roomIdSchema,signature:z.string().regex(/^[0-9a-f]{128}$/),inviteCode:inviteCodeSchema.optional()}).strict()
+    .refine(frame => frame.inviteCode === undefined || frame.purpose === 'register', { message: 'Invitation codes only belong to registration' }),
   z.object({type:z.literal('email-verify'),challengeId:peerIdSchema,code:z.string().regex(/^[0-9]{6}$/),publicKey:roomIdSchema,signature:z.string().regex(/^[0-9a-f]{128}$/)}).strict(),
+  z.object({ type: z.literal('invite-status'), requestId: peerIdSchema }).strict(),
+  z.object({ type: z.literal('invite-create'), requestId: peerIdSchema }).strict(),
+  z.object({ type: z.literal('invite-revoke'), requestId: peerIdSchema, inviteId: peerIdSchema }).strict(),
+  z.object({ type: z.literal('invite-grant'), requestId: peerIdSchema, username: usernameSchema, enabled: z.boolean() }).strict(),
   z.object({type:z.literal('search'),query:z.string().max(48),requestId:peerIdSchema}).strict(),
   z.object({type:z.literal('lookup'),userIds:z.array(roomIdSchema).max(200),requestId:peerIdSchema}).strict(),
   z.object({type:z.literal('watch'),userIds:z.array(roomIdSchema).max(200),identityMovedV1:z.literal(true).optional()}).strict(),
@@ -108,6 +138,9 @@ export const directoryServerFrameSchema=z.discriminatedUnion('type',[
   z.object({type:z.literal('profile'),user:directoryUserSchema.nullable()}).strict(),
   z.object({type:z.literal('email-started'),challengeId:peerIdSchema}).strict(),
   z.object({type:z.literal('email-verified'),proof:roomIdSchema.optional(),user:directoryUserSchema.optional()}).strict(),
+  inviteStatusSchema.extend({ type: z.literal('invite-status'), requestId: peerIdSchema }),
+  createdInviteSchema.extend({ type: z.literal('invite-created'), requestId: peerIdSchema }),
+  z.object({ type: z.literal('invite-updated'), requestId: peerIdSchema }).strict(),
   z.object({type:z.literal('identity-moved'),oldUserId:roomIdSchema,user:directoryUserSchema}).strict(),
   z.object({type:z.literal('users-page'),requestId:peerIdSchema,...directoryPageSchema.shape}).strict(),
   z.object({type:z.literal('services'),requestId:peerIdSchema,capabilities:serviceCapabilitiesSchema}).strict(),
@@ -133,6 +166,32 @@ export function endpointUrl(base:string,path:string):URL {
   if(!['http:','https:'].includes(url.protocol)||url.username||url.password||url.search||url.hash)throw new Error('Expected http(s) base URL without credentials, query or fragment');
   if(!/^\/?[a-z][a-z0-9/-]*$/i.test(path)||path.includes('..'))throw new Error('Invalid endpoint path');
   url.pathname=url.pathname.replace(/\/+$/,'')+'/'+path.replace(/^\//,'');return url;
+}
+
+/** Older servers have no policy endpoint. Other failures must not look like an open policy. */
+export async function fetchRegistrationPolicyInfo(serverUrl: string): Promise<RegistrationPolicyInfo> {
+  const url = endpointUrl(serverUrl, 'registration-policy').toString();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const response = await fetch(url, { signal: controller.signal, redirect: 'error', cache: 'no-store' });
+    if (response.redirected || (response.url && response.url !== url)) {
+      throw new Error('Registration policy request was redirected');
+    }
+    if (response.status === 404) return { mode: 'open', supportsInvites: false };
+    if (!response.ok) throw new Error('Registration policy request failed');
+    const body = await response.text();
+    if (body.length > 1024) throw new Error('Invalid registration policy');
+    const policy = registrationPolicySchema.safeParse(JSON.parse(body));
+    if (!policy.success) throw new Error('Invalid registration policy');
+    return { ...policy.data, supportsInvites: true };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function fetchRegistrationPolicy(serverUrl: string): Promise<RegistrationPolicy> {
+  return (await fetchRegistrationPolicyInfo(serverUrl)).mode;
 }
 
 /** Short-lived challenge connection; network/protocol failures are never interpreted as unregistered. */

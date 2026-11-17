@@ -8,8 +8,9 @@ const user = (name: string): DirectoryUser => ({ userId: name.padEnd(64, '0'), p
 function deferred<T>() { let resolve!: (value: T) => void; let reject!: (cause: Error) => void; const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; }
 test('server binding replaces proposed login; only signed absence permits a new candidate', async () => {
   const bound = await registrationCandidate(proposed, async () => ({ username: 'immutable', displayName: 'Серверное имя' }));
-  assert.equal(bound.username, 'immutable'); assert.equal(bound.displayName, 'Серверное имя');
-  assert.deepEqual(await registrationCandidate(proposed, async () => null), proposed);
+  assert.equal(bound.profile.username, 'immutable'); assert.equal(bound.profile.displayName, 'Серверное имя');
+  assert.equal(bound.isNew, false);
+  assert.deepEqual(await registrationCandidate(proposed, async () => null), { profile: proposed, isNew: true });
   await assert.rejects(registrationCandidate(proposed, async () => { throw new Error('offline'); }), /offline/);
 });
 test('canonical writes deduplicate and can recover after save failure without changing server identity', async () => {
