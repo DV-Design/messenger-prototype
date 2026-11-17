@@ -12,7 +12,11 @@
 - [X] Contact profile like Telegram (tap the header of a direct chat): avatar, status, message /
   audio / video, @username copy, safety code, groups in common, media and files, block, delete
   → Artifacts: [contact/[id].tsx](apps/mobile/src/app/contact/%5Bid%5D.tsx), [contact-info-model.ts](apps/mobile/src/contact-info-model.ts)
-- [X] `artifacts/LastCall-1.0.33-store.aab`, sha256 `7f2deaa60d4700f4123499a7400c7bbcc8386edeabb2cc68952809a2660f117d`; also carries the blank-screen fix and invitation sharing
+- [X] Play rejected code 47: Play Billing 7.1.1 is below the required 8.0.0. Upgraded to 8.0.0 and
+  rebuilt as 1.0.33/code48, `artifacts/LastCall-1.0.33-store.aab`, sha256
+  `2ed414189228f2ba41b4a729b3146a0eae5e9c7160aabeac6cddba40440dc856`; smoke-tested on the emulator
+  and published to internal testing as "LastCall 1.0.33 internal" (also carries the blank-screen fix
+  and invitation sharing)
 - [ ] Privacy policy paragraph (country check, phone countries) still only in the repository
 
 # Invitation system review (2026-11-17)
