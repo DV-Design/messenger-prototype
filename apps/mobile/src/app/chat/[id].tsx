@@ -150,9 +150,10 @@ export default function Chat() {
   }
   function record(kind: MediaKind) { if (busy || snapshot.activeCall) return; setAttachments(false); setRecording(kind); }
   function openLocation() { setAttachments(false); setLocationOpen(true); }
-  function sendLocation(lat: number, lng: number) {
+  function sendLocation(lat: number, lng: number, label?: string) {
     setLocationOpen(false);
-    void action(async () => { await client().sendText(conversation!.id, formatLocationText(t('Location'), lat, lng, false)); messageSent(); });
+    // A picked place or the address under the pin travels as the message's first line, like Telegram's venue title.
+    void action(async () => { await client().sendText(conversation!.id, formatLocationText(label?.trim() || t('Location'), lat, lng, false)); messageSent(); });
   }
   function shareLiveLocation(lat: number, lng: number, minutes: LiveDurationMin) {
     setLocationOpen(false);

@@ -49,7 +49,7 @@ export function LocationCard({ location, updatedAt, onOpen }: { location: Parsed
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
       <Icon name={location.live ? 'radio' : 'location'} size={18} color={location.live ? colors.danger : colors.accent} />
       <View style={{ flex: 1 }}>
-        <Text numberOfLines={1} style={{ color: colors.text, fontWeight: '600', fontSize: 14 }}>{location.live ? location.label || t('Live location') : t('Location')}</Text>
+        <Text numberOfLines={1} style={{ color: colors.text, fontWeight: '600', fontSize: 14 }}>{location.label || (location.live ? t('Live location') : t('Location'))}</Text>
         {location.live && <Text style={{ color: colors.secondary, fontSize: 12.5 }}>{updatedText(updatedAt, now)}</Text>}
       </View>
     </View>
@@ -92,7 +92,7 @@ export function LocationViewer({ location, updatedAt, title, canStop, onStop, on
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
           <Icon name={location.live ? 'radio' : 'location'} size={20} color={location.live ? colors.danger : colors.accent} />
           <View style={{ flex: 1 }}>
-            <Text style={{ color: colors.text, fontWeight: '600', fontSize: 15 }}>{location.live ? location.label || t('Live location') : t('Location')}</Text>
+            <Text style={{ color: colors.text, fontWeight: '600', fontSize: 15 }}>{location.label || (location.live ? t('Live location') : t('Location'))}</Text>
             {location.live && <Text style={{ color: colors.secondary, fontSize: 13 }}>{updatedText(updatedAt, now)}</Text>}
           </View>
         </View>

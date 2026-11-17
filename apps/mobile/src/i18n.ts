@@ -701,6 +701,12 @@ const ru: Record<string, string> = {
   'Not enough free space on the recipient phone': 'На телефоне получателя не хватает места',
   'The recipient did not accept the file': 'Получатель не принял файл',
   'The recipient needs to update LastCall to receive large files': 'Чтобы получать большие файлы, получателю нужно обновить LastCall',
+  'Search for an address': 'Поиск адреса',
+  'Send selected location': 'Отправить выбранное место',
+  'Send my current location': 'Отправить мою геопозицию',
+  'Accurate to {meters} m': 'Точность до {meters} м',
+  'Updated in real time as you move': 'Обновляется в реальном времени, пока вы двигаетесь',
+  'Locating…': 'Определяем место…',
 };
 
 export function t(template: string, values?: Record<string, string | number>): string {

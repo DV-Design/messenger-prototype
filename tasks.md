@@ -1,3 +1,15 @@
+# Telegram-style location picker (2026-11-17, after the 1.0.31 phone test)
+
+- [X] Taps on the map "did nothing" in a city: Google Maps sends a tap on a drawn place only to
+  `onPoiClick`, and the picker handled only `onPress`. Rebuilt like Telegram: fixed centre pin,
+  tap to move it, tap a place to pick it by name, address under the pin, my-location row with
+  accuracy, live sharing row, address search; the message title is the place or the address
+  → Artifacts: [LocationPicker.tsx](apps/mobile/src/components/LocationPicker.tsx), [location-picker-model.ts](apps/mobile/src/location-picker-model.ts), [location-picker-model.test.ts](apps/mobile/tests/location-picker-model.test.ts)
+- [X] Emulator: the address appears under the pin; tapping a restaurant picks it with its category
+  and address; searching "Tverskaya 7" flies there; the sent card is titled "Tverskaya Street, 7"
+- [ ] Nearby places list (Telegram shows one): needs the Places API enabled on the Maps key
+- [ ] Real phone check
+
 # 1.0.31 / code45 — market registration and delegated invitations (2026-11-16)
 
 - [X] Enforce market registration on the server and restrict invite grants to the administrator. Enabled on both public gateways. Verified the administrator binding against the existing account and tested restricted, unrestricted, and unknown addresses through the trusted proxy.

@@ -25,8 +25,19 @@ party unnecessarily).
 
 `components/LocationPicker.tsx`: a full-screen map (`react-native-maps`; Apple Maps on iOS,
 Google Maps on Android — Android needs `LASTCALL_ANDROID_MAPS_API_KEY` at build time, see
-[STORE-RELEASE.md](STORE-RELEASE.md)). Tap or drag a pin anywhere, or recenter on the current
-position; "Send this location" sends a one-time point.
+[STORE-RELEASE.md](STORE-RELEASE.md)). Since 1.0.32 it works like Telegram's:
+
+- The pin is fixed in the middle of the map and the map moves under it (the pin lifts while
+  dragging). Tapping the map moves the pin there. Tapping a place Google draws on the map (a shop,
+  a station) picks that place: on Android such a tap fires only `onPoiClick`, never `onPress`, which
+  is why taps in a dense city "did nothing" before.
+- Below the map: the place under the pin with its address (the phone's own geocoder,
+  `reverseGeocodeAsync`, no extra API key), "Send my current location" with its accuracy, and
+  "Share live location".
+- The search field finds addresses with the phone's geocoder (`geocodeAsync`). There is no list of
+  nearby places: that needs the Places API on the key, which is not enabled.
+- The message's first line carries the place name or address instead of a generic "Location";
+  older clients show it as plain text, and the parser is unchanged.
 
 ## Live location
 
