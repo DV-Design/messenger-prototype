@@ -152,3 +152,34 @@ the data or display its results.
 
 The `maxmind` npm package is used only as a local MMDB reader. No MaxMind GeoIP database
 is bundled, and no remote geolocation API is called.
+
+## Review 2026-11-17
+
+What holds: the gate applies only when a new profile is inserted, and the code is consumed
+inside the same transaction; codes are 256-bit and stored as SHA-256; revoking an issuer kills
+their codes; administrators come only from the server environment; an unknown country means
+invite-only; the client never reports its own country.
+
+Problems found, in order of impact:
+
+1. **The production server cannot see client addresses.** The SNI router (`nginx`, stream
+   mode, `proxy_protocol off`) and Docker's port publishing on macOS put a Docker gateway
+   address (`172.18.0.x`) on every connection: the last 400 connections in the router's log
+   all came from it. Caddy therefore forwards that private address, the country is unknown
+   for everyone, and `market` mode behaves as `invite` for **all** countries. Every IP rate
+   limit is also one shared bucket. Fixing it needs the client address preserved end to end
+   (e.g. `proxy_protocol on` from the router to Caddy plus Caddy's `proxy_protocol` listener
+   wrapper, and a Docker networking mode that keeps the source address), which touches the
+   same router as the VPN endpoint, so it is an operator change, not made here.
+2. **VPN users look foreign.** Once addresses work, anyone in a restricted market with a VPN
+   (common in Russia) gets open registration. Adding restrict-only device signals (SIM and
+   network country, device region) that can only turn `open` into `invite`, never the
+   reverse, would cover ordinary users; a modified client can still lie.
+3. **Store distribution.** The policy limits sign-ups, but if Google Play offers the app in
+   the restricted countries, the offering itself is unchanged. Excluding those countries in
+   Play Console is the stronger control; it is a business decision.
+4. **Privacy policy** did not mention the country check or DB-IP; a paragraph is now in
+   `infra/public/privacy.html` (not yet published).
+5. **Usability:** a 64-character code is hard to pass on. The app now has "Share invitation"
+   (message text, no link) and accepts the whole pasted message, taking the single 64-hex run.
+6. The DB-IP snapshot is pinned to November 2026 and goes stale; refresh it monthly.

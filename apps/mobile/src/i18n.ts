@@ -707,6 +707,9 @@ const ru: Record<string, string> = {
   'Accurate to {meters} m': 'Точность до {meters} м',
   'Updated in real time as you move': 'Обновляется в реальном времени, пока вы двигаетесь',
   'Locating…': 'Определяем место…',
+  'Share invitation': 'Поделиться приглашением',
+  'LastCall invitation. Install LastCall, choose Register and paste this whole message or the code:\n{code}\nThe code works once and expires in 7 days.': 'Приглашение в LastCall. Установите LastCall, выберите «Регистрация» и вставьте это сообщение целиком или только код:\n{code}\nКод одноразовый и действует 7 дней.',
+  'Could not open the share menu.': 'Не удалось открыть меню «Поделиться».',
 };
 
 export function t(template: string, values?: Record<string, string | number>): string {

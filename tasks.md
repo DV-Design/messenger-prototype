@@ -1,3 +1,16 @@
+# Invitation system review (2026-11-17)
+
+- [X] Code review of the Codex invites work: gate, single use, hashing, quotas, admins — sound
+  → Artifacts: [REGISTRATION-INVITES.md](docs/REGISTRATION-INVITES.md) (Review 2026-11-17)
+- [ ] **Production sees no client IPs** (router + Docker on macOS): country is unknown for
+  everyone, so every new sign-up worldwide needs an invitation; IP rate limits are one bucket.
+  Needs an operator change of the shared SNI router/Caddy
+- [X] Share invitation (message text) and paste of the whole message accepted
+- [X] Privacy policy paragraph about the country check (repo only, not published)
+- [ ] Restrict-only device country signals (SIM/network/region) against VPN bypass
+- [ ] Decide whether Google Play should exclude the restricted countries
+- [ ] Monthly DB-IP refresh
+
 # Blank screen and freezes after a long time in the background (2026-11-17)
 
 - [X] Reproduced on the emulator by killing the backgrounded process (what Android does under

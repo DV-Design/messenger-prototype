@@ -134,6 +134,10 @@ test('pasted invitation codes preserve the full token and refusals keep the emai
   assert.equal(normalizeInviteCode(` ${'AB'.repeat(32)}\n`), 'ab'.repeat(32));
   assert.equal(normalizeInviteCode('a'.repeat(63)), undefined);
   assert.equal(normalizeInviteCode('g'.repeat(64)), undefined);
+  // The whole shared message can be pasted; the code is the single 64-hex run in it.
+  assert.equal(normalizeInviteCode(`Приглашение в LastCall. Код:\n${'ab'.repeat(32)}\nВставьте его при регистрации.`), 'ab'.repeat(32));
+  assert.equal(normalizeInviteCode(`${'ab'.repeat(32)} ${'cd'.repeat(32)}`), undefined);
+  assert.equal(normalizeInviteCode('a'.repeat(65)), undefined);
   const verified = emailFlowReducer(sent(choose('register')), { type: 'verified', proof: 'p'.repeat(64) });
   for (const code of ['invite-required', 'invite-invalid', 'registration-closed']) {
     assert.equal(registrationErrorCode(`${code}: details`), code);

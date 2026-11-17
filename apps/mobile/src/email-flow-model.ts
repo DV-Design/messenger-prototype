@@ -57,9 +57,13 @@ export function validEmail(input: string): string | null {
 }
 export const sanitizeCode = (input: string) => input.replace(/[^0-9]/g, '').slice(0, 6);
 export const validCode = (input: string) => /^[0-9]{6}$/.test(input);
+/**
+ * Accepts the code alone or the whole invitation message pasted from a chat: the one run of exactly
+ * 64 hex characters is the code. Two different runs are ambiguous and accepted as neither.
+ */
 export function normalizeInviteCode(input: string): string | undefined {
-  const code = input.trim().toLowerCase();
-  return /^[0-9a-f]{64}$/.test(code) ? code : undefined;
+  const runs = [...new Set(input.toLowerCase().match(/(?<![0-9a-f])[0-9a-f]{64}(?![0-9a-f])/g) ?? [])];
+  return runs.length === 1 ? runs[0] : undefined;
 }
 export function resendSecondsLeft(sentAt: number | undefined, now: number): number {
   if (sentAt === undefined) return 0;

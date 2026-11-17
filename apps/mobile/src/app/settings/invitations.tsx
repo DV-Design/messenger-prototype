@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Text, TextInput, View } from 'react-native';
+import { Alert, Share, Text, TextInput, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { fetchRegistrationPolicyInfo, InviteRequestError, usernameSchema, type CreatedInvite, type InviteStatus, type MessengerClient } from '@messenger/core';
 import { ActionLink, SettingsPage } from '../../components/ui';
@@ -128,6 +128,11 @@ function InvitationControls({ serverUrl, online }: { serverUrl: string; online: 
               if (!ok) throw new Error('Clipboard unavailable');
               setCopied(true);
             }).catch(() => setError(t('Could not copy the invitation code.')));
+          }} />
+          <ActionLink icon="share-outline" title={t('Share invitation')} onPress={() => {
+            // Message text, never a link: the code must not end up in URLs, previews or server logs.
+            void Share.share({ message: t('LastCall invitation. Install LastCall, choose Register and paste this whole message or the code:\n{code}\nThe code works once and expires in 7 days.', { code: issued.code }) })
+              .catch(() => setError(t('Could not open the share menu.')));
           }} />
         </>}
         {status.active.map(invite => <View key={invite.id}>

@@ -108,7 +108,7 @@ export default function Onboarding() {
         {registration === 'unregistered' && !!notice && !profileForm && <Text accessibilityRole="alert" style={styles.error}>{notice}</Text>}
         {registration === 'unregistered' && needsInvite && <View>
           <Text style={styles.label}>{t('Invitation code')}</Text>
-          <TextInput style={styles.input} value={inviteInput} onChangeText={setInviteInput} editable={!busy} maxLength={128} autoCapitalize="none" autoCorrect={false} textContentType="none" placeholder={t('Paste the code you received')} placeholderTextColor={colors.secondary} accessibilityLabel={t('Invitation code')} />
+          <TextInput style={styles.input} value={inviteInput} onChangeText={setInviteInput} editable={!busy} maxLength={600} multiline autoCapitalize="none" autoCorrect={false} textContentType="none" placeholder={t('Paste the code you received')} placeholderTextColor={colors.secondary} accessibilityLabel={t('Invitation code')} />
         </View>}
         {registration === 'unregistered' && (flow.stage === 'email' || flow.stage === 'code') && <EmailCodeForm flow={flow} busy={busy} disabled={!identity} sendDisabled={needsInvite && !inviteCode}
           codeHint={flow.mode === 'recover' ? t('We sent a letter to {email}. Enter the 6-digit code from it. If no account uses this address, the letter says so instead.', { email: flow.email }) : t('We sent a letter to {email}. Enter the 6-digit code from it. If this address already has an account, the letter explains how to restore it instead.', { email: flow.email })}
