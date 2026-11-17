@@ -12,7 +12,7 @@ import { monitorNetworkRecovery, shouldForceNetworkResume } from './network-reco
 import { ConnectionSupervisor } from './connection-supervisor';
 import { SharedWakeRuntime, type WakeLease } from './wake-model';
 
-const empty: MessengerSnapshot = { status: 'idle', contacts: [], conversations: [], verifiedContacts: [], blockedContacts: [], movedContacts: {} };
+const empty: MessengerSnapshot = { status: 'idle', restored: false, contacts: [], conversations: [], verifiedContacts: [], blockedContacts: [], movedContacts: {} };
 type Runtime = { ready: boolean; busy: boolean; registration: 'checking' | 'unregistered' | 'unavailable' | 'bound'; profile: LocalProfile | null; identity?: DeviceIdentity; snapshot: MessengerSnapshot; error?: string; boundEmail?: BoundEmail | null; emailReminderDismissed?: boolean; retired: boolean };
 let state: Runtime = { ready: false, busy: false, registration: 'checking', profile: null, snapshot: empty, retired: false };
 const listeners = new Set<() => void>();

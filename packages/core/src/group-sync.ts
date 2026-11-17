@@ -19,7 +19,17 @@ function verify(publicKey:string,signature:string,value:unknown){try{return ed25
 function rosterPayload(g:GroupDefinition){const members=g.members.map(m=>[m.userId,m.publicKey,m.username,m.displayName]);return g.version===undefined?['lastcall/group-roster/v1',g.id,g.title,g.creatorId,...members]:['lastcall/group-roster/v2',g.id,g.title,g.creatorId,g.version,...members];}
 export function rosterVersion(g:GroupDefinition|undefined):number {return g?.version??1;}
 export function signGroupDefinition(identity:DeviceIdentity,group:GroupDefinition):GroupDefinition {const g=groupDefinitionSchema.parse(group);if(g.creatorId!==identity.userId)throw new Error('Group creator mismatch');return {...g,signature:sign(identity,rosterPayload(g))};}
-export function verifyGroupDefinition(group:GroupDefinition):boolean {const creator=group.members.find(m=>m.userId===group.creatorId);return !!creator&&!!group.signature&&new Set(group.members.map(m=>m.userId)).size===group.members.length&&verify(creator.publicKey,group.signature,rosterPayload(group));}
+/** Valid rosters by their exact signed content: every group message re-checks its roster, and an Ed25519 verify costs tens of ms on a phone's JS engine. */
+const verifiedRosters=new Set<string>();
+export function verifyGroupDefinition(group:GroupDefinition):boolean {
+  const creator=group.members.find(m=>m.userId===group.creatorId);
+  if(!creator||!group.signature||new Set(group.members.map(m=>m.userId)).size!==group.members.length)return false;
+  const key=JSON.stringify([creator.publicKey,group.signature,rosterPayload(group)]);
+  if(verifiedRosters.has(key))return true;
+  if(!verify(creator.publicKey,group.signature,rosterPayload(group)))return false;
+  if(verifiedRosters.size>=256)verifiedRosters.clear();
+  verifiedRosters.add(key);return true;
+}
 export function contentHash(type:'message'|'file',value:string|Uint8Array,name='',mime=''):string {if(type==='message')return bytesToHex(sha256(utf8(JSON.stringify(['lastcall/text/v1',value]))));const data=value as Uint8Array;return bytesToHex(sha256(utf8(JSON.stringify(['lastcall/file/v1',name,mime,data.length,bytesToHex(sha256(data))]))));}
 function originPayload(o:Omit<GroupOrigin,'signature'>|GroupOrigin){return ['lastcall/group-origin/v1',o.groupId,o.author,o.id,o.type,o.timestamp,o.expiresAt,o.hash];}
 export function signGroupOrigin(identity:DeviceIdentity,input:Omit<GroupOrigin,'kind'|'author'|'signature'>):GroupOrigin {const value={kind:'group-origin' as const,...input,author:identity.userId};return originSchema.parse({...value,signature:sign(identity,originPayload(value))});}

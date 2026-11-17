@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { router } from 'expo-router';
-import { Alert, FlatList, Pressable, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Pressable, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from '../../components/SafeArea';
 import { Avatar, Empty, Icon, IconButton, ScreenHeader, time } from '../../components/ui';
 import { AccountMovedNotice } from '../../components/AccountMovedNotice';
@@ -32,7 +32,8 @@ export default function Chats() {
     </View>}
     <View style={styles.search}><Icon name="search" color={colors.secondary} size={19} /><TextInput style={styles.searchInput} placeholder={t('Search')} placeholderTextColor={colors.secondary} value={query} onChangeText={setQuery} accessibilityLabel={t('Search chats')} /></View>
     <FlatList data={conversations} keyExtractor={item => item.id} keyboardShouldPersistTaps="handled" ItemSeparatorComponent={() => <View style={styles.separator} />}
-      ListEmptyComponent={<Empty icon="chatbubbles-outline" title={query ? t('Nothing found') : t('Your conversations')} text={query ? t('Try another chat name.') : t('Find a friend by @username and start a conversation.')} />}
+      // Until the encrypted history is read, an empty list is "loading", not "no chats yet".
+      ListEmptyComponent={!query && snapshot.restored === false ? <ActivityIndicator color={colors.accent} style={{ marginTop: 48 }} /> : <Empty icon="chatbubbles-outline" title={query ? t('Nothing found') : t('Your conversations')} text={query ? t('Try another chat name.') : t('Find a friend by @username and start a conversation.')} />}
       renderItem={({ item }) => {
         const peer = snapshot.contacts.find(contact => item.memberIds.includes(contact.userId) && contact.userId !== identity?.userId);
         const latest = chatTimeline(item.messages.filter(message => !blocked.has(message.from)), item.files.filter(file => !blocked.has(file.senderId))).at(-1);

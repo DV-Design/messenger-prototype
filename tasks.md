@@ -1,3 +1,20 @@
+# Blank screen and freezes after a long time in the background (2026-11-17)
+
+- [X] Reproduced on the emulator by killing the backgrounded process (what Android does under
+  memory pressure) and reopening: splash, then a white screen with a spinner, chats only after
+  ~5.5 s. Boot marks showed ~1.7–1.9 s inside history restore re-verifying 53 stored Ed25519
+  signatures (read receipts, edits, reactions) at ~30 ms each in Hermes; real accounts hold
+  hundreds, and phones are slower than the emulator
+- [X] Restore no longer re-verifies stored signatures: the sealed state is authenticated with
+  this device's own key and every item was verified when it arrived; structural checks stay.
+  Cold reopen now shows chats at ~2.5 s, ~1 s of which is Android starting the app
+- [X] Group roster signatures are verified once per exact roster instead of on every group message
+- [X] The chat list shows a spinner, not "Your conversations", until the history is read
+- [X] Warm resume after 3 min of forced Doze: no freeze, a chat opened ~0.3 s after the tap
+- [ ] Not reproduced: a burst of many incoming group messages after a long background (each
+  costs a signature check of ~30 ms on the JS thread); a native Ed25519 would remove it
+- [ ] First read of the device key from Android Keystore took ~1 s once (system-side)
+
 # Telegram-style location picker (2026-11-17, after the 1.0.31 phone test)
 
 - [X] Taps on the map "did nothing" in a city: Google Maps sends a tap on a drawn place only to
