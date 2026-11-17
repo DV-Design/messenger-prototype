@@ -1,0 +1,21 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'ru.lastcall'
+version = '1.0.0'
+
+android {
+  namespace 'ru.lastcall.country'
+
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+}
+
+dependencies {
+  // Only for the Google Play account country (BillingConfig); LastCall sells nothing.
+  implementation 'com.android.billingclient:billing:7.1.1'
+}

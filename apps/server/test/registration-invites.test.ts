@@ -60,10 +60,10 @@ class Client {
     return frame.challenge;
   }
 
-  async auth(identity: DeviceIdentity, username: string, inviteCode?: string, emailProof?: string) {
+  async auth(identity: DeviceIdentity, username: string, inviteCode?: string, emailProof?: string, countryHints?: string[]) {
     const challenge = await this.challenge();
     const signature = signAuthentication(identity, challenge, username, username);
-    this.send({ type: 'authenticate', publicKey: identity.publicKey, username, displayName: username, signature, inviteCode, emailProof });
+    this.send({ type: 'authenticate', publicKey: identity.publicKey, username, displayName: username, signature, inviteCode, emailProof, countryHints });
     return this.next(frame => frame.type === 'ready' || frame.type === 'error');
   }
 
@@ -101,14 +101,14 @@ it('checks the same market policy on HTTP and WebSocket, ignoring spoofed header
   const config: ServerOptions = { registrationMode: 'market', registrationCountryForIp: lookup };
   const untrusted = await start(config);
   const spoofed = { 'x-forwarded-for': openIp, 'cf-ipcountry': 'US' };
-  expect(await (await fetch(untrusted.url + '/registration-policy', { headers: spoofed })).json()).toEqual({ mode: 'invite' });
+  expect(await (await fetch(untrusted.url + '/registration-policy', { headers: spoofed })).json()).toEqual({ mode: 'invite', countryHints: true });
   expect(await new Client(untrusted.url, spoofed).auth(createDeviceIdentity(), 'spoofed')).toMatchObject({ type: 'error', code: 'invite-required' });
   const trusted = await start({ ...config, trustedProxyCidrs: ['127.0.0.0/8'] });
   for (const [ip, mode] of [[openIp, 'open'], [restrictedIp, 'invite'], [unknownIp, 'invite']] as const) {
     const headers = { 'x-forwarded-for': `${openIp}, ${ip}`, 'cf-ipcountry': 'US' };
     const result = await fetch(trusted.url + '/registration-policy', { headers });
     expect(result.headers.get('cache-control')).toBe('no-store');
-    expect(await result.json()).toEqual({ mode });
+    expect(await result.json()).toEqual({ mode, countryHints: true });
     expect(await new Client(trusted.url, headers).auth(createDeviceIdentity(), `market_${mode}_${++nextRequest}`))
       .toMatchObject(mode === 'open' ? { type: 'ready' } : { type: 'error', code: 'invite-required' });
   }
@@ -265,4 +265,21 @@ it('leaves email recovery available while refusing new registrations and drops p
   expect(await current.request('invite-status')).toMatchObject({ canInvite: false, active: [] });
   const { client: reconnectedAdmin } = await connect(url, 'owner', admin);
   expect(await reconnectedAdmin.request('invite-status')).toMatchObject({ granted: [] });
+});
+
+it('weighs countries the phone reports, only toward caution, on HTTP and at registration', async () => {
+  // The production case: the server sees only a private proxy address, so the address alone is unknown.
+  const server = await start({ registrationMode: 'market', registrationCountryForIp: () => undefined });
+  const policy = async (hints?: string) => (await (await fetch(server.url + '/registration-policy', hints ? { headers: { 'x-lastcall-country-hints': hints } } : {})).json()).mode;
+  expect(await policy()).toBe('invite');
+  expect(await policy('RS')).toBe('open');
+  expect(await policy('RS,DE')).toBe('open');
+  expect(await policy('RS,RU')).toBe('invite'); // a Russian network or Play account anywhere in the list
+  expect(await policy('rs')).toBe('invite'); // malformed hints are ignored, leaving the unknown address
+  expect(await new Client(server.url).auth(createDeviceIdentity(), `hint_open_${++nextRequest}`, undefined, undefined, ['RS'])).toMatchObject({ type: 'ready' });
+  expect(await new Client(server.url).auth(createDeviceIdentity(), `hint_ru_${++nextRequest}`, undefined, undefined, ['RS', 'RU'])).toMatchObject({ type: 'error', code: 'invite-required' });
+  expect(await new Client(server.url).auth(createDeviceIdentity(), `hint_none_${++nextRequest}`)).toMatchObject({ type: 'error', code: 'invite-required' });
+  // A restricted address is not opened by hints from an open country.
+  const russianAddress = await start({ registrationMode: 'market', registrationCountryForIp: () => 'RU' });
+  expect(await new Client(russianAddress.url).auth(createDeviceIdentity(), `hint_addr_${++nextRequest}`, undefined, undefined, ['RS'])).toMatchObject({ type: 'error', code: 'invite-required' });
 });

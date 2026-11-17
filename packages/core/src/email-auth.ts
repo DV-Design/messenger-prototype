@@ -1,7 +1,7 @@
 import { ed25519 } from '@noble/curves/ed25519.js';
 import { bytesToHex, hexToBytes } from './crypto.js';
 import { peerIdSchema, roomIdSchema } from './protocol.js';
-import { directoryClientFrameSchema, directoryServerFrameSchema, emailAddressSchema, emailLocaleSchema, emailPurposeSchema, endpointUrl, inviteCodeSchema, normalizeEmail, userIdFromPublicKey, validateDeviceIdentity, type DeviceIdentity, type DirectoryClientFrame, type DirectoryServerFrame, type DirectoryUser, type EmailLocale, type EmailPurpose } from './directory.js';
+import { countryHintsSchema, directoryClientFrameSchema, directoryServerFrameSchema, emailAddressSchema, emailLocaleSchema, emailPurposeSchema, endpointUrl, inviteCodeSchema, normalizeEmail, userIdFromPublicKey, validateDeviceIdentity, type DeviceIdentity, type DirectoryClientFrame, type DirectoryServerFrame, type DirectoryUser, type EmailLocale, type EmailPurpose } from './directory.js';
 
 const utf8 = (value: string) => new TextEncoder().encode(value);
 const signed = /^[0-9a-f]{128}$/;
@@ -69,11 +69,12 @@ function oneShot<T>(serverUrl: string, identity: DeviceIdentity, build: (challen
 }
 
 /** Asks the server to mail a code. The reply is the same whether or not the address has an account. */
-export function startEmailChallenge(serverUrl: string, identity: DeviceIdentity, input: { purpose: EmailPurpose; email: string; locale: EmailLocale; inviteCode?: string }): Promise<string> {
+export function startEmailChallenge(serverUrl: string, identity: DeviceIdentity, input: { purpose: EmailPurpose; email: string; locale: EmailLocale; inviteCode?: string; countryHints?: string[] }): Promise<string> {
   const email = emailAddressSchema.parse(normalizeEmail(input.email));
   const inviteCode = input.purpose === 'register' ? inviteCodeSchema.optional().parse(input.inviteCode) : undefined;
+  const countryHints = input.purpose === 'register' && input.countryHints?.length ? countryHintsSchema.parse(input.countryHints) : undefined;
   return oneShot(serverUrl, identity,
-    challenge => ({ type: 'email-start', purpose: input.purpose, email, locale: input.locale, publicKey: identity.publicKey, signature: signEmailStart(identity, challenge, input.purpose, email, input.locale), ...(inviteCode === undefined ? {} : { inviteCode }) }),
+    challenge => ({ type: 'email-start', purpose: input.purpose, email, locale: input.locale, publicKey: identity.publicKey, signature: signEmailStart(identity, challenge, input.purpose, email, input.locale), ...(inviteCode === undefined ? {} : { inviteCode }) , ...(countryHints ? { countryHints } : {})}),
     frame => frame.type === 'email-started' ? frame.challengeId : undefined);
 }
 

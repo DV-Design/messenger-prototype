@@ -1,7 +1,7 @@
 import { createHmac, randomBytes } from 'node:crypto';
 import { createServer, type IncomingMessage } from 'node:http';
 import { WebSocket, WebSocketServer } from 'ws';
-import { clientFrameSchema } from '@messenger/core';
+import { clientFrameSchema, COUNTRY_HINTS_HEADER, countryHintsSchema } from '@messenger/core';
 import { Directory } from './directory.js';
 import { createFcmPushProvider, createSmtpEmailSender } from './providers.js';
 import { clientIp, rateKey } from './client-ip.js';
@@ -123,7 +123,12 @@ export function createSignalingServer(options: ServerOptions = {}) {
     }
     if (request.method !== 'GET') return respond(405, { error: 'GET required' });
     if (request.url === '/health') return respond(200, { status: 'ok' });
-    if (request.url === '/registration-policy') return respond(200, { mode: policyForIp(clientIpOf(request)) });
+    if (request.url === '/registration-policy') {
+      // Countries the phone reports arrive in a header (never the URL), and are not logged or stored.
+      const raw = request.headers[COUNTRY_HINTS_HEADER];
+      const parsed = typeof raw === 'string' ? countryHintsSchema.safeParse(raw.split(',').map(value => value.trim())) : undefined;
+      return respond(200, { mode: policyForIp(clientIpOf(request), parsed?.success ? parsed.data : undefined), countryHints: true });
+    }
     if (request.url === '/ice') {
       return respond(200, { iceServers: iceServers(!options.requireIceAuth) });
     }
@@ -229,7 +234,7 @@ export function createSignalingServer(options: ServerOptions = {}) {
         if (!other) return reject(peer, 'peer-unavailable', 'The other peer is not connected');
         send(other, { type: 'signal', from: peer.peerId, payload: frame.payload });
       });
-      if (peer.kind === 'directory') directory.open(ws, peer.ip, policyForIp(clientIpOf(request)));
+      if (peer.kind === 'directory') { const ip = clientIpOf(request); directory.open(ws, peer.ip, hints => policyForIp(ip, hints)); }
     });
   });
   const heartbeat = setInterval(() => {

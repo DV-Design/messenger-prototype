@@ -5,7 +5,7 @@ import { normalizePhone, iceServersSchema, type ServiceCapabilities, type PhoneC
 import { z } from 'zod';
 import { bytesToHex, randomChecked, secureRandomBytes, type RandomBytes } from './crypto.js';
 import {MAX_DELIVERY_PEERS, directoryClientFrameSchema, directoryServerFrameSchema, directoryUserSchema, directConversationId, conversationInvite, endpointUrl, signAuthentication, usernameSchema, displayNameSchema, validateDeviceIdentity, pushPreviewSchema,pushPreviewEnvelopeSchema, type DeviceIdentity, type DirectoryUser, type DirectoryClientFrame, type DirectoryServerFrame, type PhoneMatch, type DirectoryPage, type WakeKind,type WakeIntent } from './directory.js';
-import { inviteCodeSchema, InviteRequestError, type CreatedInvite, type InviteStatus } from './directory.js';
+import { countryHintsSchema, inviteCodeSchema, InviteRequestError, type CreatedInvite, type InviteStatus } from './directory.js';
 import {encryptPushPreview,decryptPushPreview,type OpenedPushPreview} from './push-preview.js';
 import { conversationIdSchema, MAX_BULK_BYTES, MAX_FILE_BYTES, MAX_TEXT_CHARS, peerIdSchema, roomIdSchema } from './protocol.js';
 import type { BulkOffer, BulkSink } from './bulk.js';
@@ -25,7 +25,7 @@ export interface Conversation {id:string;kind:'direct'|'group';title:string;memb
 export interface PendingIncomingCall extends OpenedCallPush {state:'ringing'|'accepted';revision:number;}
 interface OutgoingInvitation extends CallInvitation {peerId:string;conversationId:string;video:boolean;serverEpoch?:string;offered:boolean;offering:boolean;ringing:boolean;sessionStarted:boolean;revision:number;operation:PendingOperation;timer?:ReturnType<typeof setTimeout>;expiry?:ReturnType<typeof setTimeout>;}
 export interface MessengerSnapshot {status:'idle'|'connecting'|'online'|'offline'|'error';/** The encrypted local history has been read; before that an empty chat list means "not loaded yet", not "no chats". */restored?:boolean;self?:DirectoryUser;contacts:DirectoryUser[];conversations:Conversation[];activeCall?:{conversationId:string;peerId:string;session:SessionSnapshot};pendingIncomingCall?:PendingIncomingCall;verifiedContacts:string[];blockedContacts:string[];movedContacts?:Record<string,DirectoryUser>;error?:string;}
-export interface MessengerOptions {callCaptions?:boolean;reconcileDeliveryOnConnect?:boolean;serverUrl:string;identity:DeviceIdentity;username:string;displayName:string;emailProof?:string;inviteCode?:string;randomBytes?:RandomBytes;rtcFactory?:PeerSessionOptions['rtcFactory'];getUserMedia?:PeerSessionOptions['getUserMedia'];createMediaStream?:PeerSessionOptions['createMediaStream'];onChange?:(snapshot:MessengerSnapshot)=>void;loadState?:()=>Promise<string|null>;saveState?:(sealed:string)=>Promise<void>;saveAttachment?:(key:string,sealed:string)=>Promise<void>;loadAttachment?:(key:string)=>Promise<string|null>;deleteAttachment?:(key:string)=>Promise<void>;
+export interface MessengerOptions {callCaptions?:boolean;reconcileDeliveryOnConnect?:boolean;serverUrl:string;identity:DeviceIdentity;username:string;displayName:string;emailProof?:string;inviteCode?:string;/** Registration only, and only for a server whose policy announced `countryHints`. */countryHints?:string[];randomBytes?:RandomBytes;rtcFactory?:PeerSessionOptions['rtcFactory'];getUserMedia?:PeerSessionOptions['getUserMedia'];createMediaStream?:PeerSessionOptions['createMediaStream'];onChange?:(snapshot:MessengerSnapshot)=>void;loadState?:()=>Promise<string|null>;saveState?:(sealed:string)=>Promise<void>;saveAttachment?:(key:string,sealed:string)=>Promise<void>;loadAttachment?:(key:string)=>Promise<string|null>;deleteAttachment?:(key:string)=>Promise<void>;
   /** Large files (up to 1 GiB) live as plain files in app storage under the attachment key; the core only streams them. Without it this client neither sends nor accepts them. */
   bulkFiles?:BulkFileStore;}
 export interface BulkFileStore {read(key:string,name:string,offset:number,length:number):Promise<Uint8Array>;openIncoming(key:string,name:string,size:number):Promise<BulkSink>;}
@@ -78,12 +78,14 @@ export class MessengerClient {
   private callCaptionListeners=new Set<(frame:CallCaptionFrame)=>void>();
   private options: Omit<MessengerOptions, 'inviteCode'>;
   private inviteCode?: string;
-  constructor({ inviteCode, ...options }: MessengerOptions) {
+  private countryHints?: string[];
+  constructor({ inviteCode, countryHints, ...options }: MessengerOptions) {
     validateDeviceIdentity(options.identity);
     usernameSchema.parse(options.username);
     displayNameSchema.parse(options.displayName);
     endpointUrl(options.serverUrl, 'directory');
     this.inviteCode = inviteCodeSchema.optional().parse(inviteCode);
+    this.countryHints = countryHints?.length ? countryHintsSchema.parse(countryHints) : undefined;
     this.options = options;
     this.random = options.randomBytes ?? secureRandomBytes;
   }
@@ -157,10 +159,10 @@ export class MessengerClient {
           const frame=directoryServerFrameSchema.parse(JSON.parse(event.data));
           if(frame.type==='challenge'){
             if(challenged||ready)throw new Error('Unexpected directory challenge');challenged=true;
-            this.directorySend({type:'authenticate',publicKey:this.options.identity.publicKey,username:this.options.username,displayName:this.options.displayName,signature:signAuthentication(this.options.identity,frame.challenge,this.options.username,this.options.displayName),...(this.options.emailProof?{emailProof:this.options.emailProof}:{}),...(this.inviteCode?{inviteCode:this.inviteCode}:{})});
+            this.directorySend({type:'authenticate',publicKey:this.options.identity.publicKey,username:this.options.username,displayName:this.options.displayName,signature:signAuthentication(this.options.identity,frame.challenge,this.options.username,this.options.displayName),...(this.options.emailProof?{emailProof:this.options.emailProof}:{}),...(this.inviteCode?{inviteCode:this.inviteCode}:{}),...(this.countryHints?{countryHints:this.countryHints}:{})});
           }else if(frame.type==='ready'){
             if(!challenged||ready||frame.self.userId!==this.options.identity.userId||frame.self.publicKey!==this.options.identity.publicKey)throw new Error('Directory identity mismatch');
-            this.inviteCode = undefined;
+            this.inviteCode = undefined;this.countryHints = undefined;
             ready=true;this.deliverySent=undefined;this.services=undefined;this.servicesRequest=undefined;this.wakeCapabilitiesRequest=undefined;this.self=frame.self;this.status='online';this.attempt=0;this.error=undefined;finish();this.watch();this.wakePending();this.emit();
             void this.refreshContacts().catch(e=>this.report(e));
           }else if(frame.type==='error'){

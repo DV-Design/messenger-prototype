@@ -2,11 +2,12 @@ import { locale, t } from './i18n';
 import { useEffect, useSyncExternalStore } from 'react';
 import { AppState, NativeModules, Platform } from 'react-native';
 import * as Network from 'expo-network';
-import { EmailAuthError, MessengerClient, fetchRegistrationPolicy, resolveDeviceProfile, startEmailChallenge, verifyEmailChallenge, type DeviceIdentity, type DirectoryUser, type EmailPurpose, type MessengerOptions, type MessengerSnapshot } from '@messenger/core';
+import { EmailAuthError, MessengerClient, fetchRegistrationPolicyInfo, resolveDeviceProfile, startEmailChallenge, verifyEmailChallenge, type DeviceIdentity, type DirectoryUser, type EmailPurpose, type MessengerOptions, type MessengerSnapshot } from '@messenger/core';
 import { isAccountMoved, type BoundEmail } from './email-flow-model';
 import { nativeRtc, validateServerUrl } from './native';
 import { CanonicalProfileStore, profileSignature, registrationCandidate } from './registration-model';
 import { bulkFiles } from './bulk-files';
+import { collectCountryHints } from './country-hints';
 import { DEFAULT_SERVER, deleteLocalAccount, loadBoundEmail, loadEmailReminderDismissed, loadIdentity, loadExistingIdentity, loadProfile, saveBoundEmail, saveEmailReminderDismissed, saveProfile, sealedStateAdapter, type LocalProfile } from './storage';
 import { monitorNetworkRecovery, shouldForceNetworkResume } from './network-recovery';
 import { ConnectionSupervisor } from './connection-supervisor';
@@ -21,7 +22,7 @@ const observers = new Set<(snapshot: MessengerSnapshot, manager: MessengerClient
 const managers = new SharedWakeRuntime<MessengerClient>();
 let bootPromise: Promise<void> | null = null;
 let generation = 0;
-type RegistrationCredentials = Pick<MessengerOptions, 'emailProof' | 'inviteCode'>;
+type RegistrationCredentials = Pick<MessengerOptions, 'emailProof' | 'inviteCode' | 'countryHints'>;
 let profiles = new CanonicalProfileStore(saveProfile);
 let networkRecovery: ReturnType<typeof monitorNetworkRecovery> | undefined;
 let resumeSubscription: ReturnType<typeof AppState.addEventListener> | undefined;
@@ -233,13 +234,20 @@ async function rememberEmail(email: string, serverUrl: string) {
   try { await saveBoundEmail(boundEmail); } catch { /* Kept for this session. */ }
 }
 const emailServer = () => validateServerUrl(state.profile?.serverUrl ?? DEFAULT_SERVER);
-export const checkNewAccountPolicy = () => fetchRegistrationPolicy(emailServer());
+/** Countries the phone reports, kept only while signing up and only if the server weighs them. */
+let signupCountryHints: string[] | undefined;
+export async function checkNewAccountPolicy() {
+  const hints = await collectCountryHints().catch(() => []);
+  const info = await fetchRegistrationPolicyInfo(emailServer(), hints);
+  signupCountryHints = info.countryHints && hints.length ? hints : undefined;
+  return info.mode;
+}
 /** Null means another operation was already running. Refusals stay with the caller, which shows them in place. */
 export async function requestEmailCode(purpose: EmailPurpose, email: string, inviteCode?: string): Promise<string | null> {
   if (state.busy) return null;
   if (!state.identity) throw new Error(t('The device key is not loaded yet.'));
   publish({ busy: true, error: undefined });
-  try { return await startEmailChallenge(emailServer(), state.identity, { purpose, email, locale, ...(purpose === 'register' && inviteCode ? { inviteCode } : {}) }); }
+  try { return await startEmailChallenge(emailServer(), state.identity, { purpose, email, locale, ...(purpose === 'register' && inviteCode ? { inviteCode } : {}), ...(purpose === 'register' && signupCountryHints ? { countryHints: signupCountryHints } : {}) }); }
   finally { publish({ busy: false }); }
 }
 /** Registration: returns the proof to send with the next registration attempt. */
@@ -308,7 +316,7 @@ export async function registerProfile(displayName: string, username: string, ema
   publish({ busy: true, error: undefined });
   try {
     const candidate = await registrationCandidate(proposed, () => resolveDeviceProfile(proposed.serverUrl, identity));
-    await connectCanonical(candidate.profile, candidate.isNew ? { emailProof, inviteCode } : undefined);
+    await connectCanonical(candidate.profile, candidate.isNew ? { emailProof, inviteCode, ...(signupCountryHints ? { countryHints: signupCountryHints } : {}) } : undefined);
     if (!state.profile) throw new Error(t('The server did not confirm the profile.'));
     await profiles.remember(state.profile);
     if (candidate.isNew && email && emailProof) await rememberEmail(email, proposed.serverUrl);

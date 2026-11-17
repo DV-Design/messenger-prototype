@@ -67,6 +67,13 @@ export type DirectoryUser=z.infer<typeof directoryUserSchema>;
 export const directoryPageSchema=z.object({users:z.array(directoryUserSchema).max(100),nextCursor:usernameSchema.optional()}).strict();
 export type DirectoryPage=z.infer<typeof directoryPageSchema>;
 export const inviteCodeSchema = roomIdSchema;
+/**
+ * Countries the phone itself reports at sign-up (Google Play account, current mobile network,
+ * SIM): the server cannot rely on the connection address alone. Only sent to a server that
+ * announced `countryHints` in its registration policy; never stored.
+ */
+export const countryHintsSchema = z.array(z.string().regex(/^[A-Z]{2}$/)).min(1).max(4);
+export const COUNTRY_HINTS_HEADER = 'x-lastcall-country-hints';
 const inviteTimestampSchema = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
 const pendingInviteSchema = z.object({ id: peerIdSchema, expiresAt: inviteTimestampSchema }).strict();
 const inviteStatusSchema = z.object({
@@ -80,9 +87,9 @@ const inviteStatusSchema = z.object({
 const createdInviteSchema = pendingInviteSchema.extend({ code: inviteCodeSchema });
 export type InviteStatus = z.infer<typeof inviteStatusSchema>;
 export type CreatedInvite = z.infer<typeof createdInviteSchema>;
-const registrationPolicySchema = z.object({ mode: z.enum(['open', 'invite', 'closed']) }).strict();
+const registrationPolicySchema = z.object({ mode: z.enum(['open', 'invite', 'closed']), countryHints: z.literal(true).optional() }).strict();
 export type RegistrationPolicy = z.infer<typeof registrationPolicySchema>['mode'];
-export interface RegistrationPolicyInfo { mode: RegistrationPolicy; supportsInvites: boolean; }
+export interface RegistrationPolicyInfo { mode: RegistrationPolicy; supportsInvites: boolean; /** The server weighs countries reported by the phone. */ countryHints?: boolean }
 
 /** A correlated refusal of an invitation-management request. */
 export class InviteRequestError extends Error {
@@ -117,9 +124,10 @@ export const directoryClientFrameSchema=z.discriminatedUnion('type',[
   /** The complete list of peers still waiting for this phone's queue. Who and until when, never what. */
   z.object({type:z.literal('delivery-sync'),peers:z.array(z.object({to:roomIdSchema,expiresAt:wakeIntentSchema.shape.expiresAt}).strict()).max(MAX_DELIVERY_PEERS)}).strict(),
   z.object({type:z.literal('wake'),to:roomIdSchema,kind:wakeIntentSchema.shape.kind.optional(),intentId:peerIdSchema.optional(),expiresAt:wakeIntentSchema.shape.expiresAt.optional(),preview:pushPreviewSchema.optional()}).strict().refine(frame=>[frame.kind,frame.intentId,frame.expiresAt].filter(value=>value!==undefined).length%3===0&&(frame.preview===undefined||((frame.kind==='message'||frame.kind==='file')&&pushPreviewSchema.safeParse(frame.preview).success&&JSON.parse(frame.preview).kind===frame.kind)),{message:'Wake metadata must be supplied together; previews require matching message/file intent'}),
-  z.object({type:z.literal('authenticate'),publicKey:roomIdSchema,username:usernameSchema,displayName:displayNameSchema,signature:z.string().regex(/^[0-9a-f]{128}$/),emailProof:roomIdSchema.optional(),inviteCode:inviteCodeSchema.optional()}).strict(),
-  z.object({type:z.literal('email-start'),purpose:emailPurposeSchema,email:emailAddressSchema,locale:emailLocaleSchema,publicKey:roomIdSchema,signature:z.string().regex(/^[0-9a-f]{128}$/),inviteCode:inviteCodeSchema.optional()}).strict()
-    .refine(frame => frame.inviteCode === undefined || frame.purpose === 'register', { message: 'Invitation codes only belong to registration' }),
+  z.object({type:z.literal('authenticate'),publicKey:roomIdSchema,username:usernameSchema,displayName:displayNameSchema,signature:z.string().regex(/^[0-9a-f]{128}$/),emailProof:roomIdSchema.optional(),inviteCode:inviteCodeSchema.optional(),countryHints:countryHintsSchema.optional()}).strict(),
+  z.object({type:z.literal('email-start'),purpose:emailPurposeSchema,email:emailAddressSchema,locale:emailLocaleSchema,publicKey:roomIdSchema,signature:z.string().regex(/^[0-9a-f]{128}$/),inviteCode:inviteCodeSchema.optional(),countryHints:countryHintsSchema.optional()}).strict()
+    .refine(frame => frame.inviteCode === undefined || frame.purpose === 'register', { message: 'Invitation codes only belong to registration' })
+    .refine(frame => frame.countryHints === undefined || frame.purpose === 'register', { message: 'Country hints only belong to registration' }),
   z.object({type:z.literal('email-verify'),challengeId:peerIdSchema,code:z.string().regex(/^[0-9]{6}$/),publicKey:roomIdSchema,signature:z.string().regex(/^[0-9a-f]{128}$/)}).strict(),
   z.object({ type: z.literal('invite-status'), requestId: peerIdSchema }).strict(),
   z.object({ type: z.literal('invite-create'), requestId: peerIdSchema }).strict(),
@@ -169,12 +177,14 @@ export function endpointUrl(base:string,path:string):URL {
 }
 
 /** Older servers have no policy endpoint. Other failures must not look like an open policy. */
-export async function fetchRegistrationPolicyInfo(serverUrl: string): Promise<RegistrationPolicyInfo> {
+export async function fetchRegistrationPolicyInfo(serverUrl: string, countryHints?: string[]): Promise<RegistrationPolicyInfo> {
+  const hints = countryHints?.length ? countryHintsSchema.parse(countryHints) : undefined;
   const url = endpointUrl(serverUrl, 'registration-policy').toString();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
   try {
-    const response = await fetch(url, { signal: controller.signal, redirect: 'error', cache: 'no-store' });
+    // A header, not the query string: nothing about the person goes into URLs or access logs.
+    const response = await fetch(url, { signal: controller.signal, redirect: 'error', cache: 'no-store', ...(hints ? { headers: { [COUNTRY_HINTS_HEADER]: hints.join(',') } } : {}) });
     if (response.redirected || (response.url && response.url !== url)) {
       throw new Error('Registration policy request was redirected');
     }

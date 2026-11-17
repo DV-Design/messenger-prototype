@@ -31,14 +31,20 @@ export function registrationPolicy(options: RegistrationOptions) {
     return normalized;
   }));
   const lookup = options.registrationCountryForIp;
-  return (ip: string): RegistrationMode => {
+  /**
+   * Countries the phone reports (Google Play account, mobile network, SIM) count alongside the
+   * connection's country, and only toward caution: any restricted country among them means an
+   * invitation; open needs at least one known country and none restricted. A modified client can
+   * leave hints out, but then it has nothing to open with unless its address is known and open.
+   */
+  return (ip: string, hints?: readonly string[]): RegistrationMode => {
     if (mode !== 'market') return mode;
-    try {
-      const country = registrationCountry(lookup?.(ip));
-      return country && !restricted.has(country) ? 'open' : 'invite';
-    } catch {
-      return 'invite';
-    }
+    let address: string | undefined;
+    try { address = registrationCountry(lookup?.(ip)); } catch { address = undefined; }
+    const reported = (hints ?? []).slice(0, 4).map(hint => registrationCountry(hint));
+    if (reported.some(country => country === undefined)) return 'invite'; // malformed: no benefit of the doubt
+    const known = [address, ...reported].filter((country): country is string => country !== undefined);
+    return known.length && !known.some(country => restricted.has(country)) ? 'open' : 'invite';
   };
 }
 

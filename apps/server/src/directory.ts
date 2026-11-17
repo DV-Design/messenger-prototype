@@ -16,7 +16,8 @@ type ProfileRow = { user_id: string; public_key: string; username: string; displ
 interface Connection {
   ws: WebSocket;
   ip: string;
-  registrationMode: RegistrationMode;
+  /** The connection's registration policy, given the countries the phone reports (if any). */
+  registrationMode: (countryHints?: readonly string[]) => RegistrationMode;
   identityMovedV1?: boolean;
   challenge?: string;
   expiresAt: number;
@@ -68,7 +69,8 @@ export class Directory {
     this.email = new EmailAuth(this.db, options, (quotas) => this.services.reserveQuotas(quotas));
     this.invites = new RegistrationInvites(this.db, options.registrationAdminUserIds ?? [], options.serviceNow);
   }
-  open(ws: WebSocket, ip = '', registrationMode: RegistrationMode = 'open') {
+  open(ws: WebSocket, ip = '', policy: RegistrationMode | ((countryHints?: readonly string[]) => RegistrationMode) = 'open') {
+    const registrationMode = typeof policy === 'function' ? policy : () => policy;
     const challenge = randomBytes(32).toString('hex');
     this.connections.set(ws, { ws, ip, registrationMode, challenge, expiresAt: Date.now() + (this.options.challengeTtlMs ?? 15_000), watches: new Set() });
     this.options.send(ws, { type: 'challenge', challenge });
@@ -167,7 +169,7 @@ export class Directory {
       if (frame.type === 'email-start') {
         return this.oneShot(connection, (challenge: string) => {
           if (!verifyEmailStart(frame.publicKey, challenge, frame.purpose, frame.email, frame.locale, frame.signature)) throw new ServiceError('auth-failed', 'Signature verification failed');
-          if (frame.purpose === 'register') this.invites.assertRegistration(connection.registrationMode, frame.inviteCode);
+          if (frame.purpose === 'register') this.invites.assertRegistration(connection.registrationMode(frame.countryHints), frame.inviteCode);
           if (!this.email.enabled) throw new ServiceError('email-unavailable', 'Email is not configured on this server');
           const { userId, hasProfile } = this.emailKeyState(frame.publicKey);
           // These depend only on the signing key, so they reveal nothing about the address.
@@ -191,7 +193,7 @@ export class Directory {
         if (this.email.movedTo(userId)) return this.options.reject(ws, 'account-moved', 'This account was restored on another device', true);
         const existing = this.row(userId);
         if (existing && existing.username !== frame.username) return this.options.reject(ws, 'device-already-registered', 'This installation already owns a username', true);
-        if (!existing) this.invites.assertRegistration(connection.registrationMode, frame.inviteCode);
+        if (!existing) this.invites.assertRegistration(connection.registrationMode(frame.countryHints), frame.inviteCode);
         const occupied = this.db.prepare('SELECT user_id FROM directory_users WHERE username = ? AND user_id <> ?').get(frame.username, userId);
         if (occupied) return this.options.reject(ws, 'username-taken', 'This username is already registered', true);
         const count = this.db.prepare('SELECT COUNT(*) AS total FROM directory_users').get() as { total: number };
@@ -202,7 +204,7 @@ export class Directory {
         if (emailHash && this.email.ownerOf(emailHash)) return this.options.reject(ws, 'email-taken', 'This address belongs to another account', true);
         if (existing) this.db.prepare('UPDATE directory_users SET last_seen = ? WHERE user_id = ?').run(Date.now(), userId);
         else this.services.atomically(() => {
-          this.invites.assertRegistration(connection.registrationMode, frame.inviteCode, true);
+          this.invites.assertRegistration(connection.registrationMode(frame.countryHints), frame.inviteCode, true);
           this.db.prepare('INSERT INTO directory_users (user_id, public_key, username, display_name, last_seen) VALUES (?, ?, ?, ?, ?)')
             .run(userId, frame.publicKey, frame.username, frame.displayName, Date.now());
           if (emailHash) this.email.bindInside(userId, emailHash);
