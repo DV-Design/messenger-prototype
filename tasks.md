@@ -13,7 +13,11 @@
   `a2874646f231143d75669077c51284bc56383d7e93ba651a247d8c92bb426913`; merged manifest has both features
   `required="false"`. Installed over 1.0.35 on the emulator: the history moved, chats open after two cold
   restarts (launch 670–860 ms), no storage errors. The database file itself cannot be inspected on a
-  release build. Unit (301 + 143), e2e (18 passed, 1 skipped), type and lint checks pass. Not yet published.
+  release build. Unit (301 + 143), e2e (18 passed, 1 skipped), type and lint checks pass. Published to
+  internal testing as "LastCall 1.0.36 internal" (available to testers 12:37) and sent to Google review
+  for closed testing as "LastCall 1.0.36 closed"; Play's pre-review check no longer reports the device
+  availability issue. The unsent "LastCall 1.0.35 closed" draft was replaced; closed testers stay on
+  1.0.34 until review passes.
 
 # 1.0.35 / code50 — faster chat opening and switching (2026-11-18)
 
