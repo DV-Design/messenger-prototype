@@ -10,6 +10,7 @@ import {encryptPushPreview,decryptPushPreview,type OpenedPushPreview} from './pu
 import { conversationIdSchema, MAX_BULK_BYTES, MAX_FILE_BYTES, MAX_TEXT_CHARS, peerIdSchema, roomIdSchema } from './protocol.js';
 import type { BulkOffer, BulkSink } from './bulk.js';
 import { openAttachment, sealAttachment, openLocalState, sealLocalState } from './persistence.js';
+import { localRecordWriter, type LocalRecordStore, type LocalRecordWriter } from './local-records.js';
 import { PeerSession, type PeerSessionOptions, type SessionSnapshot, type SharedFile, type ChatMessage } from './session.js';
 import {OUTBOX_TTL_MS,groupDefinitionSchema,signGroupDefinition,verifyGroupDefinition,rosterVersion,signGroupOrigin,parseGroupOrigin,contentHash,receiptSchema,signGroupReceipt,verifyGroupReceipt,attachmentKey,bulkHash,type GroupDefinition,type GroupOrigin,type GroupReceipt} from './group-sync.js';
 import {encodeDirectFileTiming,parseDirectFileTiming} from './direct-file.js';
@@ -25,7 +26,7 @@ export interface Conversation {id:string;kind:'direct'|'group';title:string;memb
 export interface PendingIncomingCall extends OpenedCallPush {state:'ringing'|'accepted';revision:number;}
 interface OutgoingInvitation extends CallInvitation {peerId:string;conversationId:string;video:boolean;serverEpoch?:string;offered:boolean;offering:boolean;ringing:boolean;sessionStarted:boolean;revision:number;operation:PendingOperation;timer?:ReturnType<typeof setTimeout>;expiry?:ReturnType<typeof setTimeout>;}
 export interface MessengerSnapshot {status:'idle'|'connecting'|'online'|'offline'|'error';/** The encrypted local history has been read; before that an empty chat list means "not loaded yet", not "no chats". */restored?:boolean;self?:DirectoryUser;contacts:DirectoryUser[];conversations:Conversation[];activeCall?:{conversationId:string;peerId:string;session:SessionSnapshot};pendingIncomingCall?:PendingIncomingCall;verifiedContacts:string[];blockedContacts:string[];movedContacts?:Record<string,DirectoryUser>;error?:string;}
-export interface MessengerOptions {callCaptions?:boolean;reconcileDeliveryOnConnect?:boolean;serverUrl:string;identity:DeviceIdentity;username:string;displayName:string;emailProof?:string;inviteCode?:string;/** Registration only, and only for a server whose policy announced `countryHints`. */countryHints?:string[];randomBytes?:RandomBytes;rtcFactory?:PeerSessionOptions['rtcFactory'];getUserMedia?:PeerSessionOptions['getUserMedia'];createMediaStream?:PeerSessionOptions['createMediaStream'];onChange?:(snapshot:MessengerSnapshot)=>void;/** Awaited before the history is encrypted and saved, so a phone can keep that work out of a screen animation; it must settle quickly. */whenIdle?:()=>Promise<void>;loadState?:()=>Promise<string|null>;saveState?:(sealed:string)=>Promise<void>;saveAttachment?:(key:string,sealed:string)=>Promise<void>;loadAttachment?:(key:string)=>Promise<string|null>;deleteAttachment?:(key:string)=>Promise<void>;
+export interface MessengerOptions {callCaptions?:boolean;reconcileDeliveryOnConnect?:boolean;serverUrl:string;identity:DeviceIdentity;username:string;displayName:string;emailProof?:string;inviteCode?:string;/** Registration only, and only for a server whose policy announced `countryHints`. */countryHints?:string[];randomBytes?:RandomBytes;rtcFactory?:PeerSessionOptions['rtcFactory'];getUserMedia?:PeerSessionOptions['getUserMedia'];createMediaStream?:PeerSessionOptions['createMediaStream'];onChange?:(snapshot:MessengerSnapshot)=>void;/** Awaited before the history is encrypted and saved, so a phone can keep that work out of a screen animation; it must settle quickly. */whenIdle?:()=>Promise<void>;/** Per-record encrypted storage (SQLite on the phone); takes precedence over loadState/saveState, which are then read once to migrate and cleared after the first successful write. */records?:LocalRecordStore;clearLegacyState?:()=>Promise<void>;loadState?:()=>Promise<string|null>;saveState?:(sealed:string)=>Promise<void>;saveAttachment?:(key:string,sealed:string)=>Promise<void>;loadAttachment?:(key:string)=>Promise<string|null>;deleteAttachment?:(key:string)=>Promise<void>;
   /** Large files (up to 1 GiB) live as plain files in app storage under the attachment key; the core only streams them. Without it this client neither sends nor accepts them. */
   bulkFiles?:BulkFileStore;}
 export interface BulkFileStore {read(key:string,name:string,offset:number,length:number):Promise<Uint8Array>;openIncoming(key:string,name:string,size:number):Promise<BulkSink>;}
@@ -129,20 +130,40 @@ export class MessengerClient {
   private emit(){this.options.onChange?.(this.getSnapshot());}
   private report(error:unknown){this.error=error instanceof Error?error.message:'Messenger operation failed';this.emit();}
   private changed(){if(this.closed)return;this.trimHistory();this.dirty=true;this.scheduleSave();this.emit();}
-  private scheduleSave(){if(this.closing||!this.options.saveState||this.savedTimer)return;this.savedTimer=setTimeout(()=>{this.savedTimer=undefined;void this.persist().catch(error=>this.report(error));},250);}
+  private recordWriter?:LocalRecordWriter;private migrating=false;
+  private persistent(){return !!(this.options.records||this.options.saveState);}
+  private scheduleSave(){if(this.closing||!this.persistent()||this.savedTimer)return;this.savedTimer=setTimeout(()=>{this.savedTimer=undefined;void this.persist().catch(error=>this.report(error));},250);}
   private stored(){return {version:7,contacts:[...this.contacts.values()].map(c=>({...c,online:false})),conversations:[...this.conversations.values()].map(c=>({id:c.id,kind:c.kind,title:c.title,memberIds:c.memberIds,creatorId:c.creatorId,formerIds:c.formerIds,removed:c.removed,notifyRemoved:c.notifyRemoved,joinedAt:c.joinedAt,definition:c.definition,receipts:c.receipts,readReceipts:c.readReceipts,messages:c.messages,files:c.files.map(({data:_data,...f})=>f),unread:c.unread,updatedAt:c.updatedAt,changes:c.changes,tombstones:c.tombstones,reactions:c.reactions,hidden:c.hidden,implicit:c.implicit})),pending:this.pending,verified:[...this.verified],blocked:[...this.blocked]};}
+  private records(){return this.recordWriter??=localRecordWriter(this.options.records!,this.options.identity,this.random);}
   private async persist():Promise<void>{
-    if(!this.dirty||!this.options.saveState)return this.saveQueue;
+    if(!this.dirty||!this.persistent())return this.saveQueue;
     if(this.options.whenIdle){try{await this.options.whenIdle();}catch{/* Save anyway. */}if(!this.dirty)return this.saveQueue;}
     this.dirty=false;
-    const state=storedSchema.parse(this.stored());const sealed=sealLocalState(this.options.identity,state,this.random);
-    this.saveQueue=this.saveQueue.catch(()=>{}).then(()=>this.options.saveState!(sealed)).catch(error=>{this.dirty=true;this.report(new Error('Local encrypted state could not be saved'));throw error;});return this.saveQueue;
+    const state=storedSchema.parse(this.stored());
+    const failed=(error:unknown)=>{this.dirty=true;this.report(new Error('Local encrypted state could not be saved'));throw error;};
+    if(this.options.records){
+      // Only records that changed since the last successful write are encrypted and written.
+      const writer=this.records();
+      this.saveQueue=this.saveQueue.catch(()=>{}).then(async()=>{
+        await writer.write(state);
+        if(this.migrating){this.migrating=false;await this.options.clearLegacyState?.().catch(()=>{/* The records are the history now; the old file is ignored. */});}
+      }).catch(failed);
+      return this.saveQueue;
+    }
+    const sealed=sealLocalState(this.options.identity,state,this.random);
+    this.saveQueue=this.saveQueue.catch(()=>{}).then(()=>this.options.saveState!(sealed)).catch(failed);return this.saveQueue;
   }
   private async restore(){
     if(this.loaded)return;if(this.restorePromise)return this.restorePromise;
     this.restorePromise=(async()=>{
-      const sealed=await this.options.loadState?.();if(!sealed){this.loaded=true;return;}
-      const state=storedSchema.parse(openLocalState(this.options.identity,sealed));const own=this.options.identity.userId;
+      let raw:unknown;
+      if(this.options.records){
+        raw=await this.records().read();
+        // First start with record storage: the history still sits in the old single sealed file.
+        if(raw===null){const sealed=await this.options.loadState?.();if(sealed){raw=openLocalState(this.options.identity,sealed);this.migrating=true;}}
+      }else{const sealed=await this.options.loadState?.();if(sealed)raw=openLocalState(this.options.identity,sealed);}
+      if(raw===null||raw===undefined){this.loaded=true;return;}
+      const state=storedSchema.parse(raw);const own=this.options.identity.userId;
       const contacts=new Map<string,DirectoryUser>();for(const c of state.contacts){if(c.userId===own||contacts.has(c.userId))throw new Error('Invalid stored contacts');contacts.set(c.userId,{...c,online:false});}
       const conversations=new Map<string,InternalConversation>();
       for(const c of state.conversations){
@@ -164,7 +185,9 @@ export class MessengerClient {
       if(state.verified?.some(id=>!contacts.has(id)))throw new Error('Invalid stored verification');
       if(new Set(state.blocked??[]).size!==(state.blocked?.length??0)||state.blocked?.some(id=>!contacts.has(id)))throw new Error('Invalid stored blocks');
       this.contacts=contacts;this.verified=new Set(state.verified??[]);this.blocked=new Set(state.blocked??[]);this.conversations=conversations;this.pending=state.pending.map(p=>{const c=conversations.get(p.conversationId)!;const item=p.type==='file'?c.files.find(f=>f.id===p.messageId)!:c.messages.find(m=>m.id===p.messageId)!;return {...p,type:p.type??'message',author:p.author??own,createdAt:p.createdAt??item.timestamp,expiresAt:p.expiresAt??item.timestamp+OUTBOX_TTL_MS};});
-      for(const p of this.pending)this.committed.add(this.pendingKey(p));this.loaded=true;await this.expirePending();this.emit();
+      for(const p of this.pending)this.committed.add(this.pendingKey(p));this.loaded=true;await this.expirePending();
+      if(this.migrating){this.dirty=true;this.scheduleSave();}
+      this.emit();
     })();return this.restorePromise;
   }
   async connect():Promise<void>{
@@ -421,7 +444,7 @@ export class MessengerClient {
   private assertActive(){if(this.closing)throw new Error('Messenger has been disposed');}
   private track<T>(work:Promise<T>):Promise<T>{this.activeWork.add(work);void work.then(()=>this.activeWork.delete(work),()=>this.activeWork.delete(work));return work;}
   private serial<T>(operation:()=>Promise<T>):Promise<T>{this.assertActive();const next=this.enqueueQueue.catch(()=>{}).then(operation);this.enqueueQueue=next.then(()=>{},()=>{});return this.track(next);}
-  private async putBlob(key:string,data:Uint8Array){if(this.options.saveState&&!this.options.saveAttachment)throw new Error('Encrypted attachment storage is unavailable');if(this.options.saveAttachment)await this.options.saveAttachment(key,sealAttachment(this.options.identity,key,data,this.random));this.blobs.set(key,data.slice());}
+  private async putBlob(key:string,data:Uint8Array){if(this.persistent()&&!this.options.saveAttachment)throw new Error('Encrypted attachment storage is unavailable');if(this.options.saveAttachment)await this.options.saveAttachment(key,sealAttachment(this.options.identity,key,data,this.random));this.blobs.set(key,data.slice());}
   async getFileData(conversationId:string,fileId:string,senderId?:string):Promise<Uint8Array|null>{await this.restore();const file=this.conversations.get(conversationId)?.files.find(f=>f.id===fileId&&(!senderId||f.senderId===senderId));if(!file?.blobKey)return null;const cached=this.blobs.get(file.blobKey);if(cached)return cached.slice();const sealed=await this.options.loadAttachment?.(file.blobKey);if(!sealed)return null;const data=openAttachment(this.options.identity,file.blobKey,sealed);this.blobs.set(file.blobKey,data);return data.slice();}
   private fileCapacity(size:number,outgoing=false){
     if(outgoing&&this.pending.filter(p=>p.type==='file').length>=MAX_PENDING_FILES)throw new Error('Local file outbox is full (16 files waiting for delivery); waiting content was preserved');

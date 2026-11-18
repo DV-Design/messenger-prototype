@@ -6,6 +6,7 @@ import { Directory, File, Paths } from 'expo-file-system';
 import { createDeviceIdentity, validateDeviceIdentity, MAX_LOCAL_STATE_BYTES, MAX_SEALED_ATTACHMENT_BYTES, type DeviceIdentity } from '@messenger/core';
 import type { BoundEmail } from './email-flow-model';
 import { hasDiskRoom, packSealed, packedSize, unpackSealed } from './attachment-file-model';
+import { closeRecordStores, openRecordStore } from './record-store';
 
 export const DEFAULT_SERVER = process.env.EXPO_PUBLIC_SIGNALING_URL ?? 'https://p2p.lienad.ru';
 export type LocalProfile = { username: string; displayName: string; serverUrl: string };
@@ -57,6 +58,7 @@ export async function saveProfile(profile: LocalProfile): Promise<void> {
 }
 
 export async function deleteLocalAccount(): Promise<void> {
+  await closeRecordStores();
   try {
     const directory = new Directory(Paths.document, 'messenger-v2');
     if (directory.exists) directory.delete();
@@ -103,7 +105,16 @@ export async function sealedStateAdapter(identity: DeviceIdentity, serverUrl: st
     if (typeof key !== 'string' || !hex.test(key)) throw new Error(t('Invalid attachment key.'));
     return new File(attachments, `${key}${suffix}`);
   };
+  // Since 1.0.36 the history lives in SQLite records; the old single file is read once to move it there.
+  const records = await openRecordStore(directory, `${identity.userId}-${serverHash}.db`);
   return {
+    records,
+    clearLegacyState: async () => {
+      await writes.catch(() => {});
+      if (target.exists) target.delete();
+      const temporary = new File(directory, `${identity.userId}-${serverHash}.next`);
+      if (temporary.exists) temporary.delete();
+    },
     loadState: async () => {
       if (!target.exists) return null;
       if (target.size > MAX_SEALED_BYTES) throw new Error(t('Local storage exceeds the allowed size.'));

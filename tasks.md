@@ -1,3 +1,20 @@
+# 1.0.36 / code51 — history in SQLite, encrypted per record (2026-11-18)
+
+- [X] Core: the history is stored as separately sealed records; a save writes only what changed,
+  in one transaction; one writer per database; the old single sealed file is moved once and deleted
+  only after a successful write. Save after one message changed ~80 ms → ~12 ms (2 records written);
+  start ~85 (estimated) → ~125 ms; one-time move ~210 ms (500 messages, Node without JIT)
+  → Artifacts: [records](packages/core/src/local-records.ts), [tests](packages/core/src/local-records.test.ts), [doc](docs/LOCAL-STORAGE.md)
+- [X] App: SQLite store (`expo-sqlite`, WAL), one connection per database, closed before "Delete account"
+  → Artifacts: [store](apps/mobile/src/record-store.ts), [adapter](apps/mobile/src/storage.ts)
+- [X] Manifest: Wi-Fi and portrait screen declared optional (Play warned that they exclude devices)
+  → Artifacts: [plugin](apps/mobile/plugins/withOptionalFeatures.cjs)
+- [X] Built 1.0.36/code51, `artifacts/LastCall-1.0.36-store.aab` (59.8 MB, +~1 MB for SQLite), sha256
+  `a2874646f231143d75669077c51284bc56383d7e93ba651a247d8c92bb426913`; merged manifest has both features
+  `required="false"`. Installed over 1.0.35 on the emulator: the history moved, chats open after two cold
+  restarts (launch 670–860 ms), no storage errors. The database file itself cannot be inspected on a
+  release build. Unit (301 + 143), e2e (18 passed, 1 skipped), type and lint checks pass. Not yet published.
+
 # 1.0.35 / code50 — faster chat opening and switching (2026-11-18)
 
 Measured with the core on 500 messages, Node without JIT (closer to Hermes than V8's JIT):
