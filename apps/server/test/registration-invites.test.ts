@@ -276,6 +276,8 @@ it('weighs countries the phone reports, only toward caution, on HTTP and at regi
   expect(await policy('RS,DE')).toBe('open');
   expect(await policy('RS,RU')).toBe('invite'); // a Russian network or Play account anywhere in the list
   expect(await policy('rs')).toBe('invite'); // malformed hints are ignored, leaving the unknown address
+  // React Native's fetch turns `cache: 'no-store'` into a `?_=<time>` suffix; the path still routes.
+  expect(await (await fetch(server.url + '/registration-policy?_=1763456789000', { headers: { 'x-lastcall-country-hints': 'RS' } })).json()).toEqual({ mode: 'open', countryHints: true });
   expect(await new Client(server.url).auth(createDeviceIdentity(), `hint_open_${++nextRequest}`, undefined, undefined, ['RS'])).toMatchObject({ type: 'ready' });
   expect(await new Client(server.url).auth(createDeviceIdentity(), `hint_ru_${++nextRequest}`, undefined, undefined, ['RS', 'RU'])).toMatchObject({ type: 'error', code: 'invite-required' });
   expect(await new Client(server.url).auth(createDeviceIdentity(), `hint_none_${++nextRequest}`)).toMatchObject({ type: 'error', code: 'invite-required' });

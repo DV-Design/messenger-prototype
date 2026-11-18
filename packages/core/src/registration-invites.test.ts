@@ -19,7 +19,14 @@ describe('registration policy discovery', () => {
     vi.stubGlobal('fetch', fetch);
     await expect(fetchRegistrationPolicyInfo(base)).resolves.toEqual({ mode: 'open', supportsInvites: true });
     await expect(fetchRegistrationPolicyInfo(base)).resolves.toEqual({ mode: 'open', supportsInvites: false });
-    expect(fetch).toHaveBeenCalledWith(`${base}/registration-policy`, expect.objectContaining({ redirect: 'error', cache: 'no-store' }));
+    expect(fetch).toHaveBeenCalledWith(`${base}/registration-policy`, expect.objectContaining({ redirect: 'error' }));
+    expect(fetch.mock.calls[0]?.[1]).not.toHaveProperty('cache');
+  });
+
+  it('accepts a response whose URL only gained a query (React Native cache busting)', async () => {
+    const fetch = vi.fn().mockResolvedValueOnce({ url: `${base}/registration-policy?_=1763456789000`, redirected: false, ok: true, status: 200, text: async () => '{"mode":"invite","countryHints":true}' });
+    vi.stubGlobal('fetch', fetch);
+    await expect(fetchRegistrationPolicyInfo(base, ['RS'])).resolves.toEqual({ mode: 'invite', countryHints: true, supportsInvites: true });
   });
 
   it('rejects other HTTP errors, unknown policy values and cross-origin responses', async () => {

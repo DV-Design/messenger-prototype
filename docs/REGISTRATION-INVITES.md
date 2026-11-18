@@ -210,3 +210,8 @@ Problems found, in order of impact:
 5. **Usability:** a 64-character code is hard to pass on. The app now has "Share invitation"
    (message text, no link) and accepts the whole pasted message, taking the single 64-hex run.
 6. The DB-IP snapshot is pinned to November 2026 and goes stale; refresh it monthly.
+7. **Fixed 2026-11-18 (app 1.0.34):** on Android "Create account" always failed with "Could not
+   check registration availability" from 1.0.31 to 1.0.33. React Native's fetch turns
+   `cache: 'no-store'` into a `?_=<time>` query, and the client rejected the changed response URL as
+   a redirect. The client no longer sets `cache`; the server also routes `/registration-policy`,
+   `/ice` and `/health` by path. Apps 1.0.31–1.0.33 stay affected until they update.

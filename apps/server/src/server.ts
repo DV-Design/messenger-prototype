@@ -122,14 +122,17 @@ export function createSignalingServer(options: ServerOptions = {}) {
       response.setHeader('Vary', 'Origin');
     }
     if (request.method !== 'GET') return respond(405, { error: 'GET required' });
-    if (request.url === '/health') return respond(200, { status: 'ok' });
-    if (request.url === '/registration-policy') {
+    // Route by path: some fetch layers append a cache-busting query (React Native turns
+    // `cache: 'no-store'` into `?_=<time>`), which must not turn a known endpoint into a 404.
+    const path = (request.url ?? '').split('?')[0];
+    if (path === '/health') return respond(200, { status: 'ok' });
+    if (path === '/registration-policy') {
       // Countries the phone reports arrive in a header (never the URL), and are not logged or stored.
       const raw = request.headers[COUNTRY_HINTS_HEADER];
       const parsed = typeof raw === 'string' ? countryHintsSchema.safeParse(raw.split(',').map(value => value.trim())) : undefined;
       return respond(200, { mode: policyForIp(clientIpOf(request), parsed?.success ? parsed.data : undefined), countryHints: true });
     }
-    if (request.url === '/ice') {
+    if (path === '/ice') {
       return respond(200, { iceServers: iceServers(!options.requireIceAuth) });
     }
     respond(404, { error: 'Not found' });

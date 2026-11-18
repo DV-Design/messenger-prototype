@@ -177,6 +177,11 @@ export function endpointUrl(base:string,path:string):URL {
 }
 
 /** Older servers have no policy endpoint. Other failures must not look like an open policy. */
+/** The same origin and path; a query a fetch layer may add does not make a response come from elsewhere. */
+function withoutQuery(value: string): string {
+  return value.split('#')[0]!.split('?')[0]!;
+}
+
 export async function fetchRegistrationPolicyInfo(serverUrl: string, countryHints?: string[]): Promise<RegistrationPolicyInfo> {
   const hints = countryHints?.length ? countryHintsSchema.parse(countryHints) : undefined;
   const url = endpointUrl(serverUrl, 'registration-policy').toString();
@@ -184,8 +189,10 @@ export async function fetchRegistrationPolicyInfo(serverUrl: string, countryHint
   const timeout = setTimeout(() => controller.abort(), 10_000);
   try {
     // A header, not the query string: nothing about the person goes into URLs or access logs.
-    const response = await fetch(url, { signal: controller.signal, redirect: 'error', cache: 'no-store', ...(hints ? { headers: { [COUNTRY_HINTS_HEADER]: hints.join(',') } } : {}) });
-    if (response.redirected || (response.url && response.url !== url)) {
+    // No `cache` option: React Native's fetch polyfill turns `no-store` into a `?_=<time>` suffix,
+    // which the server does not route. The server answers with `Cache-Control: no-store` anyway.
+    const response = await fetch(url, { signal: controller.signal, redirect: 'error', ...(hints ? { headers: { [COUNTRY_HINTS_HEADER]: hints.join(',') } } : {}) });
+    if (response.redirected || (response.url && withoutQuery(response.url) !== url)) {
       throw new Error('Registration policy request was redirected');
     }
     if (response.status === 404) return { mode: 'open', supportsInvites: false };
