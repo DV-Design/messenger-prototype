@@ -5,6 +5,7 @@ import { SafeAreaView } from './SafeArea';
 import type { ComponentProps, ReactNode } from 'react';
 import { colors, styles } from '../styles';
 import { intlLocale, t } from '../i18n';
+import { formatDate } from '../date-format';
 export type IconName = ComponentProps<typeof Ionicons>['name'];
 export function Icon({ name, size = 24, color = colors.accent }: { name: IconName; size?: number; color?: ComponentProps<typeof Ionicons>['color'] | null }) { return <Ionicons name={name} size={size} color={color ?? colors.accent} />; }
 export function IconButton({ name, label, onPress, disabled, color, active }: { name: IconName; label: string; onPress: () => void; disabled?: boolean; color?: string; active?: boolean }) {
@@ -64,11 +65,11 @@ export function Empty({ icon, title, text, children }: { icon: IconName; title: 
 export function ScreenHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
   return <View style={styles.header}><View style={styles.flex}><Text style={styles.title}>{title}</Text>{subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}</View>{action}</View>;
 }
-export const time = (timestamp: number) => new Date(timestamp).toLocaleTimeString(intlLocale, { hour: '2-digit', minute: '2-digit' });
+export const time = (timestamp: number) => formatDate(timestamp, intlLocale, { hour: '2-digit', minute: '2-digit' });
 export const lastSeen = (online: boolean, timestamp: number) => online
   ? t('online')
   : timestamp
-    ? t('last seen {date} at {time}', { date: new Date(timestamp).toLocaleDateString(intlLocale, { day: 'numeric', month: 'short' }), time: time(timestamp) })
+    ? t('last seen {date} at {time}', { date: formatDate(timestamp, intlLocale, { day: 'numeric', month: 'short' }), time: time(timestamp) })
     : t('offline');
 export const connectionLabel = {
   idle: t('Connecting…'),

@@ -12,6 +12,7 @@ import { DEFAULT_SERVER, deleteLocalAccount, loadBoundEmail, loadEmailReminderDi
 import { monitorNetworkRecovery, shouldForceNetworkResume } from './network-recovery';
 import { ConnectionSupervisor } from './connection-supervisor';
 import { SharedWakeRuntime, type WakeLease } from './wake-model';
+import { whenTransitionsIdle } from './transition-idle';
 
 const empty: MessengerSnapshot = { status: 'idle', restored: false, contacts: [], conversations: [], verifiedContacts: [], blockedContacts: [], movedContacts: {} };
 type Runtime = { ready: boolean; busy: boolean; registration: 'checking' | 'unregistered' | 'unavailable' | 'bound'; profile: LocalProfile | null; identity?: DeviceIdentity; snapshot: MessengerSnapshot; error?: string; boundEmail?: BoundEmail | null; emailReminderDismissed?: boolean; retired: boolean };
@@ -55,7 +56,7 @@ async function buildManager(profile: LocalProfile, signal?: AbortSignal, registr
   const persistence = { ...await sealedStateAdapter(state.identity, profile.serverUrl), bulkFiles };
   if (signal?.aborted) throw new Error('Wake expired');
   const current = ++generation;
-  const next = new MessengerClient({ reconcileDeliveryOnConnect: true, callCaptions: Platform.OS === 'android' && Number(Platform.Version) >= 33 && !!NativeModules.LastCallCaptions, ...profile, ...registration, identity: state.identity, ...nativeRtc, ...persistence,
+  const next = new MessengerClient({ whenIdle: whenTransitionsIdle, reconcileDeliveryOnConnect: true, callCaptions: Platform.OS === 'android' && Number(Platform.Version) >= 33 && !!NativeModules.LastCallCaptions, ...profile, ...registration, identity: state.identity, ...nativeRtc, ...persistence,
     onChange: snapshot => {
       if (current !== generation) return;
       // Bursts of core changes (opening a chat marks it read, saves, sends receipts) reach React once per frame.

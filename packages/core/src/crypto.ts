@@ -5,6 +5,18 @@ import { bytesToHex, hexToBytes } from '@noble/hashes/utils.js';
 import { z } from 'zod';
 import { peerIdSchema, roomIdSchema, sealedEnvelopeSchema, signalBodySchema, type SignalBody, type SealedEnvelope } from './protocol.js';
 export { bytesToHex, hexToBytes };
+/** Base64 through the platform's atob/btoa (Hermes and Node have them); callers fall back to hex without. */
+export const base64Available=()=>typeof btoa==='function'&&typeof atob==='function';
+export function bytesToBase64(bytes:Uint8Array):string{
+  let binary='';
+  for(let i=0;i<bytes.length;i+=0x2000)binary+=String.fromCharCode(...bytes.subarray(i,i+0x2000));
+  return btoa(binary);
+}
+export function base64ToBytes(value:string):Uint8Array{
+  const binary=atob(value);const bytes=new Uint8Array(binary.length);
+  for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+  return bytes;
+}
 export type RandomBytes = (length:number)=>Uint8Array;
 export const secureRandomBytes:RandomBytes = length => {
   if (!globalThis.crypto?.getRandomValues) throw new Error('Secure randomness unavailable; inject platform randomBytes');

@@ -53,11 +53,12 @@ it('tracks partial group readers separately and authenticates each recipient',as
 
 it('retains sender read receipts and reader lists across encrypted restore',async()=>{
  const a=make();const id=await a.c.addContact(user(bob,'bob'));await a.c.sendText(id,'restore read');const m=snapshot(a.c,id).messages[0]!;await a.i.receiveApplication(bob.userId,signReadReceipt(bob,{conversationId:id,author:alice.userId,id:m.id,type:'message',hash:contentHash('message',m.text)}));
- const restored=make(alice,a.store);await restored.c.addContact(user(bob,'bob'));expect(snapshot(restored.c,id).messages[0]).toMatchObject({status:'delivered',readBy:[bob.userId]});const copy=snapshot(restored.c,id).messages[0]!;copy.readBy!.push('mutation');expect(snapshot(restored.c,id).messages[0]!.readBy).toEqual([bob.userId]);
+ const restored=make(alice,a.store);await restored.c.addContact(user(bob,'bob'));expect(snapshot(restored.c,id).messages[0]).toMatchObject({status:'delivered',readBy:[bob.userId]});const copy=snapshot(restored.c,id).messages[0]!;expect(()=>copy.readBy!.push('mutation')).toThrow();expect(snapshot(restored.c,id).messages[0]!.readBy).toEqual([bob.userId]);
 });
 it('rolls back a newly signed local receipt if its own save fails after content save',async()=>{
  const b=make(bob);const id=await b.c.addContact(user(alice,'alice'));await b.i.receiveMessage(alice.userId,{id:'ad'.repeat(16),text:'two writes',from:'peer',timestamp:Date.now(),conversationId:id});const send=vi.fn();b.i.wakePeer=send;
- b.store.saveState.mockImplementationOnce(async()=>{}).mockRejectedValueOnce(new Error('receipt disk full'));await expect(b.c.markRead(id)).rejects.toThrow('receipt disk full');expect(send).not.toHaveBeenCalled();expect(b.i.conversations.get(id).readReceipts).toHaveLength(0);expect(snapshot(b.c,id).unread).toBe(1);await b.c.markRead(id);expect(send).toHaveBeenCalledTimes(1);
+ // The content is already on disk (receiving saved it), so the receipt's save is the next one.
+ b.store.saveState.mockRejectedValueOnce(new Error('receipt disk full'));await expect(b.c.markRead(id)).rejects.toThrow('receipt disk full');expect(send).not.toHaveBeenCalled();expect(b.i.conversations.get(id).readReceipts).toHaveLength(0);expect(snapshot(b.c,id).unread).toBe(1);await b.c.markRead(id);expect(send).toHaveBeenCalledTimes(1);
 });
 it('does not read a file while its encrypted blob write is pending or failed',async()=>{
  const b=make(bob);const id=await b.c.addContact(user(alice,'alice'));let reject!:(e:Error)=>void;
@@ -71,4 +72,18 @@ it('does not include a new arrival in a read checkpoint that was already saving'
  while(!release)await Promise.resolve();
  const receiving=b.i.receiveMessage(alice.userId,{id:'af'.repeat(16),text:'arrived during write',from:'peer',timestamp:Date.now(),conversationId:id});
  release();await Promise.all([reading,receiving]);expect(b.i.conversations.get(id).readReceipts??[]).toHaveLength(0);expect(snapshot(b.c,id).unread).toBe(1);await b.c.markRead(id);expect(b.i.conversations.get(id).readReceipts).toHaveLength(1);
+});
+it('opening an already-read chat does not rewrite the encrypted history',async()=>{
+ const b=make(bob);const id=await b.c.addContact(user(alice,'alice'));await b.i.receiveMessage(alice.userId,{id:'b0'.repeat(16),text:'read once',from:'peer',timestamp:Date.now(),conversationId:id});
+ await b.c.markRead(id);const saves=b.store.saveState.mock.calls.length;
+ await b.c.markRead(id);await b.c.markRead(id);expect(b.store.saveState.mock.calls.length).toBe(saves);
+});
+it('reuses unchanged message views between snapshots and replaces only what changed',async()=>{
+ const a=make();const id=await a.c.addContact(user(bob,'bob'));await a.c.sendText(id,'first');await a.c.sendText(id,'second');
+ const before=snapshot(a.c,id),again=snapshot(a.c,id);expect(again.messages).toBe(before.messages);
+ const second=before.messages.find(m=>m.text==='second')!;
+ await a.i.receiveApplication(bob.userId,signReadReceipt(bob,{conversationId:id,author:alice.userId,id:second.id,type:'message',hash:contentHash('message','second')}));
+ const after=snapshot(a.c,id);expect(after.messages).not.toBe(before.messages);
+ expect(after.messages.find(m=>m.text==='first')).toBe(before.messages.find(m=>m.text==='first'));
+ expect(after.messages.find(m=>m.text==='second')).not.toBe(second);expect(after.messages.find(m=>m.text==='second')!.readBy).toEqual([bob.userId]);
 });

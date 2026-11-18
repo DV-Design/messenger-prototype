@@ -1,3 +1,28 @@
+# 1.0.35 / code50 — faster chat opening and switching (2026-11-18)
+
+Measured with the core on 500 messages, Node without JIT (closer to Hermes than V8's JIT):
+opening an already-read chat 187 ms → 0.1 ms; with 50 unread 250 ms → 171 ms and only after
+the opening animation; saved history 491 KiB → 327 KiB. One save stays ~80 ms: almost all of it is
+XChaCha20 in JavaScript (60 of 72 ms), which only SQLite with per-message writes or native crypto
+removes (planned next as step 4).
+
+- [X] Save: markRead no longer rewrites the encrypted history when nothing changed (it re-sealed it
+  twice on every chat open); local state sealed as base64 (version 2), hex (version 1) still read
+  → Artifacts: [core](packages/core/src/messenger.ts), [sealing](packages/core/src/persistence.ts), [tests](packages/core/src/persistence.test.ts)
+- [X] Saves wait (at most 1 s) while a screen is animating in; read receipts start once the chat has
+  finished opening → Artifacts: [idle](apps/mobile/src/transition-idle.ts), [gate](apps/mobile/src/after-transition.tsx), [chat](apps/mobile/src/app/chat/[id].tsx)
+- [X] Snapshots reuse unchanged, frozen message and file objects and lists; the chat timeline, the
+  translation input and the chat-list previews are rebuilt only when that history changes; chat-list
+  rows are memoized; date formatters are cached; the last-message preview no longer sorts the history
+  → Artifacts: [chat list](apps/mobile/src/app/(tabs)/index.tsx), [timeline](apps/mobile/src/timeline-model.ts), [dates](apps/mobile/src/date-format.ts)
+- [X] Built 1.0.35/code50, `artifacts/LastCall-1.0.35-store.aab` (+3 KB over 1.0.34), sha256
+  `c8bda7bc18e021f0780b91ab683cd14670916a6b8a72731c5342abd30178c5fe`. On the emulator the 1.0.34 (hex)
+  history opened, chats opened and switched with no JS errors, the unread badge cleared after opening,
+  and the history saved in the new format reopened after a restart. Unit, e2e (18 passed, 1 skipped),
+  type and lint checks pass. Not yet published; not measured on a real phone.
+- FlashList was not added: v2 replaces the inverted list the chat relies on (scroll anchoring, swipe
+  to reply, jump to a quoted message) and the chat already renders memoized rows in a window.
+
 # 1.0.34 / code49 — "Create account" failed on Android since 1.0.31 (2026-11-18)
 
 - [X] Find why a real phone shows "Could not check registration availability": React Native's

@@ -25,7 +25,7 @@ export interface Conversation {id:string;kind:'direct'|'group';title:string;memb
 export interface PendingIncomingCall extends OpenedCallPush {state:'ringing'|'accepted';revision:number;}
 interface OutgoingInvitation extends CallInvitation {peerId:string;conversationId:string;video:boolean;serverEpoch?:string;offered:boolean;offering:boolean;ringing:boolean;sessionStarted:boolean;revision:number;operation:PendingOperation;timer?:ReturnType<typeof setTimeout>;expiry?:ReturnType<typeof setTimeout>;}
 export interface MessengerSnapshot {status:'idle'|'connecting'|'online'|'offline'|'error';/** The encrypted local history has been read; before that an empty chat list means "not loaded yet", not "no chats". */restored?:boolean;self?:DirectoryUser;contacts:DirectoryUser[];conversations:Conversation[];activeCall?:{conversationId:string;peerId:string;session:SessionSnapshot};pendingIncomingCall?:PendingIncomingCall;verifiedContacts:string[];blockedContacts:string[];movedContacts?:Record<string,DirectoryUser>;error?:string;}
-export interface MessengerOptions {callCaptions?:boolean;reconcileDeliveryOnConnect?:boolean;serverUrl:string;identity:DeviceIdentity;username:string;displayName:string;emailProof?:string;inviteCode?:string;/** Registration only, and only for a server whose policy announced `countryHints`. */countryHints?:string[];randomBytes?:RandomBytes;rtcFactory?:PeerSessionOptions['rtcFactory'];getUserMedia?:PeerSessionOptions['getUserMedia'];createMediaStream?:PeerSessionOptions['createMediaStream'];onChange?:(snapshot:MessengerSnapshot)=>void;loadState?:()=>Promise<string|null>;saveState?:(sealed:string)=>Promise<void>;saveAttachment?:(key:string,sealed:string)=>Promise<void>;loadAttachment?:(key:string)=>Promise<string|null>;deleteAttachment?:(key:string)=>Promise<void>;
+export interface MessengerOptions {callCaptions?:boolean;reconcileDeliveryOnConnect?:boolean;serverUrl:string;identity:DeviceIdentity;username:string;displayName:string;emailProof?:string;inviteCode?:string;/** Registration only, and only for a server whose policy announced `countryHints`. */countryHints?:string[];randomBytes?:RandomBytes;rtcFactory?:PeerSessionOptions['rtcFactory'];getUserMedia?:PeerSessionOptions['getUserMedia'];createMediaStream?:PeerSessionOptions['createMediaStream'];onChange?:(snapshot:MessengerSnapshot)=>void;/** Awaited before the history is encrypted and saved, so a phone can keep that work out of a screen animation; it must settle quickly. */whenIdle?:()=>Promise<void>;loadState?:()=>Promise<string|null>;saveState?:(sealed:string)=>Promise<void>;saveAttachment?:(key:string,sealed:string)=>Promise<void>;loadAttachment?:(key:string)=>Promise<string|null>;deleteAttachment?:(key:string)=>Promise<void>;
   /** Large files (up to 1 GiB) live as plain files in app storage under the attachment key; the core only streams them. Without it this client neither sends nor accepts them. */
   bulkFiles?:BulkFileStore;}
 export interface BulkFileStore {read(key:string,name:string,offset:number,length:number):Promise<Uint8Array>;openIncoming(key:string,name:string,size:number):Promise<BulkSink>;}
@@ -90,8 +90,36 @@ export class MessengerClient {
     this.random = options.randomBytes ?? secureRandomBytes;
   }
   private id(){return bytesToHex(randomChecked(this.random,16));}
+  /**
+   * Snapshots reuse the objects of messages and files that did not change since the last one, and
+   * the whole list when nothing in it changed, so a screen can skip work by comparing references:
+   * a status tick or a presence change no longer makes the chat rebuild its whole history.
+   * Internal records are mutated in place, so each view is keyed by its record plus a stamp of
+   * every field (long text by length and ends: an edit also sets `editedAt`).
+   */
+  private views=new WeakMap<object,{stamp:string;view:unknown}>();
+  private lists=new Map<string,readonly unknown[]>();
+  private sharedView<T>(record:object,reactions:ReactionView[]|undefined,build:()=>T):T{
+    let stamp=reactions?JSON.stringify(reactions):'';
+    for(const [key,value] of Object.entries(record)){
+      stamp+='|'+key+'=';
+      if(value===undefined)continue;
+      if(typeof value==='string')stamp+=value.length>64?value.length+':'+value.slice(0,16)+':'+value.slice(-16):value;
+      else if(Array.isArray(value))stamp+=value.join(',');
+      else if(value instanceof Uint8Array)stamp+='bytes:'+value.byteLength;
+      else stamp+=String(value);
+    }
+    const cached=this.views.get(record);if(cached&&cached.stamp===stamp)return cached.view as T;
+    // Shared between snapshots, so frozen: a consumer that mutated one would corrupt the next.
+    const view=build();for(const value of Object.values(view as object))if(Array.isArray(value))Object.freeze(value);Object.freeze(view);this.views.set(record,{stamp,view});return view;
+  }
+  private sharedList<T>(conversationId:string,kind:'messages'|'files',items:T[]):T[]{
+    const key=kind+':'+conversationId;const previous=this.lists.get(key) as T[]|undefined;
+    if(previous&&previous.length===items.length&&previous.every((item,index)=>item===items[index]))return previous;
+    Object.freeze(items);this.lists.set(key,items);return items;
+  }
   getSnapshot():MessengerSnapshot {
-    const conversations=[...this.conversations.values()].map(c=>{const reactions=this.reactionViews(c);return {id:c.id,kind:c.kind,title:c.title,memberIds:[...c.memberIds],...(c.kind==='group'?{creatorId:c.creatorId,formerIds:c.formerIds?[...c.formerIds]:undefined,removed:c.removed}:{}),messages:c.messages.map(m=>({...m,recipientIds:m.recipientIds?[...m.recipientIds]:undefined,deliveredTo:m.deliveredTo?[...m.deliveredTo]:undefined,readBy:m.readBy?[...m.readBy]:undefined,notifiedTo:m.notifiedTo?[...m.notifiedTo]:undefined,...withReactions(reactions.get('message:'+m.from+':'+m.id))})),files:c.files.map(f=>({...f,recipientIds:f.recipientIds?[...f.recipientIds]:undefined,deliveredTo:f.deliveredTo?[...f.deliveredTo]:undefined,readBy:f.readBy?[...f.readBy]:undefined,notifiedTo:f.notifiedTo?[...f.notifiedTo]:undefined,...withReactions(reactions.get('file:'+f.senderId+':'+f.id))})),unread:c.unread,updatedAt:c.updatedAt,session:c.kind==='direct'?this.pairs.get(c.memberIds.find(id=>id!==this.options.identity.userId)!)?.session.getSnapshot():undefined,...(c.hidden?{hidden:true}:{}),...(c.implicit?{implicit:true}:{})};});
+    const conversations=[...this.conversations.values()].map(c=>{const reactions=this.reactionViews(c);return {id:c.id,kind:c.kind,title:c.title,memberIds:[...c.memberIds],...(c.kind==='group'?{creatorId:c.creatorId,formerIds:c.formerIds?[...c.formerIds]:undefined,removed:c.removed}:{}),messages:this.sharedList(c.id,'messages',c.messages.map(m=>this.sharedView(m,reactions.get('message:'+m.from+':'+m.id),()=>({...m,recipientIds:m.recipientIds?[...m.recipientIds]:undefined,deliveredTo:m.deliveredTo?[...m.deliveredTo]:undefined,readBy:m.readBy?[...m.readBy]:undefined,notifiedTo:m.notifiedTo?[...m.notifiedTo]:undefined,...withReactions(reactions.get('message:'+m.from+':'+m.id))})))),files:this.sharedList(c.id,'files',c.files.map(f=>this.sharedView(f,reactions.get('file:'+f.senderId+':'+f.id),()=>({...f,recipientIds:f.recipientIds?[...f.recipientIds]:undefined,deliveredTo:f.deliveredTo?[...f.deliveredTo]:undefined,readBy:f.readBy?[...f.readBy]:undefined,notifiedTo:f.notifiedTo?[...f.notifiedTo]:undefined,...withReactions(reactions.get('file:'+f.senderId+':'+f.id))})))),unread:c.unread,updatedAt:c.updatedAt,session:c.kind==='direct'?this.pairs.get(c.memberIds.find(id=>id!==this.options.identity.userId)!)?.session.getSnapshot():undefined,...(c.hidden?{hidden:true}:{}),...(c.implicit?{implicit:true}:{})};});
     let activeCall:MessengerSnapshot['activeCall'];
     for(const [peerId,pair] of this.pairs){const session=pair.session.getSnapshot();if(session.callState!=='idle'){activeCall={conversationId:directConversationId(this.options.identity.userId,peerId),peerId,session};break;}}
     if(!activeCall&&this.pendingIncoming){const incoming=this.pendingIncoming;activeCall={conversationId:incoming.conversationId,peerId:incoming.callerId,session:{status:'connecting',setup:'invitation',callId:incoming.callId,callVideo:incoming.video,callExpiresAt:incoming.expiresAt,messages:[],files:[],stats:{},muted:false,route:'unknown',callState:'incoming'}};}
@@ -104,7 +132,9 @@ export class MessengerClient {
   private scheduleSave(){if(this.closing||!this.options.saveState||this.savedTimer)return;this.savedTimer=setTimeout(()=>{this.savedTimer=undefined;void this.persist().catch(error=>this.report(error));},250);}
   private stored(){return {version:7,contacts:[...this.contacts.values()].map(c=>({...c,online:false})),conversations:[...this.conversations.values()].map(c=>({id:c.id,kind:c.kind,title:c.title,memberIds:c.memberIds,creatorId:c.creatorId,formerIds:c.formerIds,removed:c.removed,notifyRemoved:c.notifyRemoved,joinedAt:c.joinedAt,definition:c.definition,receipts:c.receipts,readReceipts:c.readReceipts,messages:c.messages,files:c.files.map(({data:_data,...f})=>f),unread:c.unread,updatedAt:c.updatedAt,changes:c.changes,tombstones:c.tombstones,reactions:c.reactions,hidden:c.hidden,implicit:c.implicit})),pending:this.pending,verified:[...this.verified],blocked:[...this.blocked]};}
   private async persist():Promise<void>{
-    if(!this.dirty||!this.options.saveState)return this.saveQueue;this.dirty=false;
+    if(!this.dirty||!this.options.saveState)return this.saveQueue;
+    if(this.options.whenIdle){try{await this.options.whenIdle();}catch{/* Save anyway. */}if(!this.dirty)return this.saveQueue;}
+    this.dirty=false;
     const state=storedSchema.parse(this.stored());const sealed=sealLocalState(this.options.identity,state,this.random);
     this.saveQueue=this.saveQueue.catch(()=>{}).then(()=>this.options.saveState!(sealed)).catch(error=>{this.dirty=true;this.report(new Error('Local encrypted state could not be saved'));throw error;});return this.saveQueue;
   }
@@ -889,13 +919,17 @@ export class MessengerClient {
     const own=this.options.identity.userId,seenUnread=c.unread;
     const messages=c.messages.filter(m=>m.from!==own&&m.status==='received');
     const files=c.files.filter(f=>f.senderId!==own&&f.deliveryStatus==='received'&&f.status==='complete'&&f.blobKey);
-    await this.durable();const receipts=c.readReceipts??=[];
+    // Content presented so far must be on disk before a receipt for it; persist() is a no-op when
+    // nothing changed, so opening an already-read chat no longer re-encrypts the whole history.
+    await this.persist();const receipts=c.readReceipts??=[];
     const created:ReadReceipt[]=[];
     for(const message of messages)if(!receipts.some(r=>r.id===message.id&&r.type==='message'&&r.author===message.from&&r.reader===own))created.push(signReadReceipt(this.options.identity,{conversationId:c.id,author:message.from,id:message.id,type:'message',hash:contentHash('message',message.originalText??message.text)}));
     for(const file of files)if(!receipts.some(r=>r.id===file.id&&r.type==='file'&&r.author===file.senderId&&r.reader===own)){
       const data=await this.getFileData(c.id,file.id,file.senderId);if(data)created.push(signReadReceipt(this.options.identity,{conversationId:c.id,author:file.senderId,id:file.id,type:'file',hash:contentHash('file',data,file.name,file.mime)}));
     }
-    const unread=c.unread;c.unread=Math.max(0,c.unread-seenUnread);receipts.push(...created);
+    const unread=c.unread;c.unread=Math.max(0,c.unread-seenUnread);
+    if(!created.length&&c.unread===unread)return;
+    receipts.push(...created);
     try{await this.durable();}catch(error){c.unread=unread;c.readReceipts=receipts.filter(r=>!created.includes(r));this.dirty=true;throw error;}
     for(const author of new Set(created.map(r=>r.author)))this.wakePeer(author);
   });}

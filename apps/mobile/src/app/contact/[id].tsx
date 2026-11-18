@@ -12,6 +12,7 @@ import { intlLocale, t } from '../../i18n';
 import { shareFile } from '../../attachments';
 import { groupsInCommon, sharedFiles } from '../../contact-info-model';
 import { mediaKind } from '../../media-model';
+import { formatDate } from '../../date-format';
 
 const fileTitle = (file: MessengerFile) => { const kind = mediaKind(file.name, file.mime); return kind === 'voice' ? t('Voice message') : kind === 'circle' ? t('Video circle') : file.name; };
 
@@ -54,7 +55,7 @@ export default function ContactInfo() {
       { text: t('Delete'), style: 'destructive', onPress: () => void action(async () => { await client().removeContact(contact.userId); router.replace('/(tabs)'); }) },
     ]);
   }
-  const fileDate = (file: MessengerFile) => `${new Date(file.timestamp).toLocaleDateString(intlLocale, { day: 'numeric', month: 'short' })}, ${time(file.timestamp)}`;
+  const fileDate = (file: MessengerFile) => `${formatDate(file.timestamp, intlLocale, { day: 'numeric', month: 'short' })}, ${time(file.timestamp)}`;
 
   return <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
     <View style={[styles.chatHeader, { backgroundColor: colors.white }]}>

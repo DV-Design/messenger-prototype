@@ -31,11 +31,51 @@ import type { PhoneContact } from '../../contacts-model';
 import type { LiveDurationMin } from '../../live-location-model';
 import { ReplyChip } from '../../components/ReplyChip';
 import { ChatRowHandlers, FileRow, MessageRow, rowVersion } from '../../components/ChatRow';
-import { TransitionGate } from '../../after-transition';
+import { SettledProvider, useScreenSettled } from '../../after-transition';
 import { formatReplyText, parseReplyText, quotedMessageSnippet, replyBody, type ParsedReply } from '../../reply';
 import { mediaKind } from '../../media-model';
 
 const FLOATING_DATE_MS = 1200;
+
+const NO_MESSAGES: readonly MessengerMessage[] = [];
+const NO_FILES: readonly MessengerFile[] = [];
+/** The safety code hashes both keys; it only changes with a key, so it is worked out once. */
+const safetyCodes = new Map<string, string>();
+const safetyCode = (own: string, peer: string) => {
+  const key = `${own}:${peer}`;
+  let code = safetyCodes.get(key);
+  if (code === undefined) { code = safetyEmoji(own, peer); safetyCodes.set(key, code); }
+  return code;
+};
+
+/**
+ * Snapshots reuse a chat's message list while nothing in it changed, so what is built from it is
+ * kept per list object: a status tick or a presence update no longer rebuilds the whole history.
+ */
+const translatables = new WeakMap<readonly MessengerMessage[], MessengerMessage[]>();
+function translatableOf(messages: readonly MessengerMessage[]): MessengerMessage[] {
+  let items = translatables.get(messages);
+  if (!items) {
+    items = messages.map(item => ({ ...item, text: replyBody(item.text) }))
+      .filter(item => !!item.text && !parseLocationText(item.text) && !parseContactText(item.text));
+    translatables.set(messages, items);
+  }
+  return items;
+}
+const timelines = new WeakMap<readonly MessengerMessage[], { files: readonly MessengerFile[]; key: string; rows: ChatTimelineRow[] }>();
+function timelineOf(messages: readonly MessengerMessage[], files: readonly MessengerFile[], blockedKey: string, now: number): ChatTimelineRow[] {
+  const key = `${blockedKey}|${now}|${intlLocale}`;
+  const cached = timelines.get(messages);
+  if (cached && cached.files === files && cached.key === key) return cached.rows;
+  const blocked = new Set(blockedKey ? blockedKey.split(',') : []);
+  const rows = withDays(chatTimeline(messages.filter(item => !blocked.has(item.from)), files.filter(item => !blocked.has(item.senderId))),
+    timestamp => dayLabel(timestamp, now, intlLocale, { today: t('Today'), yesterday: t('Yesterday') }));
+  // Reversed for an inverted FlatList: newest first, so the chat opens already showing the
+  // latest messages instead of rendering the whole history from the start, like Telegram.
+  rows.reverse();
+  timelines.set(messages, { files, key, rows });
+  return rows;
+}
 
 export default function Chat() {
   const params = useLocalSearchParams<{ id: string }>();
@@ -80,11 +120,12 @@ export default function Chat() {
   const translated = useChatTranslated(id);
   // Coordinates and phone numbers never go to the translation backend; they would not translate sensibly, and would leak location/contact data to it.
   // A reply's own quote marker line is never sent either — only the typed body is translated.
-  const translations = useTranslations(translated && chatTranslationSupported,
-    (conversation?.messages ?? [])
-      .map(item => ({ ...item, text: replyBody(item.text) }))
-      .filter(item => !!item.text && !parseLocationText(item.text) && !parseContactText(item.text)),
-    myLanguage.code);
+  // Snapshots reuse the message list while nothing in it changed, so these are rebuilt only when
+  // the history itself changes, not on every status tick or presence update.
+  const messages = conversation?.messages ?? NO_MESSAGES;
+  const files = conversation?.files ?? NO_FILES;
+  const translatable = translatableOf(messages);
+  const translations = useTranslations(translated && chatTranslationSupported, translatable, myLanguage.code);
   useEffect(() => focused && id ? setOpenChat(id) : undefined, [focused, id]);
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
   const [interacting, setInteracting] = useState(true);
@@ -94,25 +135,25 @@ export default function Chat() {
     const focus = AppState.addEventListener('focus', () => setInteracting(true));
     return () => { change.remove(); blur.remove(); focus.remove(); };
   }, []);
-  const contentVersion = readContentVersion(conversation?.messages ?? [], conversation?.files ?? []);
+  const contentVersion = readContentVersion(messages, files);
+  const blockedKey = snapshot.blockedContacts.join();
+  const reversedTimeline = timelineOf(messages, files, blockedKey, now);
+  // Read receipts (signing, saving, waking the senders) start once the chat has finished sliding
+  // in, the way Telegram and WhatsApp send them: the opening animation never waits for them.
+  const settled = useScreenSettled();
   useEffect(() => {
-    if (id && canMarkRead(focused, foreground ? 'active' : 'background', interacting)) {
+    if (id && settled && canMarkRead(focused, foreground ? 'active' : 'background', interacting)) {
       void client().markRead(id).catch(cause => setError(errorText(cause)));
     }
-  }, [focused, foreground, interacting, id, unread, contentVersion]);
+  }, [settled, focused, foreground, interacting, id, unread, contentVersion]);
   if (!profile) return <Redirect href="/onboarding" />;
   if (!conversation) return <SafeAreaView style={styles.whiteScreen}><View style={styles.chatHeader}><IconButton name="chevron-back" label={t('Back')} onPress={() => router.back()} /></View><Empty icon="chatbubble-outline" title={t('Chat not found')} text={t('It may belong to another server. Return to the chat list.')} /></SafeAreaView>;
   const blocked = new Set(snapshot.blockedContacts);
-  const timeline = withDays(chatTimeline(conversation.messages.filter(item => !blocked.has(item.from)), conversation.files.filter(item => !blocked.has(item.senderId))),
-    timestamp => dayLabel(timestamp, now, intlLocale, { today: t('Today'), yesterday: t('Yesterday') }));
-  // Reversed for an inverted FlatList: newest first, so the chat opens already showing the
-  // latest messages instead of rendering the whole history from the start, like Telegram.
-  const reversedTimeline = [...timeline].reverse();
   const peer = snapshot.contacts.find(item => conversation.memberIds.includes(item.userId) && item.userId !== identity?.userId);
   const group = conversation.kind === 'group';
   const blockedPeer = !group && !!peer && blocked.has(peer.userId);
   const hiddenBlocked = group && conversation.memberIds.some(id => id !== identity?.userId && blocked.has(id));
-  const safety = peer && identity ? safetyEmoji(identity.publicKey, peer.publicKey) : '';
+  const safety = peer && identity ? safetyCode(identity.publicKey, peer.publicKey) : '';
   const peerVerified = !!peer && snapshot.verifiedContacts.includes(peer.userId);
   const moved = !group && peer ? snapshot.movedContacts?.[peer.userId] : undefined;
   const canCall = !group && !blockedPeer && !snapshot.activeCall && !recording && (snapshot.status === 'online' || conversation.session?.status === 'connected');
@@ -233,7 +274,6 @@ export default function Chat() {
     openFile: file => void action(() => shareFile(file)),
   });
   const swipe = !blockedPeer && !editing && !conversation.removed;
-  const blockedKey = snapshot.blockedContacts.join();
   const mediaDisabled = !focused || !!snapshot.activeCall || !!recording;
   function renderRow(entry: ChatTimelineRow) {
     if (entry.kind === 'day') return <DayPill label={entry.label} />;
@@ -274,7 +314,7 @@ export default function Chat() {
       <Text style={[styles.info, { color: '#7B5924' }]}>{t('{name} restored the account on a new key. This is not confirmed to be the same person until you compare the safety code in the new chat. Messages not yet delivered here will not reach the new key and expire after 7 days. This chat stays as history.', { name: peer.displayName })}</Text>
       <Button secondary busy={busy} title={t('Open new chat')} onPress={() => void action(async () => { const next = await client().acceptMovedContact(peer.userId); router.push({ pathname: '/chat/[id]', params: { id: next } }); })} />
     </View>}
-    <TransitionGate><KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <SettledProvider settled={settled}><KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={styles.conversation}>
         {group && <Text style={[styles.info, { textAlign: 'center', paddingVertical: 8, paddingHorizontal: 15 }]}> {t('Group up to 8 members · group calls are not available yet')}</Text>}
         {reversedTimeline.length === 0
@@ -309,7 +349,7 @@ export default function Chat() {
          {!draft.trim() && !editing && <IconButton name="mic-outline" label={t('Record voice message')} disabled={busy || !!snapshot.activeCall} onPress={() => record('voice')} />}
         {!!draft.trim() && <Pressable style={[styles.send, busy && styles.disabled]} accessibilityRole="button" accessibilityLabel={editing ? t('Save changes') : t('Send message')} disabled={busy} onPress={send}><Icon name={editing ? 'checkmark' : 'arrow-up'} color={colors.white} size={25} /></Pressable>}
       </View>}
-    </KeyboardAvoidingView></TransitionGate>
+    </KeyboardAvoidingView></SettledProvider>
     {!!recording && focused && <MediaComposer key={`${id}:${recording}`} kind={recording} conversationId={conversation.id} blocked={!!snapshot.activeCall} onClose={() => setRecording(undefined)} />}
     {locationViewer()}
     <ContactPicker visible={contactsOpen} onClose={closeContacts} onPick={sendPickedContact} />

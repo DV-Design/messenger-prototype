@@ -1,4 +1,5 @@
 import type { MessengerFile, MessengerMessage } from '@messenger/core';
+import { formatDate } from './date-format';
 
 export type ChatTimelineEntry =
   | { kind: 'message'; key: string; timestamp: number; item: MessengerMessage }
@@ -25,7 +26,7 @@ export function dayLabel(timestamp: number, now: number, locale: string, words: 
   const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
   if (day === yesterday.getTime()) return words.yesterday;
   const sameYear = new Date(timestamp).getFullYear() === new Date(now).getFullYear();
-  return new Date(timestamp).toLocaleDateString(locale, sameYear ? { day: 'numeric', month: 'long' } : { day: 'numeric', month: 'long', year: 'numeric' });
+  return formatDate(timestamp, locale, sameYear ? { day: 'numeric', month: 'long' } : { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 /** Inserts a date row before the first entry of each local day. Entries must already be in time order. */
@@ -37,4 +38,18 @@ export function withDays(entries: readonly ChatTimelineEntry[], label: (timestam
     rows.push(entry);
   }
   return rows;
+}
+
+/**
+ * The entry `chatTimeline` would put last, found in one pass instead of sorting the whole history:
+ * the chat list needs only this, for every chat, on every update.
+ */
+export function latestEntry(messages: readonly MessengerMessage[], files: readonly MessengerFile[]): ChatTimelineEntry | undefined {
+  let best: ChatTimelineEntry | undefined;
+  const consider = (entry: ChatTimelineEntry) => {
+    if (!best || entry.timestamp > best.timestamp || (entry.timestamp === best.timestamp && entry.key > best.key)) best = entry;
+  };
+  for (const item of messages) if (!best || item.timestamp >= best.timestamp) consider({ kind: 'message', key: JSON.stringify(['message', item.from, item.id]), timestamp: item.timestamp, item });
+  for (const item of files) if (!best || item.timestamp >= best.timestamp) consider({ kind: 'attachment', key: JSON.stringify(['attachment', item.senderId, item.id]), timestamp: item.timestamp, item });
+  return best;
 }
