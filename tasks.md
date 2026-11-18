@@ -7,7 +7,9 @@
 - [X] Client: no `cache` option, response URL compared without its query; server routes by path.
   Regression tests in both; server deployed 2026-11-18 (signaling only). Built 1.0.34/code49,
   `artifacts/LastCall-1.0.34-store.aab`, sha256 `3af78c6f29fb2c5993ed30c339d2f029bf75145645a38865542d29a3f8062b84`;
-  on a clean emulator user "Create account" now opens the email step; not yet published
+  on a clean emulator user "Create account" now opens the email step. Published to internal
+  testing as "LastCall 1.0.34 internal" (available to testers) and sent to Google review for closed
+  testing (Alpha) as "LastCall 1.0.34 closed", replacing 45 (1.0.31); managed publishing is off
   → Artifacts: [core test](packages/core/src/registration-invites.test.ts), [server test](apps/server/test/registration-invites.test.ts)
 
 # 1.0.33 / code47 — contact profile and phone-reported sign-up countries (2026-11-17)
