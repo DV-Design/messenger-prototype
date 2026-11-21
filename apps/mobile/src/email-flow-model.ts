@@ -84,8 +84,8 @@ const refusals = (code: string): string => {
     case 'device-already-registered': return t('This device already has a registered username. Restore the profile from the server.');
     case 'account-moved': return t('This account was restored on another device. This phone can no longer use it.');
     case 'auth-failed': case 'auth-expired': return t('The server could not confirm this request. Try again.');
-    case 'invite-required': return t('An invitation code is required to register.');
-    case 'invite-invalid': return t('The invitation code is invalid, expired or already used. Ask for a new code.');
+    case 'invite-required': return t('Registration requires an invitation. Ask the person who recommended LastCall to you for one.');
+    case 'invite-invalid': return t('This invitation does not work: it was already used, has expired, or was not pasted in full. Ask for a new one.');
     case 'registration-closed': return t('New account registration is currently closed. You can still restore an existing account.');
     default: return t('The server refused the request. Try again later.');
   }

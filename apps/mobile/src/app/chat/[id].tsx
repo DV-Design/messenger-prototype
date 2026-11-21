@@ -32,6 +32,7 @@ import type { LiveDurationMin } from '../../live-location-model';
 import { ReplyChip } from '../../components/ReplyChip';
 import { ChatRowHandlers, FileRow, MessageRow, rowVersion } from '../../components/ChatRow';
 import { SettledProvider, useScreenSettled } from '../../after-transition';
+import { useDevicePosition } from '../../device-position';
 import { formatReplyText, parseReplyText, quotedMessageSnippet, replyBody, type ParsedReply } from '../../reply';
 import { mediaKind } from '../../media-model';
 
@@ -89,6 +90,8 @@ export default function Chat() {
   const [recording, setRecording] = useState<MediaKind>();
   const [locationOpen, setLocationOpen] = useState(false);
   const [viewingLocation, setViewingLocation] = useState<string>();
+  // The viewer's own position, only while the map is open.
+  const devicePosition = useDevicePosition(!!viewingLocation);
   const [contactsOpen, setContactsOpen] = useState(false);
   const [rowHandlers] = useState(() => new ChatRowHandlers());
   const closeContacts = useCallback(() => setContactsOpen(false), []);
@@ -251,14 +254,16 @@ export default function Chat() {
       { text: t('Delete'), style: 'destructive', onPress: () => void action(async () => { await client().removeContact(userId); router.replace('/(tabs)'); }) },
     ]);
   }
-  /** Looks the message up on every render, so a live share's pin moves as the sender's edits arrive. */
+  /**
+   * Looks the messages up on every render, so pins move as the senders' edits arrive. Like Telegram,
+   * the map shows everyone sharing live in this chat, the tapped point, and the viewer.
+   */
   function locationViewer() {
     const message = viewingLocation ? conversation?.messages.find(m => m.id === viewingLocation) : undefined;
     const parsed = message ? parseLocationText(parseReplyText(message.text)?.text ?? message.text) : undefined;
-    const own = !!message && message.from === identity?.userId;
-    const author = own ? t('You') : snapshot.contacts.find(contact => contact.userId === message?.from)?.displayName ?? conversation?.title ?? '';
-    return <LocationViewer location={parsed} updatedAt={message ? message.editedAt ?? message.timestamp : 0} title={author}
-      canStop={own && !!parsed?.live && !!message && isLiveLocationMessage(message.id)}
+    return <LocationViewer messages={viewingLocation ? conversation?.messages ?? NO_MESSAGES : NO_MESSAGES} focusId={viewingLocation} focus={parsed} ownId={identity?.userId ?? ''} ownName={profile?.displayName ?? ''}
+      device={devicePosition} unwrap={replyBody} title={group ? conversation?.title ?? '' : t('Location')}
+      nameOf={nameOf} isOwnLiveShare={isLiveLocationMessage}
       onStop={() => void stopLiveLocation()} onClose={() => setViewingLocation(undefined)} onError={setError} />;
   }
   // Rows are memoized on a version string; the handlers object is stable and always holds today's closures.

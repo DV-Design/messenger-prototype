@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { Linking, Modal, Pressable, Text, View } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { t } from '../i18n';
+import { intlLocale, t } from '../i18n';
 import { colors, styles } from '../styles';
 import { mapsUrl, type ParsedContact, type ParsedLocation } from '../location-contact';
 import { minutesSinceUpdate } from '../live-location-model';
+import { distanceFrom, mapPins, type MapMessage, type MapPin } from '../location-map-model';
+import type { DevicePosition } from '../device-position';
 import { Avatar, Button, Icon, IconButton, time } from './ui';
 import { useAfterTransition } from '../after-transition';
 
@@ -56,47 +58,105 @@ export function LocationCard({ location, updatedAt, onOpen }: { location: Parsed
   </Pressable>;
 }
 
+/** "350 m" or "1,2 km" in the app's language. */
+function distanceText(meters: number): string {
+  if (meters < 1000) return t('{count} m away', { count: Math.max(10, Math.round(meters / 10) * 10) });
+  return t('{count} km away', { count: new Intl.NumberFormat(intlLocale, { maximumFractionDigits: meters < 10000 ? 1 : 0 }).format(meters / 1000) });
+}
+
+/** Red while sharing live, blue for where the viewer is now, green for a sent place. */
+const ringColor = (pin: MapPin) => pin.kind === 'live' ? colors.danger : pin.kind === 'device' ? colors.blue : colors.accent;
+
+/** A person on the map: their avatar in a coloured ring (red while sharing live) and their name under it. */
+function PersonMarker({ pin, name, avatarName, onPress }: { pin: MapPin; name: string; avatarName: string; onPress: () => void }) {
+  const label = pin.kind === 'place' && pin.label ? pin.label : name;
+  // Android draws a custom marker as a bitmap; let it render once, then stop re-capturing it.
+  const [tracks, setTracks] = useState(true);
+  useEffect(() => { const timer = setTimeout(() => setTracks(false), 800); return () => clearTimeout(timer); }, []);
+  const ring = ringColor(pin);
+  return <Marker coordinate={{ latitude: pin.lat, longitude: pin.lng }} anchor={{ x: 0.5, y: 0.32 }} tracksViewChanges={tracks} onPress={onPress} zIndex={pin.kind === 'device' ? 1 : 2}>
+    <View style={{ alignItems: 'center' }}>
+      <View style={{ padding: 2, borderRadius: 26, backgroundColor: ring }}><View style={{ padding: 1, borderRadius: 24, backgroundColor: colors.white }}><Avatar name={avatarName} id={pin.ownerId} size={40} /></View></View>
+      <View style={{ marginTop: 3, maxWidth: 140, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 9, backgroundColor: 'rgba(255,255,255,0.96)', borderWidth: 1, borderColor: colors.line }}>
+        <Text numberOfLines={1} style={{ fontSize: 12, fontWeight: '700', color: colors.text }}>{label}</Text>
+      </View>
+    </View>
+  </Marker>;
+}
+
 /**
- * Full-screen view of one location message. It is given the message's current parse on every
- * render, so a live share moves the pin as edits arrive; the camera follows the pin until the
- * person pans the map, and the target button turns following back on.
+ * Full-screen chat map, like Telegram's: everyone sharing a live location in the chat, the tapped
+ * point, and the viewer themselves, each a labelled pin; a list below with when each point was
+ * updated and how far it is. Pins move as edits arrive; the camera keeps everyone in view until the
+ * person pans, and the target button brings that back.
  */
-export function LocationViewer({ location, updatedAt, title, canStop, onStop, onClose, onError }: {
-  location: ParsedLocation | undefined;
-  updatedAt: number;
+export function LocationViewer({ messages, focusId, focus, ownId, ownName, device, unwrap, nameOf, title, isOwnLiveShare, onStop, onClose, onError }: {
+  messages: readonly MapMessage[];
+  focusId: string | undefined;
+  /** The tapped location, for its label and the Google Maps link. */
+  focus: ParsedLocation | undefined;
+  ownId: string;
+  /** The viewer's display name, for the initials in their own avatar (their label says "You"). */
+  ownName: string;
+  device: DevicePosition | undefined;
+  unwrap: (text: string) => string;
+  /** The person's name, "You" for the viewer. */
+  nameOf: (userId: string) => string;
   title: string;
-  canStop: boolean;
+  /** True for the message this phone's running share keeps editing. */
+  isOwnLiveShare: (messageId: string) => boolean;
   onStop: () => void;
   onClose: () => void;
   onError: (message: string) => void;
 }) {
   const map = useRef<MapView>(null);
   const [follow, setFollow] = useState(true);
-  const now = useNow(location?.live ? 30000 : 0);
-  const lat = location?.lat, lng = location?.lng;
+  const now = useNow(focusId ? 30000 : 0);
+  const pins = focusId ? mapPins(messages, focusId, ownId, device, now, unwrap) : [];
+  const canStop = pins.some(pin => pin.self && pin.kind === 'live' && !!pin.messageId && isOwnLiveShare(pin.messageId));
+  const self = pins.find(pin => pin.self);
+  const visible = !!focus && pins.length > 0;
+  // Re-frame only when a point actually moved, not on every render.
+  const frameKey = pins.map(pin => `${pin.lat.toFixed(5)},${pin.lng.toFixed(5)}`).join('|');
   useEffect(() => {
-    if (follow && lat !== undefined && lng !== undefined) map.current?.animateCamera({ center: { latitude: lat, longitude: lng } }, { duration: 600 });
-  }, [follow, lat, lng]);
+    if (!follow || !visible) return;
+    const coordinates = frameKey.split('|').map(part => { const [lat, lng] = part.split(',').map(Number); return { latitude: lat!, longitude: lng! }; });
+    const timer = setTimeout(() => {
+      if (coordinates.length > 1) map.current?.fitToCoordinates(coordinates, { edgePadding: { top: 90, right: 70, bottom: 70, left: 70 }, animated: true });
+      else if (coordinates[0]) map.current?.animateCamera({ center: coordinates[0], zoom: 16 }, { duration: 600 });
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [follow, visible, frameKey]);
   function close() { setFollow(true); onClose(); }
-  return <Modal visible={!!location} animationType="slide" onRequestClose={close}>
-    {location && <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: colors.white }}>
+  function show(pin: MapPin) { setFollow(false); map.current?.animateCamera({ center: { latitude: pin.lat, longitude: pin.lng }, zoom: 17 }, { duration: 500 }); }
+  const first = pins.find(pin => pin.messageId === focusId) ?? pins[0];
+  return <Modal visible={visible} animationType="slide" onRequestClose={close}>
+    {visible && first && <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: colors.white }}>
       <View style={[styles.chatHeader, { borderBottomWidth: 0 }]}>
         <IconButton name="close" label={t('Close')} onPress={close} />
         <Text numberOfLines={1} style={[styles.chatName, { flex: 1 }]}>{title}</Text>
-        <IconButton name="locate-outline" label={t('Follow the location')} active={follow} onPress={() => setFollow(true)} />
+        <IconButton name="locate-outline" label={t('Show everyone')} active={follow} onPress={() => setFollow(true)} />
       </View>
-      <MapView ref={map} style={{ flex: 1 }} initialRegion={pointRegion(location, 0.01)} onPanDrag={() => setFollow(false)}>
-        <Marker coordinate={{ latitude: location.lat, longitude: location.lng }} pinColor={location.live ? colors.danger : colors.accent} />
+      <MapView ref={map} style={{ flex: 1 }} initialRegion={pointRegion({ lat: first.lat, lng: first.lng, live: first.kind === 'live', label: '' }, 0.01)} onPanDrag={() => setFollow(false)} toolbarEnabled={false}>
+        {pins.map(pin => <PersonMarker key={pin.key} pin={pin} name={nameOf(pin.ownerId)} avatarName={pin.ownerId === ownId ? ownName : nameOf(pin.ownerId)} onPress={() => show(pin)} />)}
       </MapView>
-      <View style={{ padding: 14, gap: 10 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
-          <Icon name={location.live ? 'radio' : 'location'} size={20} color={location.live ? colors.danger : colors.accent} />
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: colors.text, fontWeight: '600', fontSize: 15 }}>{location.label || (location.live ? t('Live location') : t('Location'))}</Text>
-            {location.live && <Text style={{ color: colors.secondary, fontSize: 13 }}>{updatedText(updatedAt, now)}</Text>}
-          </View>
-        </View>
-        <Button title={t('Open in Google Maps')} onPress={() => void Linking.openURL(mapsUrl(location.lat, location.lng)).catch(() => onError(t('Could not open the link.')))} />
+      <View style={{ paddingHorizontal: 14, paddingTop: 6, paddingBottom: 12, gap: 4 }}>
+        {pins.map(pin => {
+          const distance = distanceFrom(self, pin);
+          const name = nameOf(pin.ownerId);
+          const status = pin.kind === 'live' ? (pin.self ? t('You are sharing · {updated}', { updated: updatedText(pin.updatedAt, now) }) : t('Sharing live · {updated}', { updated: updatedText(pin.updatedAt, now) }))
+            : pin.kind === 'device' ? t('Your location now') : pin.label || t('Location');
+          return <Pressable key={pin.key} accessibilityRole="button" accessibilityLabel={`${name}, ${status}`} accessibilityHint={t('Shows on the map')} onPress={() => show(pin)}
+            style={({ pressed }) => [{ flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 7 }, pressed && styles.pressed]}>
+            <View style={{ padding: 2, borderRadius: 20, backgroundColor: ringColor(pin) }}><Avatar name={pin.ownerId === ownId ? ownName : name} id={pin.ownerId} size={34} /></View>
+            <View style={{ flex: 1 }}>
+              <Text numberOfLines={1} style={{ color: colors.text, fontWeight: '600', fontSize: 15 }}>{name}</Text>
+              <Text numberOfLines={1} style={{ color: pin.kind === 'live' ? colors.danger : colors.secondary, fontSize: 13 }}>{status}</Text>
+            </View>
+            {distance !== undefined && <Text style={{ color: colors.secondary, fontSize: 13 }}>{distanceText(distance)}</Text>}
+          </Pressable>;
+        })}
+        {focus && <Button secondary title={t('Open in Google Maps')} onPress={() => void Linking.openURL(mapsUrl(focus.lat, focus.lng)).catch(() => onError(t('Could not open the link.')))} />}
         {canStop && <Pressable accessibilityRole="button" onPress={onStop} style={{ paddingVertical: 9, alignItems: 'center' }}>
           <Text style={{ color: colors.danger, fontWeight: '600', fontSize: 15 }}>{t('Stop sharing')}</Text>
         </Pressable>}

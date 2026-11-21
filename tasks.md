@@ -1,3 +1,18 @@
+# 1.0.37 / code52 — clearer invitation step, Telegram-style live location map (2026-11-21)
+
+- [X] Sign-up by invitation explains itself: a "Registration is by invitation" box says to ask the
+  person who recommended LastCall and paste their message; the refusal and invalid-code texts say
+  the same in plain words → Artifacts: [onboarding](apps/mobile/src/app/onboarding.tsx), [texts](apps/mobile/src/i18n.ts)
+- [X] The chat map shows everyone sharing a live location in the chat, the tapped point and the
+  viewer's own position, one pin per person with avatar and name ("You" for the viewer), a list with
+  "updated N min ago" and distance, camera framing everyone until panned; a live card not edited for
+  8 h no longer counts as sharing; a sent plain place is its own named pin, separate from "You"; the map
+  never opens Google's location-accuracy settings prompt → Artifacts: [model](apps/mobile/src/location-map-model.ts), [tests](apps/mobile/tests/location-map-model.test.ts), [viewer](apps/mobile/src/components/LocationContactCard.tsx), [position](apps/mobile/src/device-position.ts)
+- [X] Built 1.0.37/code52, `artifacts/LastCall-1.0.37-store.aab`, sha256
+  `66372f602c8a48fc0a0674363108761d3bcfd28bec3d17c00d6e6d0f3c01b450`. Emulator: a sent place and "You"
+  (emulator GPS) both on the map, framed, initials on avatars, "440 m away". Not verified: two people
+  sharing live at once on real phones; the invitation box (the emulator reports US, so sign-up is open).
+
 # 1.0.36 / code51 — history in SQLite, encrypted per record (2026-11-18)
 
 - [X] Core: the history is stored as separately sealed records; a save writes only what changed,

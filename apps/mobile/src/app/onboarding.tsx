@@ -106,9 +106,13 @@ export default function Onboarding() {
           <Button secondary title={t('Restore account')} disabled={!identity || busy || policyLoading} onPress={() => { setLocalError(''); setInviteInput(''); dispatch({ type: 'choose', mode: 'recover' }); }} />
         </View>}
         {registration === 'unregistered' && !!notice && !profileForm && <Text accessibilityRole="alert" style={styles.error}>{notice}</Text>}
-        {registration === 'unregistered' && needsInvite && <View>
+        {registration === 'unregistered' && needsInvite && <View style={{ gap: 8 }}>
+          <View style={{ gap: 4, padding: 12, borderRadius: 12, backgroundColor: '#EEF3F1' }}>
+            <Text style={{ color: colors.text, fontWeight: '700', fontSize: 15 }}>{t('Registration is by invitation')}</Text>
+            <Text style={[styles.info, { color: colors.text }]}>{t('Ask the person who recommended LastCall to you to send an invitation. You will get a message with a code: paste it here in full.')}</Text>
+          </View>
           <Text style={styles.label}>{t('Invitation code')}</Text>
-          <TextInput style={styles.input} value={inviteInput} onChangeText={setInviteInput} editable={!busy} maxLength={600} multiline autoCapitalize="none" autoCorrect={false} textContentType="none" placeholder={t('Paste the code you received')} placeholderTextColor={colors.secondary} accessibilityLabel={t('Invitation code')} />
+          <TextInput style={styles.input} value={inviteInput} onChangeText={setInviteInput} editable={!busy} maxLength={600} multiline autoCapitalize="none" autoCorrect={false} textContentType="none" placeholder={t('Paste the invitation message or code')} placeholderTextColor={colors.secondary} accessibilityLabel={t('Invitation code')} />
         </View>}
         {registration === 'unregistered' && (flow.stage === 'email' || flow.stage === 'code') && <EmailCodeForm flow={flow} busy={busy} disabled={!identity} sendDisabled={needsInvite && !inviteCode}
           codeHint={flow.mode === 'recover' ? t('We sent a letter to {email}. Enter the 6-digit code from it. If no account uses this address, the letter says so instead.', { email: flow.email }) : t('We sent a letter to {email}. Enter the 6-digit code from it. If this address already has an account, the letter explains how to restore it instead.', { email: flow.email })}
