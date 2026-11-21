@@ -12,6 +12,10 @@
   `66372f602c8a48fc0a0674363108761d3bcfd28bec3d17c00d6e6d0f3c01b450`. Emulator: a sent place and "You"
   (emulator GPS) both on the map, framed, initials on avatars, "440 m away". Not verified: two people
   sharing live at once on real phones; the invitation box (the emulator reports US, so sign-up is open).
+- [X] 2026-11-21: sent to Google review for production as "1.0.37 work" (replaces 1.0.36 work, 100%,
+  all 178 target countries, managed publishing off, so it goes live on approval). The Mac was on its lock
+  screen, so the AAB was attached in the page from base64 parts (size checked: 59 795 084 bytes).
+  Not uploaded to internal or closed testing.
 
 # 1.0.36 / code51 — history in SQLite, encrypted per record (2026-11-18)
 
