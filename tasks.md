@@ -1,3 +1,11 @@
+# Next release — keyboard over the message field during live location
+
+- [X] While a live location share (or a collapsed call) shows its strip at the top, the keyboard no longer
+  covers the chat's message field: the strips report how far they push the screens down and the chat's
+  KeyboardAvoidingView adds that offset (it measured itself from its parent and missed the keyboard by the
+  strip's height, 195 px on the test emulator). Checked on the emulator with the release build: field right
+  above the keyboard with and without the live location strip; the call-bar case not tried on a device → Artifacts: [offset](apps/mobile/src/top-offset.ts), [chat](apps/mobile/src/app/chat/[id].tsx), [tests](apps/mobile/tests/top-offset.test.ts)
+
 # 1.0.38 / code53 — ringback, permanent permissions, photo and video viewer (2026-11-22)
 
 - [X] The caller hears ringback while an outgoing call waits for an answer: Android's own region tone

@@ -37,6 +37,7 @@ import { formatReplyText, parseReplyText, quotedMessageSnippet, replyBody, type 
 import { mediaKind } from '../../media-model';
 import { viewerKind } from '../../media-viewer-model';
 import { MediaViewer } from '../../components/MediaViewer';
+import { useTopOffset } from '../../top-offset';
 
 const FLOATING_DATE_MS = 1200;
 
@@ -84,6 +85,7 @@ export default function Chat() {
   const params = useLocalSearchParams<{ id: string }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const { snapshot, identity, profile } = useMessenger();
+  const topOffset = useTopOffset();
   const conversation = snapshot.conversations.find(item => item.id === id);
   const [draft, setDraft] = useState('');
   const [attachments, setAttachments] = useState(false);
@@ -324,7 +326,7 @@ export default function Chat() {
       <Text style={[styles.info, { color: '#7B5924' }]}>{t('{name} restored the account on a new key. This is not confirmed to be the same person until you compare the safety code in the new chat. Messages not yet delivered here will not reach the new key and expire after 7 days. This chat stays as history.', { name: peer.displayName })}</Text>
       <Button secondary busy={busy} title={t('Open new chat')} onPress={() => void action(async () => { const next = await client().acceptMovedContact(peer.userId); router.push({ pathname: '/chat/[id]', params: { id: next } }); })} />
     </View>}
-    <SettledProvider settled={settled}><KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <SettledProvider settled={settled}><KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={topOffset}>
       <View style={styles.conversation}>
         {group && <Text style={[styles.info, { textAlign: 'center', paddingVertical: 8, paddingHorizontal: 15 }]}> {t('Group up to 8 members · group calls are not available yet')}</Text>}
         {reversedTimeline.length === 0
