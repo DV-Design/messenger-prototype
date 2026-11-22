@@ -1,10 +1,14 @@
-# Next release — keyboard over the message field during live location
+# 1.0.39 / code54 — keyboard over the message field during live location (2026-11-22)
 
 - [X] While a live location share (or a collapsed call) shows its strip at the top, the keyboard no longer
   covers the chat's message field: the strips report how far they push the screens down and the chat's
   KeyboardAvoidingView adds that offset (it measured itself from its parent and missed the keyboard by the
   strip's height, 195 px on the test emulator). Checked on the emulator with the release build: field right
   above the keyboard with and without the live location strip; the call-bar case not tried on a device → Artifacts: [offset](apps/mobile/src/top-offset.ts), [chat](apps/mobile/src/app/chat/[id].tsx), [tests](apps/mobile/tests/top-offset.test.ts)
+- [X] Build and emulator smoke: `artifacts/LastCall-1.0.39-store.aab` (59 804 950 bytes, sha256
+  `e4708361f02dd7e15ca66de6158aa6eceee61b28b7bb0cf1c83b53898dd42109`) installed on LastCall_Store_B: chats,
+  contacts and settings open; live location share started and the typed message field sits right above
+  the keyboard; no crashes in logcat
 
 # 1.0.38 / code53 — ringback, permanent permissions, photo and video viewer (2026-11-22)
 
