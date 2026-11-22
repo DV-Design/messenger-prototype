@@ -11,7 +11,7 @@ export function addDenied(current: readonly MediaPermission[], kinds: readonly M
 export function deniedText(kinds: readonly MediaPermission[]): string {
   const names = kinds.map(kind => kind === 'microphone' ? t('the microphone') : kind === 'camera' ? t('the camera') : kind === 'location' ? t('location') : kind === 'contacts' ? t('contacts') : t('photos and videos'));
   const list = names.length > 1 ? `${names.slice(0, -1).join(', ')} ${t('and')} ${names[names.length - 1]}` : names[0] ?? '';
-  return t('LastCall has no access to {list}. Allow it in the phone settings: Permissions.', { list });
+  return t('LastCall has no access to {list}. In the phone settings open Permissions and choose “Allow only while using the app”, not “Ask every time”.', { list });
 }
 
 /** Access was refused and the permission notice already says so, with a way to the settings. */

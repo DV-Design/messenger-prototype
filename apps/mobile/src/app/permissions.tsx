@@ -26,7 +26,7 @@ export default function PermissionScreen() {
   const { setup, auto } = useLocalSearchParams<{ setup?: string; auto?: string }>();
   const automaticStarted = useRef(false);
   const [values, setValues] = useState<Record<PermissionKind, Access>>({ camera: UNKNOWN_ACCESS, microphone: UNKNOWN_ACCESS, photos: UNKNOWN_ACCESS, notifications: UNKNOWN_ACCESS, fullScreenCalls: UNKNOWN_ACCESS });
-  const [busy, setBusy] = useState<PermissionKind | 'all' | 'done' | null>(auto === '1' ? 'all' : null);
+  const [busy, setBusy] = useState<PermissionKind | 'all' | 'done' | null>(null);
   const [error, setError] = useState('');
   async function refresh() {
     setValues(await currentAccess());
@@ -36,26 +36,15 @@ export default function PermissionScreen() {
     const listener = AppState.addEventListener('change', state => { if (state === 'active') void refresh().catch(cause => setError(errorText(cause))); });
     return () => listener.remove();
   }, []);
-  useEffect(() => {
-    if (auto !== '1') return;
-    let active = true;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const schedule = () => {
-      if (automaticStarted.current || AppState.currentState !== 'active') return;
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        if (!active || automaticStarted.current || AppState.currentState !== 'active') return;
-        automaticStarted.current = true; setBusy('all'); setError('');
-        void requestInitialPermissions((kind, access) => { if (active) setValues(current => ({ ...current, [kind]: access })); })
-          .then(results => { if (active && results.some(item => item.error)) setError(t('Some permissions could not be requested. You can enable them separately in settings.')); })
-          .catch(cause => { if (active) setError(errorText(cause)); })
-          .finally(() => { if (active) setBusy(null); });
-      }, 250);
-    };
-    schedule();
-    const listener = AppState.addEventListener('change', value => { if (value === 'active') schedule(); });
-    return () => { active = false; clearTimeout(timer); listener.remove(); };
-  }, [auto]);
+  // First run: the screen explains which answer to pick before any Android prompt covers it.
+  function startInitial() {
+    if (automaticStarted.current || AppState.currentState !== 'active') return;
+    automaticStarted.current = true; setBusy('all'); setError('');
+    void requestInitialPermissions((kind, access) => setValues(current => ({ ...current, [kind]: access })))
+      .then(results => { if (results.some(item => item.error)) setError(t('Some permissions could not be requested. You can enable them separately in settings.')); })
+      .catch(cause => setError(errorText(cause)))
+      .finally(() => { setBusy(null); void refresh().catch(() => {}); });
+  }
   async function request(kind: PermissionKind) {
     setBusy(kind); setError('');
     try { const access = await requestPermission(kind); setValues(current => ({ ...current, [kind]: access })); }
@@ -78,9 +67,9 @@ export default function PermissionScreen() {
     try { await Linking.openSettings(); } catch (cause) { setError(errorText(cause)); }
   }
   return <SafeAreaView style={styles.screen}>
-    <View style={styles.header}>{!setup && <IconButton name="chevron-back" label={t('Back')} onPress={() => router.back()} />}<View style={styles.flex}><Text style={[styles.title, { fontSize: 25 }]}> {t('LastCall permissions')}</Text><Text style={styles.subtitle}> {t('You decide what to allow')}</Text></View></View>
+    <View style={styles.header}>{!setup && <IconButton name="chevron-back" label={t('Back')} onPress={() => router.back()} />}<View style={styles.flex}><Text style={[styles.title, { fontSize: 25 }]}> {t('LastCall permissions')}</Text><Text style={styles.subtitle}> {t('What each permission is for')}</Text></View></View>
     <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
-      <Text style={[styles.body, { margin: 20 }]}> {t('Messaging needs no permissions. Allow the features you plan to use. You can change this later in settings.')}</Text>
+      <PermanentAccessGuide />
       {PERMISSION_ORDER.map(kind => { const item = details[kind]; const access = values[kind]; return <View key={kind} style={[styles.section, { marginTop: 12, padding: 17, gap: 12 }]}>
         <View style={styles.row}><Icon name={item.icon} /><Text style={[styles.rowName, styles.flex]}>{item.title}</Text><Text style={[styles.info, hasAccess(access) && { color: colors.accent }]}>{kind === 'fullScreenCalls' && access.status === 'unavailable' ? t('Unavailable on this device') : labels[access.status]}</Text></View>
         <Text style={styles.body}>{item.purpose}</Text>
@@ -88,11 +77,12 @@ export default function PermissionScreen() {
           ? <ActionLink icon="checkmark-circle-outline" title={kind === 'fullScreenCalls' ? t('Set up full-screen calls') : t('Allow')} busy={busy === kind} disabled={!!busy && busy !== kind} onPress={() => void request(kind)} />
           : <ActionLink icon="settings-outline" title={t('Open phone settings')} disabled={!!busy} onPress={() => void settings()} />)}
         {kind === 'notifications' && !pushConfigured && <Text style={styles.info}> {t('A phone permission alone does not enable push.')} {pushUnavailable}</Text>}
+        {access.status === 'denied' && !access.canAskAgain && kind !== 'fullScreenCalls' && <Text style={styles.info}>{t('In the phone settings open Permissions, then {name}, and choose “Allow only while using the app”.', { name: item.title })}</Text>}
         {access.status === 'denied' && access.canAskAgain && <Text style={styles.info}>{kind === 'fullScreenCalls' ? t('Access is not allowed yet. You can open settings or return later.') : t('If the system prompt no longer appears, enable access in phone settings.')}</Text>}
       </View>; })}
       <View style={{ marginHorizontal: 16, marginTop: 12 }}><OemCallSetup /></View>
       {!!error && <Text style={[styles.error, { margin: 16 }]}>{error}</Text>}
-      <View style={styles.content}>{auto !== '1' && <Button title={t('Allow requested')} busy={busy === 'all'} disabled={!!busy && busy !== 'all'} onPress={() => void requestAll()} />}<Button title={setup ? t('Continue') : t('Done')} secondary busy={busy === 'done'} disabled={!!busy && busy !== 'done'} onPress={() => void finish()} />
+      <View style={styles.content}><Button title={t('Allow all')} busy={busy === 'all'} disabled={!!busy && busy !== 'all'} onPress={() => { if (auto === '1') startInitial(); else void requestAll(); }} /><Button title={setup ? t('Continue') : t('Done')} secondary busy={busy === 'done'} disabled={!!busy && busy !== 'done'} onPress={() => void finish()} />
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 26 }}>
           {setup && <ActionLink icon="time-outline" title={t('Later')} disabled={!!busy} onPress={() => void finish()} />}
           <ActionLink icon="settings-outline" title={t('Phone settings')} disabled={!!busy} onPress={() => void settings()} />
@@ -100,4 +90,19 @@ export default function PermissionScreen() {
       </View>
     </ScrollView>
   </SafeAreaView>;
+}
+
+/** Android offers "Only this time", which it takes back soon after the app closes: calls then lose the microphone. */
+function PermanentAccessGuide() {
+  const steps = [
+    t('Microphone and camera: “While using the app”. Not “Only this time”.'),
+    t('Notifications: “Allow”. Photos and video: “Allow all”.'),
+    t('Full-screen calls: turn on “Allow” in the settings that open.'),
+  ];
+  return <View accessibilityRole="summary" style={{ margin: 16, marginBottom: 4, padding: 16, gap: 8, borderRadius: 16, backgroundColor: '#FFF2D8' }}>
+    <View style={[styles.row, { gap: 8 }]}><Icon name="alert-circle-outline" color="#7B5924" /><Text style={[styles.rowName, { color: '#7B5924', flex: 1 }]}>{t('Important: allow everything, permanently')}</Text></View>
+    <Text style={[styles.body, { color: '#5C4318' }]}>{t('Without these permissions calls may not ring or connect, and messages may arrive late. When the phone asks, choose:')}</Text>
+    {steps.map(step => <Text key={step} style={[styles.body, { color: '#5C4318' }]}>• {step}</Text>)}
+    <Text style={[styles.info, { color: '#7B5924' }]}>{t('A one-time permission is taken back by Android after you leave the app, and the next call will have no microphone.')}</Text>
+  </View>;
 }

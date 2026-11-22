@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { MessengerSnapshot, SessionSnapshot } from '@messenger/core';
-import { CallTaskRegistry, callSettingsTarget, callStatusText, nativeCallMode, nativeCallUuid, SystemCallController } from '../src/system-call-model';
+import { CallTaskRegistry, callSettingsTarget, callStatusText, nativeCallMode, nativeCallUuid, SystemCallController, wantsRingback } from '../src/system-call-model';
+import { readFileSync } from 'node:fs';
 const first = 'ab'.repeat(16); const second = 'cd'.repeat(16);
 const tick = () => new Promise<void>(resolve => setImmediate(resolve));
 function deferred() { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done; }); return { promise, resolve }; }
@@ -154,4 +155,24 @@ test('caller cancel during pending answer and late completion never activate a n
   assert.equal(f.events.includes(`active:${nativeCallUuid(first)}`), false);
   assert.equal(f.events.includes(`dismiss:${nativeCallUuid(second)}`), false);
   f.controller.end(nativeCallUuid(second));
+});
+
+test('ringback plays only while this outgoing call waits for an answer', () => {
+  const call = (callState: string, callId = first) => ({ activeCall: { session: { callId, callState } } });
+  assert.equal(wantsRingback(call('outgoing'), first), true);
+  assert.equal(wantsRingback(call('active'), first), false);
+  assert.equal(wantsRingback(call('incoming'), first), false);
+  assert.equal(wantsRingback(call('outgoing', second), first), false);
+  assert.equal(wantsRingback({}, first), false);
+  assert.equal(wantsRingback(call('outgoing'), ''), false);
+});
+
+test('native ringback uses the call voice stream and stops with the call', () => {
+  const ringback = readFileSync(new URL('../plugins/calls/LastCallRingback.java', import.meta.url), 'utf8');
+  assert.match(ringback, /new ToneGenerator\(AudioManager\.STREAM_VOICE_CALL/);
+  assert.match(ringback, /TONE_SUP_RINGTONE/);
+  const service = readFileSync(new URL('../plugins/calls/LastCallAudioService.java', import.meta.url), 'utf8');
+  assert.match(service, /if \(stop\) \{ LastCallRingback\.stop\(id\);/);
+  const plugin = readFileSync(new URL('../plugins/withLastCallCalls.cjs', import.meta.url), 'utf8');
+  assert.match(plugin, /'LastCallRingback\.java'/);
 });

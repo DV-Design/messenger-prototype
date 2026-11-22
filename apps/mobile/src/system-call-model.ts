@@ -7,6 +7,11 @@ export function nativeCallUuid(id: string): string {
 }
 const nativeUuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 /** Android 8+ is the first version with self-managed ConnectionService. */
+/** The caller hears ringback for as long as this outgoing call waits for an answer, and never after. */
+export function wantsRingback(snapshot: { activeCall?: { session: { callId?: string; callState: string } } }, id: string): boolean {
+  const session = snapshot.activeCall?.session;
+  return !!id && session?.callId === id && session.callState === 'outgoing';
+}
 export const SELF_MANAGED_MIN_API = 26;
 export function nativeCallMode(apiLevel: number): 'self-managed' | 'in-app' {
   return Number.isFinite(apiLevel) && apiLevel >= SELF_MANAGED_MIN_API ? 'self-managed' : 'in-app';

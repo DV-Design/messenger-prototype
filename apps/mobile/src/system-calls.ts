@@ -5,7 +5,7 @@ import RNCallKeep, { type InitialEvents } from 'react-native-callkeep';
 import type { MessengerClient, MessengerSnapshot } from '@messenger/core';
 import { registerMessengerObserver, retainMessenger } from './runtime';
 import { WakeTaskRegistry, type WakeNotice } from './wake-model';
-import { CallTaskRegistry, SystemCallController, callStatusText, nativeCallMode, type CallUiStatus } from './system-call-model';
+import { CallTaskRegistry, SystemCallController, callStatusText, nativeCallMode, wantsRingback, type CallUiStatus } from './system-call-model';
 import { callInviteNativeReady } from './call-push-model';
 const android = Platform.OS === 'android';
 const apiLevel = Number(Platform.Version);
@@ -40,6 +40,8 @@ interface LastCallAudio {
   callTrace(): Promise<string[]>;
   prepareCallAccounts(): Promise<boolean>;
   unlockForApp?(): Promise<boolean>;
+  startRingback?(id: string): void;
+  stopRingback?(id: string): void;
 }
 const audio = NativeModules.LastCallAudio as LastCallAudio | undefined;
 const callTasks = new CallTaskRegistry();
@@ -158,14 +160,42 @@ export const answerCurrentSystemCall = () => android ? controller.answer() : Pro
 export function useSystemCallStatus(): string {
   return useSyncExternalStore(listener => { listeners.add(listener); return () => { listeners.delete(listener); }; }, () => status);
 }
-let activeOutgoing: { id: string; release: () => void } | undefined;
+interface OutgoingAudio { id: string; release: () => void; ringback: 'waiting' | 'playing' | 'done' }
+let activeOutgoing: OutgoingAudio | undefined;
+let checkingOutgoing: string | undefined;
+function beginOutgoing(manager: MessengerClient, id: string, video: boolean) {
+  const entry: OutgoingAudio = { id, release: retainCall(manager, id), ringback: 'waiting' };
+  activeOutgoing = entry;
+  void audio?.start(id, video).then(() => {
+    // Ringback only once the call's audio route is set, so it plays where the call will be heard.
+    if (activeOutgoing !== entry || entry.ringback !== 'waiting' || !wantsRingback(manager.getSnapshot(), id)) return;
+    entry.ringback = 'playing'; audio?.startRingback?.(id);
+  }).catch(() => { if (manager.getSnapshot().activeCall?.session.callId === id) manager.endCall(); });
+}
+async function outgoingAllowed(video: boolean): Promise<boolean> {
+  try {
+    return await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO) && (!video || await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.CAMERA));
+  } catch { return false; }
+}
 function observe(snapshot: MessengerSnapshot, manager: MessengerClient) {
   controller.update(snapshot, manager);
   const call = snapshot.activeCall;
-  // An outgoing microphone was explicitly opened by the foreground caller.
-  if (!activeOutgoing && call?.session.callId && call.session.callState === 'outgoing' && call.session.localStream && AppState.currentState === 'active') {
-    const id = call.session.callId; activeOutgoing = { id, release: retainCall(manager, id) };
-    void audio?.start(id, !!call.session.callVideo).catch(() => { if (manager.getSnapshot().activeCall?.session.callId === id) manager.endCall(); });
+  // Started by the foreground caller. Call audio (and so ringback) begins as soon as the caller dials
+  // when the microphone is already allowed, not only once the other phone has woken up; otherwise once
+  // the microphone was explicitly opened.
+  if (!activeOutgoing && call?.session.callId && call.session.callState === 'outgoing' && AppState.currentState === 'active') {
+    const id = call.session.callId, video = !!call.session.callVideo;
+    if (call.session.localStream) beginOutgoing(manager, id, video);
+    else if (checkingOutgoing !== id) {
+      checkingOutgoing = id;
+      void outgoingAllowed(video).then(allowed => {
+        if (allowed && !activeOutgoing && AppState.currentState === 'active' && wantsRingback(manager.getSnapshot(), id)) beginOutgoing(manager, id, video);
+      });
+    }
+  }
+  if (activeOutgoing && activeOutgoing.ringback !== 'done' && !wantsRingback(snapshot, activeOutgoing.id)) {
+    if (activeOutgoing.ringback === 'playing') audio?.stopRingback?.(activeOutgoing.id);
+    activeOutgoing.ringback = 'done';
   }
   if (activeOutgoing && call?.session.callId !== activeOutgoing.id) { audio?.stop(activeOutgoing.id); activeOutgoing.release(); activeOutgoing = undefined; }
 }

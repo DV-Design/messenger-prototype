@@ -9,6 +9,7 @@ import { t } from '../i18n';
 import { client } from '../runtime';
 import { deliveryColor, deliveryIcon, deliveryLabel } from '../delivery-model';
 import { mediaKind } from '../media-model';
+import { viewerKind } from '../media-viewer-model';
 import { MediaAttachment } from './MediaAttachment';
 import { useAfterTransition } from '../after-transition';
 import { cachedPreview, rememberPreview } from '../preview-cache';
@@ -54,7 +55,7 @@ export function AttachmentCard({ file, self, group = false, sender, onOpen, onLo
     <View style={styles.row}><Icon name={file.mime.startsWith('video/') ? 'videocam-outline' : file.mime.startsWith('image/') ? 'image-outline' : 'document-text-outline'} size={25} /><View><Text numberOfLines={2} style={styles.fileName}>{file.name}</Text><Text style={styles.fileMeta}>{fileSize(file.size)} · {label}</Text>
       {file.status === 'receiving' && <Text style={styles.fileMeta}>{transferText(file.receivedBytes, file.size)}</Text>}
       {self && file.large && file.deliveryStatus !== 'delivered' && file.deliveryStatus !== 'expired' && file.receivedBytes > 0 && <Text style={styles.fileMeta}>{t('Sending')} · {transferText(file.receivedBytes, file.size)}</Text>}
-      {available && <Text style={[styles.fileMeta, { color: colors.accent }]}> {t('Tap to open or save')}</Text>}
+      {available && <Text style={[styles.fileMeta, { color: colors.accent }]}> {viewerKind(file) ? t('Tap to view') : t('Tap to open or save')}</Text>}
     </View></View>
   </Pressable>;
 }

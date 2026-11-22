@@ -108,7 +108,7 @@ function CallPanel() {
   }, [collapsed]);
 
   const barName = snapshot.contacts.find(item => item.userId === call?.peerId)?.displayName ?? snapshot.conversations.find(item => item.id === call?.conversationId)?.title ?? t('Contact');
-  const barStatus = shownError || (callState === 'incoming' ? t('Incoming call') : callState === 'outgoing' ? t('Calling…') : t('In call'));
+  const barStatus = shownError || (callState === 'incoming' ? t('Incoming call') : callState === 'outgoing' ? (call?.session.callRinging ? t('Ringing…') : t('Calling…')) : t('In call'));
   useEffect(() => { setCallBar({ name: barName, status: barStatus.toLowerCase() }); }, [barName, barStatus]);
   useEffect(() => { if (callState === 'active') markCallActive(); }, [callState]);
 
@@ -116,7 +116,7 @@ function CallPanel() {
   const contact = snapshot.contacts.find(item => item.userId === call.peerId);
   const conversation = snapshot.conversations.find(item => item.id === call.conversationId);
   const name = contact?.displayName ?? conversation?.title ?? t('Contact');
-  const status = callState === 'incoming' ? (call.session.callVideo ? t('Incoming video call') : t('Incoming call')) : callState === 'outgoing' ? t('Calling…') : t('In call');
+  const status = callState === 'incoming' ? (call.session.callVideo ? t('Incoming video call') : t('Incoming call')) : callState === 'outgoing' ? (call.session.callRinging ? t('Ringing…') : t('Calling…')) : t('In call');
   const safetyCode = identity && contact && callId ? callSafetyEmoji(identity.publicKey, contact.publicKey, callId) : '';
   const landscape = width > height;
   const selectedAudio = audio.routes.find(route => route.selected);

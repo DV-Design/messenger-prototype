@@ -1,3 +1,24 @@
+# 1.0.38 / code53 — ringback, permanent permissions, photo and video viewer (2026-11-22)
+
+- [X] The caller hears ringback while an outgoing call waits for an answer: Android's own region tone
+  (`ToneGenerator.TONE_SUP_RINGTONE`, 425 Hz 1 s / 4 s in Europe and Russia) on the voice-call stream,
+  from the moment the caller dials (call audio starts at dial when the microphone is already allowed)
+  until the call is answered or ends; the status shows "Ringing…" once the other phone reports ringing → Artifacts: [native](apps/mobile/plugins/calls/LastCallRingback.java), [JS](apps/mobile/src/system-calls.ts), [model](apps/mobile/src/system-call-model.ts), [tests](apps/mobile/tests/system-calls.test.ts)
+- [X] The permissions screen says to allow everything permanently: which answer to pick in each Android
+  prompt ("While using the app", not "Only this time"; "Allow all" for photos) and why; on first run the
+  prompts start from an "Allow all" button under that explanation instead of covering it at once; a
+  blocked permission names the exact settings choice → Artifacts: [screen](apps/mobile/src/app/permissions.tsx), [notice](apps/mobile/src/permission-notice-model.ts)
+- [X] Photos and videos in a chat open full screen in the app (pinch and double-tap zoom for photos,
+  player with controls for video, share button inside); other files still go to the share menu. The
+  decrypted copy lives in the cache only while the viewer is open → Artifacts: [viewer](apps/mobile/src/components/MediaViewer.tsx), [model](apps/mobile/src/media-viewer-model.ts), [tests](apps/mobile/tests/media-viewer.test.ts)
+- [X] Built 1.0.38/code53, `artifacts/LastCall-1.0.38-store.aab`, sha256
+  `95f7f29c7be9f045e4255176977d6598cd8bd0003a7d9f0b667d0e18d648d710` (59 804 955 bytes). Emulators
+  (`LastCall_Store_B` calling `MicControl_API36_16K`): ringback starts at dial for an offline contact
+  ("Calling…") and for an online one ("Ringing…"), Android shows the app's tone track active, it stops on
+  answer ("In call") and on End; a received PNG opens full screen, double tap zooms, drag pans, Back closes;
+  a sent MP4 plays with controls; the permissions screen shows the guide. Not verified: hearing the tone
+  on a real phone's earpiece, Bluetooth headsets.
+
 # 1.0.37 / code52 — clearer invitation step, Telegram-style live location map (2026-11-21)
 
 - [X] Sign-up by invitation explains itself: a "Registration is by invitation" box says to ask the
@@ -15,7 +36,17 @@
 - [X] 2026-11-21: sent to Google review for production as "1.0.37 work" (replaces 1.0.36 work, 100%,
   all 178 target countries, managed publishing off, so it goes live on approval). The Mac was on its lock
   screen, so the AAB was attached in the page from base64 parts (size checked: 59 795 084 bytes).
-  Not uploaded to internal or closed testing.
+  Not uploaded to internal or closed testing at that time.
+- [X] 2026-11-22: bundle 52 added from the Play library (no re-upload) and published to internal testing
+  as "LastCall 1.0.37 internal" (available to internal testers); notes copied from "1.0.37 work"; no
+  devices lost (8 920 phones, 4 706 tablets). "LastCall 1.0.37 closed" (Alpha, 100%) passed Play's
+  pre-review check and was sent to Google review; closed testers stay on 1.0.36 until it passes.
+  Production "1.0.37 work" was already approved and shows "Доступен в Google Play" (2026-11-22).
+- [X] 2026-11-22 smoke on the exact store AAB (sha256 matches): the app on the `LastCall_Store_B` emulator (Android 16)
+  has the same `classes.dex` and JS bundle as a bundletool universal APK from this AAB. Opened Chats, Settings, a chat,
+  the location map (place pin "Tverskaya Street, 7", list row "You" = sent by you), a voice call ("Calling…", verification
+  code, End → "Call cancelled") and Contacts: no crash, no JS errors in logcat. Not verified: the viewer's own position on
+  the map (emulator GPS gave no fix; `geo fix` did not take).
 
 # 1.0.36 / code51 — history in SQLite, encrypted per record (2026-11-18)
 

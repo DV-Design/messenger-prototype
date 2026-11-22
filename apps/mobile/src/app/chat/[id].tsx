@@ -35,6 +35,8 @@ import { SettledProvider, useScreenSettled } from '../../after-transition';
 import { useDevicePosition } from '../../device-position';
 import { formatReplyText, parseReplyText, quotedMessageSnippet, replyBody, type ParsedReply } from '../../reply';
 import { mediaKind } from '../../media-model';
+import { viewerKind } from '../../media-viewer-model';
+import { MediaViewer } from '../../components/MediaViewer';
 
 const FLOATING_DATE_MS = 1200;
 
@@ -90,6 +92,9 @@ export default function Chat() {
   const [recording, setRecording] = useState<MediaKind>();
   const [locationOpen, setLocationOpen] = useState(false);
   const [viewingLocation, setViewingLocation] = useState<string>();
+  // A photo or video opened full screen; other files go straight to the share menu.
+  const [viewingFile, setViewingFile] = useState<MessengerFile>();
+  const closeViewer = useCallback(() => setViewingFile(undefined), []);
   // The viewer's own position, only while the map is open.
   const devicePosition = useDevicePosition(!!viewingLocation);
   const [contactsOpen, setContactsOpen] = useState(false);
@@ -276,7 +281,7 @@ export default function Chat() {
     replyToMessage: item => startReply(messageTarget(item)), replyToFile: file => startReply(fileTarget(file)),
     react, openLocation: setViewingLocation, scrollToQuoted,
     openLink: url => void Linking.openURL(url).catch(() => setError(t('Could not open the link.'))),
-    openFile: file => void action(() => shareFile(file)),
+    openFile: file => { if (viewerKind(file)) setViewingFile(file); else void action(() => shareFile(file)); },
   });
   const swipe = !blockedPeer && !editing && !conversation.removed;
   const mediaDisabled = !focused || !!snapshot.activeCall || !!recording;
@@ -357,6 +362,7 @@ export default function Chat() {
     </KeyboardAvoidingView></SettledProvider>
     {!!recording && focused && <MediaComposer key={`${id}:${recording}`} kind={recording} conversationId={conversation.id} blocked={!!snapshot.activeCall} onClose={() => setRecording(undefined)} />}
     {locationViewer()}
+    <MediaViewer file={viewingFile} title={viewingFile ? nameOf(viewingFile.senderId) : ''} autoPlay={!snapshot.activeCall && !recording} onClose={closeViewer} onShare={file => shareFile(file).catch(cause => setError(errorText(cause)))} />
     <ContactPicker visible={contactsOpen} onClose={closeContacts} onPick={sendPickedContact} />
     <LocationPicker visible={locationOpen} busy={busy} onClose={() => setLocationOpen(false)} onSendPoint={sendLocation} onStartLive={shareLiveLocation} />
     {!group && peer && identity && <SafetyCode visible={safetyOpen} title={peer.displayName} code={safety} verified={peerVerified} sessionReady={!!conversation.session?.contentE2E} onClose={() => setSafetyOpen(false)} onVerify={() => void action(async () => { await client().markContactVerified(peer.userId); setSafetyOpen(false); })} />}

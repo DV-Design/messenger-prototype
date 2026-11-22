@@ -96,6 +96,9 @@ public final class LastCallAudioModule extends ReactContextBaseJavaModule {
       new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> { if (!done[0]) { done[0] = true; result.resolve(!LastCallLockScreen.locked(activity)); } }, 60_000);
     });
   }
-  @ReactMethod public void stop(String id) { LastCallAudioService.end(getReactApplicationContext(), id); }
+  @ReactMethod public void stop(String id) { LastCallRingback.stop(id); LastCallAudioService.end(getReactApplicationContext(), id); }
+  /** Ringback while an outgoing call waits for an answer; started only after the call audio service set up the route. */
+  @ReactMethod public void startRingback(String id) { LastCallRingback.start(id); }
+  @ReactMethod public void stopRingback(String id) { LastCallRingback.stop(id); }
   @ReactMethod public void activateCallAudio(String id) { LastCallAudioService.activate(getReactApplicationContext(), id); }
 }
