@@ -9,6 +9,11 @@
   `e4708361f02dd7e15ca66de6158aa6eceee61b28b7bb0cf1c83b53898dd42109`) installed on LastCall_Store_B: chats,
   contacts and settings open; live location share started and the typed message field sits right above
   the keyboard; no crashes in logcat
+- [X] 2026-11-22: bundle 54 uploaded once (closed testing), open testing and production took it from the
+  library; production at 100 %, device support unchanged (8 920 phones, 4 706 tablets); all three changes
+  sent to Google review (managed publishing off). Notes (en-US): "The keyboard no longer covers the
+  message field while you share your live location." Open testing track itself is paused in Play
+  (testers do not get it until it is resumed); left as is
 
 # 1.0.38 / code53 — ringback, permanent permissions, photo and video viewer (2026-11-22)
 
