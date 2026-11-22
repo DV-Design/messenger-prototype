@@ -18,6 +18,12 @@
   answer ("In call") and on End; a received PNG opens full screen, double tap zooms, drag pans, Back closes;
   a sent MP4 plays with controls; the permissions screen shows the guide. Not verified: hearing the tone
   on a real phone's earpiece, Bluetooth headsets.
+- [X] 2026-11-22: sent to Google review in one submission: production "1.0.38 work" (replaces 1.0.37 work, 100%,
+  all target countries, managed publishing off, so it goes live on approval), open testing "LastCall 1.0.38 open"
+  (the unsent 1.0.36 open draft reused: its countries and testers kept, bundle 51 replaced by 53) and closed testing
+  "LastCall 1.0.38 closed" (Alpha, 100%). Bundle 53 uploaded once and added to the other tracks from the library;
+  device support unchanged (8 920 phones, 4 706 tablets); Play's pre-review check found no problems.
+  Internal testing stays on 1.0.37.
 
 # 1.0.37 / code52 — clearer invitation step, Telegram-style live location map (2026-11-21)
 
