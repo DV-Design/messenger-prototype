@@ -12,8 +12,9 @@ test('only final recipient receipts contribute to group delivery progress', () =
   assert.equal(waitingForDelivery({ deliveryStatus: 'expired', status: 'complete' }), false);
   assert.equal(deliveryLabel({ deliveryStatus: 'delivered', status: 'complete' }, false), 'Delivered');
 });
-test('pending files and group sync copy describe sender retention without promising offline delivery', () => {
-  assert.match(transportNotice({ directory: 'online', group: false, peerOnline: false, pending: 1 }).text, /Messages and files wait on this device for up to 7 days/);
+test('offline copy says messages arrive later and files need both phones, without promising more than 7 days', () => {
+  assert.match(transportNotice({ directory: 'online', group: false, peerOnline: false, pending: 1 }).text, /files once both phones are online\. Waiting up to 7 days/);
+  assert.match(transportNotice({ directory: 'offline', group: false, peerOnline: false, pending: 1 }).text, /wait on this device for up to 7 days/);
   assert.match(transportNotice({ directory: 'online', group: true, pending: 1 }).text, /Not all participants have confirmed/);
   assert.match(transportNotice({ directory: 'online', group: true, pending: 0 }).text, /phones/);
 });
@@ -56,4 +57,11 @@ test('read pass tracks incoming file completion and history identities without r
   const afterReceipt = { ...message, readBy: ['bob'] };
   assert.equal(readContentVersion([afterReceipt], [receiving]), initial);
   assert.equal(readContentVersion([{ ...message }], [{ ...receiving, status: 'receiving' }]), initial);
+});
+
+test('a message notice names who wrote and how much is unread, never the text', async () => {
+  const { unreadNotice } = await import('../src/push-preview-model');
+  assert.deepEqual(unreadNotice('Мария', null, 1), { title: 'Мария', body: 'You have an unread message' });
+  assert.deepEqual(unreadNotice('Мария', null, 3), { title: 'Мария', body: 'You have unread messages: 3' });
+  assert.deepEqual(unreadNotice('Мария', 'Выходные', 2), { title: 'Выходные', body: 'Unread messages in the group: 2. Last from Мария' });
 });

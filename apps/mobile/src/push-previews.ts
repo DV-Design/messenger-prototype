@@ -6,9 +6,9 @@ import * as Crypto from 'expo-crypto';
 import { Directory, File, Paths } from 'expo-file-system';
 import type { MessengerClient, OpenedPushPreview } from '@messenger/core';
 import { messagePreviewScope, registerMessengerObserver, withMessagePreviewClient } from './runtime';
-import { IncomingMessageTracker, PreviewDeduper, messagePreviewBody, notificationIdentity, parseMessagePreview, type SeenPreview } from './push-preview-model';
+import { IncomingMessageTracker, PreviewDeduper, notificationIdentity, parseMessagePreview, unreadNotice, type SeenPreview } from './push-preview-model';
 
-type NativePresenter = { prepare(): Promise<boolean>; show(id: string, title: string, body: string, conversationId: string, scope: string, chatTitle: string | null): Promise<boolean>; contains(id: string): Promise<boolean>; clearMessages?(): Promise<number> };
+type NativePresenter = { prepare(): Promise<boolean>; show(id: string, title: string, body: string, conversationId: string, scope: string, chatTitle: string | null): Promise<boolean>; showUnread?(id: string, title: string, body: string, conversationId: string, scope: string): Promise<boolean>; contains(id: string): Promise<boolean>; clearMessages?(): Promise<number> };
 const nativePresenter = NativeModules.LastCallNotifications as NativePresenter | undefined;
 export const MESSAGE_PREVIEW_CHANNEL = 'lastcall-message-previews';
 const directory = () => new Directory(Paths.document, 'message-notifications');
@@ -34,7 +34,7 @@ export function prepareMessagePreviews(): Promise<boolean> {
   if (Platform.OS !== 'android' || !nativePresenter || typeof nativePresenter.show !== 'function' || typeof nativePresenter.contains !== 'function' || typeof nativePresenter.prepare !== 'function') return Promise.resolve(false);
   if (!prepared) prepared = (async () => {
     await Notifications.setNotificationChannelAsync(MESSAGE_PREVIEW_CHANNEL, {
-      name: t('LastCall message previews'), description: t('Sender name and message text on the lock screen'),
+      name: t('New LastCall messages'), description: t('Who wrote to you. Message text is never shown in notifications'),
       importance: AndroidImportance.HIGH, lockscreenVisibility: AndroidNotificationVisibility.PUBLIC,
       sound: 'default', enableVibrate: true, showBadge: true,
     });
@@ -65,7 +65,13 @@ async function displayPreview(manager: MessengerClient, preview: DisplayPreview,
   const scopeHash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, scope);
   await deduper.run(`lastcall-message-${digest}`, async () => {
     if (!allowed() || AppState.currentState === 'active') return false;
-    const shown = await nativePresenter?.show(`lastcall-message-${digest}`, preview.displayName, messagePreviewBody(preview.text, preview.truncated), preview.conversationId, scopeHash, chatTitle(manager, preview.conversationId)) ?? false;
+    // Never the text: only who wrote and that something is unread, one notice per chat.
+    const conversation = manager.getSnapshot().conversations.find(item => item.id === preview.conversationId);
+    const notice = unreadNotice(preview.displayName, conversation?.kind === 'group' ? chatTitle(manager, preview.conversationId) : null, conversation?.unread ?? 1);
+    const id = `lastcall-message-${digest}`;
+    const shown = nativePresenter?.showUnread
+      ? await nativePresenter.showUnread(id, notice.title, notice.body, preview.conversationId, scopeHash)
+      : await nativePresenter?.show(id, notice.title, notice.body, preview.conversationId, scopeHash, null) ?? false;
     return shown;
   });
 }
@@ -94,7 +100,7 @@ registerMessengerObserver((snapshot, manager) => {
     for (const preview of incoming) {
       const conversation = manager.getSnapshot().conversations.find(item => item.id === preview.conversationId);
       const record = preview.kind === 'file'
-        ? conversation?.files.find(file => file.id === preview.messageId && file.senderId === preview.senderId && file.deliveryStatus === 'received' && file.status === 'complete' && file.blobKey)
+        ? conversation?.files.find(file => file.id === preview.messageId && file.senderId === preview.senderId && file.deliveryStatus === 'received' && (file.waiting || (file.status === 'complete' && file.blobKey)))
         : conversation?.messages.find(message => message.id === preview.messageId && message.from === preview.senderId && message.status === 'received');
       if (record) await displayPreview(manager, preview, () => !record.expiresAt || record.expiresAt > Date.now());
     }

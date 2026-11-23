@@ -103,7 +103,7 @@ describe('bounded encrypted pending wake intents',()=>{
    expect(f.sent.filter(x=>x.type==='wake')).toHaveLength(0);await f.client.sendText(id,'private content stays local');await vi.advanceTimersByTimeAsync(2499);expect(f.sent.filter(x=>x.type==='wake')).toHaveLength(0);await vi.advanceTimersByTimeAsync(1);
    expect(f.sent.filter(x=>x.type==='wake')[0]).toMatchObject({type:'wake',to:other.userId,kind:'message'});expect(JSON.stringify(f.sent.filter(x=>x.type==='wake'))).not.toContain('private');
    await f.client.sendText(id,'second private text');await vi.advanceTimersByTimeAsync(2499);expect(f.sent.filter(x=>x.type==='wake')).toHaveLength(1);
-   await vi.advanceTimersByTimeAsync(1);expect(f.sent.filter(x=>x.type==='wake')).toHaveLength(2);expect(f.sent.filter(x=>x.type==='wake').every(frame=>typeof frame.preview==='string')).toBe(true);
+   await vi.advanceTimersByTimeAsync(1);expect(f.sent.filter(x=>x.type==='wake')).toHaveLength(2);expect(f.sent.filter(x=>x.type==='wake').every(frame=>frame.preview===undefined)).toBe(true);
    await vi.advanceTimersByTimeAsync(27499);expect(f.sent.filter(x=>x.type==='wake')).toHaveLength(2);
    await vi.advanceTimersByTimeAsync(1);expect(f.sent.filter(x=>x.type==='wake')).toHaveLength(3);expect(f.client.getSnapshot().conversations[0]?.messages.every(x=>x.status==='pending')).toBe(true);
    for(const message of f.client.getSnapshot().conversations[0]!.messages)(f.client as any).receiveMessage(other.userId,{id:message.id,text:message.text,from:'self',timestamp:message.timestamp,status:'delivered',conversationId:id});

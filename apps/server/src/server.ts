@@ -50,6 +50,8 @@ interface Peer {
   kind: 'signal' | 'directory';
 }
 const MAX_FRAME_BYTES = 96 * 1024;
+/** Directory control frames, including encrypted mailbox batches (72 KiB of envelopes plus framing). */
+const DIRECTORY_FRAME_BYTES = 80 * 1024;
 
 export function createSignalingServer(options: ServerOptions = {}) {
   const config = {
@@ -198,7 +200,7 @@ export function createSignalingServer(options: ServerOptions = {}) {
         if (now - peer.windowAt >= config.rateWindowMs) { peer.windowAt = now; peer.frames = 0; peer.bytes = 0; }
         const bytes = Array.isArray(data) ? data.reduce((sum, part) => sum + part.length, 0) : data.byteLength;
         if (++peer.frames > config.frameLimit || (peer.bytes += bytes) > config.bytesLimit) return reject(peer, 'rate-limit', 'Signaling rate exceeded', true);
-        if (binary || bytes > (peer.kind === 'directory' ? 16 * 1024 : MAX_FRAME_BYTES)) return reject(peer, 'invalid-frame', 'Text JSON frame required', true);
+        if (binary || bytes > (peer.kind === 'directory' ? DIRECTORY_FRAME_BYTES : MAX_FRAME_BYTES)) return reject(peer, 'invalid-frame', 'Text JSON frame required', true);
         let json: unknown;
         try { json = JSON.parse(data.toString()); } catch { return reject(peer, 'invalid-frame', 'Invalid JSON', true); }
         if (peer.kind === 'directory') { void directory.handle(ws, json).catch(() => reject(peer, 'directory-error', 'Directory operation failed', true)); return; }

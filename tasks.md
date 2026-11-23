@@ -1,3 +1,31 @@
+# 1.0.40 / code55 — encrypted server mailbox, unread-only notices, new store listing (2026-11-23)
+
+- [X] Texts, read receipts, edits, deletions and reactions go through an encrypted server mailbox
+  (pair key, XChaCha20-Poly1305, server sees only who/when/size/kind), kept ≤ 7 days until the
+  recipient's phone takes them; delivered ticks come from server receipts. Older apps are refused
+  by the server and stay on the direct path. Contract: [MAILBOX-CONTRACT.md](docs/MAILBOX-CONTRACT.md)
+  → Artifacts: [mailbox.ts](packages/core/src/mailbox.ts), [mailbox-wire.ts](packages/core/src/mailbox-wire.ts), [messenger.ts](packages/core/src/messenger.ts), [server mailbox](apps/server/src/mailbox.ts), [directory.ts](apps/server/src/directory.ts)
+- [X] Files, voice notes and video circles stay direct; the server carries an encrypted
+  announcement so the recipient sees a placeholder in the right place ("arrives as soon as the
+  sender's phone is online"), counted as unread; the sender keeps its delivery request so both
+  phones are woken to meet
+  → Artifacts: [AttachmentCard.tsx](apps/mobile/src/components/AttachmentCard.tsx)
+- [X] Notifications show only who wrote and how much is unread, one notice per chat (native
+  `showUnread`); the server drops encrypted text previews older senders still attach
+  → Artifacts: [push-previews.ts](apps/mobile/src/push-previews.ts), [push-preview-model.ts](apps/mobile/src/push-preview-model.ts), [LastCallNotificationsModule.java](apps/mobile/plugins/notifications/LastCallNotificationsModule.java)
+- [X] Tests: core 305, server 151 (new [mailbox.test.ts](apps/server/test/mailbox.test.ts) with real
+  clients: offline delivery, delivered/read ticks, first message from a stranger, file placeholder
+  order, group to offline members, older-app refusal, quotas and push rules), mobile 278,
+  `npm run check` and Playwright e2e 18 passed / 1 skipped
+- [X] Store listing rewritten (ru/en): [listing-ru.md](store/listing-ru.md), [listing-en.md](store/listing-en.md);
+  privacy policy updated locally for the mailbox ([privacy.html](infra/public/privacy.html)), not published
+- [ ] Deploy the server (rollback image `messenger-signaling:before-mailbox`, DB backup
+  `/data/directory-before-mailbox-2026-11-23.sqlite` already made); the automatic permission check
+  blocked the container rebuild, the owner has to allow it
+- [ ] After the deploy: two emulators, offline text → push → "unread" notice, file placeholder,
+  then build and publish 1.0.40 (server first: a new app on the old server loses delivery wakes)
+- [ ] Publish the new listing text and the privacy policy in Play Console / on the site (owner's yes)
+
 # 1.0.39 / code54 — keyboard over the message field during live location (2026-11-22)
 
 - [X] While a live location share (or a collapsed call) shows its strip at the top, the keyboard no longer

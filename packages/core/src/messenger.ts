@@ -6,7 +6,8 @@ import { z } from 'zod';
 import { bytesToHex, randomChecked, secureRandomBytes, type RandomBytes } from './crypto.js';
 import {MAX_DELIVERY_PEERS, directoryClientFrameSchema, directoryServerFrameSchema, directoryUserSchema, directConversationId, conversationInvite, endpointUrl, signAuthentication, usernameSchema, displayNameSchema, validateDeviceIdentity, pushPreviewSchema,pushPreviewEnvelopeSchema, type DeviceIdentity, type DirectoryUser, type DirectoryClientFrame, type DirectoryServerFrame, type PhoneMatch, type DirectoryPage, type WakeKind,type WakeIntent } from './directory.js';
 import { countryHintsSchema, inviteCodeSchema, InviteRequestError, type CreatedInvite, type InviteStatus } from './directory.js';
-import {encryptPushPreview,decryptPushPreview,type OpenedPushPreview} from './push-preview.js';
+import {decryptPushPreview,type OpenedPushPreview} from './push-preview.js';
+import {MAX_MAILBOX_BATCH_CHARS,MAX_MAILBOX_PUT_ITEMS,mailboxRecordId,openMailboxItem,sealMailboxItem,type MailboxAck,type MailboxItem,type MailboxKind,type MailboxPayload,type MailboxReceipt,type mailboxFileSchema} from './mailbox.js';
 import { conversationIdSchema, MAX_BULK_BYTES, MAX_FILE_BYTES, MAX_TEXT_CHARS, peerIdSchema, roomIdSchema } from './protocol.js';
 import type { BulkOffer, BulkSink } from './bulk.js';
 import { openAttachment, sealAttachment, openLocalState, sealLocalState } from './persistence.js';
@@ -19,14 +20,16 @@ import {messageChangeSchema,signMessageChange,verifyMessageChange,type MessageCh
 import {messageReactionSchema,signMessageReaction,verifyMessageReaction,type MessageReaction,type ReactionEmoji} from './message-reaction.js';
 export {OUTBOX_TTL_MS} from './group-sync.js';
 export interface MessengerMessage {id:string;text:string;from:string;timestamp:number;status:'pending'|'sent'|'delivered'|'received'|'expired';conversationId:string;expiresAt?:number;metadata?:string;recipientIds?:string[];deliveredTo?:string[];readBy?:string[];notifiedTo?:string[];editedAt?:number;originalText?:string;reactions?:ReactionView[];}
-export interface MessengerFile extends SharedFile {timestamp:number;senderId:string;conversationId:string;deliveryStatus?:'pending'|'sent'|'delivered'|'received'|'expired';expiresAt?:number;blobKey?:string;recipientIds?:string[];deliveredTo?:string[];readBy?:string[];notifiedTo?:string[];reactions?:ReactionView[];large?:true;}
+export interface MessengerFile extends SharedFile {timestamp:number;senderId:string;conversationId:string;deliveryStatus?:'pending'|'sent'|'delivered'|'received'|'expired';expiresAt?:number;blobKey?:string;recipientIds?:string[];deliveredTo?:string[];readBy?:string[];notifiedTo?:string[];reactions?:ReactionView[];large?:true;
+  /** Announced through the server; the bytes come directly once the sender's phone is online. */
+  waiting?:true;}
 /** One member's current reaction, oldest first. */
 export interface ReactionView {userId:string;emoji:ReactionEmoji;}
 export interface Conversation {id:string;kind:'direct'|'group';title:string;memberIds:string[];creatorId?:string;formerIds?:string[];removed?:boolean;messages:MessengerMessage[];files:MessengerFile[];unread:number;updatedAt:number;session?:SessionSnapshot;hidden?:boolean;implicit?:boolean;}
 export interface PendingIncomingCall extends OpenedCallPush {state:'ringing'|'accepted';revision:number;}
 interface OutgoingInvitation extends CallInvitation {peerId:string;conversationId:string;video:boolean;serverEpoch?:string;offered:boolean;offering:boolean;ringing:boolean;sessionStarted:boolean;revision:number;operation:PendingOperation;timer?:ReturnType<typeof setTimeout>;expiry?:ReturnType<typeof setTimeout>;}
 export interface MessengerSnapshot {status:'idle'|'connecting'|'online'|'offline'|'error';/** The encrypted local history has been read; before that an empty chat list means "not loaded yet", not "no chats". */restored?:boolean;self?:DirectoryUser;contacts:DirectoryUser[];conversations:Conversation[];activeCall?:{conversationId:string;peerId:string;session:SessionSnapshot};pendingIncomingCall?:PendingIncomingCall;verifiedContacts:string[];blockedContacts:string[];movedContacts?:Record<string,DirectoryUser>;error?:string;}
-export interface MessengerOptions {callCaptions?:boolean;reconcileDeliveryOnConnect?:boolean;serverUrl:string;identity:DeviceIdentity;username:string;displayName:string;emailProof?:string;inviteCode?:string;/** Registration only, and only for a server whose policy announced `countryHints`. */countryHints?:string[];randomBytes?:RandomBytes;rtcFactory?:PeerSessionOptions['rtcFactory'];getUserMedia?:PeerSessionOptions['getUserMedia'];createMediaStream?:PeerSessionOptions['createMediaStream'];onChange?:(snapshot:MessengerSnapshot)=>void;/** Awaited before the history is encrypted and saved, so a phone can keep that work out of a screen animation; it must settle quickly. */whenIdle?:()=>Promise<void>;/** Per-record encrypted storage (SQLite on the phone); takes precedence over loadState/saveState, which are then read once to migrate and cleared after the first successful write. */records?:LocalRecordStore;clearLegacyState?:()=>Promise<void>;loadState?:()=>Promise<string|null>;saveState?:(sealed:string)=>Promise<void>;saveAttachment?:(key:string,sealed:string)=>Promise<void>;loadAttachment?:(key:string)=>Promise<string|null>;deleteAttachment?:(key:string)=>Promise<void>;
+export interface MessengerOptions {callCaptions?:boolean;reconcileDeliveryOnConnect?:boolean;/** Texts and service records go through the encrypted server mailbox when the server and recipient support it. */mailbox?:boolean;serverUrl:string;identity:DeviceIdentity;username:string;displayName:string;emailProof?:string;inviteCode?:string;/** Registration only, and only for a server whose policy announced `countryHints`. */countryHints?:string[];randomBytes?:RandomBytes;rtcFactory?:PeerSessionOptions['rtcFactory'];getUserMedia?:PeerSessionOptions['getUserMedia'];createMediaStream?:PeerSessionOptions['createMediaStream'];onChange?:(snapshot:MessengerSnapshot)=>void;/** Awaited before the history is encrypted and saved, so a phone can keep that work out of a screen animation; it must settle quickly. */whenIdle?:()=>Promise<void>;/** Per-record encrypted storage (SQLite on the phone); takes precedence over loadState/saveState, which are then read once to migrate and cleared after the first successful write. */records?:LocalRecordStore;clearLegacyState?:()=>Promise<void>;loadState?:()=>Promise<string|null>;saveState?:(sealed:string)=>Promise<void>;saveAttachment?:(key:string,sealed:string)=>Promise<void>;loadAttachment?:(key:string)=>Promise<string|null>;deleteAttachment?:(key:string)=>Promise<void>;
   /** Large files (up to 1 GiB) live as plain files in app storage under the attachment key; the core only streams them. Without it this client neither sends nor accepts them. */
   bulkFiles?:BulkFileStore;}
 export interface BulkFileStore {read(key:string,name:string,offset:number,length:number):Promise<Uint8Array>;openIncoming(key:string,name:string,size:number):Promise<BulkSink>;}
@@ -54,13 +57,13 @@ const MAX_APPLICATION_BODY=16000;
 const utf8=new TextEncoder();
 const withReactions=(reactions?:ReactionView[])=>reactions?{reactions}:{};
 const messageSchema=z.object({id:peerIdSchema,text:z.string().min(1).max(MAX_TEXT_CHARS),from:roomIdSchema,timestamp:z.number().finite().nonnegative(),status:z.enum(['pending','sent','delivered','received','expired']),conversationId:conversationIdSchema,expiresAt:z.number().finite().nonnegative().optional(),metadata:z.string().max(12000).optional(),recipientIds:z.array(roomIdSchema).max(7).optional(),deliveredTo:z.array(roomIdSchema).max(7).optional(),readBy:z.array(roomIdSchema).max(7).optional(),notifiedTo:z.array(roomIdSchema).max(7).optional(),editedAt:z.number().finite().nonnegative().optional(),originalText:z.string().min(1).max(MAX_TEXT_CHARS).optional()}).strict();
-const fileSchema=z.object({id:peerIdSchema,name:z.string().min(1).max(255),mime:z.string().max(255),size:z.number().int().min(0).max(MAX_BULK_BYTES),large:z.literal(true).optional(),timestamp:z.number().finite().nonnegative(),from:z.enum(['self','peer']),status:z.enum(['sending','receiving','complete','error']),receivedBytes:z.number().nonnegative(),senderId:roomIdSchema,conversationId:conversationIdSchema,metadata:z.string().max(12000).optional(),expiresAt:z.number().finite().nonnegative().optional(),deliveryStatus:z.enum(['pending','sent','delivered','received','expired']).optional(),blobKey:roomIdSchema.optional(),recipientIds:z.array(roomIdSchema).max(7).optional(),deliveredTo:z.array(roomIdSchema).max(7).optional(),readBy:z.array(roomIdSchema).max(7).optional(),notifiedTo:z.array(roomIdSchema).max(7).optional()}).strict().refine(f=>f.large||f.size<=MAX_FILE_BYTES,'File exceeds 5 MiB limit');
+const fileSchema=z.object({id:peerIdSchema,name:z.string().min(1).max(255),mime:z.string().max(255),size:z.number().int().min(0).max(MAX_BULK_BYTES),large:z.literal(true).optional(),timestamp:z.number().finite().nonnegative(),from:z.enum(['self','peer']),status:z.enum(['sending','receiving','complete','error']),receivedBytes:z.number().nonnegative(),senderId:roomIdSchema,conversationId:conversationIdSchema,metadata:z.string().max(12000).optional(),expiresAt:z.number().finite().nonnegative().optional(),deliveryStatus:z.enum(['pending','sent','delivered','received','expired']).optional(),blobKey:roomIdSchema.optional(),recipientIds:z.array(roomIdSchema).max(7).optional(),deliveredTo:z.array(roomIdSchema).max(7).optional(),readBy:z.array(roomIdSchema).max(7).optional(),notifiedTo:z.array(roomIdSchema).max(7).optional(),waiting:z.literal(true).optional()}).strict().refine(f=>f.large||f.size<=MAX_FILE_BYTES,'File exceeds 5 MiB limit');
 const tombstoneSchema=z.object({id:peerIdSchema,author:roomIdSchema,type:z.enum(['message','file']),expiresAt:z.number().finite().nonnegative()}).strict();
 type Tombstone=z.infer<typeof tombstoneSchema>;
 interface InternalConversation extends Conversation {creatorId?:string;definition?:GroupDefinition;notifyRemoved?:string[];joinedAt?:Record<string,number>;receipts?:GroupReceipt[];readReceipts?:ReadReceipt[];changes?:MessageChange[];tombstones?:Tombstone[];reactions?:MessageReaction[];}
 interface PendingOperation {controller:AbortController;started:number;timeout:number;timer?:ReturnType<typeof setTimeout>;conversationId:string;peerId?:string;}
-interface PendingMessage {conversationId:string;messageId:string;remaining:string[];type?:'message'|'file';author?:string;createdAt?:number;expiresAt?:number;}
-const pendingSchema=z.object({conversationId:conversationIdSchema,messageId:peerIdSchema,remaining:z.array(roomIdSchema).min(1).max(7),type:z.enum(['message','file']).optional(),author:roomIdSchema.optional(),createdAt:z.number().finite().nonnegative().optional(),expiresAt:z.number().finite().nonnegative().optional()}).strict();
+interface PendingMessage {conversationId:string;messageId:string;remaining:string[];type?:'message'|'file';author?:string;createdAt?:number;expiresAt?:number;/** Recipients whose server mailbox holds this item: a text then needs no direct path; a file only announced itself. */mailboxed?:string[];}
+const pendingSchema=z.object({conversationId:conversationIdSchema,messageId:peerIdSchema,remaining:z.array(roomIdSchema).min(1).max(7),type:z.enum(['message','file']).optional(),author:roomIdSchema.optional(),createdAt:z.number().finite().nonnegative().optional(),expiresAt:z.number().finite().nonnegative().optional(),mailboxed:z.array(roomIdSchema).max(7).optional()}).strict();
 const storedConversationSchema=z.object({id:conversationIdSchema,kind:z.enum(['direct','group']),title:z.string().min(1).max(64),memberIds:z.array(roomIdSchema).min(1).max(8),creatorId:roomIdSchema.optional(),formerIds:z.array(roomIdSchema).max(64).optional(),removed:z.boolean().optional(),notifyRemoved:z.array(roomIdSchema).max(8).optional(),joinedAt:z.record(roomIdSchema,z.number().finite().nonnegative()).optional(),definition:groupDefinitionSchema.optional(),receipts:z.array(receiptSchema).max(4000).optional(),readReceipts:z.array(readReceiptSchema).max(1312).optional(),messages:z.array(messageSchema).max(100),files:z.array(fileSchema).max(MAX_STORED_FILES+MAX_FILE_RECORDS_WITHOUT_DATA).optional(),unread:z.number().int().min(0).max(100),updatedAt:z.number().finite().nonnegative(),changes:z.array(messageChangeSchema).max(MAX_MESSAGE_CHANGES).optional(),tombstones:z.array(tombstoneSchema).max(MAX_TOMBSTONES).optional(),reactions:z.array(messageReactionSchema).max(MAX_REACTIONS).optional(),hidden:z.boolean().optional(),implicit:z.boolean().optional()}).strict();
 const storedSchema=z.object({version:z.union([z.literal(2),z.literal(3),z.literal(4),z.literal(5),z.literal(6),z.literal(7)]),contacts:z.array(directoryUserSchema).max(MAX_CONTACTS),conversations:z.array(storedConversationSchema).max(MAX_CONTACTS+MAX_GROUPS),pending:z.array(pendingSchema).max(MAX_PENDING_MESSAGES+MAX_PENDING_FILES),verified:z.array(roomIdSchema).max(MAX_CONTACTS).optional(),blocked:z.array(roomIdSchema).max(MAX_CONTACTS).optional()}).strict().refine(state=>state.conversations.reduce((n,c)=>n+c.messages.length,0)<=MAX_HISTORY_MESSAGES,{message:'History capacity exceeded'});
 type RequestInput<T=DirectoryClientFrame>=T extends {requestId:string}?Omit<T,'requestId'>:never;
@@ -77,6 +80,8 @@ export class MessengerClient {
   private random:RandomBytes;private stopped=true;private opening?:Promise<void>;private loaded=false;private restorePromise?:Promise<void>;
   private reconnect?:ReturnType<typeof setTimeout>;private attempt=0;private epoch=0;private savedTimer?:ReturnType<typeof setTimeout>;private saveQueue=Promise.resolve();private dirty=false;private cancelOpening?:()=>void;
   private callCaptionListeners=new Set<(frame:CallCaptionFrame)=>void>();
+  private mailboxRefused=new Set<string>();private mailboxPosting?:Promise<void>;private mailboxRepost=false;private mailboxFetching?:Promise<void>;private mailboxRefetch=false;
+  private mailboxApp:Array<{to:string;id:string;payload:unknown;expiresAt:number}>=[];private mailboxDefinitions=new Set<string>();private persistFailedAt=0;
   private options: Omit<MessengerOptions, 'inviteCode'>;
   private inviteCode?: string;
   private countryHints?: string[];
@@ -140,7 +145,7 @@ export class MessengerClient {
     if(this.options.whenIdle){try{await this.options.whenIdle();}catch{/* Save anyway. */}if(!this.dirty)return this.saveQueue;}
     this.dirty=false;
     const state=storedSchema.parse(this.stored());
-    const failed=(error:unknown)=>{this.dirty=true;this.report(new Error('Local encrypted state could not be saved'));throw error;};
+    const failed=(error:unknown)=>{this.dirty=true;this.persistFailedAt=Date.now();this.report(new Error('Local encrypted state could not be saved'));throw error;};
     if(this.options.records){
       // Only records that changed since the last successful write are encrypted and written.
       const writer=this.records();
@@ -216,7 +221,8 @@ export class MessengerClient {
           }else if(frame.type==='ready'){
             if(!challenged||ready||frame.self.userId!==this.options.identity.userId||frame.self.publicKey!==this.options.identity.publicKey)throw new Error('Directory identity mismatch');
             this.inviteCode = undefined;this.countryHints = undefined;
-            ready=true;this.deliverySent=undefined;this.services=undefined;this.servicesRequest=undefined;this.wakeCapabilitiesRequest=undefined;this.self=frame.self;this.status='online';this.attempt=0;this.error=undefined;finish();this.watch();this.wakePending();this.emit();
+            ready=true;this.deliverySent=undefined;this.services=undefined;this.servicesRequest=undefined;this.wakeCapabilitiesRequest=undefined;this.self=frame.self;this.status='online';this.attempt=0;this.error=undefined;this.mailboxRefused.clear();this.mailboxDefinitions.clear();finish();this.watch();this.wakePending();this.emit();
+            void this.startMailbox();
             void this.refreshContacts().catch(e=>this.report(e));
           }else if(frame.type==='error'){
             const request=frame.requestId?this.requests.get(frame.requestId):undefined;
@@ -229,6 +235,7 @@ export class MessengerClient {
           }else {
             if(!ready)throw new Error('Directory message before authentication');
             if(frame.type==='call-state'){this.handleCallState(frame);if(frame.requestId){const request=this.requests.get(frame.requestId);if(request){clearTimeout(request.timer);this.requests.delete(frame.requestId);if(request.expected!=='call-state')request.reject(new Error('Unexpected directory response type'));else request.resolve(frame);}}}
+            else if(frame.type==='mailbox-available'){void this.fetchMailbox().catch(()=>{/* Fetched again on the next nudge or connection. */});}
             else if(frame.type==='call-invitation'){const h=callPushEnvelopeSchema.parse(JSON.parse(frame.invite));void this.openCallPush(frame.invite,{kind:'call',intentId:h.callId,expiresAt:h.expiresAt}).catch(e=>this.report(e));}
             else if('requestId' in frame){const request=this.requests.get(frame.requestId);if(request){clearTimeout(request.timer);this.requests.delete(frame.requestId);if(frame.type!==request.expected)request.reject(new Error('Unexpected directory response type'));else request.resolve(frame);}}
             else if(frame.type==='identity-moved'){this.identityMoved(frame.oldUserId,frame.user);}
@@ -262,7 +269,7 @@ export class MessengerClient {
   }
   async getServices():Promise<ServiceCapabilities>{
     if(this.services&&this.status==='online')return {...this.services};
-    if(!this.servicesRequest){const socket=this.socket;const request=(this.deliveryProbe=this.deliveryRefused?undefined:socket,this.requestFrame({type:'services',callInviteV1:true,...(this.deliveryRefused?{}:{deliveryV1:true})},'services')).then(frame=>{const capabilities={...frame.capabilities};if(this.socket===socket&&this.status==='online')this.services=capabilities;return capabilities;});this.servicesRequest=request;
+    if(!this.servicesRequest){const socket=this.socket;const request=(this.deliveryProbe=this.deliveryRefused?undefined:socket,this.requestFrame({type:'services',callInviteV1:true,...(this.deliveryRefused?{}:{deliveryV1:true,...(this.options.mailbox?{mailboxV1:true as const}:{})})},'services')).then(frame=>{const capabilities={...frame.capabilities};if(this.socket===socket&&this.status==='online')this.services=capabilities;return capabilities;});this.servicesRequest=request;
       void request.finally(()=>{if(this.servicesRequest===request)this.servicesRequest=undefined;}).catch(()=>{});
     }
     return {...await this.servicesRequest};
@@ -316,13 +323,8 @@ export class MessengerClient {
       const key=this.wakeKey(peerId,kind,pending);const now=this.now();const previous=this.lastWake.get(key);
       if(previous!==undefined&&now-previous<30000)return;
       const intent:WakeIntent={kind,intentId:this.id(),expiresAt:Date.now()+Math.max(1,Math.ceil(Math.min(kind==='call'?30000:60000,remaining)))};
-      let preview:string|undefined;
-      if(pending&&(kind==='message'||kind==='file')&&(pending.author??this.options.identity.userId)===this.options.identity.userId){
-        const c=this.conversations.get(pending.conversationId);const message=c?.messages.find(m=>m.id===pending.messageId&&m.from===this.options.identity.userId);const contact=this.contacts.get(peerId);
-        const file=kind==='file'?c?.files.find(f=>f.id===pending.messageId&&f.senderId===this.options.identity.userId):undefined;
-        const record=kind==='message'?message:file;
-        if(record&&contact&&c?.memberIds.includes(peerId))preview=encryptPushPreview(this.options.identity,contact.publicKey,intent,{conversationId:c.id,messageId:record.id,text:kind==='file'?'Файл: '+file!.name:message!.text},this.random);
-      }
+      // No message text rides in a push any more, not even encrypted: the phone fetches its mailbox and says only who wrote.
+      const preview:string|undefined=undefined;
       this.directorySend({type:'wake',to:peerId,...intent,...(preview?{preview}:{})});
       this.lastWake.set(key,now);if(pending&&(kind==='message'||kind==='file'))this.markNotified([peerId],pending);
     }catch{/* Optional wake failures never mark content delivered or fail direct delivery. */}
@@ -357,7 +359,7 @@ export class MessengerClient {
   }
   private wakePending():void {
     clearTimeout(this.wakeTimer);this.wakeTimer=undefined;
-    const entries=this.pending.filter(p=>this.committed.has(this.pendingKey(p))&&Date.now()<(p.expiresAt??Infinity)).flatMap(p=>p.remaining.map(peerId=>({p,peerId,kind:(p.type==='file'?'file':'message') as WakeKind,key:this.wakeKey(peerId,p.type==='file'?'file':'message',p)})));
+    const entries=this.pending.filter(p=>this.committed.has(this.pendingKey(p))&&Date.now()<(p.expiresAt??Infinity)).flatMap(p=>p.remaining.filter(peerId=>!this.viaMailbox(p,peerId)).map(peerId=>({p,peerId,kind:(p.type==='file'?'file':'message') as WakeKind,key:this.wakeKey(peerId,p.type==='file'?'file':'message',p)})));
     const keys=new Set(entries.map(entry=>entry.key));
     for(const key of this.wakeStarted.keys())if(!keys.has(key))this.wakeStarted.delete(key);
     for(const key of this.lastWake.keys())if(key.startsWith('preview:')&&!keys.has(key))this.lastWake.delete(key);
@@ -427,7 +429,7 @@ export class MessengerClient {
     return pair;
   }
   private schedulePairRetry(peerId:string){const pair=this.pairs.get(peerId);if(!pair||pair.retry||this.stopped||!this.contacts.get(peerId)?.online)return;pair.notified=false;clearTimeout(pair.pump);pair.pump=undefined;pair.retry=setTimeout(()=>{pair.retry=undefined;void this.ensurePair(peerId,true).catch(e=>this.report(e));},Math.min(30000,1000*2**Math.min(5,pair.attempt++)));}
-  private wakePeer(peerId:string){const needs=[...this.conversations.values()].some(c=>c.readReceipts?.some(r=>r.author===peerId))||this.pending.some(m=>m.remaining.includes(peerId))||this.pairs.has(peerId)||[...this.conversations.values()].some(c=>c.kind==='group'&&c.memberIds.includes(peerId))||[...this.conversations.values()].some(c=>c.memberIds.includes(peerId)&&(c.changes?.some(x=>x.author===this.options.identity.userId&&Date.now()<x.expiresAt)||c.reactions?.some(x=>x.reactor===this.options.identity.userId&&Date.now()<x.expiresAt)));if(needs)void this.ensurePair(peerId,true).then(()=>this.flushPeer(peerId)).catch(e=>this.report(e));}
+  private wakePeer(peerId:string){const needs=[...this.conversations.values()].some(c=>c.readReceipts?.some(r=>r.author===peerId))||this.pending.some(m=>m.remaining.includes(peerId)&&!this.viaMailbox(m,peerId))||this.pairs.has(peerId)||[...this.conversations.values()].some(c=>c.kind==='group'&&c.memberIds.includes(peerId))||[...this.conversations.values()].some(c=>c.memberIds.includes(peerId)&&(c.changes?.some(x=>x.author===this.options.identity.userId&&Date.now()<x.expiresAt)||c.reactions?.some(x=>x.reactor===this.options.identity.userId&&Date.now()<x.expiresAt)));if(needs)void this.ensurePair(peerId,true).then(()=>this.flushPeer(peerId)).catch(e=>this.report(e));}
   private pairChanged(peerId:string,snapshot:SessionSnapshot){
     const pair=this.pairs.get(peerId);if(!pair)return;
     if(snapshot.callState==='incoming'){if(this.blocked.has(peerId)){pair.session.rejectCall();return;}const key=peerId+':'+snapshot.callId;const ended=this.endedCalls.get(key);if(ended&&Date.now()<ended){pair.session.rejectCall();return;}const invitation=this.pendingIncoming;if(invitation&&(invitation.callerId!==peerId||invitation.callId!==snapshot.callId||invitation.video!==snapshot.callVideo||invitation.expiresAt!==snapshot.callExpiresAt)){pair.session.rejectCall();return;}}
@@ -491,7 +493,7 @@ export class MessengerClient {
       throw new Error('Direct file expired');
     };
     const received=target;const dropped=async()=>{if(this.conversations.get(c.id)===c&&c.files.includes(received))return false;this.blobs.delete(key);await this.options.deleteAttachment?.(key);return true;};
-    await this.putBlob(key,file.data);if(await dropped())return true;await checkDeadline();target.blobKey=key;target.status='complete';target.receivedBytes=file.size;await this.durable();if(await dropped())return true;await checkDeadline();if(origin)this.receiptAfterSave(c,origin,peerId);return true;
+    await this.putBlob(key,file.data);if(await dropped())return true;await checkDeadline();target.blobKey=key;target.status='complete';target.receivedBytes=file.size;target.waiting=undefined;await this.durable();if(await dropped())return true;await checkDeadline();if(origin)this.receiptAfterSave(c,origin,peerId);return true;
   }
   private receiptAfterSave(c:InternalConversation,origin:GroupOrigin,peerId:string){const receipt=signGroupReceipt(this.options.identity,origin);const receipts=c.receipts??=[];if(!receipts.some(r=>r.author===receipt.author&&r.id===receipt.id&&r.recipient===receipt.recipient))receipts.push(receipt);this.changed();queueMicrotask(()=>{void this.pairs.get(peerId)?.session.sendApplication(receipt).catch(e=>this.report(e));});for(const id of c.memberIds)if(id!==this.options.identity.userId&&id!==peerId)this.wakePeer(id);}
   /** Live words from the current call only. Never saved, never logged, and dropped once the call ends. */
@@ -593,7 +595,161 @@ export class MessengerClient {
     const missing=members.filter(id=>id!==this.options.identity.userId&&!this.contacts.has(id));if(missing.length){const users=await this.request('lookup',missing);if(users.length!==missing.length)throw new Error('Unknown group member');for(const user of users)this.remember(user);}
     const id='group:'+this.id();const c:InternalConversation={id,kind:'group',title,memberIds:members,creatorId:this.options.identity.userId,messages:[],files:[],unread:0,updatedAt:Date.now()};c.definition=this.definition(c);this.conversations.set(id,c);this.watch();await this.durable();this.kick(c);return id;
   }
-  private kick(c:InternalConversation){for(const id of c.memberIds)if(id!==this.options.identity.userId&&this.status==='online'&&this.contacts.get(id)?.online)void this.ensurePair(id,true).then(()=>this.flushPeer(id)).catch(e=>this.report(e));this.wakePending();}
+  private kick(c:InternalConversation){
+    const direct=()=>{for(const id of c.memberIds)if(id!==this.options.identity.userId&&this.status==='online'&&this.contacts.get(id)?.online&&this.needsDirect(c,id))void this.ensurePair(id,true).then(()=>this.flushPeer(id)).catch(e=>this.report(e));this.wakePending();};
+    // Without a mailbox the direct path starts at once; with one, only what the server could not take still needs it.
+    if(!this.mailboxReady()){direct();return;}
+    void this.postMailbox().catch(()=>{/* The direct path below still carries it. */}).then(direct);
+  }
+  /** A text already in this person's server mailbox needs no direct connection and no wake from this phone. */
+  private viaMailbox(p:PendingMessage,peerId:string){return p.type!=='file'&&!!p.mailboxed?.includes(peerId);}
+  private needsDirect(c:InternalConversation,peerId:string){
+    if(!this.mailboxReady()||this.mailboxRefused.has(peerId))return true;
+    if(c.kind==='group'&&!this.pairs.get(peerId)?.definitions.has(c.id))return true;
+    return this.pending.some(p=>p.conversationId===c.id&&p.remaining.includes(peerId)&&!this.viaMailbox(p,peerId));
+  }
+  private mailboxReady(){return !!this.options.mailbox&&this.status==='online'&&this.services?.mailboxV1===true;}
+  private async startMailbox(){
+    if(!this.options.mailbox)return;
+    try{const capabilities=await this.getServices();if(!capabilities.mailboxV1||this.stopped)return;}catch{return;}
+    // Failures are retried on the next nudge or connection; the direct path still covers anything not stored.
+    await Promise.all([this.fetchMailbox().catch(()=>{}),this.postMailbox().catch(()=>{})]);
+  }
+  /** Service records go out the moment they exist; if the server cannot take them, the direct path still carries them. */
+  private queueApp(memberIds:string[],key:Array<string|number>,payload:unknown,expiresAt:number){
+    const own=this.options.identity.userId;const id=mailboxRecordId(key);
+    for(const to of memberIds){if(to===own||this.mailboxApp.some(x=>x.to===to&&x.id===id))continue;this.mailboxApp.push({to,id,payload,expiresAt});}
+    if(this.mailboxApp.length>500)this.mailboxApp.splice(0,this.mailboxApp.length-500);
+  }
+  private postMailbox():Promise<void>{
+    if(this.closing)return Promise.resolve();
+    if(this.mailboxPosting){this.mailboxRepost=true;return this.mailboxPosting;}
+    const run=this.track(this.postMailboxWork()).finally(()=>{this.mailboxPosting=undefined;if(this.mailboxRepost&&!this.closing){this.mailboxRepost=false;void this.postMailbox().catch(e=>this.report(e));}});
+    this.mailboxPosting=run;return run;
+  }
+  /**
+   * Every own text and file waiting for someone whose phone takes mailbox items goes to the server,
+   * encrypted for that phone, oldest first, so the recipient sees them in the order they were written.
+   * A file goes as an announcement only; its bytes still wait for both phones to be online.
+   */
+  private async postMailboxWork(){
+    if(!this.mailboxReady())return;
+    const own=this.options.identity.userId;const now=Date.now();
+    type Out={id:string;kind:MailboxKind;payload:MailboxPayload;expiresAt:number;pending?:PendingMessage;app?:{to:string;id:string};definition?:string};
+    const byPeer=new Map<string,Out[]>();const list=(peer:string)=>{let items=byPeer.get(peer);if(!items){items=[];byPeer.set(peer,items);}return items;};
+    const usable=(peer:string)=>!this.mailboxRefused.has(peer)&&!this.blocked.has(peer)&&this.contacts.has(peer);
+    const pending=this.pending.filter(p=>(p.author??own)===own&&this.committed.has(this.pendingKey(p))&&now<(p.expiresAt??Infinity)).sort((a,b)=>(a.createdAt??0)-(b.createdAt??0));
+    for(const p of pending){
+      const c=this.conversations.get(p.conversationId);if(!c||c.removed)continue;
+      const record=p.type==='file'?c.files.find(f=>f.id===p.messageId&&f.senderId===own):c.messages.find(m=>m.id===p.messageId&&m.from===own);if(!record)continue;
+      const payload:MailboxPayload=p.type==='file'
+        ?{type:'file',conversationId:c.id,id:record.id,name:(record as MessengerFile).name,mime:(record as MessengerFile).mime,size:(record as MessengerFile).size,...((record as MessengerFile).large?{large:true as const}:{}),timestamp:record.timestamp,...(record.metadata?{metadata:record.metadata}:{})}
+        :{type:'message',conversationId:c.id,id:record.id,text:(record as MessengerMessage).originalText??(record as MessengerMessage).text,timestamp:record.timestamp,...(record.metadata?{metadata:record.metadata}:{})};
+      for(const peer of p.remaining){
+        if(p.mailboxed?.includes(peer)||!usable(peer))continue;const items=list(peer);
+        // A group's roster goes ahead of its first item, so the recipient knows the group and its members' keys.
+        const definition=c.kind==='group'?(c.definition??(c.creatorId===own?this.definition(c):undefined)):undefined;
+        if(definition){const marker=peer+':'+c.id+':'+rosterVersion(definition);if(!this.mailboxDefinitions.has(marker)&&!items.some(x=>x.definition===marker))items.push({id:mailboxRecordId(['group',c.id,rosterVersion(definition),definition.signature??'']),kind:'app',payload:{type:'app',payload:definition},expiresAt:p.expiresAt??now+OUTBOX_TTL_MS,definition:marker});}
+        items.push({id:record.id,kind:p.type==='file'?'file':'message',payload,expiresAt:p.expiresAt??now+OUTBOX_TTL_MS,pending:p});
+      }
+    }
+    for(const app of this.mailboxApp)if(usable(app.to)&&app.expiresAt>now)list(app.to).push({id:app.id,kind:'app',payload:{type:'app',payload:app.payload},expiresAt:app.expiresAt,app:{to:app.to,id:app.id}});
+    let touched=false;
+    for(const [peer,items] of byPeer){
+      const contact=this.contacts.get(peer);if(!contact)continue;
+      const sealed=items.map(item=>({item,envelope:sealMailboxItem(this.options.identity,contact.publicKey,item.id,item.payload,this.random)}));
+      while(sealed.length){
+        const batch:typeof sealed=[];let chars=0;
+        while(sealed.length&&batch.length<MAX_MAILBOX_PUT_ITEMS&&(!batch.length||chars+sealed[0]!.envelope.length<=MAX_MAILBOX_BATCH_CHARS)){const next=sealed.shift()!;chars+=next.envelope.length;batch.push(next);}
+        if(!this.mailboxReady())return;
+        let reply:{accepted:boolean;reason?:'unsupported'|'full'};
+        // One recipient's refusal or error must not hold up the others; this one goes the direct way for this session.
+        try{reply=await this.requestFrame({type:'mailbox-put',to:peer,items:batch.map(({item,envelope})=>({id:item.id,kind:item.kind,envelope,expiresAt:Math.max(1,Math.floor(item.expiresAt))}))},'mailbox-stored');}
+        catch{if(!this.mailboxReady())return;reply={accepted:false,reason:'full'};}
+        if(!reply.accepted){this.mailboxRefused.add(peer);this.mailboxApp=this.mailboxApp.filter(x=>x.to!==peer||reply.reason==='full');this.wakePending();break;}
+        for(const {item} of batch){
+          if(item.definition)this.mailboxDefinitions.add(item.definition);
+          if(item.app)this.mailboxApp=this.mailboxApp.filter(x=>!(x.to===item.app!.to&&x.id===item.app!.id));
+          const p=item.pending;if(!p||!this.pending.includes(p))continue;
+          p.mailboxed=[...new Set([...(p.mailboxed??[]),peer])];touched=true;
+          const c=this.conversations.get(p.conversationId);
+          const record=p.type==='file'?c?.files.find(f=>f.id===p.messageId&&f.senderId===own):c?.messages.find(m=>m.id===p.messageId&&m.from===own);
+          if(record){record.notifiedTo=[...new Set([...(record.notifiedTo??[]),peer])];if('text' in record&&record.status==='pending')record.status='sent';}
+        }
+      }
+    }
+    if(touched){await this.durable();this.wakePending();}
+  }
+  private fetchMailbox():Promise<void>{
+    if(this.closing)return Promise.resolve();
+    if(this.mailboxFetching){this.mailboxRefetch=true;return this.mailboxFetching;}
+    const run=this.track(this.fetchMailboxWork()).finally(()=>{this.mailboxFetching=undefined;if(this.mailboxRefetch&&!this.closing){this.mailboxRefetch=false;void this.fetchMailbox().catch(e=>this.report(e));}});
+    this.mailboxFetching=run;return run;
+  }
+  /** Takes what waits on the server, oldest first; each item is acknowledged only once it is saved here. */
+  private async fetchMailboxWork(){
+    let after=0;
+    for(let page=0;page<64&&this.mailboxReady();page++){
+      const frame=await this.requestFrame({type:'mailbox-fetch',...(after?{after}:{})},'mailbox');
+      const users=new Map(frame.users.map(user=>[user.userId,user]));const acks:MailboxAck[]=[];
+      for(const item of frame.items){after=Math.max(after,item.seq);const taken=await this.takeMailboxItem(item,users);if(taken!==undefined)acks.push({from:item.from,id:item.id,delivered:taken});}
+      const receipts:MailboxReceipt[]=[];for(const receipt of frame.receipts){await this.mailboxDelivered(receipt);receipts.push(receipt);}
+      if(acks.length||receipts.length)await this.requestFrame({type:'mailbox-ack',items:acks,receipts},'mailbox-acked');
+      if(!frame.more)break;
+    }
+  }
+  /** true: saved; false: refused for good (blocked, forged, unknown chat); undefined: leave it on the server for later. */
+  private async takeMailboxItem(item:MailboxItem,users:Map<string,DirectoryUser>):Promise<boolean|undefined>{
+    const own=this.options.identity.userId;if(item.from===own||this.blocked.has(item.from))return false;
+    let contact=this.contacts.get(item.from);
+    if(!contact){
+      // Someone new wrote first, as a direct connection request would announce them.
+      const user=users.get(item.from);if(!user)return undefined;
+      try{directoryUserSchema.parse(user);if(user.userId!==item.from||this.moved.has(item.from))return false;this.remember(user);}catch{return false;}
+      this.ensureDirect(user,true);this.watch();this.changed();contact=this.contacts.get(item.from)!;
+    }
+    let payload:MailboxPayload;
+    try{payload=openMailboxItem(this.options.identity,contact.publicKey,item);}catch{return false;}
+    const started=Date.now();
+    try{
+      if(payload.type==='message')return await this.receiveMessage(item.from,{id:payload.id,text:payload.text,from:'peer',timestamp:payload.timestamp,conversationId:payload.conversationId,...(payload.metadata?{metadata:payload.metadata}:{}),status:'received'});
+      if(payload.type==='file')return await this.receiveFileNotice(item.from,payload);
+      await this.receiveApplication(item.from,payload.payload);return true;
+    }catch{
+      // A full or locked disk must not cost the message: it stays on the server for the next try.
+      return this.persistFailedAt>=started?undefined:false;
+    }
+  }
+  /** The server saw the recipient's phone take this text: the same as a direct delivery receipt. */
+  private async mailboxDelivered(receipt:MailboxReceipt){
+    const own=this.options.identity.userId;
+    const p=this.pending.find(x=>x.messageId===receipt.id&&(x.author??own)===own&&x.type!=='file'&&x.remaining.includes(receipt.to));if(!p)return;
+    const target=this.conversations.get(p.conversationId)?.messages.find(m=>m.id===receipt.id&&m.from===own);if(!target)return;
+    if(Date.now()<(p.expiresAt??Infinity))await this.acknowledge(p,receipt.to,target);this.wakePending();
+  }
+  private receiveFileNotice(peerId:string,notice:z.infer<typeof mailboxFileSchema>):Promise<boolean>{return this.closing?Promise.resolve(false):this.track(this.receiveFileNoticeWork(peerId,notice));}
+  /** Holds the file's place in the chat. The bytes are checked against the signed origin when they arrive. */
+  private async receiveFileNoticeWork(peerId:string,notice:z.infer<typeof mailboxFileSchema>):Promise<boolean>{
+    if(!this.validConversation(peerId,notice.conversationId)||this.blocked.has(peerId))return false;
+    const c=this.conversations.get(notice.conversationId)!;if(c.removed)return false;
+    let timestamp:number,expiresAt:number;
+    if(c.kind==='group'){
+      if(!c.definition||!notice.metadata)return false;const origin=parseGroupOrigin(notice.metadata,c.definition);
+      if(origin.id!==notice.id||origin.type!=='file'||origin.author!==peerId||Date.now()>=origin.expiresAt||(notice.large&&origin.hash!==bulkHash(notice.name,notice.mime,notice.size)))return false;
+      timestamp=origin.timestamp;expiresAt=origin.expiresAt;
+    }else{
+      const timing=parseDirectFileTiming(notice.metadata,notice.id,c.id,Date.now());if(!timing||Date.now()>=timing.expiresAt)return false;
+      timestamp=timing.timestamp;expiresAt=timing.expiresAt;
+    }
+    if(this.isRemoved(c,peerId,notice.id,'file')||c.files.some(f=>f.id===notice.id&&f.senderId===peerId))return true;
+    if(!notice.large)this.fileCapacity(notice.size);
+    c.files.push({id:notice.id,name:notice.name,mime:notice.mime,size:notice.size,...(notice.large?{large:true as const}:{}),from:'peer',status:'receiving',receivedBytes:0,senderId:peerId,conversationId:c.id,...(notice.metadata?{metadata:notice.metadata}:{}),deliveryStatus:'received',expiresAt,timestamp,waiting:true});
+    // The chat shows an unread item now, not only once the bytes arrive; the bytes do not count it again.
+    c.unread=Math.min(100,c.unread+1);c.updatedAt=Date.now();c.hidden=undefined;c.implicit=undefined;await this.durable();
+    // The sender's phone is woken by its own delivery request; if it is already online, ask it to connect now.
+    if(this.contacts.get(peerId)?.online&&this.status==='online')void this.ensurePair(peerId,true).catch(e=>this.report(e));
+    return true;
+  }
   private expirePending(){return this.closing?Promise.resolve():this.track(this.expirePendingWork());}
   private async expirePendingWork(){
     clearTimeout(this.expiryTimer);this.expiryTimer=undefined;const now=Date.now();const expired=this.pending.filter(p=>p.expiresAt!==undefined&&now>=p.expiresAt);const removed:string[]=[];
@@ -613,7 +769,7 @@ export class MessengerClient {
         if(!c.memberIds.includes(peerId))continue;
         const pending=this.pending.filter(p=>p.conversationId===c.id&&p.remaining.includes(peerId)&&this.committed.has(this.pendingKey(p)));
         const records:Array<{type:'message'|'file';item:MessengerMessage|MessengerFile;author:string}>=[];
-        for(const p of pending){const item=p.type==='file'?c.files.find(f=>f.id===p.messageId&&f.senderId===(p.author??own)):c.messages.find(m=>m.id===p.messageId&&m.from===(p.author??own));if(item)records.push({type:p.type??'message',item,author:p.author??own});}
+        for(const p of pending){if(this.viaMailbox(p,peerId))continue;const item=p.type==='file'?c.files.find(f=>f.id===p.messageId&&f.senderId===(p.author??own)):c.messages.find(m=>m.id===p.messageId&&m.from===(p.author??own));if(item)records.push({type:p.type??'message',item,author:p.author??own});}
         // Retained signed history is a bounded anti-entropy source for group peers.
         if(c.kind==='group'&&c.definition){const since=c.joinedAt?.[peerId]??0;for(const m of c.messages)if(m.from!==peerId&&m.from!==own&&c.memberIds.includes(m.from)&&m.timestamp>=since&&m.metadata&&Date.now()<(m.expiresAt??0))records.push({type:'message',item:m,author:m.from});for(const f of c.files)if(f.senderId!==peerId&&f.senderId!==own&&c.memberIds.includes(f.senderId)&&f.timestamp>=since&&f.metadata&&f.blobKey&&Date.now()<(f.expiresAt??0))records.push({type:'file',item:f,author:f.senderId});}
         for(const {type,item,author} of records){
@@ -631,7 +787,7 @@ export class MessengerClient {
       }
     }catch(error){this.report(error);}finally{pair.flushing=false;this.scheduleOutbox(peerId);}
   }
-  private scheduleOutbox(peerId:string){const pair=this.pairs.get(peerId);if(!pair||pair.pump||this.stopped||pair.session.getSnapshot().status!=='connected')return;const relay=[...this.conversations.values()].some(c=>c.kind==='group'&&c.memberIds.includes(peerId)&&(c.messages.some(m=>m.metadata&&Date.now()<(m.expiresAt??0))||c.files.some(f=>f.metadata&&f.blobKey&&Date.now()<(f.expiresAt??0))));if(!this.pending.some(p=>p.remaining.includes(peerId))&&!relay&&![...this.conversations.values()].some(c=>c.memberIds.includes(peerId)&&(this.unsentChanges(c,peerId,pair).length||this.unsentReactions(c,peerId,pair).length)))return;pair.pump=setTimeout(()=>{pair.pump=undefined;void this.flushPeer(peerId);},5000);}
+  private scheduleOutbox(peerId:string){const pair=this.pairs.get(peerId);if(!pair||pair.pump||this.stopped||pair.session.getSnapshot().status!=='connected')return;const relay=[...this.conversations.values()].some(c=>c.kind==='group'&&c.memberIds.includes(peerId)&&(c.messages.some(m=>m.metadata&&Date.now()<(m.expiresAt??0))||c.files.some(f=>f.metadata&&f.blobKey&&Date.now()<(f.expiresAt??0))));if(!this.pending.some(p=>p.remaining.includes(peerId)&&!this.viaMailbox(p,peerId))&&!relay&&![...this.conversations.values()].some(c=>c.memberIds.includes(peerId)&&(this.unsentChanges(c,peerId,pair).length||this.unsentReactions(c,peerId,pair).length)))return;pair.pump=setTimeout(()=>{pair.pump=undefined;void this.flushPeer(peerId);},5000);}
   async sendText(conversationId:string,text:string):Promise<void>{return this.serial(async()=>{
     await this.restore();await this.expirePending();const c=this.conversations.get(conversationId);if(!c)throw new Error('Unknown conversation');if(!text.trim()||text.length>MAX_TEXT_CHARS)throw new Error('Text must contain 1–4000 characters');if(this.pending.filter(p=>p.type!=='file').length>=MAX_PENDING_MESSAGES)throw new Error('Local outbox is full');
     if((c as InternalConversation).removed)throw new Error('You are no longer a member of this group');
@@ -728,10 +884,10 @@ export class MessengerClient {
       target={id:offer.id,name:offer.name,mime:offer.mime,size:offer.size,from:'peer',status:'receiving',receivedBytes:0,senderId:author,conversationId:c.id,metadata:offer.metadata,large:true,deliveryStatus:'received',expiresAt:origin?.expiresAt??timing?.expiresAt??Date.now()+OUTBOX_TTL_MS,timestamp:origin?.timestamp??timing?.timestamp??Date.now()};
       c.files.push(target);c.updatedAt=Date.now();c.hidden=undefined;c.implicit=undefined;await this.durable();this.emit();
     }
-    const file=target;const sink=await store.openIncoming(attachmentKey(author,offer.id,c.id),offer.name,offer.size);file.receivedBytes=sink.offset;this.emit();
+    const file=target;const announced=!!file.waiting;const sink=await store.openIncoming(attachmentKey(author,offer.id,c.id),offer.name,offer.size);file.receivedBytes=sink.offset;if(file.waiting){file.waiting=undefined;this.changed();}else this.emit();
     return {offset:sink.offset,write:bytes=>sink.write(bytes),abort:()=>sink.abort(),pause:()=>sink.pause?.(),finish:async()=>{
       await sink.finish();const fresh=file.status!=='complete';file.status='complete';file.receivedBytes=file.size;
-      if(fresh){c.unread=Math.min(100,c.unread+1);c.updatedAt=Date.now();}await this.durable();this.emit();
+      if(fresh&&!announced){c.unread=Math.min(100,c.unread+1);c.updatedAt=Date.now();}await this.durable();this.emit();
     }};
   }
   private changeKey(change:MessageChange){return 'change:'+change.conversationId+':'+change.author+':'+change.type+':'+change.id+':'+change.revision;}
@@ -754,7 +910,7 @@ export class MessengerClient {
     const own=this.options.identity.userId;const previous=c.reactions?.find(x=>x.reactor===own&&x.author===record.author&&x.id===record.id&&x.type===record.type);if(previous?.emoji===emoji||(!previous&&!emoji))return;
     const reactedAt=Math.max(Date.now(),(previous?.reactedAt??0));const reaction=signMessageReaction(this.options.identity,{conversationId:c.id,author:record.author,id:record.id,type:record.type,emoji,revision:(previous?.revision??0)+1,reactedAt,expiresAt:reactedAt+OUTBOX_TTL_MS});
     const before=c.reactions;this.putReaction(c,reaction);
-    try{await this.durable();}catch(error){c.reactions=before;this.dirty=true;throw error;}this.kick(c);
+    try{await this.durable();}catch(error){c.reactions=before;this.dirty=true;throw error;}this.queueApp(c.memberIds,['reaction',this.reactionKey(reaction)],reaction,reaction.expiresAt);this.kick(c);
   });}
   private async acceptReaction(peerId:string,reaction:MessageReaction){
     const c=this.conversations.get(reaction.conversationId),own=this.options.identity.userId;const publicKey=reaction.reactor===own?this.options.identity.publicKey:this.contacts.get(reaction.reactor)?.publicKey;
@@ -806,7 +962,7 @@ export class MessengerClient {
     const state=this.conversationState(c);const {text:previousText,originalText,editedAt}=message;const undo=()=>{message.text=previousText;message.originalText=originalText;message.editedAt=editedAt;this.restoreConversationState(c,state);};
     message.originalText??=message.text;message.text=text;message.editedAt=change.changedAt;this.putChange(c,change);
     if(!this.fitChangeBudget()){undo();throw new Error('Local storage for edits is full; delete some edited messages first');}
-    try{await this.durable();}catch(error){undo();throw error;}this.kick(c);
+    try{await this.durable();}catch(error){undo();throw error;}this.queueApp(c.memberIds,['change',this.changeKey(change)],change,change.expiresAt);this.kick(c);
   });}
   /** "everyone" asks the recipients' apps to remove it too; only the author can sign that request. */
   async deleteMessage(conversationId:string,record:{id:string;type:'message'|'file';author:string},scope:'me'|'everyone'):Promise<void>{return this.serial(async()=>{
@@ -815,7 +971,7 @@ export class MessengerClient {
     const state=this.conversationState(c);const expiresAt=item.expiresAt??item.timestamp+OUTBOX_TTL_MS;
     const change=scope==='everyone'?this.signChange(c,{id:record.id,type:record.type,action:'delete'}):undefined;const removed=this.removeRecord(c,record.author,record.id,record.type);
     if(change)this.putChange(c,change);else if(Date.now()<expiresAt)this.putTombstone(c,{id:record.id,author:record.author,type:record.type,expiresAt});this.fitChangeBudget();
-    try{await this.durable();}catch(error){this.restoreConversationState(c,state);throw error;}await this.forgetRemoved({blobKeys:[removed.blobKey],pending:removed.pending});if(change)this.kick(c);
+    try{await this.durable();}catch(error){this.restoreConversationState(c,state);throw error;}await this.forgetRemoved({blobKeys:[removed.blobKey],pending:removed.pending});if(change){this.queueApp(c.memberIds,['change',this.changeKey(change)],change,change.expiresAt);this.kick(c);}
   });}
   /** Local only: the other side keeps its copy, and tombstones stop replays from bringing the content back. */
   async deleteChat(conversationId:string):Promise<void>{return this.serial(async()=>{
@@ -954,6 +1110,8 @@ export class MessengerClient {
     if(!created.length&&c.unread===unread)return;
     receipts.push(...created);
     try{await this.durable();}catch(error){c.unread=unread;c.readReceipts=receipts.filter(r=>!created.includes(r));this.dirty=true;throw error;}
+    for(const r of created)this.queueApp([r.author],['read',c.id,r.author,r.type,r.id,r.reader],r,Date.now()+OUTBOX_TTL_MS);
+    void this.postMailbox().catch(()=>{/* The direct path still carries receipts. */});
     for(const author of new Set(created.map(r=>r.author)))this.wakePeer(author);
   });}
   private async acceptReadReceipt(peerId:string,receipt:ReadReceipt){

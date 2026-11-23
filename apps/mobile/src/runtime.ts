@@ -56,7 +56,7 @@ async function buildManager(profile: LocalProfile, signal?: AbortSignal, registr
   const persistence = { ...await sealedStateAdapter(state.identity, profile.serverUrl), bulkFiles };
   if (signal?.aborted) throw new Error('Wake expired');
   const current = ++generation;
-  const next = new MessengerClient({ whenIdle: whenTransitionsIdle, reconcileDeliveryOnConnect: true, callCaptions: Platform.OS === 'android' && Number(Platform.Version) >= 33 && !!NativeModules.LastCallCaptions, ...profile, ...registration, identity: state.identity, ...nativeRtc, ...persistence,
+  const next = new MessengerClient({ whenIdle: whenTransitionsIdle, reconcileDeliveryOnConnect: true, mailbox: true, callCaptions: Platform.OS === 'android' && Number(Platform.Version) >= 33 && !!NativeModules.LastCallCaptions, ...profile, ...registration, identity: state.identity, ...nativeRtc, ...persistence,
     onChange: snapshot => {
       if (current !== generation) return;
       // Bursts of core changes (opening a chat marks it read, saves, sends receipts) reach React once per frame.

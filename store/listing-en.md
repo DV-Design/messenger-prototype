@@ -1,25 +1,43 @@
 # LastCall — Google Play listing (English)
 
 ## App name (max 30)
-LastCall — Secure Messenger
+LastCall: Private Messenger
 
 ## Short description (max 80)
-Private chats, files and calls sent directly between devices.
+No phone number. Encrypted chats, calls with live translation, 1 GB files.
 
 ## Full description
-LastCall is a messenger with a unique username and no phone number. Messages, files, voice notes, video circles and calls travel between devices over a protected connection, and content is additionally encrypted by the app.
+LastCall is a messenger where your conversations belong to you. No phone number, no ads, nobody reading your messages.
 
-- Unique @username, directory search, direct chats and groups up to 8 members.
-- A confirmed email address restores your @username after a reinstall. Chat history stays on the device and is not restored.
-- Text, files up to 5 MiB, voice notes up to 2 minutes and video circles up to 30 seconds.
-- Audio and video calls with camera switching, picture-in-picture and an Android audio-output picker.
-- Live call translation on Android 13 and newer: captions in your language, or the translation read aloud in place of the other person's voice. Speech is recognized, translated and voiced on the phones; language packs are downloaded from Google once.
-- Five-emoji safety code to compare contact keys and a short call verification code.
-- Encrypted local history and a sender-held queue for up to 7 days.
-- English by default; Russian when the phone's primary language is Russian.
-- No ads, no analytics of our own, no data selling.
+ONLY YOU AND THE OTHER PERSON CAN READ IT
+Messages are encrypted on your phone and decrypted only on the recipient's phone. If they are offline, the message waits for them on the server, encrypted, for up to 7 days. The server cannot read it because it has no keys. Notifications never show message text, only who wrote to you.
 
-The server helps find people and deliver a service invitation, but it does not store conversations or files in readable form. A direct peer-to-peer connection may reveal your IP address to the other participant. The app has not passed an independent security audit; do not use it for data that requires certified protection.
+CALLS WITH LIVE TRANSLATION
+Audio and video calls over a protected connection. On Android 13 and newer the conversation is translated as you talk: captions in your language, or the translation read aloud in place of the other person's voice. Speech is recognized and translated on the phone itself.
+
+FILES UP TO 1 GB, NO CLOUD
+Photos, videos and documents up to 1 GB go from phone to phone and are never stored on the server. If the sender has gone offline, the chat shows right away where the file will appear, and it downloads as soon as both phones are online.
+
+EVERYTHING YOU EXPECT
+• A unique @username instead of a phone number
+• Voice notes and video circles
+• Reactions, swipe to reply, edit and delete for everyone
+• Delivery and read ticks
+• Groups of up to 8 people, where the owner can rename the group and change members
+• Share a place or your live location on a map
+• Translate a chat into your language right on the phone
+• Full-screen photo and video viewer, picture-in-picture during calls
+
+SECURITY YOU CONTROL
+• Emoji safety code: compare it with your contact to be sure you are talking to them
+• A short verification code for every call
+• Block and report right from the chat
+• History is stored on the phone, encrypted
+• A confirmed email brings your @username back after a reinstall
+
+No ads, no analytics of our own, no data selling.
+
+The honest limits: during a call or file transfer, a direct connection may reveal your IP address to the other person. Chat history lives only on the phone and is not restored after the app is removed. Translation language packs are downloaded from Google once. The app has not passed an independent security audit.
 
 Community guidelines: https://p2p.lienad.ru/community.html
 Privacy policy: https://p2p.lienad.ru/privacy.html
@@ -40,8 +58,8 @@ Account deletion URL: https://p2p.lienad.ru/privacy.html
 ## Tags
 messaging, encrypted chat, private calls, peer-to-peer
 
-## What's new in 1.0.8
-Video-circle camera switching now keeps recording by joining short segments into one video. New safety controls let you block contacts and group members and report abuse from a chat. Added community guidelines and terms acceptance, plus camera and notification fixes.
+## What's new in 1.0.40
+Messages now arrive even after the sender has gone offline: they wait on the server encrypted, and the server cannot read them. Files, voice notes and video circles still go directly, and the chat shows right away where a file will appear. Notifications no longer show message text, only who wrote to you.
 
 ## Screenshots
 Real screenshots from the final 1.0.8 store build, no QA overlays or diagnostics:

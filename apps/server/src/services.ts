@@ -110,9 +110,9 @@ export class DirectoryServices {
     this.db.prepare('INSERT INTO moderation_reports (created_at, reporter_id, target_id, target_kind, conversation_id, reason, details) VALUES (?, ?, ?, ?, ?, ?, ?)')
       .run(this.now(), reporterId, targetId, targetKind, conversationId ?? null, reason, details ?? '');
   }
-  capabilities(userId: string,callInviteV1=false,deliveryV1=false): ServiceCapabilities {
+  capabilities(userId: string,callInviteV1=false,deliveryV1=false,mailboxV1=false): ServiceCapabilities {
     // Released clients parse this strictly, so the field exists only for those that asked.
-    return { ...(deliveryV1&&this.options.pushProvider?.sendDelivery?{deliveryV1:true}:{}),...(callInviteV1?{callInviteV1:true,serverEpoch:this.calls.epoch}:{}),phoneVerification: Boolean(this.options.smsProvider && this.secret), push: Boolean(this.options.pushProvider), relay: this.ice().some(server => (Array.isArray(server.urls) ? server.urls : [server.urls]).some(url => /^turns?:/.test(url))), phoneVerified: Boolean(this.options.enableLegacyPhoneServices && this.verified(userId)) };
+    return { ...(mailboxV1?{mailboxV1:true}:{}),...(deliveryV1&&this.options.pushProvider?.sendDelivery?{deliveryV1:true}:{}),...(callInviteV1?{callInviteV1:true,serverEpoch:this.calls.epoch}:{}),phoneVerification: Boolean(this.options.smsProvider && this.secret), push: Boolean(this.options.pushProvider), relay: this.ice().some(server => (Array.isArray(server.urls) ? server.urls : [server.urls]).some(url => /^turns?:/.test(url))), phoneVerified: Boolean(this.options.enableLegacyPhoneServices && this.verified(userId)) };
   }
   private verified(userId: string) { return Boolean(this.db.prepare('SELECT 1 FROM verified_phones WHERE user_id = ?').get(userId)); }
   private checkOpen() { if (this.closed) throw unavailable(); }
@@ -285,6 +285,8 @@ export class DirectoryServices {
       await this.pushDelivery(recipient, 'recipient', Math.max(...rows.filter(row => row.recipient_id === recipient).map(row => row.expires_at)));
     }
   }
+  /** "Your mailbox has something": the same content-free long-lived push as a waiting delivery. */
+  pushMailbox(userId: string, expiresAt: number) { this.checkOpen(); return this.pushDelivery(userId, 'recipient', expiresAt); }
   /** Best effort by design: the queue stays on the sender's phone, so a lost nudge loses nothing. */
   private async pushDelivery(userId: string, role: DeliveryRole, expiresAt: number) {
     const send = this.options.pushProvider?.sendDelivery?.bind(this.options.pushProvider);
@@ -309,7 +311,9 @@ export class DirectoryServices {
     if (!this.db.prepare('SELECT 1 FROM push_consent WHERE recipient_id = ? AND sender_id = ?').get(recipient, sender)) throw new ServiceError('wake-not-allowed', 'Recipient has not authorized wake notifications from this contact');
     const row = this.db.prepare('SELECT token,background_sync,message_preview FROM push_tokens WHERE user_id = ?').get(recipient) as { token: string; background_sync:number;message_preview:number } | undefined;
     if (!row) return; // No false push-success or delivery receipt frame is returned.
-    const encrypted=preview!==undefined&&row.background_sync===1&&row.message_preview===1?preview:undefined;
+    // Since 1.0.40 no message text rides in a push, not even encrypted: older senders still attach
+    // previews, and they are dropped here. The phone says only who wrote, after fetching its mailbox.
+    const encrypted:string|undefined=undefined;void row.message_preview;
     // Ciphertext authenticates the original deadline; provider transport TTL is capped separately.
     const bounded = intent ? { ...intent, expiresAt: encrypted?intent.expiresAt:Math.min(intent.expiresAt, now + (intent.kind === 'call' ? 30_000 : 60_000)) } : undefined;
     const key = bounded ? `${sender}:${recipient}:${bounded.intentId}` : undefined;

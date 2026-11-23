@@ -6,6 +6,7 @@ import { sha256 } from '@noble/hashes/sha2.js';
 import { hkdf } from '@noble/hashes/hkdf.js';
 import { bytesToHex, hexToBytes, randomChecked, secureRandomBytes, type RandomBytes } from './crypto.js';
 import { conversationIdSchema, peerIdSchema, roomIdSchema } from './protocol.js';
+import { MAX_MAILBOX_PAGE_ITEMS, MAX_MAILBOX_PUT_ITEMS, MAX_MAILBOX_RECEIPTS, mailboxAckSchema, mailboxItemSchema, mailboxPutItemSchema, mailboxReceiptSchema, mailboxRefusalSchema } from './mailbox-wire.js';
 export interface DeviceIdentity { privateKey:string;publicKey:string;userId:string; }
 const utf8=(value:string)=>new TextEncoder().encode(value);
 export const usernameSchema=z.string().regex(/^[a-z0-9_]{3,24}$/);
@@ -115,7 +116,11 @@ export const directoryClientFrameSchema=z.discriminatedUnion('type',[
   callOfferFrameSchema,callReceivedFrameSchema,callActionFrameSchema,callStateGetFrameSchema,
   z.object({type:z.literal('resolve-profile'),publicKey:roomIdSchema,signature:z.string().regex(/^[0-9a-f]{128}$/)}).strict(),
   z.object({type:z.literal('list-users'),requestId:peerIdSchema,cursor:usernameSchema.optional()}).strict(),
-  z.object({type:z.literal('services'),requestId:peerIdSchema,callInviteV1:z.literal(true).optional(),deliveryV1:z.literal(true).optional()}).strict(),
+  z.object({type:z.literal('services'),requestId:peerIdSchema,callInviteV1:z.literal(true).optional(),deliveryV1:z.literal(true).optional(),mailboxV1:z.literal(true).optional()}).strict(),
+  /** Encrypted items for one recipient; the server keeps them until that phone takes them, up to seven days. */
+  z.object({type:z.literal('mailbox-put'),requestId:peerIdSchema,to:roomIdSchema,items:z.array(mailboxPutItemSchema).min(1).max(MAX_MAILBOX_PUT_ITEMS)}).strict(),
+  z.object({type:z.literal('mailbox-fetch'),requestId:peerIdSchema,after:z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional()}).strict(),
+  z.object({type:z.literal('mailbox-ack'),requestId:peerIdSchema,items:z.array(mailboxAckSchema).max(MAX_MAILBOX_PAGE_ITEMS),receipts:z.array(mailboxReceiptSchema).max(MAX_MAILBOX_RECEIPTS)}).strict(),
   z.object({type:z.literal('ice'),requestId:peerIdSchema}).strict(),
   z.object({type:z.literal('phone-start'),phone:e164PhoneSchema,requestId:peerIdSchema}).strict(),
   z.object({type:z.literal('phone-verify'),challengeId:peerIdSchema,code:z.string().regex(/^[0-9]{6}$/),requestId:peerIdSchema}).strict(),
@@ -157,6 +162,11 @@ export const directoryServerFrameSchema=z.discriminatedUnion('type',[
   z.object({type:z.literal('phone-verified'),requestId:peerIdSchema}).strict(),
   z.object({type:z.literal('phone-matches'),requestId:peerIdSchema,matches:z.array(phoneMatchSchema).max(100)}).strict(),
   z.object({type:z.literal('push-registered'),requestId:peerIdSchema}).strict(),
+  z.object({type:z.literal('mailbox-stored'),requestId:peerIdSchema,accepted:z.boolean(),reason:mailboxRefusalSchema.optional()}).strict(),
+  z.object({type:z.literal('mailbox'),requestId:peerIdSchema,items:z.array(mailboxItemSchema).max(MAX_MAILBOX_PAGE_ITEMS),users:z.array(directoryUserSchema).max(MAX_MAILBOX_PAGE_ITEMS),receipts:z.array(mailboxReceiptSchema).max(MAX_MAILBOX_RECEIPTS),more:z.boolean()}).strict(),
+  z.object({type:z.literal('mailbox-acked'),requestId:peerIdSchema}).strict(),
+  /** Something new is waiting: items for this phone or receipts for its own messages. Sent only to phones that asked for the mailbox. */
+  z.object({type:z.literal('mailbox-available')}).strict(),
   z.object({type:z.literal('challenge'),challenge:roomIdSchema}).strict(),
   z.object({type:z.literal('ready'),self:directoryUserSchema}).strict(),
   z.object({type:z.literal('results'),requestId:peerIdSchema,users:z.array(directoryUserSchema).max(200)}).strict(),

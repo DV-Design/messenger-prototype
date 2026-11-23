@@ -6,6 +6,7 @@ import type { WebSocket } from 'ws';
 import { DirectoryServices, ServiceError, type ServiceOptions } from './services.js';
 import { EmailAuth, type EmailOutcome } from './email-auth.js';
 import { RegistrationInvites, type RegistrationMode } from './registration-invites.js';
+import { Mailbox } from './mailbox.js';
 import { directoryClientFrameSchema, userIdFromPublicKey, verifyAuthentication, verifyEmailStart, verifyEmailVerify, verifyProfileResolve, wakeIntentSchema, type DirectoryUser } from '@messenger/core';
 
 /** Directory pages and search results; a person types more to narrow a search instead of scrolling hundreds. */
@@ -24,6 +25,7 @@ interface Connection {
   userId?: string;
   watches: Set<string>;
   callInviteV1?:boolean;
+  mailboxV1?:boolean;
 }
 export interface DirectoryOptions extends ServiceOptions {
   registrationAdminUserIds?: string[];
@@ -44,6 +46,7 @@ export class Directory {
   private services: DirectoryServices;
   private email: EmailAuth;
   private invites: RegistrationInvites;
+  private mailbox: Mailbox;
   constructor(private options: DirectoryOptions) {
     if (options.dbPath !== ':memory:') mkdirSync(dirname(options.dbPath), { recursive: true, mode: 0o700 });
     this.db = new DatabaseSync(options.dbPath);
@@ -68,6 +71,13 @@ export class Directory {
     this.services = new DirectoryServices(this.db, options, (id) => { const row = this.row(id); return row && this.user(row); }, options.iceServers,state=>{for(const id of [state.callerId,state.calleeId]){const target=this.online.get(id);if(target?.callInviteV1)this.options.send(target.ws,{type:'call-state',...state});}},(recipient,invite)=>{const target=this.online.get(recipient);if(target?.callInviteV1)this.options.send(target.ws,{type:'call-invitation',invite});});
     this.email = new EmailAuth(this.db, options, (quotas) => this.services.reserveQuotas(quotas));
     this.invites = new RegistrationInvites(this.db, options.registrationAdminUserIds ?? [], options.serviceNow);
+    this.mailbox = new Mailbox(this.db, {
+      now: options.serviceNow ?? Date.now,
+      reserve: (quotas) => this.services.reserveQuotas(quotas),
+      push: (recipientId, expiresAt) => this.services.pushMailbox(recipientId, expiresAt),
+      nudge: (userId) => { const target = this.online.get(userId); if (!target?.mailboxV1) return false; this.options.send(target.ws, { type: 'mailbox-available' }); return true; },
+      isOnline: (userId) => this.online.has(userId),
+    });
   }
   open(ws: WebSocket, ip = '', policy: RegistrationMode | ((countryHints?: readonly string[]) => RegistrationMode) = 'open') {
     const registrationMode = typeof policy === 'function' ? policy : () => policy;
@@ -77,7 +87,8 @@ export class Directory {
   }
   isAuthenticated(ws: WebSocket) { return Boolean(this.connections.get(ws)?.userId); }
   expire(now: number) {
-    try { this.services.expire(); this.email.expire(); this.invites.expire(); } catch { console.error('Directory quota cleanup failed'); }
+    try { this.services.expire(); this.email.expire(); this.invites.expire(); this.mailbox.expire(); } catch { console.error('Directory quota cleanup failed'); }
+    void this.mailbox.tick().catch(() => { /* Retried on the next tick. */ });
     void this.services.deliveryTick(this.isOnline).catch(() => { /* Retried on the next tick. */ });
     for (const connection of this.connections.values()) {
       if (!connection.userId && now >= connection.expiresAt) this.options.reject(connection.ws, 'auth-expired', 'Authentication challenge expired', true);
@@ -132,6 +143,7 @@ export class Directory {
     if (!old) throw new ServiceError('email-code-invalid', 'The code is invalid or expired');
     this.services.atomically(() => {
       this.services.deleteAccountInside(old.user_id);
+      this.mailbox.deleteAccountInside(old.user_id);
       this.invites.revokeIssuer(old.user_id);
       this.email.unbindInside(old.user_id);
       this.db.prepare('DELETE FROM directory_users WHERE user_id = ?').run(old.user_id);
@@ -226,6 +238,7 @@ export class Directory {
         this.online.delete(userId);
         this.notify(userId);
         this.services.atomically(() => {
+          this.mailbox.deleteAccountInside(userId);
           this.invites.revokeIssuer(userId);
           this.email.deleteAccountInside(userId);
           this.db.prepare('DELETE FROM directory_users WHERE user_id = ?').run(userId);
@@ -261,7 +274,18 @@ export class Directory {
         this.options.send(ws, { type: 'users-page', requestId: frame.requestId, users: page.map((row) => this.user(row)), ...(rows.length > DIRECTORY_PAGE ? { nextCursor: page.at(-1)!.username } : {}) });
       } else if (frame.type === 'services') {
         if(frame.callInviteV1===true)connection.callInviteV1=true;
-        this.options.send(ws, { type: 'services', requestId: frame.requestId, capabilities: this.services.capabilities(connection.userId,frame.callInviteV1===true,frame.deliveryV1===true) });
+        if(frame.mailboxV1===true){connection.mailboxV1=true;this.mailbox.enable(connection.userId);}
+        this.options.send(ws, { type: 'services', requestId: frame.requestId, capabilities: this.services.capabilities(connection.userId,frame.callInviteV1===true,frame.deliveryV1===true,frame.mailboxV1===true) });
+      } else if (frame.type === 'mailbox-put') {
+        if (!this.row(frame.to)) throw new ServiceError('invalid-target', 'Unknown recipient');
+        this.options.send(ws, { type: 'mailbox-stored', requestId: frame.requestId, ...this.mailbox.put(connection.userId, frame.to, frame.items) });
+      } else if (frame.type === 'mailbox-fetch') {
+        connection.mailboxV1 = true;
+        const page = this.mailbox.fetch(connection.userId, frame.after, (id) => { const row = this.row(id); return row ? this.user(row) : undefined; });
+        this.options.send(ws, { type: 'mailbox', requestId: frame.requestId, ...page });
+      } else if (frame.type === 'mailbox-ack') {
+        this.mailbox.ack(connection.userId, frame.items, frame.receipts);
+        this.options.send(ws, { type: 'mailbox-acked', requestId: frame.requestId });
       } else if (frame.type === 'ice') {
         this.options.send(ws, { type: 'ice', requestId: frame.requestId, iceServers: this.services.iceServers(connection.userId) });
       } else if (frame.type === 'phone-start') {

@@ -64,6 +64,15 @@ export function messagePreviewBody(text: string, alreadyTruncated = false): stri
   }
   return body + '…';
 }
+/**
+ * What a message notice says since 1.0.40: who wrote and how much is unread, never the text, file
+ * name or anything else from the message. A group notice is titled with the group.
+ */
+export function unreadNotice(sender: string, group: string | null, unread: number): { title: string; body: string } {
+  const count = Math.max(1, Math.min(100, Math.floor(unread) || 1));
+  if (group) return { title: group, body: count > 1 ? t('Unread messages in the group: {count}. Last from {name}', { count, name: sender }) : t('Unread message in the group from {name}', { name: sender }) };
+  return { title: sender, body: count > 1 ? t('You have unread messages: {count}', { count }) : t('You have an unread message') };
+}
 export type SeenPreview = { id: string; until: number };
 /** Serial local+headless dedup. Native IDs cover an OS-post / ledger-write crash gap. */
 export class PreviewDeduper {
@@ -114,7 +123,8 @@ export class IncomingMessageTracker {
       }
     }
     for (const conversation of snapshot.conversations) for (const file of conversation.files) {
-      if (file.deliveryStatus !== 'received' || file.status !== 'complete' || !file.blobKey) continue;
+      // A file announced through the mailbox is news as soon as it holds its place; its later arrival is the same item.
+      if (file.deliveryStatus !== 'received' || !(file.waiting || (file.status === 'complete' && file.blobKey))) continue;
       const key = notificationIdentity('', file.senderId, conversation.id, file.id, 'file'); current.add(key);
       if (this.online && !this.seen.has(key) && !blocked.has(file.senderId)) {
         const sender = snapshot.contacts.find(contact => contact.userId === file.senderId);

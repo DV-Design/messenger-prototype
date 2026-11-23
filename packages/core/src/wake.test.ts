@@ -1,7 +1,6 @@
 import {afterEach,describe,expect,it,vi} from 'vitest';
 import {createDeviceIdentity,directoryClientFrameSchema,wakeIntentSchema,type DirectoryUser} from './directory.js';
 import {MessengerClient} from './messenger.js';
-import {decryptPushPreview} from './push-preview.js';
 const alice=createDeviceIdentity(n=>new Uint8Array(n).fill(91));
 const bob=createDeviceIdentity(n=>new Uint8Array(n).fill(92));
 const contact:DirectoryUser={userId:bob.userId,publicKey:bob.publicKey,username:'bob',displayName:'Bob',online:false,lastSeen:1};
@@ -88,14 +87,12 @@ describe('bounded sender-local calls and files',()=>{
    await vi.advanceTimersByTimeAsync(60000);expect(f.client.getSnapshot().conversations[0]!.files[0]!.deliveryStatus).toBe('pending');expect(f.session.sendFile).not.toHaveBeenCalled();
   }finally{f.client.disconnect();}
  });
- it('sends each pending file origin as its own encrypted filename preview',async()=>{
+ it('wakes once per pending file and never puts a name or preview in the push',async()=>{
   const f=await fixture();try{
    await f.client.sendFile(f.id,{name:'private-one.jpg',mime:'image/jpeg',data:new Uint8Array([73,74,75])});
    await f.client.sendFile(f.id,{name:'private-two.jpg',mime:'image/jpeg',data:new Uint8Array([76,77,78])});
    await vi.advanceTimersByTimeAsync(2500);const wakes=f.sent.filter(frame=>frame.type==='wake');expect(wakes).toHaveLength(2);
-   const opened=wakes.map(frame=>decryptPushPreview(bob,alice.publicKey,frame.preview,{kind:frame.kind,intentId:frame.intentId,expiresAt:frame.expiresAt}));
-   expect(opened.map(value=>value.text).sort()).toEqual(['Файл: private-one.jpg','Файл: private-two.jpg']);
-   expect(new Set(opened.map(value=>value.messageId)).size).toBe(2);expect(opened.every(value=>value.kind==='file'&&value.conversationId===f.id)).toBe(true);
+   expect(wakes.every(frame=>frame.kind==='file'&&frame.preview===undefined)).toBe(true);
    expect(JSON.stringify(wakes)).not.toContain('private-');expect(JSON.stringify(wakes)).not.toContain('data');
    for(const frame of wakes)expect(directoryClientFrameSchema.safeParse(frame).success).toBe(true);
   }finally{f.client.disconnect();}

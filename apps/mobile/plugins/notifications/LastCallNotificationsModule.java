@@ -176,6 +176,13 @@ public final class LastCallNotificationsModule extends ReactContextBaseJavaModul
     } catch (RuntimeException error) { promise.resolve(0); }
   }
   @ReactMethod public synchronized void show(String id, String title, String body, String conversation, String scope, String chatTitle, Promise promise) {
+    post(id, title, body, conversation, scope, chatTitle, false, promise);
+  }
+  /** One plain notice per chat: who wrote and how much is unread, never message text. Replaces the chat's previous notice. */
+  @ReactMethod public synchronized void showUnread(String id, String title, String body, String conversation, String scope, Promise promise) {
+    post(id, title, body, conversation, scope, null, true, promise);
+  }
+  private void post(String id, String title, String body, String conversation, String scope, String chatTitle, boolean unread, Promise promise) {
     if (!validId(id) || !validConversation(conversation) || !validScope(scope) || title == null || title.isEmpty() || title.length() > 200 || body == null || body.isEmpty() || body.getBytes(StandardCharsets.UTF_8).length > 850) { promise.resolve(false); return; }
     try {
       NotificationManager manager = manager();
@@ -211,6 +218,25 @@ public final class LastCallNotificationsModule extends ReactContextBaseJavaModul
       // Extras contain no sender, message text, file name, keys or external URL.
       PendingIntent open = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
       // Earlier lines come back from the notice itself, so message text is never written to disk here.
+      long now = System.currentTimeMillis();
+      ids.add(id);
+      while (ids.size() > MAX_IDS) ids.remove(0);
+      Bundle extras = new Bundle(); extras.putStringArrayList(EXTRA_IDS, ids);
+      if (unread) {
+        manager.notify(tag, NOTIFICATION_ID, base()
+          .setContentTitle(title).setContentText(body)
+          .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
+          .setNumber(ids.size())
+          .setWhen(now).setShowWhen(true)
+          .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+          .setPriority(NotificationCompat.PRIORITY_HIGH)
+          .setDefaults(android.app.Notification.DEFAULT_SOUND | android.app.Notification.DEFAULT_VIBRATE)
+          .addExtras(extras)
+          .setContentIntent(open).build());
+        showSummary(manager, tag, ids.size());
+        promise.resolve(true);
+        return;
+      }
       NotificationCompat.MessagingStyle style = new NotificationCompat.MessagingStyle(new Person.Builder().setName(context.getString(R.string.lastcall_notification_you)).build());
       if (group) { style.setConversationTitle(chatTitle); style.setGroupConversation(true); }
       NotificationCompat.MessagingStyle old = previous == null ? null : NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(previous.getNotification());
@@ -218,11 +244,7 @@ public final class LastCallNotificationsModule extends ReactContextBaseJavaModul
         List<NotificationCompat.MessagingStyle.Message> lines = old.getMessages();
         for (int index = Math.max(0, lines.size() - (MAX_LINES - 1)); index < lines.size(); index++) style.addMessage(lines.get(index));
       }
-      long now = System.currentTimeMillis();
       style.addMessage(new NotificationCompat.MessagingStyle.Message(body, now, new Person.Builder().setName(title).build()));
-      ids.add(id);
-      while (ids.size() > MAX_IDS) ids.remove(0);
-      Bundle extras = new Bundle(); extras.putStringArrayList(EXTRA_IDS, ids);
       NotificationCompat.Builder builder = base()
         .setContentTitle(group ? chatTitle : title)
         .setContentText(body)

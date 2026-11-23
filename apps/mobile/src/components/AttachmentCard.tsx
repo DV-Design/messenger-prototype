@@ -39,7 +39,12 @@ export function AttachmentCard({ file, self, group = false, sender, onOpen, onLo
   }, [ready, id, senderId, conversationId, data, mime, blobKey, deliveryStatus, previewKey]);
   // A large file is a plain file in app storage: the sender always has it, the recipient once it is complete.
   const available = file.large ? (self || file.status === 'complete') && file.deliveryStatus !== 'expired' : !!(file.data || file.blobKey) && file.deliveryStatus !== 'expired';
-  const label = self ? deliveryLabel(file, group) : file.status === 'receiving' ? t('Receiving…') : file.status === 'error' ? t('Could not receive') : t('Received');
+  // Announced through the server; the bytes come directly from the sender's phone.
+  const waiting = !self && !!file.waiting;
+  // Read once per mount: a waiting file stays on screen for days, a re-render later picks up the deadline.
+  const [shownAt] = useState(() => Date.now());
+  const late = waiting && !!file.expiresAt && file.expiresAt <= shownAt;
+  const label = self ? deliveryLabel(file, group) : waiting ? (late ? t('Could not receive') : t('Waiting for the sender')) : file.status === 'receiving' ? t('Receiving…') : file.status === 'error' ? t('Could not receive') : t('Received');
   const note = mediaKind(file.name, file.mime);
   const receipt = self ? <View accessibilityLabel={label}><Icon name={deliveryIcon(file)} size={15} color={deliveryColor(file)} /></View> : null;
   if (note && available && !file.large) return <Pressable accessibilityHint={t('Hold to delete')} onLongPress={onLongPress} style={[styles.bubble, self && styles.bubbleSelf]}>
@@ -52,8 +57,9 @@ export function AttachmentCard({ file, self, group = false, sender, onOpen, onLo
     {!!sender && !self && <Text style={styles.senderName}>{sender}</Text>}
     {receipt}
     {available && preview?.key === previewKey && <Image source={{ uri: preview.uri }} style={styles.previewImage} resizeMode="cover" />}
-    <View style={styles.row}><Icon name={file.mime.startsWith('video/') ? 'videocam-outline' : file.mime.startsWith('image/') ? 'image-outline' : 'document-text-outline'} size={25} /><View><Text numberOfLines={2} style={styles.fileName}>{file.name}</Text><Text style={styles.fileMeta}>{fileSize(file.size)} · {label}</Text>
-      {file.status === 'receiving' && <Text style={styles.fileMeta}>{transferText(file.receivedBytes, file.size)}</Text>}
+    <View style={styles.row}><Icon name={waiting ? 'time-outline' : file.mime.startsWith('video/') ? 'videocam-outline' : file.mime.startsWith('image/') ? 'image-outline' : 'document-text-outline'} size={25} /><View><Text numberOfLines={2} style={styles.fileName}>{file.name}</Text><Text style={styles.fileMeta}>{fileSize(file.size)} · {label}</Text>
+      {waiting && <Text style={styles.fileMeta}>{late ? t('The sender’s phone did not come online in time') : t('Arrives as soon as the sender’s phone is online')}</Text>}
+      {file.status === 'receiving' && !waiting && <Text style={styles.fileMeta}>{transferText(file.receivedBytes, file.size)}</Text>}
       {self && file.large && file.deliveryStatus !== 'delivered' && file.deliveryStatus !== 'expired' && file.receivedBytes > 0 && <Text style={styles.fileMeta}>{t('Sending')} · {transferText(file.receivedBytes, file.size)}</Text>}
       {available && <Text style={[styles.fileMeta, { color: colors.accent }]}> {viewerKind(file) ? t('Tap to view') : t('Tap to open or save')}</Text>}
     </View></View>

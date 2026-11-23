@@ -40,7 +40,7 @@ async function user(url: string, username: string, identity = createDeviceIdenti
 async function begin(client: Client, phone: string) { const frame = await client.rpc('phone-start', { phone }); expect(frame.type).toBe('phone-challenge'); if (frame.type !== 'phone-challenge') throw new Error('No phone challenge'); return frame.challenge; }
 async function verify(client: Client, phone: string, fake: ReturnType<typeof providers>) { const c = await begin(client, phone); expect(await client.rpc('phone-verify', { challengeId: c.challengeId, code: fake.codes.get(phone) })).toMatchObject({ type: 'phone-verified' }); }
 
-it('forwards opaque encrypted previews over authenticated directory frames only to separately opted-in tokens',async()=>{
+it('accepts encrypted previews from older senders over directory frames but never forwards them to FCM',async()=>{
  const pushes:Array<{intent?:WakeIntent;preview?:string}>=[];const {url}=await start({pushProvider:{async sendWake(_token,wake,_backgroundSync,preview){pushes.push({intent:wake,preview});}}});
  const sender=await user(url,'preview_sender'),recipient=await user(url,'preview_recipient');
  expect(await recipient.client.rpc('push-register',{token:'encrypted-preview-token',backgroundSync:true,messagePreview:true})).toMatchObject({type:'push-registered'});
@@ -48,7 +48,7 @@ it('forwards opaque encrypted previews over authenticated directory frames only 
  for(const text of ['First private notification','Second private notification']){
   const wake:WakeIntent={kind:'message',intentId:requestId(),expiresAt:Date.now()+60000};const preview=encryptPushPreview(sender.identity,recipient.identity.publicKey,wake,{conversationId:directConversationId(sender.identity.userId,recipient.identity.userId),messageId:requestId(),text});sender.client.send({type:'wake',to:recipient.identity.userId,...wake,preview});
  }
- await expect.poll(()=>pushes.length).toBe(2);expect(pushes.map(push=>decryptPushPreview(recipient.identity,sender.identity.publicKey,push.preview!,push.intent!).text)).toEqual(['First private notification','Second private notification']);
+ await expect.poll(()=>pushes.length).toBe(1);await new Promise(resolve=>setTimeout(resolve,100));expect(pushes).toHaveLength(1);expect(pushes[0]?.preview).toBeUndefined();
  expect(JSON.stringify(pushes)).not.toContain('private notification');expect(sender.client.frames.some(frame=>frame.type==='error')).toBe(false);
 });
 

@@ -135,7 +135,7 @@ export default function Onboarding() {
         {registration !== 'unregistered' && <><Text style={styles.body}>{registration === 'checking' ? t('Checking this device registration…') : t('Could not check registration. Try again when online. A new username is unavailable until the server confirms no binding.')}</Text><Button title={t('Check again')} busy={busy} disabled={!identity} onPress={() => { void checkRegistration(); }} /></>}
         {registration === 'unregistered' && profileForm && <><Button title={t('Register')} busy={busy} disabled={!identity || !displayName.trim() || username.trim().length < 3 || !termsAccepted || (needsInvite && !inviteCode)} onPress={() => void register()} />
           <Pressable accessibilityRole="button" disabled={busy} onPress={back}><Text style={{ color: colors.accent, textAlign: 'center' }}>{t('Back')}</Text></Pressable></>}
-        <Text style={[styles.info, { textAlign: 'center' }]}> {t('The profile key is stored on this device. A confirmed email restores your @username after reinstalling, but not chats or contacts. Compare safety codes with your contacts afterwards. The server helps find friends and see their status; messages and calls travel between participants.')}</Text>
+        <Text style={[styles.info, { textAlign: 'center' }]}> {t('The profile key is stored on this device. A confirmed email restores your @username after reinstalling, but not chats or contacts. Compare safety codes with your contacts afterwards. The server helps find friends, see their status and keeps end-to-end encrypted messages until delivery; calls and files travel between participants.')}</Text>
       </View>
     </ScrollView>
   </KeyboardAvoidingView></SafeAreaView>;

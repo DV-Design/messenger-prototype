@@ -3,6 +3,8 @@
 Read `docs/USERNAME-CONTRACT.md`, `docs/WAKE-CONTRACT.md`, `README.md`, and `tasks.md` before changes.
 For 0.5 delivery/network changes also read `docs/OUTBOX-CONTRACT.md` and
 `docs/NETWORK-HANDOVER-CONTRACT.md`; these supersede the old memory-only file wait.
+From 1.0.40 texts and service records go through the encrypted server mailbox:
+read `docs/MAILBOX-CONTRACT.md`; it supersedes the "no chat-content mailbox" rule.
 This is a technical Android/iOS P2P messenger prototype for Russian networks.
 The product is LastCall. Registration uses server-confirmed usernames, not phones.
 Bots, channels, and backups are excluded. Earlier V1/V2/services contracts are historical.

@@ -9,6 +9,7 @@ export * from './local-records.js';
 export * from './messenger.js';
 export * from './services.js';
 export * from './push-preview.js';
+export * from './mailbox.js';
 export * from './message-change.js';
 export * from './message-reaction.js';
 
