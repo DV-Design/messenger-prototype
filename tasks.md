@@ -43,7 +43,14 @@
   at once; a photo shared to offline Alex announced itself (notice count 2) and then arrived
   directly within seconds, so the placeholder state itself was seen only in the integration test.
   Chat notice no longer says "messages wait on this device" after a failed direct attempt
-- [ ] Publish the new listing text and the privacy policy in Play Console / on the site (owner's yes)
+- [X] 2026-11-23, owner's yes: privacy policy published to the site (`proxy/sites/messenger-public/privacy.html`,
+  previous live copy in `artifacts/privacy-live-before-2026-11-23.html`); it also carries the 1.0.33
+  registration-country paragraph that had been waiting
+- [X] 2026-11-23: bundle 55 uploaded once (closed testing), open, production (100 %, 22 active installs)
+  and internal took it from the library; device support unchanged (8 865 phones, 4 707 tablets).
+  Internal testing published at once ("LastCall 1.0.40 internal"). Store listing: en-US rewritten
+  ("LastCall: Private Messenger"), ru-RU added ("LastCall: приватный мессенджер"); AI declaration left at
+  its default (no assets changed). Seven changes sent to Google review; notes en-US + ru-RU
 
 # 1.0.39 / code54 — keyboard over the message field during live location (2026-11-22)
 
