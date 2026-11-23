@@ -69,6 +69,8 @@ const config: ExpoConfig = {
     './plugins/withLastCallNotifications.cjs',
     './plugins/withWebRtc155Release.cjs',
     './plugins/withRoomKeep.cjs',
+    // "Share → LastCall" for text and any files, and "LastCall" in the text selection menu.
+    './plugins/withLastCallShare.cjs',
     ['@config-plugins/react-native-webrtc', {
       cameraPermission: 'Camera is used for video calls you start yourself.',
       microphonePermission: 'Microphone is used for voice and video calls.',

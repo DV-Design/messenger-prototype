@@ -10,6 +10,7 @@ import { LiveLocationBarLayout } from '../components/LiveLocationBar';
 import { PermissionSetupGate } from '../components/PermissionSetupGate';
 import { NotificationNavigationBridge } from '../components/NotificationNavigationBridge';
 import { UpdateNotice } from '../components/UpdateNotice';
+import { ShareIntentBridge } from '../components/ShareIntentBridge';
 import { useMessenger } from '../runtime';
 import { pruneMediaCache } from '../attachments';
 import { startFeedback } from '../feedback';
@@ -25,7 +26,8 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" /><Stack.Screen name="onboarding" /><Stack.Screen name="chat/[id]" /><Stack.Screen name="group/[id]" /><Stack.Screen name="contact/[id]" />
         <Stack.Screen name="new-group" options={{ presentation: 'modal' }} />
         <Stack.Screen name="permissions" options={{ presentation: 'modal' }} />
-      </Stack></LiveLocationBarLayout></CallBarLayout><PermissionSetupGate /><PushBridge /><NotificationNavigationBridge /><UpdateNotice /><CallOverlay />
+        <Stack.Screen name="share" options={{ presentation: 'modal' }} />
+      </Stack></LiveLocationBarLayout></CallBarLayout><PermissionSetupGate /><PushBridge /><NotificationNavigationBridge /><ShareIntentBridge /><UpdateNotice /><CallOverlay />
     </>}
   </SafeAreaProvider>;
 }

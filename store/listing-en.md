@@ -21,6 +21,7 @@ Photos, videos and documents up to 1 GB go from phone to phone and are never sto
 EVERYTHING YOU EXPECT
 • A unique @username instead of a phone number
 • Voice notes and video circles
+• Share to LastCall from any app: text, links, photos and files
 • Reactions, swipe to reply, edit and delete for everyone
 • Delivery and read ticks
 • Groups of up to 8 people, where the owner can rename the group and change members
@@ -59,7 +60,7 @@ Account deletion URL: https://p2p.lienad.ru/privacy.html
 messaging, encrypted chat, private calls, peer-to-peer
 
 ## What's new in 1.0.40
-Messages now arrive even after the sender has gone offline: they wait on the server encrypted, and the server cannot read them. Files, voice notes and video circles still go directly, and the chat shows right away where a file will appear. Notifications no longer show message text, only who wrote to you.
+Messages now arrive even after the sender has gone offline: they wait on the server encrypted, and the server cannot read them. Files, voice notes and video circles still go directly, and the chat shows right away where a file will appear. Notifications no longer show message text, only who wrote to you. Share to LastCall from any app, or straight from selected text.
 
 ## Screenshots
 Real screenshots from the final 1.0.8 store build, no QA overlays or diagnostics:

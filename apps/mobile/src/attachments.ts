@@ -30,6 +30,10 @@ async function transmit(current: MessengerClient, conversationId: string, uri: s
     if (file.uri.startsWith(`${Paths.cache.uri.replace(/\/$/, '')}/`) && file.exists) file.delete();
   }
 }
+/** A file another app shared with LastCall: already copied into this app's cache, removed once sent. */
+export function sendSharedFile(current: MessengerClient, conversationId: string, file: { uri: string; name: string; mime: string; size: number | null }) {
+  return transmit(current, conversationId, file.uri, file.name, file.mime, file.size ?? undefined);
+}
 export async function pickDocument(conversationId: string) {
   const current = client();
   const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true, multiple: false });
@@ -60,6 +64,11 @@ export function deleteMediaCache(uri?: string | null) {
   try { const file = new File(uri); if (file.exists) file.delete(); } catch { /* Cache cleanup is best effort, never delete outside cache. */ }
 }
 export function pruneMediaCache() {
+  // Copies of files shared from other apps that were never sent: kept a day, in case the person comes back to pick a chat.
+  try {
+    const incoming = new Directory(Paths.cache, 'lastcall-incoming');
+    if (incoming.exists) for (const item of incoming.list()) if (item instanceof File && Date.now() - (item.modificationTime ?? 0) > 86_400_000) item.delete();
+  } catch { /* best effort */ }
   // Remove abandoned LastCall copies after a killed process. Native camera cache
   // is used only by this composer; never touch documents or encrypted blobs.
   for (const directory of [new Directory(Paths.cache), new Directory(Paths.cache, 'Audio'), new Directory(Paths.cache, 'ExpoAudio'), new Directory(Paths.cache, 'Camera')]) {

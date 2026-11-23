@@ -19,6 +19,21 @@
   `npm run check` and Playwright e2e 18 passed / 1 skipped
 - [X] Store listing rewritten (ru/en): [listing-ru.md](store/listing-ru.md), [listing-en.md](store/listing-en.md);
   privacy policy updated locally for the mailbox ([privacy.html](infra/public/privacy.html)), not published
+- [X] Small files, voice notes and video circles go phone to phone only, like large files: if the
+  selected ICE pair is a TURN relay, the file waits for a direct path (retried every 5 s while
+  connected and on reconnect)
+  → Artifacts: [messenger.ts](packages/core/src/messenger.ts), [direct-only-file.test.ts](packages/core/src/direct-only-file.test.ts)
+- [X] "Share → LastCall" from any app (text, links, one or several files of any type) and "LastCall"
+  in the text selection menu (PROCESS_TEXT turns into a text share), then a "Send to…" chat picker.
+  Own native module instead of `expo-share-intent`, which crashed the app on an empty provider
+  cursor; files are copied off the main thread into `cache/lastcall-incoming` (≤ 10, ≤ 1 GiB,
+  unsent copies kept a day), unreadable ones are reported, long text is split into messages
+  → Artifacts: [LastCallShareModule.java](apps/mobile/plugins/share/LastCallShareModule.java), [LastCallProcessTextActivity.java](apps/mobile/plugins/share/LastCallProcessTextActivity.java), [withLastCallShare.cjs](apps/mobile/plugins/withLastCallShare.cjs), [share.tsx](apps/mobile/src/app/share.tsx), [ShareIntentBridge.tsx](apps/mobile/src/components/ShareIntentBridge.tsx), [share-intent-model.ts](apps/mobile/src/share-intent-model.ts), [tests](apps/mobile/tests/share-intent.test.ts)
+- [X] Emulators (both 1.0.40, still the old server): a text shared by intent and a photo shared from
+  Google Photos → LastCall → Alex Morgan arrived on the other emulator (photo "Delivered"); the
+  selection-menu entry opens the picker with the selected text; an unreadable shared file shows a
+  notice instead of crashing. `artifacts/LastCall-1.0.40-store.aab` 59828145 bytes, sha256 `93a20a87ecfe6cc39b9ca170be4606c98262f5b5655840c4561f4d6a20a9abe4`
+  (test build, not uploaded). `npm run check` passes (mobile 281, core 306, server 151), e2e 18 passed / 1 skipped
 - [ ] Deploy the server (rollback image `messenger-signaling:before-mailbox`, DB backup
   `/data/directory-before-mailbox-2026-11-23.sqlite` already made); the automatic permission check
   blocked the container rebuild, the owner has to allow it
