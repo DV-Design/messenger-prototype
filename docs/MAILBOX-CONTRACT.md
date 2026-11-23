@@ -76,7 +76,8 @@ Client (`MessengerClient`):
 - New app, old server: the server rejects `mailboxV1` in `services`; the existing probe falls back
   without `deliveryV1`/`mailboxV1`. Deploy the server before releasing 1.0.40.
 - Server tables: `mailbox_users`, `mailbox_items`, `mailbox_receipts`, `mailbox_push`; all
-  removed with the account. Directory frame limit raised from 16 to 80 KiB.
+  removed with the account. Directory frame limit raised from 16 to 80 KiB. The database runs
+  with `PRAGMA secure_delete = ON`, so a taken or expired item is overwritten, not left in free pages.
 
 ## Verification
 

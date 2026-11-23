@@ -124,6 +124,10 @@ describe('mailbox storage rules', () => {
     f.mailbox.ack(a, [], [{ to: b, id: '01'.repeat(16) }]);
     expect(f.mailbox.fetch(a, 0, () => undefined).receipts).toEqual([]);
   });
+  it('overwrites deleted ciphertext instead of leaving it in free pages', () => {
+    const f = fixture();
+    expect(f.db.prepare('PRAGMA secure_delete').get()).toEqual({ secure_delete: 1 });
+  });
   it('refuses phones without the mailbox and drops items after their deadline', () => {
     const f = fixture();
     expect(f.mailbox.put(a, b, [item('01'.repeat(16))])).toEqual({ accepted: false, reason: 'unsupported' });

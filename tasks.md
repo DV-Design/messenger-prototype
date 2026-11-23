@@ -34,11 +34,15 @@
   selection-menu entry opens the picker with the selected text; an unreadable shared file shows a
   notice instead of crashing. `artifacts/LastCall-1.0.40-store.aab` 59828145 bytes, sha256 `93a20a87ecfe6cc39b9ca170be4606c98262f5b5655840c4561f4d6a20a9abe4`
   (test build, not uploaded). `npm run check` passes (mobile 281, core 306, server 151), e2e 18 passed / 1 skipped
-- [ ] Deploy the server (rollback image `messenger-signaling:before-mailbox`, DB backup
-  `/data/directory-before-mailbox-2026-11-23.sqlite` already made); the automatic permission check
-  blocked the container rebuild, the owner has to allow it
-- [ ] After the deploy: two emulators, offline text → push → "unread" notice, file placeholder,
-  then build and publish 1.0.40 (server first: a new app on the old server loses delivery wakes)
+- [X] Server deployed 2026-11-23 with the owner's yes (rollback image `messenger-signaling:before-mailbox`,
+  DB backups `/data/directory-before-mailbox-2026-11-23.sqlite` and `…-23b.sqlite`); mailbox tables
+  created, 88 users kept; `PRAGMA secure_delete = ON` so taken items are overwritten
+- [X] Final `artifacts/LastCall-1.0.40-store.aab` 59828121 bytes, sha256 `6b8da7f8d73bfdc7635882a1afb4caadeb9fdaf52c17551da48332f9838dffc4`, installed on both
+  emulators: Alex in background, Maria's text stored on the server, content-free push woke Alex,
+  notice "Maria Petrova — You have an unread message", two grey ticks for Maria, server row deleted
+  at once; a photo shared to offline Alex announced itself (notice count 2) and then arrived
+  directly within seconds, so the placeholder state itself was seen only in the integration test.
+  Chat notice no longer says "messages wait on this device" after a failed direct attempt
 - [ ] Publish the new listing text and the privacy policy in Play Console / on the site (owner's yes)
 
 # 1.0.39 / code54 — keyboard over the message field during live location (2026-11-22)

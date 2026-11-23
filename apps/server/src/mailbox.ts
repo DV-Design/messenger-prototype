@@ -34,6 +34,8 @@ interface ItemRow { seq: number; sender_id: string; item_id: string; kind: Mailb
  */
 export class Mailbox {
   constructor(private readonly db: DatabaseSync, private readonly hooks: MailboxHooks) {
+    // A taken or expired item is overwritten with zeros, not left in free pages of the database file.
+    db.exec('PRAGMA secure_delete = ON');
     db.exec(`
       CREATE TABLE IF NOT EXISTS mailbox_users (user_id TEXT PRIMARY KEY, since INTEGER NOT NULL) STRICT;
       CREATE TABLE IF NOT EXISTS mailbox_items (
