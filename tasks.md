@@ -26,7 +26,11 @@
   from Alex's wake consent on the server, turning it on restores it; the app stays connected, no server errors
 - [ ] A true stranger's request on a phone: covered by server tests with real clients, not tried on the emulators
   (both test accounts share a group, so they stay contacts)
-- [ ] Google Play upload of 1.0.42 (1.0.41 is still in review)
+- [X] 2026-11-24, owner's yes: bundle 57 uploaded once (closed testing), open, production (100 %, 22 active
+  installs) and internal took it from the library; devices unchanged (8 865 phones, 4 707 tablets). Internal
+  published at once ("LastCall 1.0.42 internal"); production, open and closed sent to Google review, replacing
+  1.0.41 still in review. Notes en-US + ru-RU (Play pre-filled the notes field with 35 empty language
+  templates on production; replaced with the two real notes)
 
 # 1.0.41 / code56 — 30 languages, mirrored layout for right-to-left scripts (2026-11-24)
 
