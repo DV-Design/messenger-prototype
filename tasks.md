@@ -1,3 +1,23 @@
+# 1.0.42 / code57 — GPT review fixes: message requests, history archive, storage, direct-only files (2026-11-24)
+
+- [X] msg-5th: message requests (strangers' mailbox items stay unopened on the server; no contact, no
+  wake rights, no WebRTC from their connect); accept with separate calls/notifications and direct
+  connection permissions, editable on the contact profile; decline/block drop their items; blocked
+  senders refused before any write on every path; `watch.consent` keeps blocked/limited contacts
+  watched without wake rights. Contract: [MAILBOX-CONTRACT.md](docs/MAILBOX-CONTRACT.md)
+  → Artifacts: [messenger.ts](packages/core/src/messenger.ts), [requests.tsx](apps/mobile/src/app/requests.tsx), [contact](apps/mobile/src/app/contact/%5Bid%5D.tsx), [server directory](apps/server/src/directory.ts), [mailbox.test.ts](apps/server/test/mailbox.test.ts), [e2e contacts](tests/e2e/contacts.ts)
+- [X] msg-9ri: history over 100/chat and 500/overall goes to an encrypted archive table in the same
+  transaction instead of being deleted; "Show earlier messages" pages it read-only
+  → Artifacts: [local-records.ts](packages/core/src/local-records.ts), [record-store.ts](apps/mobile/src/record-store.ts), [archive.test.ts](packages/core/src/archive.test.ts)
+- [X] msg-11x step 1: storage counts, sizes and deletes large files and .part downloads; Clear all prunes
+  orphan large-file folders; texts no longer claim large files are encrypted (step 2 = msg-69g)
+- [X] msg-co5: strict route classification (selected pair, both candidates known), route re-checked every
+  3 s during large transfers with pause and resume from the received offset; relay-only notice
+  → Artifacts: [session.ts](packages/core/src/session.ts), [route.test.ts](packages/core/src/route.test.ts), [bulk-session.test.ts](packages/core/src/bulk-session.test.ts)
+- [X] `npm run check` (mobile 285, server 153, core 314) and Playwright e2e 18 passed / 1 skipped
+- [X] 18 new strings translated into 29 languages by three helpers; all pass check-locales; [i18n-missing.mjs](apps/mobile/scripts/i18n-missing.mjs) lists untranslated t() strings
+- [ ] Server deploy needed before release (watch `consent`); build, emulator check, release on request
+
 # 1.0.41 / code56 — 30 languages, mirrored layout for right-to-left scripts (2026-11-24)
 
 - [X] The UI follows the phone: the first preferred language LastCall has, otherwise English; only that

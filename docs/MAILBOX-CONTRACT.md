@@ -85,3 +85,22 @@ Client (`MessengerClient`):
 - Server: `test/mailbox.test.ts` with real `MessengerClient`s over WebSockets: offline delivery,
   delivered and read ticks, first message from a stranger, file placeholder order, group roster and
   message to offline members, refusal for older apps; storage, quotas, push cooldown/retry rules.
+
+## Message requests and permissions (1.0.42, msg-5th)
+
+- A mailbox item from someone who is not a contact is a **message request**: the client does not
+  decrypt or save it and does not acknowledge it, so it stays on the server (≤ 7 days). The sender
+  is not added to contacts, not watched for wakes, and an incoming `connect` from a stranger opens
+  no WebRTC session (no IP exposure). The server never pushes for strangers (no consent).
+- **Accept** adds the contact with two separate choices: *calls and notifications* (wake consent)
+  and *direct connection* (WebRTC: files and calls, IP visible to each other). Both can be changed
+  on the contact profile. **Decline** acknowledges their items as not delivered (the server deletes
+  them, the sender never sees two ticks). **Block** does the same and refuses them from then on.
+- Every receive path (mailbox, direct text, file, large-file offer, service record) refuses a
+  blocked sender before writing; blocking closes the direct session.
+- `watch` carries an optional `consent` subset: all contacts stay watched (presence, moved keys),
+  only `consent` may wake the phone. Sent only when it differs from the watched list, so a client
+  without limits stays compatible with older servers.
+- History over the in-memory limit (100 per chat, 500 overall) is written to an encrypted `archive`
+  table in the same transaction and paged on request ("Show earlier messages"), instead of being
+  deleted (msg-9ri).
