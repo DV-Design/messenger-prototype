@@ -16,7 +16,8 @@
   → Artifacts: [session.ts](packages/core/src/session.ts), [route.test.ts](packages/core/src/route.test.ts), [bulk-session.test.ts](packages/core/src/bulk-session.test.ts)
 - [X] `npm run check` (mobile 285, server 153, core 314) and Playwright e2e 18 passed / 1 skipped
 - [X] 18 new strings translated into 29 languages by three helpers; all pass check-locales; [i18n-missing.mjs](apps/mobile/scripts/i18n-missing.mjs) lists untranslated t() strings
-- [ ] Server deploy needed before release (watch `consent`); build, emulator check, release on request
+- [X] `artifacts/LastCall-1.0.42-store.aab` 60 492 938 bytes, sha256 `c042aa1b7d692f3f566a9aeac8ecb8a50e91c326b40b673404a6b68d1651976a`; on the emulator: chats, chat and the contact profile with the PERMISSIONS section open, no crashes
+- [ ] Before release: deploy the server (watch `consent`; an older server would reject a client that limits a contact); then the requests flow on two emulators; then Google Play
 
 # 1.0.41 / code56 — 30 languages, mirrored layout for right-to-left scripts (2026-11-24)
 
