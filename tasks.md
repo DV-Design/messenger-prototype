@@ -16,8 +16,17 @@
   → Artifacts: [session.ts](packages/core/src/session.ts), [route.test.ts](packages/core/src/route.test.ts), [bulk-session.test.ts](packages/core/src/bulk-session.test.ts)
 - [X] `npm run check` (mobile 285, server 153, core 314) and Playwright e2e 18 passed / 1 skipped
 - [X] 18 new strings translated into 29 languages by three helpers; all pass check-locales; [i18n-missing.mjs](apps/mobile/scripts/i18n-missing.mjs) lists untranslated t() strings
-- [X] `artifacts/LastCall-1.0.42-store.aab` 60 492 938 bytes, sha256 `c042aa1b7d692f3f566a9aeac8ecb8a50e91c326b40b673404a6b68d1651976a`; on the emulator: chats, chat and the contact profile with the PERMISSIONS section open, no crashes
-- [ ] Before release: deploy the server (watch `consent`; an older server would reject a client that limits a contact); then the requests flow on two emulators; then Google Play
+- [X] Final `artifacts/LastCall-1.0.42-store.aab` 60492913 bytes, sha256 `bd6b8afe5602eb9a6e1f248bdf2890f551fc239379e794583741e0d34e884752` (rebuilt after the fix below)
+- [X] Server deployed 2026-11-24 with the owner's yes (rollback image `messenger-signaling:before-requests`, DB backup
+  `/data/directory-before-requests-2026-11-24.sqlite`), 88 users kept
+- [X] Emulators found a bug present since 1.0.40: after Delete contact a group co-member stays a contact and their
+  next direct message through the mailbox was dropped (no chat). Fixed: the chat reopens (server test proves it
+  fails without the fix); on the emulator Alex got "Second try from Maria" in a reopened chat
+- [X] Permissions on the emulator against the deployed server: turning off Calls and notifications removes Maria
+  from Alex's wake consent on the server, turning it on restores it; the app stays connected, no server errors
+- [ ] A true stranger's request on a phone: covered by server tests with real clients, not tried on the emulators
+  (both test accounts share a group, so they stay contacts)
+- [ ] Google Play upload of 1.0.42 (1.0.41 is still in review)
 
 # 1.0.41 / code56 — 30 languages, mirrored layout for right-to-left scripts (2026-11-24)
 
