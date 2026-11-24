@@ -151,7 +151,6 @@
  "The check uses the official LastCall website and does not use your profile server.": "檢查會透過 LastCall 官方網站進行，不會使用你的個人資料伺服器。",
  "Deleting the account removes the profile and push consents on the server, plus the device key, contacts and history on this phone. This cannot be undone.": "刪除帳號會移除伺服器上的個人資料和推播同意，以及這支手機上的裝置金鑰、聯絡人和記錄。此操作無法復原。",
  "The server stores your profile and helps find contacts. Text, files and calls travel over a protected connection between participants; WebRTC uses TURN when needed.": "伺服器會儲存你的個人資料並協助尋找聯絡人。文字、檔案和通話透過參與者之間的受保護連線傳輸；必要時 WebRTC 會使用 TURN。",
- "Contacts, messages and files are encrypted on the device. The outbox waits for the recipient for up to 7 days and survives restarts. In groups, data syncs between participants. Limits: 5 MiB per file, up to 16 files waiting for delivery, up to 2000 stored files / 10 GiB in total and never the last 512 MB of free phone space. On a network change the app tries to preserve the session for 10 seconds.": "聯絡人、訊息和檔案都在裝置上加密。寄件匣會為收件人等待最長 7 天，重新啟動後仍會保留。在群組中，資料會在成員之間同步。限制：每個檔案 5 MiB，最多 16 個檔案等待傳遞，最多儲存 2000 個檔案 / 共 10 GiB，且絕不佔用手機最後 512 MB 的可用空間。切換網路時，應用程式會嘗試在 10 秒內保持工作階段。",
  "Android notifications work only when Firebase is configured in the build and on the server and you granted permission. Texts wait on the server end-to-end encrypted for up to 7 days; files need the sender’s phone to be online. After a force-stop, Android push does not work until the app is opened manually. Android system incoming calls use LastCall’s own phone account, registered automatically. iOS push/CallKit and group calls are not available yet.": "只有在建置版本和伺服器中都設定了 Firebase，且你已授予權限時，Android 通知才會運作。文字訊息會以端對端加密的形式在伺服器上等待最長 7 天；檔案需要傳送者的手機在線上。強制停止應用程式後，在手動開啟應用程式之前 Android 推播都不會運作。Android 系統來電使用 LastCall 自己的電話帳戶，此帳戶會自動註冊。iOS 推播/CallKit 和群組通話暫不提供。",
  "A direct connection reveals your IP to the peer. This preview has not passed an independent audit, does not use Double Ratchet and does not promise DPI invisibility. Removing the app can lose the key and local history.": "直接連線會向對方暴露你的 IP。這個預覽版尚未通過獨立稽核，未使用 Double Ratchet，也不保證對 DPI 不可見。移除應用程式可能導致金鑰和本機記錄遺失。",
  "“—” means WebRTC has not provided the metric yet. Separate conversations use independent connections.": "「—」表示 WebRTC 尚未提供這項指標。不同的對話使用彼此獨立的連線。",
@@ -380,7 +379,6 @@
  "Deleted files disappear from the chats as well and cannot be restored.": "刪除的檔案也會從聊天中消失，且無法還原。",
  "Delete all files?": "要刪除所有檔案嗎？",
  "{used} of {limit} · {files} of {maxFiles} files": "{used}/{limit} · {files}/{maxFiles} 個檔案",
- "Files arrive directly from people and are kept only on this phone, encrypted inside LastCall. When the storage is full, new files cannot be received until you free space.": "檔案直接來自對方，只會以加密形式保存在這支手機的 LastCall 中。儲存空間已滿時，在你釋出空間之前無法接收新檔案。",
  "FOLDERS": "資料夾",
  "Clear all data": "清除所有資料",
  "Could not download the translation pack. Check the connection and try again.": "無法下載翻譯套件。請檢查網路連線後再試一次。",
@@ -754,12 +752,12 @@
  "Messages waiting: {count}": "等待中的訊息：{count}",
  "Wants to start a chat": "想開始聊天",
  "Accept": "接受",
- "Contacts, messages and files up to 5 MB are encrypted on the device; larger files, up to 1 GB, are kept in the app’s private folder, protected by Android. The outbox waits for the recipient for up to 7 days and survives restarts. In groups, data syncs between participants. Limits: up to 16 files waiting for delivery, up to 2000 stored files / 10 GiB in total and never the last 512 MB of free phone space. On a network change the app tries to preserve the session for 10 seconds.": "聯絡人、訊息和不超過 5 MB 的檔案都在裝置上加密；較大的檔案（最大 1 GB）保存在應用程式的私人資料夾中，受 Android 保護。寄件匣會為收件人等待最長 7 天，重新啟動後仍會保留。在群組中，資料會在成員之間同步。限制：最多 16 個檔案等待傳遞，最多儲存 2000 個檔案 / 共 10 GiB，且絕不佔用手機最後 512 MB 的可用空間。切換網路時，應用程式會嘗試在 10 秒內保持工作階段。",
- "Files arrive directly from people and are kept only on this phone. Files up to 5 MB are encrypted inside LastCall; larger files are kept in the app’s private folder, protected by Android. When the storage is full, new files cannot be received until you free space.": "檔案直接來自對方，只會保存在這支手機上。不超過 5 MB 的檔案會在 LastCall 內加密；較大的檔案保存在應用程式的私人資料夾中，受 Android 保護。儲存空間已滿時，在你釋出空間之前無法接收新檔案。",
  "You turned off the direct connection with this contact: messages go through the server, files and calls are not available.": "你已關閉與這位聯絡人的直接連線：訊息經由伺服器傳輸，無法使用檔案和通話。",
  "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.": "雙方手機都在線上，但無法使用直接連線。檔案會等待直接連線；訊息仍可送達。",
  "Draft:": "草稿：",
  "Large file": "大型檔案",
- "Files over 5 MB go straight to the recipient’s phone over a direct connection and are encrypted on the way. On both phones they are stored without LastCall’s extra encryption.": "超過 5 MB 的檔案會透過直接連線直達收件人的手機，傳輸途中會加密。在雙方手機上，這些檔案儲存時都不帶 LastCall 的額外加密。",
- "Large file · directly to the phone, stored without LastCall encryption": "大型檔案 · 直達手機，儲存時不經 LastCall 加密"
+ "A file over 5 MB goes straight to the recipient’s phone over a direct connection, encrypted on the way. Both phones need to be online.": "超過 5 MB 的檔案會透過直接連線直接傳送到收件人的手機，傳輸過程中加密。雙方手機都必須在線上。",
+ "Large file · directly to the recipient’s phone": "大型檔案 · 直接傳送到收件人的手機",
+ "Files arrive directly from people, encrypted on the way, and are kept only on this phone, in the app’s private folder. When the storage is full, new files cannot be received until you free space.": "檔案直接來自對方，傳輸過程中加密，且只會保存在這支手機上應用程式的私人資料夾中。儲存空間已滿時，在你釋出空間之前無法接收新檔案。",
+ "Contacts and messages are encrypted on the device. Files, up to 1 GB, are encrypted on the way and kept in the app’s private folder. The outbox waits for the recipient for up to 7 days and survives restarts. In groups, data syncs between participants. Limits: up to 16 files waiting for delivery, up to 2000 stored files / 10 GiB in total and never the last 512 MB of free phone space. On a network change the app tries to preserve the session for 10 seconds.": "聯絡人和訊息都在裝置上加密。最大 1 GB 的檔案會在傳輸過程中加密，並保存在應用程式的私人資料夾中。寄件匣會為收件人等待最長 7 天，重新啟動後仍會保留。在群組中，資料會在成員之間同步。限制：最多 16 個檔案等待傳遞，最多儲存 2000 個檔案 / 共 10 GiB，且絕不佔用手機最後 512 MB 的可用空間。切換網路時，應用程式會嘗試在 10 秒內保持工作階段。"
 }

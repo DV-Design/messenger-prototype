@@ -47,3 +47,11 @@ move is retried. Version-1 (hex) and version-2 (base64) sealed files are both re
 
 The database `<userId>-<serverHash>.db` lives in the same `messenger-v2` folder, so "Delete account"
 removes it with the rest after closing it. Attachments are unchanged (separate encrypted files).
+
+## Files (since 1.0.43)
+
+Owner's decision (2026-11-24): files are encrypted on the way (end-to-end session, per-file key for large
+files), not on the phone. New attachments of any size are stored as plain bytes in the app's private
+folder (`<key>.file` for files up to 5 MiB, `lastcall-bulk/<key>/` for large ones). Attachments saved by
+earlier versions as sealed `.bin`/`.sealed` files are still read and deleted as before. Contacts, chats
+and messages stay in the encrypted record store.

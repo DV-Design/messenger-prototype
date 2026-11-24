@@ -58,7 +58,7 @@ export function AttachmentCard({ file, self, group = false, sender, onOpen, onLo
     {receipt}
     {available && preview?.key === previewKey && <Image source={{ uri: preview.uri }} style={styles.previewImage} resizeMode="cover" />}
     <View style={styles.row}><Icon name={waiting ? 'time-outline' : file.mime.startsWith('video/') ? 'videocam-outline' : file.mime.startsWith('image/') ? 'image-outline' : 'document-text-outline'} size={25} /><View><Text numberOfLines={2} style={styles.fileName}>{file.name}</Text><Text style={styles.fileMeta}>{fileSize(file.size)} · {label}</Text>
-      {file.large && <Text style={styles.fileMeta}>{t('Large file · directly to the phone, stored without LastCall encryption')}</Text>}
+      {file.large && <Text style={styles.fileMeta}>{t('Large file · directly to the recipient’s phone')}</Text>}
       {waiting && <Text style={styles.fileMeta}>{late ? t('The sender’s phone did not come online in time') : t('Arrives as soon as the sender’s phone is online')}</Text>}
       {file.status === 'receiving' && !waiting && <Text style={styles.fileMeta}>{transferText(file.receivedBytes, file.size)}</Text>}
       {self && file.large && file.deliveryStatus !== 'delivered' && file.deliveryStatus !== 'expired' && file.receivedBytes > 0 && <Text style={styles.fileMeta}>{t('Sending')} · {transferText(file.receivedBytes, file.size)}</Text>}

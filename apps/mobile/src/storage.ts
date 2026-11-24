@@ -144,6 +144,21 @@ export async function sealedStateAdapter(identity: DeviceIdentity, serverUrl: st
         if (other.exists) other.delete();
       });
     },
+    // Since 1.0.43 files are encrypted on the way only; on the phone they sit as plain bytes in the app's private folder.
+    savePlainAttachment: (key: string, data: Uint8Array) => {
+      if (!(data instanceof Uint8Array) || data.byteLength > MAX_SEALED_ATTACHMENT_BYTES / 2) return Promise.reject(new Error(t('The file is larger than 5 MiB.')));
+      if (!hasDiskRoom(Paths.availableDiskSpace, data.byteLength)) return Promise.reject(new Error(t('Not enough free space on the phone. Free some space and try again.')));
+      return serialized(async () => {
+        const temporary = attachment(key, '.next');
+        await temporary.write(data);
+        await temporary.move(attachment(key, '.file'), { overwrite: true });
+      });
+    },
+    loadPlainAttachment: async (key: string): Promise<Uint8Array | null> => {
+      await writes.catch(() => {});
+      const plain = attachment(key, '.file');
+      return plain.exists ? await plain.bytes() : null;
+    },
     loadAttachment: async (key: string): Promise<string | null> => {
       await writes.catch(() => {});
       const binary = attachment(key, '.bin');
@@ -165,6 +180,8 @@ export async function sealedStateAdapter(identity: DeviceIdentity, serverUrl: st
         if (source.exists) source.delete();
         const binary = attachment(key, '.bin');
         if (binary.exists) binary.delete();
+        const plain = attachment(key, '.file');
+        if (plain.exists) plain.delete();
         const temporary = attachment(key, '.next');
         if (temporary.exists) temporary.delete();
       });
