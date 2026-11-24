@@ -14,7 +14,7 @@ const config: ExpoConfig = {
   name: 'LastCall',
   slug: 'messenger-prototype',
   icon: './assets/lastcall-icon.png',
-  version: '1.0.40',
+  version: '1.0.41',
   scheme: 'messenger-preview',
   orientation: 'default',
   userInterfaceStyle: 'light',
@@ -36,7 +36,7 @@ const config: ExpoConfig = {
   },
   android: {
     package: androidPackage,
-    versionCode: 55,
+    versionCode: 56,
     allowBackup: false,
     adaptiveIcon: { foregroundImage: './assets/lastcall-icon.png', backgroundColor: '#FFFFFF' },
     ...(googleServicesFile ? { googleServicesFile } : {}),
@@ -49,7 +49,8 @@ const config: ExpoConfig = {
   extra: { nativeFcmConfigured: !!googleServicesFile, distribution, directUpdates: distribution === 'direct' },
   plugins: [
     './plugins/withLastCallNamespace.cjs',
-    ['expo-localization', { supportedLocales: { ios: ['en', 'ru'], android: ['en', 'ru'] } }],
+    // The languages LastCall has (i18n/languages.json); Android keeps only these translations and lists them in its per-app language setting.
+    ['expo-localization', { supportedLocales: { ios: ['en', 'ru', 'es', 'pt', 'fr', 'de', 'it', 'pl', 'uk', 'tr', 'ar', 'fa', 'he', 'ur', 'hi', 'bn', 'id', 'ms', 'vi', 'th', 'zh-Hans', 'zh-Hant', 'ja', 'ko', 'nl', 'ro', 'cs', 'el', 'kk', 'uz'], android: ['en', 'ru', 'es', 'pt', 'fr', 'de', 'it', 'pl', 'uk', 'tr', 'ar', 'fa', 'he', 'ur', 'hi', 'bn', 'id', 'ms', 'vi', 'th', 'zh-Hans', 'zh-Hant', 'ja', 'ko', 'nl', 'ro', 'cs', 'el', 'kk', 'uz'] } }],
     './plugins/withLastCallPip.cjs',
     'expo-router',
     ['expo-audio', { microphonePermission: 'Microphone is used for calls and voice messages.', enableBackgroundRecording: false, enableBackgroundPlayback: false }],

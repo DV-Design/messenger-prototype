@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="lastcall_call_end">Τερματισμός κλήσης</string>
+  <string name="lastcall_call_end_video">Τερματισμός βιντεοκλήσης</string>
+  <string name="lastcall_notification_channel_preview">Νέα μηνύματα LastCall</string>
+  <string name="lastcall_notification_channel_preview_desc">Ποιος σας έγραψε. Το κείμενο των μηνυμάτων δεν εμφανίζεται ποτέ στις ειδοποιήσεις</string>
+  <string name="lastcall_notification_you">Εσείς</string>
+  <string name="lastcall_notification_summary">Νέα μηνύματα: %1$d · συνομιλίες: %2$d</string>
+  <string name="lastcall_call_active_channel">Κλήση LastCall</string>
+  <string name="lastcall_call_active_title">LastCall · σε κλήση</string>
+  <string name="lastcall_call_active_video_text">Η κάμερα και το μικρόφωνο είναι ενεργά για την κλήση</string>
+  <string name="lastcall_call_active_audio_text">Το μικρόφωνο είναι ενεργό για την κλήση που απαντήθηκε</string>
+  <string name="lastcall_call_setup_channel">Προετοιμασία κλήσης LastCall</string>
+  <string name="lastcall_call_setup_desc">Ασφαλής προετοιμασία κλήσης χωρίς πρόσβαση στο μικρόφωνο</string>
+  <string name="lastcall_call_setup_text">Σύνδεση ασφαλούς κλήσης</string>
+  <string name="lastcall_call_incoming_channel">Εισερχόμενες κλήσεις LastCall</string>
+  <string name="lastcall_call_incoming_desc">Εισερχόμενες κλήσεις LastCall</string>
+  <string name="lastcall_call_incoming_text">Εισερχόμενη κλήση · %1$s</string>
+  <string name="lastcall_call_incoming_label">LastCall · εισερχόμενη κλήση</string>
+  <string name="lastcall_call_video_hint">Το βίντεο ξεκινά αφού απαντήσετε</string>
+  <string name="lastcall_call_audio_hint">Το μικρόφωνο ενεργοποιείται μόνο αφού απαντήσετε</string>
+  <string name="lastcall_decline">Απόρριψη</string>
+  <string name="lastcall_answer">Απάντηση</string>
+  <string name="lastcall_connecting">Σύνδεση…</string>
+  <string name="lastcall_end">Τερματισμός</string>
+</resources>

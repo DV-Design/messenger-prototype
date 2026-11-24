@@ -1,0 +1,248 @@
+{
+ "LANGUAGES": [
+  {
+   "code": "en",
+   "english": "English",
+   "native": "English",
+   "intl": "en-US",
+   "android": "values",
+   "play": "en-US"
+  },
+  {
+   "code": "ru",
+   "english": "Russian",
+   "native": "Русский",
+   "intl": "ru-RU",
+   "android": "values-ru",
+   "play": "ru-RU"
+  },
+  {
+   "code": "es",
+   "english": "Spanish",
+   "native": "Español",
+   "intl": "es-ES",
+   "android": "values-es",
+   "play": "es-ES"
+  },
+  {
+   "code": "pt",
+   "english": "Portuguese (Brazil)",
+   "native": "Português",
+   "intl": "pt-BR",
+   "android": "values-pt",
+   "play": "pt-BR"
+  },
+  {
+   "code": "fr",
+   "english": "French",
+   "native": "Français",
+   "intl": "fr-FR",
+   "android": "values-fr",
+   "play": "fr-FR"
+  },
+  {
+   "code": "de",
+   "english": "German",
+   "native": "Deutsch",
+   "intl": "de-DE",
+   "android": "values-de",
+   "play": "de-DE"
+  },
+  {
+   "code": "it",
+   "english": "Italian",
+   "native": "Italiano",
+   "intl": "it-IT",
+   "android": "values-it",
+   "play": "it-IT"
+  },
+  {
+   "code": "pl",
+   "english": "Polish",
+   "native": "Polski",
+   "intl": "pl-PL",
+   "android": "values-pl",
+   "play": "pl-PL"
+  },
+  {
+   "code": "uk",
+   "english": "Ukrainian",
+   "native": "Українська",
+   "intl": "uk-UA",
+   "android": "values-uk",
+   "play": "uk"
+  },
+  {
+   "code": "tr",
+   "english": "Turkish",
+   "native": "Türkçe",
+   "intl": "tr-TR",
+   "android": "values-tr",
+   "play": "tr-TR"
+  },
+  {
+   "code": "ar",
+   "english": "Arabic",
+   "native": "العربية",
+   "intl": "ar",
+   "android": "values-ar",
+   "rtl": true,
+   "play": "ar"
+  },
+  {
+   "code": "fa",
+   "english": "Persian (Farsi)",
+   "native": "فارسی",
+   "intl": "fa-IR",
+   "android": "values-fa",
+   "rtl": true,
+   "play": "fa"
+  },
+  {
+   "code": "he",
+   "english": "Hebrew",
+   "native": "עברית",
+   "intl": "he-IL",
+   "android": "values-iw",
+   "rtl": true,
+   "play": "iw-IL"
+  },
+  {
+   "code": "ur",
+   "english": "Urdu",
+   "native": "اردو",
+   "intl": "ur-PK",
+   "android": "values-ur",
+   "rtl": true,
+   "play": "ur"
+  },
+  {
+   "code": "hi",
+   "english": "Hindi",
+   "native": "हिन्दी",
+   "intl": "hi-IN",
+   "android": "values-hi",
+   "play": "hi-IN"
+  },
+  {
+   "code": "bn",
+   "english": "Bengali",
+   "native": "বাংলা",
+   "intl": "bn-BD",
+   "android": "values-bn",
+   "play": "bn-BD"
+  },
+  {
+   "code": "id",
+   "english": "Indonesian",
+   "native": "Bahasa Indonesia",
+   "intl": "id-ID",
+   "android": "values-in",
+   "play": "id"
+  },
+  {
+   "code": "ms",
+   "english": "Malay",
+   "native": "Bahasa Melayu",
+   "intl": "ms-MY",
+   "android": "values-ms",
+   "play": "ms"
+  },
+  {
+   "code": "vi",
+   "english": "Vietnamese",
+   "native": "Tiếng Việt",
+   "intl": "vi-VN",
+   "android": "values-vi",
+   "play": "vi"
+  },
+  {
+   "code": "th",
+   "english": "Thai",
+   "native": "ไทย",
+   "intl": "th-TH",
+   "android": "values-th",
+   "play": "th"
+  },
+  {
+   "code": "zh-Hans",
+   "english": "Chinese (Simplified)",
+   "native": "简体中文",
+   "intl": "zh-CN",
+   "android": "values-b+zh+Hans",
+   "play": "zh-CN"
+  },
+  {
+   "code": "zh-Hant",
+   "english": "Chinese (Traditional)",
+   "native": "繁體中文",
+   "intl": "zh-TW",
+   "android": "values-b+zh+Hant",
+   "play": "zh-TW"
+  },
+  {
+   "code": "ja",
+   "english": "Japanese",
+   "native": "日本語",
+   "intl": "ja-JP",
+   "android": "values-ja",
+   "play": "ja-JP"
+  },
+  {
+   "code": "ko",
+   "english": "Korean",
+   "native": "한국어",
+   "intl": "ko-KR",
+   "android": "values-ko",
+   "play": "ko-KR"
+  },
+  {
+   "code": "nl",
+   "english": "Dutch",
+   "native": "Nederlands",
+   "intl": "nl-NL",
+   "android": "values-nl",
+   "play": "nl-NL"
+  },
+  {
+   "code": "ro",
+   "english": "Romanian",
+   "native": "Română",
+   "intl": "ro-RO",
+   "android": "values-ro",
+   "play": "ro"
+  },
+  {
+   "code": "cs",
+   "english": "Czech",
+   "native": "Čeština",
+   "intl": "cs-CZ",
+   "android": "values-cs",
+   "play": "cs-CZ"
+  },
+  {
+   "code": "el",
+   "english": "Greek",
+   "native": "Ελληνικά",
+   "intl": "el-GR",
+   "android": "values-el",
+   "play": "el-GR"
+  },
+  {
+   "code": "kk",
+   "english": "Kazakh",
+   "native": "Қазақ тілі",
+   "intl": "kk-KZ",
+   "android": "values-kk",
+   "play": "kk"
+  },
+  {
+   "code": "uz",
+   "english": "Uzbek (Latin)",
+   "native": "O‘zbekcha",
+   "intl": "uz-UZ",
+   "android": "values-uz",
+   "play": "uz"
+  }
+ ]
+}

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="lastcall_call_end">কল শেষ করুন</string>
+  <string name="lastcall_call_end_video">ভিডিও কল শেষ করুন</string>
+  <string name="lastcall_notification_channel_preview">LastCall-এর নতুন মেসেজ</string>
+  <string name="lastcall_notification_channel_preview_desc">কে আপনাকে লিখেছেন। নোটিফিকেশনে মেসেজের টেক্সট কখনো দেখানো হয় না</string>
+  <string name="lastcall_notification_you">আপনি</string>
+  <string name="lastcall_notification_summary">নতুন মেসেজ: %1$d · চ্যাট: %2$d</string>
+  <string name="lastcall_call_active_channel">LastCall কল</string>
+  <string name="lastcall_call_active_title">LastCall · কলে আছেন</string>
+  <string name="lastcall_call_active_video_text">কলের জন্য ক্যামেরা ও মাইক্রোফোন চালু আছে</string>
+  <string name="lastcall_call_active_audio_text">ধরা কলের জন্য মাইক্রোফোন চালু আছে</string>
+  <string name="lastcall_call_setup_channel">LastCall কল সেটআপ</string>
+  <string name="lastcall_call_setup_desc">মাইক্রোফোন অ্যাক্সেস ছাড়াই সুরক্ষিত কল সেটআপ</string>
+  <string name="lastcall_call_setup_text">সুরক্ষিত কল কানেক্ট হচ্ছে</string>
+  <string name="lastcall_call_incoming_channel">LastCall ইনকামিং কল</string>
+  <string name="lastcall_call_incoming_desc">LastCall ইনকামিং কল</string>
+  <string name="lastcall_call_incoming_text">ইনকামিং কল · %1$s</string>
+  <string name="lastcall_call_incoming_label">LastCall · ইনকামিং কল</string>
+  <string name="lastcall_call_video_hint">কল ধরার পরে ভিডিও শুরু হবে</string>
+  <string name="lastcall_call_audio_hint">মাইক্রোফোন শুধু কল ধরার পরে চালু হয়</string>
+  <string name="lastcall_decline">প্রত্যাখ্যান</string>
+  <string name="lastcall_answer">ধরুন</string>
+  <string name="lastcall_connecting">কানেক্ট হচ্ছে…</string>
+  <string name="lastcall_end">শেষ করুন</string>
+</resources>

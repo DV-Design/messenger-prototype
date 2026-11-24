@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="lastcall_call_end">Raccrocher</string>
+  <string name="lastcall_call_end_video">Terminer l\'appel vidéo</string>
+  <string name="lastcall_notification_channel_preview">Nouveaux messages LastCall</string>
+  <string name="lastcall_notification_channel_preview_desc">Qui vous a écrit. Le texte des messages n\'est jamais affiché dans les notifications</string>
+  <string name="lastcall_notification_you">Vous</string>
+  <string name="lastcall_notification_summary">Nouveaux messages : %1$d · discussions : %2$d</string>
+  <string name="lastcall_call_active_channel">Appel LastCall</string>
+  <string name="lastcall_call_active_title">LastCall · en communication</string>
+  <string name="lastcall_call_active_video_text">La caméra et le micro sont activés pour l\'appel</string>
+  <string name="lastcall_call_active_audio_text">Le micro est activé pour l\'appel en cours</string>
+  <string name="lastcall_call_setup_channel">Préparation des appels LastCall</string>
+  <string name="lastcall_call_setup_desc">Préparation d\'un appel sécurisé sans accès au micro</string>
+  <string name="lastcall_call_setup_text">Connexion d\'un appel sécurisé</string>
+  <string name="lastcall_call_incoming_channel">Appels entrants LastCall</string>
+  <string name="lastcall_call_incoming_desc">Appels entrants LastCall</string>
+  <string name="lastcall_call_incoming_text">Appel entrant · %1$s</string>
+  <string name="lastcall_call_incoming_label">LastCall · appel entrant</string>
+  <string name="lastcall_call_video_hint">La vidéo démarre après votre réponse</string>
+  <string name="lastcall_call_audio_hint">Le micro n\'est activé qu\'après votre réponse</string>
+  <string name="lastcall_decline">Refuser</string>
+  <string name="lastcall_answer">Répondre</string>
+  <string name="lastcall_connecting">Connexion…</string>
+  <string name="lastcall_end">Raccrocher</string>
+</resources>

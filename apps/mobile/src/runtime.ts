@@ -1,4 +1,4 @@
-import { locale, t } from './i18n';
+import { emailLocale, t } from './i18n';
 import { useEffect, useSyncExternalStore } from 'react';
 import { AppState, NativeModules, Platform } from 'react-native';
 import * as Network from 'expo-network';
@@ -248,7 +248,7 @@ export async function requestEmailCode(purpose: EmailPurpose, email: string, inv
   if (state.busy) return null;
   if (!state.identity) throw new Error(t('The device key is not loaded yet.'));
   publish({ busy: true, error: undefined });
-  try { return await startEmailChallenge(emailServer(), state.identity, { purpose, email, locale, ...(purpose === 'register' && inviteCode ? { inviteCode } : {}), ...(purpose === 'register' && signupCountryHints ? { countryHints: signupCountryHints } : {}) }); }
+  try { return await startEmailChallenge(emailServer(), state.identity, { purpose, email, locale: emailLocale(), ...(purpose === 'register' && inviteCode ? { inviteCode } : {}), ...(purpose === 'register' && signupCountryHints ? { countryHints: signupCountryHints } : {}) }); }
   finally { publish({ busy: false }); }
 }
 /** Registration: returns the proof to send with the next registration attempt. */

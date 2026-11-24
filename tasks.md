@@ -1,3 +1,24 @@
+# 1.0.41 / code56 — 30 languages, mirrored layout for right-to-left scripts (2026-11-24)
+
+- [X] The UI follows the phone: the first preferred language LastCall has, otherwise English; only that
+  dictionary is loaded. 30 languages (en, ru, es, pt, fr, de, it, pl, uk, tr, ar, fa, he, ur, hi, bn, id,
+  ms, vi, th, zh-Hans, zh-Hant, ja, ko, nl, ro, cs, el, kk, uz); also listed in Android's per-app
+  language setting. Arabic, Persian, Hebrew and Urdu mirror the layout; back/forward arrows turn around.
+  Account emails stay English/Russian
+  → Artifacts: [i18n.ts](apps/mobile/src/i18n.ts), [locales](apps/mobile/src/locales/), [languages.json](apps/mobile/i18n/languages.json), [check-locales.mjs](apps/mobile/scripts/check-locales.mjs), [tests](apps/mobile/tests/i18n.test.ts)
+- [X] Translations made by seven parallel helpers from the English source with the Russian as reference;
+  every language passes `node apps/mobile/scripts/check-locales.mjs` (741 strings with the same
+  {placeholders}, 23 Android strings with escaped quotes and printf args, Play limits). Spot fixes:
+  Spanish audit wording, Polish name placeholders made case-safe, Malay short text, zh-Hans folder
+  - Native strings (notification channels, incoming call, delivery summary) in every language
+  → Artifacts: [plugins/strings](apps/mobile/plugins/strings/), [withLastCallStrings.cjs](apps/mobile/plugins/withLastCallStrings.cjs)
+- [X] Google Play texts for all 28 new languages prepared in [store/listings](store/listings/) (not uploaded)
+- [X] `artifacts/LastCall-1.0.41-store.aab` 60463588 bytes (+0.6 MB), sha256 `34b5ad8abddcb96513597a222e2c036a35b0ae96de9541fb202011b63ad5331f`; emulators: German UI and a
+  German push ("Maria Petrova — Du hast eine ungelesene Nachricht", summary "Neue Nachrichten: 1 · Chats: 1"),
+  Arabic mirrored chats list and chat, Japanese settings. `npm run check` passes (mobile 283, server 152,
+  core 306). Not uploaded to Google Play
+- [ ] The server's own generic push text for very old app versions without background sync is Russian only
+
 # GPT review suggestions (2026-11-24) — planned, not started here
 
 - [ ] msg-5th (already in progress in the working tree, uncommitted): "Message requests". A stranger's

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="lastcall_call_end">Akhiri panggilan</string>
+  <string name="lastcall_call_end_video">Akhiri panggilan video</string>
+  <string name="lastcall_notification_channel_preview">Pesan LastCall baru</string>
+  <string name="lastcall_notification_channel_preview_desc">Siapa yang menulis kepada Anda. Teks pesan tidak pernah ditampilkan di notifikasi</string>
+  <string name="lastcall_notification_you">Anda</string>
+  <string name="lastcall_notification_summary">Pesan baru: %1$d · chat: %2$d</string>
+  <string name="lastcall_call_active_channel">Panggilan LastCall</string>
+  <string name="lastcall_call_active_title">LastCall · dalam panggilan</string>
+  <string name="lastcall_call_active_video_text">Kamera dan mikrofon aktif untuk panggilan</string>
+  <string name="lastcall_call_active_audio_text">Mikrofon aktif untuk panggilan yang dijawab</string>
+  <string name="lastcall_call_setup_channel">Penyiapan panggilan LastCall</string>
+  <string name="lastcall_call_setup_desc">Penyiapan panggilan aman tanpa akses mikrofon</string>
+  <string name="lastcall_call_setup_text">Menghubungkan panggilan aman</string>
+  <string name="lastcall_call_incoming_channel">Panggilan masuk LastCall</string>
+  <string name="lastcall_call_incoming_desc">Panggilan masuk LastCall</string>
+  <string name="lastcall_call_incoming_text">Panggilan masuk · %1$s</string>
+  <string name="lastcall_call_incoming_label">LastCall · panggilan masuk</string>
+  <string name="lastcall_call_video_hint">Video dimulai setelah Anda menjawab</string>
+  <string name="lastcall_call_audio_hint">Mikrofon baru diaktifkan setelah Anda menjawab</string>
+  <string name="lastcall_decline">Tolak</string>
+  <string name="lastcall_answer">Jawab</string>
+  <string name="lastcall_connecting">Menghubungkan…</string>
+  <string name="lastcall_end">Akhiri</string>
+</resources>

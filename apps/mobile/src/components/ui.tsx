@@ -4,10 +4,13 @@ import { router } from 'expo-router';
 import { SafeAreaView } from './SafeArea';
 import type { ComponentProps, ReactNode } from 'react';
 import { colors, styles } from '../styles';
-import { intlLocale, t } from '../i18n';
+import { intlLocale, isRTL, t } from '../i18n';
 import { formatDate } from '../date-format';
 export type IconName = ComponentProps<typeof Ionicons>['name'];
-export function Icon({ name, size = 24, color = colors.accent }: { name: IconName; size?: number; color?: ComponentProps<typeof Ionicons>['color'] | null }) { return <Ionicons name={name} size={size} color={color ?? colors.accent} />; }
+/** Arrows that point "back" or "forward" turn around in right-to-left languages, the way the layout does. */
+const DIRECTIONAL = /^(?:chevron|arrow|caret)-(?:back|forward)|^arrow-(?:undo|redo)|^return-(?:up|down)-(?:back|forward)/;
+export function Icon({ name, size = 24, color = colors.accent }: { name: IconName; size?: number; color?: ComponentProps<typeof Ionicons>['color'] | null }) { return <Ionicons name={name} size={size} color={color ?? colors.accent} style={isRTL && DIRECTIONAL.test(name) ? MIRRORED : undefined} />; }
+const MIRRORED = { transform: [{ scaleX: -1 }] };
 export function IconButton({ name, label, onPress, disabled, color, active }: { name: IconName; label: string; onPress: () => void; disabled?: boolean; color?: string; active?: boolean }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled, selected: active }} disabled={disabled} onPress={onPress} style={({ pressed }) => [styles.iconButton, active && { backgroundColor: colors.accent }, pressed && styles.pressed, disabled && styles.disabled]}><Icon name={name} color={active ? colors.white : color} /></Pressable>;
 }

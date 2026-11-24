@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="lastcall_call_end">Gesprek beëindigen</string>
+  <string name="lastcall_call_end_video">Videogesprek beëindigen</string>
+  <string name="lastcall_notification_channel_preview">Nieuwe LastCall-berichten</string>
+  <string name="lastcall_notification_channel_preview_desc">Wie je een bericht stuurde. De berichttekst wordt nooit in meldingen getoond</string>
+  <string name="lastcall_notification_you">Jij</string>
+  <string name="lastcall_notification_summary">Nieuwe berichten: %1$d · chats: %2$d</string>
+  <string name="lastcall_call_active_channel">LastCall-gesprek</string>
+  <string name="lastcall_call_active_title">LastCall · in gesprek</string>
+  <string name="lastcall_call_active_video_text">Camera en microfoon staan aan voor het gesprek</string>
+  <string name="lastcall_call_active_audio_text">Microfoon staat aan voor het aangenomen gesprek</string>
+  <string name="lastcall_call_setup_channel">Opzetten van LastCall-gesprek</string>
+  <string name="lastcall_call_setup_desc">Beveiligd gesprek opzetten zonder toegang tot de microfoon</string>
+  <string name="lastcall_call_setup_text">Beveiligd gesprek verbinden</string>
+  <string name="lastcall_call_incoming_channel">Inkomende LastCall-gesprekken</string>
+  <string name="lastcall_call_incoming_desc">Inkomende LastCall-gesprekken</string>
+  <string name="lastcall_call_incoming_text">Inkomend gesprek · %1$s</string>
+  <string name="lastcall_call_incoming_label">LastCall · inkomend gesprek</string>
+  <string name="lastcall_call_video_hint">Video start nadat je hebt aangenomen</string>
+  <string name="lastcall_call_audio_hint">De microfoon wordt pas ingeschakeld nadat je hebt aangenomen</string>
+  <string name="lastcall_decline">Weigeren</string>
+  <string name="lastcall_answer">Aannemen</string>
+  <string name="lastcall_connecting">Verbinden…</string>
+  <string name="lastcall_end">Ophangen</string>
+</resources>

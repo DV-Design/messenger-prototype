@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="lastcall_call_end">通話を終了</string>
+  <string name="lastcall_call_end_video">ビデオ通話を終了</string>
+  <string name="lastcall_notification_channel_preview">LastCall の新着メッセージ</string>
+  <string name="lastcall_notification_channel_preview_desc">メッセージの送信者。通知にメッセージの本文が表示されることはありません</string>
+  <string name="lastcall_notification_you">あなた</string>
+  <string name="lastcall_notification_summary">新着メッセージ：%1$d · チャット：%2$d</string>
+  <string name="lastcall_call_active_channel">LastCall の通話</string>
+  <string name="lastcall_call_active_title">LastCall · 通話中</string>
+  <string name="lastcall_call_active_video_text">通話のためにカメラとマイクがオンになっています</string>
+  <string name="lastcall_call_active_audio_text">応答した通話のためにマイクがオンになっています</string>
+  <string name="lastcall_call_setup_channel">LastCall の通話接続</string>
+  <string name="lastcall_call_setup_desc">マイクにアクセスせずに安全な通話を準備します</string>
+  <string name="lastcall_call_setup_text">安全な通話に接続中</string>
+  <string name="lastcall_call_incoming_channel">LastCall の着信</string>
+  <string name="lastcall_call_incoming_desc">LastCall の着信</string>
+  <string name="lastcall_call_incoming_text">着信 · %1$s</string>
+  <string name="lastcall_call_incoming_label">LastCall · 着信</string>
+  <string name="lastcall_call_video_hint">応答するとビデオが始まります</string>
+  <string name="lastcall_call_audio_hint">マイクは応答後にのみオンになります</string>
+  <string name="lastcall_decline">拒否</string>
+  <string name="lastcall_answer">応答</string>
+  <string name="lastcall_connecting">接続中…</string>
+  <string name="lastcall_end">終了</string>
+</resources>

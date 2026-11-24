@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="lastcall_call_end">Anruf beenden</string>
+  <string name="lastcall_call_end_video">Videoanruf beenden</string>
+  <string name="lastcall_notification_channel_preview">Neue LastCall-Nachrichten</string>
+  <string name="lastcall_notification_channel_preview_desc">Wer dir geschrieben hat. Der Nachrichtentext wird nie in Benachrichtigungen angezeigt</string>
+  <string name="lastcall_notification_you">Du</string>
+  <string name="lastcall_notification_summary">Neue Nachrichten: %1$d · Chats: %2$d</string>
+  <string name="lastcall_call_active_channel">LastCall-Anruf</string>
+  <string name="lastcall_call_active_title">LastCall · im Gespräch</string>
+  <string name="lastcall_call_active_video_text">Kamera und Mikrofon sind für den Anruf eingeschaltet</string>
+  <string name="lastcall_call_active_audio_text">Mikrofon ist für den angenommenen Anruf eingeschaltet</string>
+  <string name="lastcall_call_setup_channel">LastCall-Anrufaufbau</string>
+  <string name="lastcall_call_setup_desc">Sicherer Anrufaufbau ohne Mikrofonzugriff</string>
+  <string name="lastcall_call_setup_text">Sicherer Anruf wird verbunden</string>
+  <string name="lastcall_call_incoming_channel">Eingehende LastCall-Anrufe</string>
+  <string name="lastcall_call_incoming_desc">Eingehende LastCall-Anrufe</string>
+  <string name="lastcall_call_incoming_text">Eingehender Anruf · %1$s</string>
+  <string name="lastcall_call_incoming_label">LastCall · eingehender Anruf</string>
+  <string name="lastcall_call_video_hint">Video startet, nachdem du angenommen hast</string>
+  <string name="lastcall_call_audio_hint">Das Mikrofon wird erst eingeschaltet, wenn du annimmst</string>
+  <string name="lastcall_decline">Ablehnen</string>
+  <string name="lastcall_answer">Annehmen</string>
+  <string name="lastcall_connecting">Verbinden…</string>
+  <string name="lastcall_end">Beenden</string>
+</resources>

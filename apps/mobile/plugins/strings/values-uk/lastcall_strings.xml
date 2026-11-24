@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="lastcall_call_end">Завершити дзвінок</string>
+  <string name="lastcall_call_end_video">Завершити відеодзвінок</string>
+  <string name="lastcall_notification_channel_preview">Нові повідомлення LastCall</string>
+  <string name="lastcall_notification_channel_preview_desc">Хто вам написав. Текст повідомлень ніколи не показується в сповіщеннях</string>
+  <string name="lastcall_notification_you">Ви</string>
+  <string name="lastcall_notification_summary">Нових повідомлень: %1$d · чатів: %2$d</string>
+  <string name="lastcall_call_active_channel">Розмова LastCall</string>
+  <string name="lastcall_call_active_title">LastCall · розмова</string>
+  <string name="lastcall_call_active_video_text">Камера й мікрофон увімкнені для дзвінка</string>
+  <string name="lastcall_call_active_audio_text">Мікрофон увімкнений для прийнятого дзвінка</string>
+  <string name="lastcall_call_setup_channel">Підключення дзвінка LastCall</string>
+  <string name="lastcall_call_setup_desc">Підготовка захищеного дзвінка без доступу до мікрофона</string>
+  <string name="lastcall_call_setup_text">Підключення захищеного дзвінка</string>
+  <string name="lastcall_call_incoming_channel">Вхідні дзвінки LastCall</string>
+  <string name="lastcall_call_incoming_desc">Вхідні дзвінки LastCall</string>
+  <string name="lastcall_call_incoming_text">Вхідний дзвінок · %1$s</string>
+  <string name="lastcall_call_incoming_label">LastCall · вхідний дзвінок</string>
+  <string name="lastcall_call_video_hint">Відео почнеться після відповіді</string>
+  <string name="lastcall_call_audio_hint">Мікрофон увімкнеться лише після відповіді</string>
+  <string name="lastcall_decline">Відхилити</string>
+  <string name="lastcall_answer">Прийняти</string>
+  <string name="lastcall_connecting">Підключення…</string>
+  <string name="lastcall_end">Завершити</string>
+</resources>

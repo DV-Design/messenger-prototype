@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="lastcall_call_end">Ukončit hovor</string>
+  <string name="lastcall_call_end_video">Ukončit videohovor</string>
+  <string name="lastcall_notification_channel_preview">Nové zprávy LastCall</string>
+  <string name="lastcall_notification_channel_preview_desc">Kdo vám napsal. Text zprávy se v oznámeních nikdy nezobrazuje</string>
+  <string name="lastcall_notification_you">Vy</string>
+  <string name="lastcall_notification_summary">Nové zprávy: %1$d · chaty: %2$d</string>
+  <string name="lastcall_call_active_channel">Hovor LastCall</string>
+  <string name="lastcall_call_active_title">LastCall · probíhá hovor</string>
+  <string name="lastcall_call_active_video_text">Fotoaparát a mikrofon jsou pro hovor zapnuté</string>
+  <string name="lastcall_call_active_audio_text">Mikrofon je zapnutý pro přijatý hovor</string>
+  <string name="lastcall_call_setup_channel">Navazování hovoru LastCall</string>
+  <string name="lastcall_call_setup_desc">Bezpečné navazování hovoru bez přístupu k mikrofonu</string>
+  <string name="lastcall_call_setup_text">Spojování zabezpečeného hovoru</string>
+  <string name="lastcall_call_incoming_channel">Příchozí hovory LastCall</string>
+  <string name="lastcall_call_incoming_desc">Příchozí hovory LastCall</string>
+  <string name="lastcall_call_incoming_text">Příchozí hovor · %1$s</string>
+  <string name="lastcall_call_incoming_label">LastCall · příchozí hovor</string>
+  <string name="lastcall_call_video_hint">Video se spustí po přijetí hovoru</string>
+  <string name="lastcall_call_audio_hint">Mikrofon se zapne až po přijetí hovoru</string>
+  <string name="lastcall_decline">Odmítnout</string>
+  <string name="lastcall_answer">Přijmout</string>
+  <string name="lastcall_connecting">Připojování…</string>
+  <string name="lastcall_end">Ukončit</string>
+</resources>
