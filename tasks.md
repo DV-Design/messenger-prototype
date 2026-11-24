@@ -1,3 +1,19 @@
+# GPT review suggestions (2026-11-24) — planned, not started here
+
+- [ ] msg-5th (already in progress in the working tree, uncommitted): "Message requests". A stranger's
+  first mailbox item makes them a contact and a push-wake source before decryption; an incoming connect
+  can open WebRTC (IP exposure) before acceptance; blocking differs between mailbox and direct paths.
+  Separate decisions: accept messages / allow calls and push / allow direct connection; blocking acts
+  before any connection or write
+- [ ] msg-11x: "Clear all data" counts and deletes only blobKey files, not large attachments (repro: 1 KiB
+  + 100 MiB → shows 1 file, 1 KiB); files over 5 MiB and .part copies are not LastCall-encrypted while the
+  settings text says all files are. One accounting for both kinds first, then chunked encryption
+- [ ] msg-9ri: history trimmed to 100 texts per chat / 500 overall and dropped from storage; one busy chat
+  pushes out another. Page from SQLite, limit only what is in memory; or make retention a visible choice
+- [ ] msg-co5: currentRoute() can call a pair "direct" without candidate details; route checked only
+  before a large transfer starts. Require a confirmed direct pair (selected candidate pair id), pause on
+  network change and resume from offset; status "Both online, but a direct connection is unavailable"
+
 # 1.0.40 / code55 — encrypted server mailbox, unread-only notices, new store listing (2026-11-23)
 
 - [X] Texts, read receipts, edits, deletions and reactions go through an encrypted server mailbox
