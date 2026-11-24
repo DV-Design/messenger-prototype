@@ -56,6 +56,22 @@ describe('large files over an end-to-end session',()=>{
     await sending;
     expect(reads[0]).toBe(200_000);expect(Buffer.from(store.bytes).equals(Buffer.from(data))).toBe(true);
   });
+  it('stops when the direct path is lost and resumes the same file from the received offset',async()=>{
+    vi.useFakeTimers();
+    const store={bytes:[] as number[],finished:false,aborted:false};const data=pattern(6_000_000);let offers=0;
+    const {a}=await connected({onBulkOffer:async()=>{offers++;return memorySink(store,store.bytes.length);}});
+    let direct=true;let first:unknown;
+    const slow=async(offset:number,length:number)=>{await new Promise(resolve=>setTimeout(resolve,60));return data.slice(offset,offset+length);};
+    const one=a.session.sendBulk({id:'aa'.repeat(16),name:'big.bin',mime:'',size:data.length},slow,async()=>direct).catch(error=>{first=error;});
+    await vi.advanceTimersByTimeAsync(1000);direct=false;
+    for(let i=0;i<400&&!first;i++)await vi.advanceTimersByTimeAsync(25);
+    await one;expect(String(first)).toMatch(/direct path was lost/);
+    const got=store.bytes.length;expect(got).toBeGreaterThan(0);expect(got).toBeLessThan(data.length);expect(store.aborted).toBe(false);
+    direct=true;let done=false;const reads:number[]=[];
+    const two=a.session.sendBulk({id:'aa'.repeat(16),name:'big.bin',mime:'',size:data.length},async(offset,length)=>{reads.push(offset);return data.slice(offset,offset+length);},async()=>direct).then(()=>{done=true;});
+    for(let i=0;i<800&&!done;i++)await vi.advanceTimersByTimeAsync(25);
+    await two;expect(offers).toBe(2);expect(reads[0]).toBe(got);expect(Buffer.from(store.bytes).equals(Buffer.from(data))).toBe(true);
+  });
   it('rejects when the receiver refuses, and never sends to a peer without the capability',async()=>{
     vi.useFakeTimers();
     const {a}=await connected({onBulkOffer:async()=>{throw new Error('Not enough free space');}});

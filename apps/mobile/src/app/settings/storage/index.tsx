@@ -6,7 +6,7 @@ import { MAX_STORED_FILES, MAX_STORED_FILE_BYTES } from '@messenger/core';
 import { ActionLink, MenuGroup, MenuRow, SettingsPage, fileSize } from '../../../components/ui';
 import { errorText, useMessenger } from '../../../runtime';
 import { deletionTargets, storageFolders, storageTotals } from '../../../storage-model';
-import { confirmStoredDeletion, deleteStored } from '../../../storage-actions';
+import { confirmStoredDeletion, deleteAllStored } from '../../../storage-actions';
 import { colors, styles } from '../../../styles';
 import { t } from '../../../i18n';
 
@@ -22,7 +22,7 @@ export default function Storage() {
   function clearAll() {
     confirmStoredDeletion(t('Delete all files?'), folders.some(folder => folder.files.some(file => file.pending)), () => {
       setBusy(true); setError('');
-      void deleteStored(deletionTargets(folders, {})).catch(cause => setError(errorText(cause))).finally(() => setBusy(false));
+      void deleteAllStored(deletionTargets(folders, {})).catch(cause => setError(errorText(cause))).finally(() => setBusy(false));
     });
   }
   return <SettingsPage title={t('Data and storage')}>
@@ -30,7 +30,7 @@ export default function Storage() {
       <Text style={styles.rowName}>{t('{used} of {limit} · {files} of {maxFiles} files', { used: fileSize(totals.bytes), limit: fileSize(MAX_STORED_FILE_BYTES), files: totals.files, maxFiles: MAX_STORED_FILES })}</Text>
       <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.line, overflow: 'hidden' }}><View style={{ width: `${Math.round(share * 100)}%`, height: 6, backgroundColor: share > 0.85 ? colors.danger : colors.accent }} /></View>
       {free > 0 && <Text style={styles.info}>{t('Free on the phone: {free}', { free: fileSize(free) })}</Text>}
-      <Text style={styles.info}>{t('Files arrive directly from people and are kept only on this phone, encrypted inside LastCall. When the storage is full, new files cannot be received until you free space.')}</Text>
+      <Text style={styles.info}>{t('Files arrive directly from people and are kept only on this phone. Files up to 5 MB are encrypted inside LastCall; larger files are kept in the app’s private folder, protected by Android. When the storage is full, new files cannot be received until you free space.')}</Text>
     </View>
     {folders.length === 0 ? <Text style={[styles.body, { textAlign: 'center', marginTop: 28, paddingHorizontal: 24 }]}>{t('No files are stored on this phone.')}</Text>
       : <MenuGroup title={t('FOLDERS')}>{folders.map(folder => <MenuRow key={folder.conversationId} icon={folder.group ? 'people-outline' : 'folder-outline'} title={folder.title}

@@ -35,6 +35,13 @@ export function adoptBulkFile(key: string, name: string, sourceUri: string): voi
 export function deleteBulkFiles(key: string): void {
   try { const dir = folder(key); if (dir.exists) dir.delete(); } catch { /* best effort; the key may not be a large file */ }
 }
+/** Removes large-file folders no record points to any more (a crash between deleting the record and the file). */
+export function pruneBulkFiles(keep: ReadonlySet<string>): void {
+  try {
+    const dir = root(); if (!dir.exists) return;
+    for (const item of dir.list()) if (item instanceof Directory && KEY.test(item.name) && !keep.has(item.name)) item.delete();
+  } catch { /* best effort */ }
+}
 export function deleteAllBulkFiles(): void { try { const dir = root(); if (dir.exists) dir.delete(); } catch { /* best effort */ } }
 
 export const bulkFiles: BulkFileStore = {

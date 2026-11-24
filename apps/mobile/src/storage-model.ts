@@ -1,16 +1,18 @@
 import { mediaKind } from './media-model';
 
 /**
- * Files kept on this phone, grouped into one folder per chat (the contact's or
- * group's name). Only records whose encrypted copy is still stored are listed.
+ * Files kept on this phone, grouped into one folder per chat (the contact's or group's name). Two
+ * kinds count: files up to 5 MiB in LastCall's encrypted store (`blobKey`), and large files kept as
+ * plain files in the app's private folder (`large`): the sender's copy, a received one, and a
+ * download still in progress (its `.part` copy, counted by the bytes already received).
  */
 export type StoredKind = 'photo' | 'video' | 'voice' | 'circle' | 'file';
-export interface StoredFile { id: string; senderId: string; conversationId: string; name: string; mime: string; size: number; timestamp: number; own: boolean; pending: boolean; kind: StoredKind }
+export interface StoredFile { id: string; senderId: string; conversationId: string; name: string; mime: string; size: number; timestamp: number; own: boolean; pending: boolean; kind: StoredKind; large: boolean }
 export interface StorageFolder { conversationId: string; title: string; group: boolean; files: StoredFile[]; bytes: number }
 interface SnapshotLike {
   conversations: readonly {
     id: string; title: string; kind: 'direct' | 'group';
-    files: readonly { id: string; senderId: string; name: string; mime: string; size: number; timestamp: number; blobKey?: string; deliveryStatus?: string }[];
+    files: readonly { id: string; senderId: string; name: string; mime: string; size: number; timestamp: number; blobKey?: string; deliveryStatus?: string; large?: true; status?: string; receivedBytes?: number }[];
   }[];
 }
 
@@ -22,12 +24,23 @@ export function storedKind(name: string, mime: string): StoredKind {
 
 export function storageFolders(snapshot: SnapshotLike, selfId: string | undefined): StorageFolder[] {
   return snapshot.conversations.map(conversation => {
-    const files = conversation.files.filter(file => !!file.blobKey).map(file => ({
-      id: file.id, senderId: file.senderId, conversationId: conversation.id, name: file.name, mime: file.mime, size: file.size, timestamp: file.timestamp,
-      own: file.senderId === selfId, pending: file.senderId === selfId && file.deliveryStatus === 'pending', kind: storedKind(file.name, file.mime),
-    })).sort((a, b) => b.timestamp - a.timestamp);
+    const files = conversation.files.flatMap(file => {
+      const bytes = storedBytes(file, file.senderId === selfId);
+      return bytes === undefined ? [] : [{
+        id: file.id, senderId: file.senderId, conversationId: conversation.id, name: file.name, mime: file.mime, size: bytes, timestamp: file.timestamp,
+        own: file.senderId === selfId, pending: file.senderId === selfId && file.deliveryStatus === 'pending', kind: storedKind(file.name, file.mime), large: !!file.large,
+      }];
+    }).sort((a, b) => b.timestamp - a.timestamp);
     return { conversationId: conversation.id, title: conversation.title, group: conversation.kind === 'group', files, bytes: files.reduce((sum, file) => sum + file.size, 0) };
   }).filter(folder => folder.files.length > 0).sort((a, b) => b.bytes - a.bytes || a.title.localeCompare(b.title));
+}
+
+/** Bytes this record occupies on the phone, or undefined when nothing of it is stored. */
+function storedBytes(file: SnapshotLike['conversations'][number]['files'][number], own: boolean): number | undefined {
+  if (file.deliveryStatus === 'expired') return undefined;
+  if (!file.large) return file.blobKey ? file.size : undefined;
+  if (own || file.status === 'complete') return file.size;
+  return (file.receivedBytes ?? 0) > 0 ? Math.min(file.size, file.receivedBytes!) : undefined;
 }
 
 export function storageTotals(folders: readonly StorageFolder[]) {

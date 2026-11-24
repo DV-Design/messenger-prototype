@@ -18,6 +18,23 @@ test('storage lists one folder per chat with only files still stored, biggest fi
   assert.deepEqual(storageTotals(folders), { bytes: 550, files: 3 });
 });
 
+test('large files count too: the sender copy, a received one and a download in progress', () => {
+  const big = 100 * 1024 * 1024;
+  const folders = storageFolders({ conversations: [
+    { id: 'dm:a', title: 'Alex', kind: 'direct', files: [
+      file('f1', 'alex', 1024),
+      file('f2', 'alex', big, { blobKey: undefined, large: true, status: 'complete' }),
+      file('f3', 'me', big, { blobKey: undefined, large: true, status: 'sending', deliveryStatus: 'pending' }),
+      file('f4', 'alex', big, { blobKey: undefined, large: true, status: 'receiving', receivedBytes: 300 }),
+      file('f5', 'alex', big, { blobKey: undefined, large: true, status: 'receiving', receivedBytes: 0, waiting: true }),
+      file('f6', 'me', big, { blobKey: undefined, large: true, deliveryStatus: 'expired' }),
+    ] },
+  ] }, 'me');
+  assert.deepEqual(storageTotals(folders), { bytes: 1024 + 2 * big + 300, files: 4 });
+  assert.deepEqual(deletionTargets(folders, {}).map(target => target.record.id).sort(), ['f1', 'f2', 'f3', 'f4']);
+  assert.equal(folders[0]!.files.find(item => item.id === 'f2')!.large, true);
+});
+
 test('deleting a file, a folder or everything targets exactly those records', () => {
   const folders = storageFolders({ conversations: [
     { id: 'dm:a', title: 'Alex', kind: 'direct', files: [file('f1', 'alex', 100), file('f2', 'me', 50)] },

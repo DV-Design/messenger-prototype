@@ -65,3 +65,9 @@ test('a message notice names who wrote and how much is unread, never the text', 
   assert.deepEqual(unreadNotice('Мария', null, 3), { title: 'Мария', body: 'You have unread messages: 3' });
   assert.deepEqual(unreadNotice('Мария', 'Выходные', 2), { title: 'Выходные', body: 'Unread messages in the group: 2. Last from Мария' });
 });
+
+test('a relay-only path with waiting files says why files do not move', () => {
+  const session = { status: 'connected', route: 'relay', messages: [], files: [], callState: 'idle', muted: false, stats: {} } as never;
+  assert.match(transportNotice({ directory: 'online', group: false, peerOnline: true, session, pending: 0, waitingFiles: 1 }).text, /direct connection is not available/);
+  assert.doesNotMatch(transportNotice({ directory: 'online', group: false, peerOnline: true, session, pending: 0, waitingFiles: 0 }).text, /direct connection is not available/);
+});

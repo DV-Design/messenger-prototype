@@ -169,7 +169,8 @@ export default function Chat() {
   const canCall = !group && !blockedPeer && !snapshot.activeCall && !recording && (snapshot.status === 'online' || conversation.session?.status === 'connected');
   const notice = transportNotice({ directory: snapshot.status, group, peerOnline: peer?.online, session: conversation.session,
     pending: conversation.messages.filter(item => item.from === identity?.userId && waitingForDelivery(item)).length
-      + conversation.files.filter(item => item.senderId === identity?.userId && waitingForDelivery(item)).length });
+      + conversation.files.filter(item => item.senderId === identity?.userId && waitingForDelivery(item)).length,
+    waitingFiles: conversation.files.filter(item => (item.senderId === identity?.userId && waitingForDelivery(item)) || (item.senderId !== identity?.userId && item.waiting)).length });
   async function action(operation: () => Promise<void>) {
     if (busy) return;
     setBusy(true); setError('');

@@ -47,6 +47,8 @@ const MAX_RECEIVE_BYTES=12*1024*1024;
 const BULK_WINDOW=6*1024*1024;
 const BULK_PROGRESS_EVERY=1024*1024;
 const BULK_STALL_MS=90000;
+const BULK_ROUTE_CHECK_MS=3000;
+export const BULK_ROUTE_LOST='The direct path was lost; the file will continue over a direct connection';
 interface BulkOutState {id:string;size:number;want?:number;acked:number;ended:boolean;confirmed:boolean;cancelled?:string;lastMove:number}
 const BUFFER_HIGH=256*1024;
 const BUFFER_LOW=64*1024;
@@ -67,6 +69,20 @@ function readySdp(sdp:string,content:boolean,captions:boolean,bulk=false):string
   const media=lines.findIndex(line=>line.startsWith('m='));
   lines.splice(media<0?Math.max(0,lines.length-1):media,0,...(content?[CONTENT_E2E_ATTRIBUTE,DATA_READY_ATTRIBUTE,MESSAGE_CHANGE_ATTRIBUTE,REACTIONS_ATTRIBUTE]:[DATA_READY_ATTRIBUTE,MESSAGE_CHANGE_ATTRIBUTE,REACTIONS_ATTRIBUTE]),...(captions?[CALL_CAPTIONS_ATTRIBUTE]:[]),...(content&&bulk?[BULK_ATTRIBUTE]:[]));
   return lines.join('\r\n');
+}
+/**
+ * The ICE pair in use and whether it is phone to phone. The transport's selected pair is preferred
+ * (WebRTC stats spec); "direct" needs both candidates known and neither through TURN, so a report
+ * without candidate details is "unknown", never "direct".
+ */
+export function classifyRoute(report:{forEach(callback:(value:any)=>void):void;get(id:string):any}):{route:'direct'|'relay'|'unknown';pair?:any}{
+  let pair:any;
+  report.forEach((value:any)=>{if(!pair&&value?.type==='transport'&&value.selectedCandidatePairId)pair=report.get(value.selectedCandidatePairId);});
+  if(!pair)report.forEach((value:any)=>{if(!pair&&value?.type==='candidate-pair'&&value.state==='succeeded'&&(value.nominated||value.selected))pair=value;});
+  if(!pair||pair.state!=='succeeded')return {route:'unknown',pair};
+  const types=[report.get(pair.localCandidateId)?.candidateType,report.get(pair.remoteCandidateId)?.candidateType];
+  if(types.includes('relay'))return {route:'relay',pair};
+  return {route:types.every(type=>type==='host'||type==='srflx'||type==='prflx')?'direct':'unknown',pair};
 }
 export class PeerSession {
   private state=initialSnapshot();
@@ -531,12 +547,7 @@ export class PeerSession {
   /** The ICE pair in use: large files go only over a direct path, never through TURN. */
   async currentRoute():Promise<'direct'|'relay'|'unknown'>{
     const pc=this.pc;if(!pc)return 'unknown';
-    try{
-      const report=await pc.getStats();let pair:any;
-      report.forEach((value:any)=>{if(!pair&&value.type==='candidate-pair'&&value.state==='succeeded'&&(value.nominated||value.selected))pair=value;});
-      if(!pair)return 'unknown';const local=report.get(pair.localCandidateId),remote=report.get(pair.remoteCandidateId);
-      return local?.candidateType==='relay'||remote?.candidateType==='relay'?'relay':'direct';
-    }catch{return 'unknown';}
+    try{return classifyRoute(await pc.getStats()).route;}catch{return 'unknown';}
   }
   /** Both sides stream large files over an end-to-end encrypted session. */
   supportsBulk():boolean{return this.remoteBulk&&!!this.options.onBulkOffer&&!!this.contentCipher&&this.channelReady();}
@@ -579,7 +590,7 @@ export class PeerSession {
    * confirmed writing. Resolves only on the receiver's final acknowledgement; any disconnect,
    * cancel or stall rejects, and the next attempt resumes from what the receiver already has.
    */
-  async sendBulk(offer:BulkOffer,read:(offset:number,length:number)=>Promise<Uint8Array>):Promise<void>{
+  async sendBulk(offer:BulkOffer,read:(offset:number,length:number)=>Promise<Uint8Array>,routeOk?:()=>Promise<boolean>):Promise<void>{
     if(this.bulkOut)throw new Error('One outgoing large file at a time');
     if(!this.remoteBulk)throw new Error('The recipient needs to update LastCall to receive large files');
     if(!this.contentConfigured||!this.contentCipher||!this.remoteContentE2E)throw new Error('Large files need an end-to-end encrypted session');
@@ -595,8 +606,10 @@ export class PeerSession {
     try{
       this.dataSend(dataFrameSchema.parse({kind:'bulk-offer',id:offer.id,conversationId:offer.conversationId,name:offer.name,mime:offer.mime,size:offer.size,metadata:offer.metadata,key}));
       while(state.want===undefined){alive();await sleep();}
-      let offset=state.want;state.acked=offset;
+      let offset=state.want;state.acked=offset;let checkedAt=Date.now();
       while(offset<offer.size){
+        // The network can change under a long transfer: stop the moment the path is no longer phone to phone; the next attempt resumes from the recipient's offset.
+        if(routeOk&&Date.now()-checkedAt>=BULK_ROUTE_CHECK_MS){checkedAt=Date.now();if(!await routeOk())throw new Error(BULK_ROUTE_LOST);}
         while(offset-state.acked>BULK_WINDOW||(channel.bufferedAmount??0)>BUFFER_HIGH*4){alive();await sleep();}
         alive();
         const length=Math.min(BULK_CHUNK_BYTES,offer.size-offset);const data=await read(offset,length);
@@ -611,6 +624,8 @@ export class PeerSession {
     const out=this.bulkOut;
     if(frame.kind==='bulk-offer'){
       if(this.options.allowConversation?.(frame.conversationId)===false||!this.options.onBulkOffer){this.dataSend({kind:'bulk-cancel',id:frame.id,reason:'refused'});return;}
+      // The sender stopped mid-file (its direct path was lost) and offers the same file again: resume instead of refusing.
+      if(this.bulkIn&&this.bulkIn.id===frame.id){const stale=this.bulkIn;this.bulkIn=undefined;stale.sink.pause?.();}
       if(this.bulkIn){this.dataSend({kind:'bulk-cancel',id:frame.id,reason:'refused'});return;}
       let sink:BulkSink|undefined;
       try{sink=await this.options.onBulkOffer({id:frame.id,conversationId:frame.conversationId,name:frame.name,mime:frame.mime,size:frame.size,metadata:frame.metadata});}
@@ -752,9 +767,8 @@ export class PeerSession {
     try{
       const report=await pc.getStats();if(this.pc!==pc||this.callId!==statsCall)return;
       let pair:any;let outbound:any;let outboundVideo:any;let inboundVideo:any;let inbound:any;let remoteInbound:any;const remoteReports:any[]=[];
+      ({pair}=classifyRoute(report));
       report.forEach((value:any)=>{
-        if(value.type==='transport'&&value.selectedCandidatePairId)pair=report.get(value.selectedCandidatePairId);
-        if(!pair&&value.type==='candidate-pair'&&value.state==='succeeded'&&(value.nominated||value.selected))pair=value;
         if(value.type==='outbound-rtp'&&(value.kind??value.mediaType)==='audio'&&!value.isRemote)outbound=value;
         if(value.type==='outbound-rtp'&&(value.kind??value.mediaType)==='video'&&!value.isRemote)outboundVideo=value;
         if(value.type==='inbound-rtp'&&(value.kind??value.mediaType)==='video'&&!value.isRemote)inboundVideo=value;
@@ -762,8 +776,7 @@ export class PeerSession {
         if(value.type==='remote-inbound-rtp')remoteReports.push(value);
       });
       remoteInbound=remoteReports.find(value=>value.localId===outbound?.id);
-      const local=pair?report.get(pair.localCandidateId):undefined;const remote=pair?report.get(pair.remoteCandidateId):undefined;
-      const route=pair?(local?.candidateType==='relay'||remote?.candidateType==='relay'?'relay':'direct'):'unknown';
+      const route=classifyRoute(report).route;
       const rttMs=Number.isFinite(pair?.currentRoundTripTime)?pair.currentRoundTripTime*1000:undefined;
       let audioBitrateKbps:number|undefined;let lossRatio:number|undefined;
       if(outbound&&this.previousAudio&&outbound.timestamp>this.previousAudio.time){audioBitrateKbps=Math.max(0,(outbound.bytesSent-this.previousAudio.bytes)*8/(outbound.timestamp-this.previousAudio.time));}

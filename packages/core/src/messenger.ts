@@ -860,7 +860,7 @@ export class MessengerClient {
       try{
         if(await pair.session.currentRoute()!=='direct')return; // direct phone-to-phone only: wait for a direct path rather than use TURN
         const key=attachmentKey(own,file.id,c.id);
-        await pair.session.sendBulk({id:file.id,conversationId:c.id,name:file.name,mime:file.mime,size:file.size,metadata:file.metadata},(offset,length)=>store.read(key,file.name,offset,length));
+        await pair.session.sendBulk({id:file.id,conversationId:c.id,name:file.name,mime:file.mime,size:file.size,metadata:file.metadata},(offset,length)=>store.read(key,file.name,offset,length),async()=>await pair.session.currentRoute()==='direct');
         sent=true;const p=this.pending.find(item=>item.type==='file'&&item.conversationId===c.id&&item.messageId===file.id&&(item.author??own)===own);
         if(p&&p.remaining.includes(peerId)&&Date.now()<p.expiresAt!)await this.acknowledge(p,peerId,file);
         this.emit();
