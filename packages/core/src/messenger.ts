@@ -777,6 +777,8 @@ export class MessengerClient {
     }
     let payload:MailboxPayload;
     try{payload=openMailboxItem(this.options.identity,contact.publicKey,item);}catch{return false;}
+    // A contact (say, from a shared group) writing directly after this phone deleted the chat: open it again, as a direct connect would.
+    if(payload.type!=='app'&&payload.conversationId===directConversationId(own,item.from)&&!this.conversations.has(payload.conversationId))this.ensureDirect(contact,true);
     const started=Date.now();
     try{
       if(payload.type==='message')return await this.receiveMessage(item.from,{id:payload.id,text:payload.text,from:'peer',timestamp:payload.timestamp,conversationId:payload.conversationId,...(payload.metadata?{metadata:payload.metadata}:{}),status:'received'});

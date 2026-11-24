@@ -23,9 +23,9 @@ async function accept(recipient: MessengerClient, sender: DeviceIdentity) {
   expect(recipient.getSnapshot().contacts.some(contact => contact.userId === sender.userId)).toBe(false);
   await recipient.acceptRequest(sender.userId);
 }
-async function until(check: () => boolean, ms = 8000) {
+async function until(check: () => boolean, ms = 8000, label = '') {
   const deadline = Date.now() + ms;
-  while (!check()) { if (Date.now() > deadline) throw new Error('Timed out'); await new Promise(resolve => setTimeout(resolve, 25)); }
+  while (!check()) { if (Date.now() > deadline) throw new Error('Timed out ' + label); await new Promise(resolve => setTimeout(resolve, 25)); }
 }
 const chat = (snapshot: MessengerSnapshot, id: string) => snapshot.conversations.find(c => c.id === id);
 
@@ -118,6 +118,24 @@ describe('encrypted server mailbox, end to end', () => {
     expect(bob.getSnapshot().blockedContacts).toEqual([carolId.userId]);
     expect(bob.getSnapshot().contactPermissions?.[aliceId.userId]).toEqual({ push: false, direct: false });
     expect(bob.getSnapshot().conversations.some(c => c.messages.some(m => m.text === 'Спам от Кэрол'))).toBe(false);
+  }, 30_000);
+
+  it('reopens a deleted direct chat when a contact from a shared group writes again', async () => {
+    const url = await start();
+    const aliceId = createDeviceIdentity(), bobId = createDeviceIdentity(), carolId = createDeviceIdentity();
+    const bob = client(url, bobId, 'bob'); await bob.connect(); await bob.getServices();
+    const carol = client(url, carolId, 'carol'); await carol.connect(); await carol.getServices(); carol.disconnect();
+    const alice = client(url, aliceId, 'alice'); await alice.connect(); await alice.getServices();
+    const dm = await alice.addContact((await alice.search('bob'))[0]!); await alice.addContact((await alice.search('carol'))[0]!);
+    await alice.sendText(dm, 'Первое'); await accept(bob, aliceId);
+    await until(() => chat(bob.getSnapshot(), dm)?.messages.length === 1);
+    await alice.createGroup('Общая', [bobId.userId, carolId.userId]); await alice.sendText((alice.getSnapshot().conversations.find(c => c.kind === 'group'))!.id, 'В группе');
+    await until(() => bob.getSnapshot().conversations.some(c => c.kind === 'group' && c.messages.length === 1), 8000, 'group');
+    await bob.removeContact(aliceId.userId);
+    expect(bob.getSnapshot().contacts.some(c => c.userId === aliceId.userId)).toBe(true); // still a group member
+    expect(chat(bob.getSnapshot(), dm)).toBeUndefined();
+    await alice.sendText(dm, 'Снова пишу');
+    await until(() => chat(bob.getSnapshot(), dm)?.messages.some(m => m.text === 'Снова пишу') === true, 8000, 'reopen');
   }, 30_000);
 
   it('leaves an older app on the direct path: the server refuses its mailbox', async () => {
