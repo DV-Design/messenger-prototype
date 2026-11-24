@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, Text, View, Switch } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from './SafeArea';
 import type { ComponentProps, ReactNode } from 'react';
@@ -28,6 +28,14 @@ export function MenuRow({ icon, title, subtitle, onPress, danger, chevron, value
     {!!value && <Text numberOfLines={1} style={[styles.rowText, { maxWidth: '40%' }]}>{value}</Text>}
     {chevron && <Icon name="chevron-forward" size={18} color={colors.secondary} />}
   </Pressable>;
+}
+/** A setting that is on or off, with what it means underneath. */
+export function SwitchRow({ icon, title, subtitle, value, onValueChange, disabled }: { icon: IconName; title: string; subtitle?: string; value: boolean; onValueChange: (value: boolean) => void; disabled?: boolean }) {
+  return <View style={[styles.menuRow, disabled && styles.disabled]}>
+    <Icon name={icon} size={23} />
+    <View style={styles.rowBody}><Text style={styles.menuText}>{title}</Text>{!!subtitle && <Text style={styles.rowText}>{subtitle}</Text>}</View>
+    <Switch accessibilityLabel={title} value={value} disabled={disabled} onValueChange={onValueChange} trackColor={{ true: colors.accent }} />
+  </View>;
 }
 /** Rows in one rounded block, separated by hairlines. Falsy children are skipped. */
 export function MenuGroup({ title, children }: { title?: string; children: ReactNode }) {

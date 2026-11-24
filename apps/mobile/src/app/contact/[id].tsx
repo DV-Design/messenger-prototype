@@ -4,7 +4,7 @@ import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { safetyEmoji, type MessengerFile } from '@messenger/core';
 import { SafeAreaView } from '../../components/SafeArea';
-import { Avatar, Icon, IconButton, MenuRow, fileSize, lastSeen, time } from '../../components/ui';
+import { Avatar, Icon, IconButton, MenuGroup, MenuRow, SwitchRow, fileSize, lastSeen, time } from '../../components/ui';
 import { SafetyCode } from '../../components/SafetyCode';
 import { client, errorText, useMessenger } from '../../runtime';
 import { colors, styles } from '../../styles';
@@ -38,6 +38,7 @@ export default function ContactInfo() {
   const contact = peer;
   const chat = conversation;
   const blocked = snapshot.blockedContacts.includes(contact.userId);
+  const permissions = snapshot.contactPermissions?.[contact.userId] ?? { push: true, direct: true };
   const verified = snapshot.verifiedContacts.includes(contact.userId);
   const canCall = !blocked && !snapshot.activeCall && (snapshot.status === 'online' || chat.session?.status === 'connected');
   const groups = groupsInCommon(snapshot.conversations, contact.userId, identity.userId);
@@ -105,6 +106,12 @@ export default function ContactInfo() {
           </Pressable>)}
         </View>
       </>}
+      {!blocked && <MenuGroup title={t('PERMISSIONS')}>
+        <SwitchRow icon="call-outline" title={t('Calls and notifications')} subtitle={t('They can call you and wake your phone with notifications')} value={permissions.push} disabled={busy}
+          onValueChange={push => void action(() => client().setContactPermissions(contact.userId, { ...permissions, push }))} />
+        <SwitchRow icon="swap-horizontal-outline" title={t('Direct connection')} subtitle={t('Files and calls go phone to phone; you see each other’s IP address')} value={permissions.direct} disabled={busy}
+          onValueChange={direct => void action(() => client().setContactPermissions(contact.userId, { ...permissions, direct }))} />
+      </MenuGroup>}
       <View style={styles.section}>
         <MenuRow icon={blocked ? 'lock-open-outline' : 'ban-outline'} danger={!blocked} busy={busy}
           title={blocked ? t('Unblock {name}', { name: contact.displayName }) : t('Block {name}', { name: contact.displayName })}

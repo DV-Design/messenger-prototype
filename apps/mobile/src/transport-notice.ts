@@ -1,6 +1,7 @@
 import { t } from './i18n';
 import type { MessengerSnapshot, SessionSnapshot } from '@messenger/core';
-export function transportNotice(input: { directory: MessengerSnapshot['status']; group: boolean; peerOnline?: boolean; session?: SessionSnapshot; pending: number; waitingFiles?: number }): { text: string; warning: boolean } {
+export function transportNotice(input: { directory: MessengerSnapshot['status']; group: boolean; peerOnline?: boolean; session?: SessionSnapshot; pending: number; waitingFiles?: number; directOff?: boolean }): { text: string; warning: boolean } {
+  if (!input.group && input.directOff) return { text: t('You turned off the direct connection with this contact: messages go through the server, files and calls are not available.'), warning: (input.waitingFiles ?? 0) > 0 };
   // Files go only phone to phone: say so plainly when the only path the phones found runs through a relay.
   if (!input.group && input.session?.status === 'connected' && input.session.route === 'relay' && (input.waitingFiles ?? 0) > 0) return { text: t('Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.'), warning: true };
   if (!input.group && input.session?.status === 'connected') return { text: input.pending ? t('Connection with the contact is established. Waiting for delivery confirmation.') : t('Connected to the contact.'), warning: false };

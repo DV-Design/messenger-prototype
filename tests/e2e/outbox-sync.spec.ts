@@ -1,3 +1,4 @@
+import { connectContacts } from './contacts.js';
 import {expect,test,type Page} from '@playwright/test';
 import type {DirectoryUser,MessengerClient,MessengerOptions,createDeviceIdentity} from '../../packages/core/src/index.js';
 type Device={identity:ReturnType<typeof createDeviceIdentity>;username:string;sealed:string|null;blobs:Map<string,string>;generation:number;};
@@ -22,7 +23,7 @@ async function stop(page:Page){await page.evaluate(()=>(window as ClientWindow).
 test('sender restarts with encrypted text and attachment outbox before an offline recipient returns',async({browser})=>{
  const contexts=await Promise.all([0,1].map(()=>browser.newContext()));const [a,b]=await Promise.all(contexts.map(c=>c.newPage())) as [Page,Page];
  try{
-  const [ua,ub]=await Promise.all([boot(a,0),boot(b,1)]);await stop(b);const id=await a.evaluate(u=>(window as ClientWindow).__messenger.addContact(u),{...ub,online:false});
+  const [ua,ub]=await Promise.all([boot(a,0),boot(b,1)]);const id=await connectContacts(a,ub,b,ua);await b.evaluate(()=>(window as ClientWindow).__messenger.disconnectAndFlush());
   await expect.poll(async()=>(await snapshot(a)).contacts.find(c=>c.userId===ub.userId)?.online).toBe(false);
   const bytes=Array.from({length:40033},(_,i)=>(i*31)%256);await sendText(a,id,'Сохраняется до возвращения адресата');await sendFile(a,id,'sender-restart.bin',bytes);
   const before=(await snapshot(a)).conversations.find(c=>c.id===id)!;expect(before.messages[0]?.status).toBe('pending');expect(before.files[0]?.deliveryStatus).toBe('pending');expect(before.messages[0]!.expiresAt!-before.messages[0]!.timestamp).toBe(7*24*60*60*1000);
@@ -37,7 +38,7 @@ test('sender restarts with encrypted text and attachment outbox before an offlin
 test('durable text and file delivery stays unread until chat reading, then signed reads survive both manager restarts',async({browser})=>{
  const contexts=await Promise.all([0,1].map(()=>browser.newContext()));const [a,b]=await Promise.all(contexts.map(c=>c.newPage())) as [Page,Page];
  try{
-  const [ua,ub]=await Promise.all([boot(a,7),boot(b,8)]);const id=await a.evaluate(u=>(window as unknown as ClientWindow).__messenger.addContact(u),ub);
+  const [ua,ub]=await Promise.all([boot(a,7),boot(b,8)]);const id=await connectContacts(a,ub,b,ua);
   const text='Доставка ещё не означает прочтение',name='read-receipt.bin';const bytes=Array.from({length:2049},(_,i)=>(i*37+11)%256);
   await sendText(a,id,text);await sendFile(a,id,name,bytes);
   await expect.poll(async()=>(await snapshot(a)).conversations.find(c=>c.id===id)?.messages[0]?.status).toBe('delivered');
@@ -72,7 +73,9 @@ test('durable text and file delivery stays unread until chat reading, then signe
 test('a restarted group member supplies signed text and exact file bytes while the author is offline',async({browser})=>{
  const contexts=await Promise.all([0,1,2].map(()=>browser.newContext()));const [a,b,c]=await Promise.all(contexts.map(c=>c.newPage())) as [Page,Page,Page];
  try{
-  const [ua,ub,uc]=await Promise.all([boot(a,2),boot(b,3),boot(c,4)]) as [DirectoryUser,DirectoryUser,DirectoryUser];await stop(c);
+  const [ua,ub,uc]=await Promise.all([boot(a,2),boot(b,3),boot(c,4)]) as [DirectoryUser,DirectoryUser,DirectoryUser];
+  await connectContacts(a,ub,b,ua);await connectContacts(a,uc,c,ua);await connectContacts(b,uc,c,ub);
+  await c.evaluate(()=>(window as ClientWindow).__messenger.disconnectAndFlush());
   const id=await a.evaluate(ids=>(window as ClientWindow).__messenger.createGroup('Синхронизация устройств',ids),[ub.userId,uc.userId]);await expect.poll(async()=>(await snapshot(b)).conversations.some(g=>g.id===id)).toBe(true);
   const bytes=Array.from({length:30019},(_,i)=>(i*17+91)%256);await sendText(a,id,'Автор выключен, участник синхронизирует');await sendFile(a,id,'peer-history.bin',bytes);await expect.poll(()=>readFile(b,id,'peer-history.bin')).toEqual(bytes);
   await expect.poll(async()=>(await snapshot(a)).conversations.find(g=>g.id===id)?.messages[0]?.deliveredTo).toContain(ub.userId);const original=(await snapshot(a)).conversations.find(g=>g.id===id)!;expect(original.messages[0]?.status).not.toBe('delivered');expect(original.messages[0]?.deliveredTo).not.toContain(uc.userId);
@@ -86,7 +89,7 @@ test('a restarted group member supplies signed text and exact file bytes while t
 test('network recovery rotates real ICE credentials while retaining the peer connection and live call tracks',async({browser})=>{
  const contexts=await Promise.all([0,1].map(()=>browser.newContext({permissions:['microphone','camera']})));const [a,b]=await Promise.all(contexts.map(c=>c.newPage())) as [Page,Page];
  try{
-  const [,ub]=await Promise.all([boot(a,5),boot(b,6)]);const id=await a.evaluate(u=>(window as ClientWindow).__messenger.addContact(u),ub);
+  const [ua,ub]=await Promise.all([boot(a,5),boot(b,6)]);const id=await connectContacts(a,ub,b,ua);
   await expect.poll(async()=>(await snapshot(a)).conversations.find(c=>c.id===id)?.session?.status).toBe('connected');await a.evaluate(id=>(window as ClientWindow).__messenger.startCall(id),id);await expect.poll(async()=>(await snapshot(b)).activeCall?.session.callState).toBe('incoming');await b.evaluate(()=>(window as ClientWindow).__messenger.acceptCall());
   for(const page of [a,b])await expect.poll(()=>page.evaluate(()=>{const s=(window as ClientWindow).__messenger.getSnapshot().activeCall?.session;return s?.callState==='active'&&!!s.remoteStream?.getAudioTracks().some(t=>t.readyState==='live');})).toBe(true);
   await a.evaluate(()=>{const w=window as ClientWindow&{__networkProof?:any};const m=w.__messenger as any;const session=[...m.pairs.values()][0].session;const pc=session.pc as RTCPeerConnection;w.__networkProof={pc,tracks:session.getSnapshot().localStream.getTracks(),ufrag:pc.localDescription?.sdp.match(/a=ice-ufrag:([^\r\n]+)/)?.[1],offers:0};const create=pc.createOffer.bind(pc);pc.createOffer=async options=>{w.__networkProof.offers++;return create(options);};});
@@ -102,14 +105,13 @@ test('network recovery rotates real ICE credentials while retaining the peer con
  }finally{await Promise.all([a,b].map(p=>stop(p).catch(()=>{})));await Promise.all(contexts.map(c=>c.close()));}
 });
 
-async function connect(a:Page,ub:DirectoryUser,b:Page,ua:DirectoryUser){const id=await a.evaluate(u=>(window as ClientWindow).__messenger.addContact(u),ub);await b.evaluate(u=>(window as ClientWindow).__messenger.addContact(u),ua);return id;}
 const texts=async(page:Page,id:string)=>(await snapshot(page)).conversations.find(c=>c.id===id)?.messages.map(m=>m.text)??[];
 async function firstMessage(page:Page,id:string){return (await snapshot(page)).conversations.find(c=>c.id===id)!.messages[0]!;}
 
 test('an edit reaches the peer, survives both restarts, and a read receipt still matches',async({browser})=>{
  const contexts=await Promise.all([0,1].map(()=>browser.newContext()));const [a,b]=await Promise.all(contexts.map(c=>c.newPage())) as [Page,Page];
  try{
-  const [ua,ub]=await Promise.all([boot(a,20),boot(b,21)]);const id=await connect(a,ub,b,ua);await sendText(a,id,'Исходный текст');
+  const [ua,ub]=await Promise.all([boot(a,20),boot(b,21)]);const id=await connectContacts(a,ub,b,ua);await sendText(a,id,'Исходный текст');
   await expect.poll(()=>texts(b,id)).toEqual(['Исходный текст']);await expect.poll(async()=>(await firstMessage(a,id)).status).toBe('delivered');const m=await firstMessage(a,id);
   await a.evaluate(({id,mid})=>(window as ClientWindow).__messenger.editMessage(id,mid,'Новый текст'),{id,mid:m.id});
   await expect.poll(()=>texts(b,id)).toEqual(['Новый текст']);expect((await firstMessage(b,id)).editedAt).toBeGreaterThan(0);
@@ -123,7 +125,7 @@ test('an edit reaches the peer, survives both restarts, and a read receipt still
 test('delete for everyone removes the message on the peer, and restarts do not bring it back',async({browser})=>{
  const contexts=await Promise.all([0,1].map(()=>browser.newContext()));const [a,b]=await Promise.all(contexts.map(c=>c.newPage())) as [Page,Page];
  try{
-  const [ua,ub]=await Promise.all([boot(a,22),boot(b,23)]);const id=await connect(a,ub,b,ua);await sendText(a,id,'Удалить');await sendText(a,id,'Оставить');
+  const [ua,ub]=await Promise.all([boot(a,22),boot(b,23)]);const id=await connectContacts(a,ub,b,ua);await sendText(a,id,'Удалить');await sendText(a,id,'Оставить');
   await expect.poll(()=>texts(b,id)).toEqual(['Удалить','Оставить']);const m=await firstMessage(a,id);
   await a.evaluate(({id,mid,author})=>(window as ClientWindow).__messenger.deleteMessage(id,{id:mid,type:'message',author},'everyone'),{id,mid:m.id,author:ua.userId});
   await expect.poll(()=>texts(b,id)).toEqual(['Оставить']);expect(await texts(a,id)).toEqual(['Оставить']);
@@ -135,7 +137,7 @@ test('delete for everyone removes the message on the peer, and restarts do not b
 test('a change made while the peer is offline arrives when the peer returns',async({browser})=>{
  const contexts=await Promise.all([0,1].map(()=>browser.newContext()));const [a,b]=await Promise.all(contexts.map(c=>c.newPage())) as [Page,Page];
  try{
-  const [ua,ub]=await Promise.all([boot(a,24),boot(b,25)]);const id=await connect(a,ub,b,ua);await sendText(a,id,'Первая');await sendText(a,id,'Вторая');
+  const [ua,ub]=await Promise.all([boot(a,24),boot(b,25)]);const id=await connectContacts(a,ub,b,ua);await sendText(a,id,'Первая');await sendText(a,id,'Вторая');
   await expect.poll(()=>texts(b,id)).toEqual(['Первая','Вторая']);await b.evaluate(()=>(window as ClientWindow).__messenger.flushState());await stop(b);
   const [first,second]=(await snapshot(a)).conversations.find(c=>c.id===id)!.messages;
   await a.evaluate(({id,mid})=>(window as ClientWindow).__messenger.editMessage(id,mid,'Первая исправлена'),{id,mid:first!.id});
@@ -148,7 +150,7 @@ test('reactions reach the peer both ways, wait while it is offline, and can be t
  const contexts=await Promise.all([0,1].map(()=>browser.newContext()));const [a,b]=await Promise.all(contexts.map(c=>c.newPage())) as [Page,Page];
  const reactions=async(page:Page,id:string)=>(await firstMessage(page,id)).reactions??[];
  try{
-  const [ua,ub]=await Promise.all([boot(a,26),boot(b,27)]);const id=await connect(a,ub,b,ua);await sendText(a,id,'Как дела?');
+  const [ua,ub]=await Promise.all([boot(a,26),boot(b,27)]);const id=await connectContacts(a,ub,b,ua);await sendText(a,id,'Как дела?');
   await expect.poll(()=>texts(b,id)).toEqual(['Как дела?']);const m=await firstMessage(a,id);const record={id:m.id,type:'message' as const,author:ua.userId};
   await b.evaluate(({id,record})=>(window as ClientWindow).__messenger.react(id,record,'👍'),{id,record});
   await expect.poll(()=>reactions(a,id)).toEqual([{userId:ub.userId,emoji:'👍'}]);

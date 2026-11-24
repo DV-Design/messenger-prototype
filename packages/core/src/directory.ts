@@ -140,7 +140,8 @@ export const directoryClientFrameSchema=z.discriminatedUnion('type',[
   z.object({ type: z.literal('invite-grant'), requestId: peerIdSchema, username: usernameSchema, enabled: z.boolean() }).strict(),
   z.object({type:z.literal('search'),query:z.string().max(48),requestId:peerIdSchema}).strict(),
   z.object({type:z.literal('lookup'),userIds:z.array(roomIdSchema).max(200),requestId:peerIdSchema}).strict(),
-  z.object({type:z.literal('watch'),userIds:z.array(roomIdSchema).max(200),identityMovedV1:z.literal(true).optional()}).strict(),
+  /** `consent`: who of the watched may wake this phone (pushes, calls); without it, all of them, as before 1.0.42. */
+  z.object({type:z.literal('watch'),userIds:z.array(roomIdSchema).max(200),identityMovedV1:z.literal(true).optional(),consent:z.array(roomIdSchema).max(200).optional()}).strict().refine(frame=>!frame.consent||frame.consent.every(id=>frame.userIds.includes(id)),{message:'Consent must be a subset of the watched users'}),
   z.object({type:z.literal('connect'),to:roomIdSchema}).strict(),
   z.object({type:z.literal('delete-account'),requestId:peerIdSchema}).strict(),
   z.object({type:z.literal('report'),requestId:peerIdSchema,targetId:roomIdSchema,targetKind:z.enum(['user','group']),conversationId:conversationIdSchema.optional(),reason:z.enum(['spam','harassment','illegal','other']),details:z.string().max(500).optional()}).strict(),

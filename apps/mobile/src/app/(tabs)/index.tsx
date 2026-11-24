@@ -63,6 +63,12 @@ export default function Chats() {
       <Pressable accessibilityRole="button" accessibilityLabel={t('Add an email in settings')} onPress={() => router.push('/(tabs)/settings')} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}><Icon name="mail-outline" size={17} color="#7B5924" /><Text style={[styles.info, { flex: 1, color: '#7B5924' }]}>{t('Add an email: without it you lose this account if you reinstall the app.')}</Text></Pressable>
       <IconButton name="close" label={t('Not now')} onPress={dismissEmailReminder} />
     </View>}
+    {!!snapshot.messageRequests?.length && <Pressable accessibilityRole="button" accessibilityLabel={t('Message requests: {count}', { count: snapshot.messageRequests.length })} onPress={() => router.push('/requests')}
+      style={({ pressed }) => [styles.listRow, pressed && { backgroundColor: '#EEF3F1' }]}>
+      <Icon name="mail-unread-outline" size={26} />
+      <View style={styles.rowBody}><Text style={styles.rowName}>{t('Message requests')}</Text><Text style={styles.rowText}>{t('People who are not in your contacts wrote to you')}</Text></View>
+      <View style={{ minWidth: 24, paddingHorizontal: 7, height: 24, borderRadius: 12, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: colors.white, fontWeight: '700' }}>{snapshot.messageRequests.length}</Text></View>
+    </Pressable>}
     <View style={styles.search}><Icon name="search" color={colors.secondary} size={19} /><TextInput style={styles.searchInput} placeholder={t('Search')} placeholderTextColor={colors.secondary} value={query} onChangeText={setQuery} accessibilityLabel={t('Search chats')} /></View>
     <FlatList data={conversations} keyExtractor={item => item.id} keyboardShouldPersistTaps="handled" ItemSeparatorComponent={Separator}
       // Until the encrypted history is read, an empty list is "loading", not "no chats yet".

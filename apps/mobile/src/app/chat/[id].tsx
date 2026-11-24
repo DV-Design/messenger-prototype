@@ -187,6 +187,7 @@ export default function Chat() {
   const notice = transportNotice({ directory: snapshot.status, group, peerOnline: peer?.online, session: conversation.session,
     pending: conversation.messages.filter(item => item.from === identity?.userId && waitingForDelivery(item)).length
       + conversation.files.filter(item => item.senderId === identity?.userId && waitingForDelivery(item)).length,
+    directOff: !group && !!peer && snapshot.contactPermissions?.[peer.userId]?.direct === false,
     waitingFiles: conversation.files.filter(item => (item.senderId === identity?.userId && waitingForDelivery(item)) || (item.senderId !== identity?.userId && item.waiting)).length });
   async function action(operation: () => Promise<void>) {
     if (busy) return;

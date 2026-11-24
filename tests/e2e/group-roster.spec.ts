@@ -1,3 +1,4 @@
+import { connectContacts } from './contacts.js';
 import { expect, test, type Page } from '@playwright/test';
 import type { DirectoryUser, MessengerClient, MessengerOptions, createDeviceIdentity } from '../../packages/core/src/index.js';
 
@@ -19,8 +20,11 @@ test('the owner renames, removes and adds members; everyone converges phone to p
         await w.__messenger.connect(); return w.__messenger.getSnapshot().self!;
       }, { serverUrl, username: `roster_${stamp}_${i}` });
     })) as DirectoryUser[];
-    const [, ub, uc, ud] = users;
-    for (const u of [ub, uc, ud]) await a.evaluate(user => (window as W).__messenger.addContact(user), u!);
+    const [ua, ub, uc, ud] = users as [DirectoryUser, DirectoryUser, DirectoryUser, DirectoryUser];
+    await connectContacts(a, ub, b, ua);
+    await connectContacts(a, uc, c, ua);
+    await connectContacts(a, ud, d, ua);
+    await connectContacts(b, ud, d, ub);
     const id = await a.evaluate(ids => (window as W).__messenger.createGroup('Команда', ids), [ub!.userId, uc!.userId]);
     for (const page of [b, c]) await expect.poll(() => group(page, id)).toMatchObject({ members: 3 });
 

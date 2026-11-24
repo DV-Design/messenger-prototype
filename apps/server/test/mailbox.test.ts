@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createDeviceIdentity, MessengerClient, type DeviceIdentity, type MessengerSnapshot } from '@messenger/core';
+import { createDeviceIdentity, directConversationId, MessengerClient, type DeviceIdentity, type MessengerSnapshot } from '@messenger/core';
 import { createSignalingServer } from '../src/server.js';
 import { Mailbox } from '../src/mailbox.js';
 
@@ -17,6 +17,11 @@ async function start() {
 function client(url: string, identity: DeviceIdentity, username: string, mailbox = true) {
   const value = new MessengerClient({ serverUrl: url, identity, username, displayName: username.toUpperCase(), mailbox, reconcileDeliveryOnConnect: true }); clients.push(value);
   return value;
+}
+async function accept(recipient: MessengerClient, sender: DeviceIdentity) {
+  await until(() => !!recipient.getSnapshot().messageRequests?.some(request => request.user.userId === sender.userId));
+  expect(recipient.getSnapshot().contacts.some(contact => contact.userId === sender.userId)).toBe(false);
+  await recipient.acceptRequest(sender.userId);
 }
 async function until(check: () => boolean, ms = 8000) {
   const deadline = Date.now() + ms;
@@ -38,6 +43,7 @@ describe('encrypted server mailbox, end to end', () => {
     expect(chat(alice.getSnapshot(), conversation)!.messages[0]!.notifiedTo).toEqual([bobId.userId]);
 
     bob = client(url, bobId, 'bob'); await bob.connect();
+    await accept(bob, aliceId);
     await until(() => chat(bob.getSnapshot(), conversation)?.messages.length === 1);
     const received = chat(bob.getSnapshot(), conversation)!.messages[0]!;
     expect(received).toMatchObject({ text: 'Сообщение, пока Боб не в сети', status: 'received', from: aliceId.userId });
@@ -63,6 +69,7 @@ describe('encrypted server mailbox, end to end', () => {
     expect(chat(alice.getSnapshot(), conversation)!.files[0]!.deliveryStatus).toBe('pending');
 
     bob = client(url, bobId, 'bob'); await bob.connect();
+    await accept(bob, aliceId);
     await until(() => chat(bob.getSnapshot(), conversation)?.messages.length === 2 && chat(bob.getSnapshot(), conversation)?.files.length === 1);
     const c = chat(bob.getSnapshot(), conversation)!;
     expect(c.files[0]).toMatchObject({ name: 'фото.jpg', size: 3, waiting: true, status: 'receiving', receivedBytes: 0 });
@@ -81,11 +88,36 @@ describe('encrypted server mailbox, end to end', () => {
     await alice.sendText(group, 'Встречаемся в субботу');
     await until(() => chat(alice.getSnapshot(), group)?.messages[0]?.notifiedTo?.length === 2);
     const bob = client(url, bobId, 'bob'); await bob.connect();
+    await accept(bob, aliceId);
     await until(() => chat(bob.getSnapshot(), group)?.messages.length === 1);
     expect(chat(bob.getSnapshot(), group)).toMatchObject({ kind: 'group', title: 'Выходные' });
     expect(chat(bob.getSnapshot(), group)!.messages[0]!.text).toBe('Встречаемся в субботу');
     await until(() => (chat(alice.getSnapshot(), group)?.messages[0]?.deliveredTo ?? []).includes(bobId.userId));
     expect(chat(alice.getSnapshot(), group)!.messages[0]!.status).toBe('sent');
+  }, 30_000);
+
+  it('keeps a stranger out until accepted: nothing saved, no contact, no wake rights; decline and block drop it', async () => {
+    const url = await start();
+    const aliceId = createDeviceIdentity(), bobId = createDeviceIdentity(), carolId = createDeviceIdentity();
+    let bob = client(url, bobId, 'bob'); await bob.connect(); await bob.getServices(); bob.disconnect();
+    for (const [identity, name, text] of [[aliceId, 'alice', 'Привет от Алисы'], [carolId, 'carol', 'Спам от Кэрол']] as const) {
+      const sender = client(url, identity, name); await sender.connect(); await sender.getServices();
+      const id = await sender.addContact((await sender.search('bob'))[0]!); await sender.sendText(id, text);
+      await until(() => chat(sender.getSnapshot(), id)?.messages[0]?.status === 'sent');
+    }
+    bob = client(url, bobId, 'bob'); await bob.connect();
+    await until(() => (bob.getSnapshot().messageRequests ?? []).length === 2);
+    expect(bob.getSnapshot().contacts).toEqual([]);
+    expect(bob.getSnapshot().conversations.filter(c => c.messages.length)).toEqual([]);
+    expect(bob.getSnapshot().messageRequests!.find(r => r.user.userId === aliceId.userId)!.waiting).toBe(1);
+    await bob.blockRequest(carolId.userId);
+    await bob.acceptRequest(aliceId.userId, { push: false, direct: false });
+    const dm = directConversationId(aliceId.userId, bobId.userId);
+    await until(() => chat(bob.getSnapshot(), dm)?.messages[0]?.text === 'Привет от Алисы');
+    expect(bob.getSnapshot().messageRequests).toEqual([]);
+    expect(bob.getSnapshot().blockedContacts).toEqual([carolId.userId]);
+    expect(bob.getSnapshot().contactPermissions?.[aliceId.userId]).toEqual({ push: false, direct: false });
+    expect(bob.getSnapshot().conversations.some(c => c.messages.some(m => m.text === 'Спам от Кэрол'))).toBe(false);
   }, 30_000);
 
   it('leaves an older app on the direct path: the server refuses its mailbox', async () => {

@@ -323,7 +323,8 @@ export class Directory {
         const users = [...new Set(frame.userIds)].map((id) => this.row(id)).filter((row): row is ProfileRow => Boolean(row)).map((row) => this.user(row));
         this.options.send(ws, { type: 'results', requestId: frame.requestId, users });
       } else if (frame.type === 'watch') {
-        this.services.replaceWatchConsent(connection.userId, frame.userIds);
+        // Blocked and limited contacts stay watched (presence, moved keys) without the right to wake this phone.
+        this.services.replaceWatchConsent(connection.userId, frame.consent ?? frame.userIds);
         connection.watches = new Set(frame.userIds);
         if (frame.identityMovedV1) connection.identityMovedV1 = true;
         // Initial snapshots and future changes go only to this explicit authenticated subscription.

@@ -1,3 +1,4 @@
+import { connectContacts } from './contacts.js';
 import { expect, test, type Page } from '@playwright/test';
 import type { DirectoryUser, MessengerClient, MessengerOptions, createDeviceIdentity } from '../../packages/core/src/index.js';
 
@@ -21,9 +22,6 @@ async function state(page: Page) {
     }))), activeCall: s.activeCall ? { peerId: s.activeCall.peerId, state: s.activeCall.session.callState } : undefined };
   });
 }
-async function add(page: Page, user: DirectoryUser) {
-  return page.evaluate(u => (window as ClientWindow).__messenger.addContact(u), user);
-}
 async function send(page: Page, id: string, text: string) {
   await page.evaluate(({ id, text }) => (window as ClientWindow).__messenger.sendText(id, text), { id, text });
 }
@@ -45,7 +43,8 @@ test('three users retain parallel direct chats, fan out a private group and rece
     const [ua, ub, uc] = users as [DirectoryUser, DirectoryUser, DirectoryUser];
     const found = await a.evaluate(name => (window as ClientWindow).__messenger.search(name), ub.username);
     expect(found.some(u => u.userId === ub.userId)).toBe(true);
-    const ab = await add(a, ub), ac = await add(a, uc);
+    const ab = await connectContacts(a, ub, b, ua), ac = await connectContacts(a, uc, c, ua);
+    await connectContacts(b, uc, c, ub);
     await expect.poll(async () => (await state(a)).conversations.filter(c => c.status === 'connected').length).toBe(2);
     await send(a, ab, 'Только для B');
     await send(a, ac, 'Только для C');
@@ -65,7 +64,7 @@ test('three users retain parallel direct chats, fan out a private group and rece
     const bytes = [0, 255, 1, 88, 10];
     await a.evaluate(({ id, bytes }) => (window as ClientWindow).__messenger.sendFile(id, { name: 'group.bin', mime: 'application/octet-stream', data: new Uint8Array(bytes) }), { id: group, bytes });
     for (const page of [b, c]) await expect.poll(async () => (await state(page)).conversations.find(c => c.id === group)?.files.find(f => f.name === 'group.bin')).toEqual({ name: 'group.bin', status: 'complete', bytes });
-    // A recipient can send to the whole group without first opening individual chats.
+    // An authorized group member can send to the whole group.
     const replyBytes = [9, 0, 212, 73];
     await b.evaluate(({ id, bytes }) => (window as ClientWindow).__messenger.sendFile(id, { name: 'member.bin', mime: 'application/octet-stream', data: new Uint8Array(bytes) }), { id: group, bytes: replyBytes });
     for (const page of [a, c]) await expect.poll(async () => (await state(page)).conversations.find(c => c.id === group)?.files.find(f => f.name === 'member.bin')).toEqual({ name: 'member.bin', status: 'complete', bytes: replyBytes });

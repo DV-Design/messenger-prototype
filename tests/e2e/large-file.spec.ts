@@ -1,5 +1,6 @@
+import { connectContacts } from './contacts.js';
 import { expect, test, type Page } from '@playwright/test';
-import type { BulkFileStore, DirectoryUser, MessengerClient, MessengerOptions, createDeviceIdentity } from '../../packages/core/src/index.js';
+import type { BulkFileStore, MessengerClient, MessengerOptions, createDeviceIdentity } from '../../packages/core/src/index.js';
 
 type LargeWindow = Window & {
   __messenger: MessengerClient;
@@ -38,8 +39,7 @@ test('a large file streams phone to phone over a direct WebRTC path, byte for by
   try {
     const stamp = Date.now().toString(36);
     const ua = await start(a, `bulk_${stamp}_a`), ub = await start(b, `bulk_${stamp}_b`);
-    const chat = await a.evaluate(u => (window as LargeWindow).__messenger.addContact(u), ub as DirectoryUser);
-    await b.evaluate(u => (window as LargeWindow).__messenger.addContact(u), ua as DirectoryUser);
+    const chat = await connectContacts(a, ub, b, ua);
     await expect.poll(() => a.evaluate(id => (window as LargeWindow).__messenger.getSnapshot().conversations.find(c => c.id === id)?.session?.status, chat), { timeout: 30_000 }).toBe('connected');
     const started = Date.now();
     await a.evaluate(async ({ chat, size }) => {

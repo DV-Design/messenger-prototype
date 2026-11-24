@@ -31,6 +31,11 @@ describe('server mailbox envelopes', () => {
     expect(openMailboxItem(bob, alice.publicKey, { from: alice.userId, id, kind: 'file', envelope })).toEqual(file);
     expect(directoryClientFrameSchema.safeParse({ type: 'mailbox-put', requestId: 'ef'.repeat(16), to: bob.userId, items: [{ id, kind: 'file', envelope, expiresAt: 10 }] }).success).toBe(true);
   });
+  it('a watch frame may narrow who can wake the phone, never widen it', () => {
+    const frame = (consent?: string[]) => directoryClientFrameSchema.safeParse({ type: 'watch', userIds: [alice.userId, bob.userId], ...(consent ? { consent } : {}) }).success;
+    expect(frame()).toBe(true); expect(frame([alice.userId])).toBe(true); expect(frame([])).toBe(true);
+    expect(frame([carol.userId])).toBe(false);
+  });
   it('gives the same service record the same ID', () => {
     expect(mailboxRecordId(['read', 'a', 1])).toBe(mailboxRecordId(['read', 'a', 1]));
     expect(mailboxRecordId(['read', 'a', 1])).not.toBe(mailboxRecordId(['read', 'a', 2]));
