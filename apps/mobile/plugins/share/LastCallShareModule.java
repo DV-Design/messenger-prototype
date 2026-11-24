@@ -10,6 +10,7 @@ import android.os.Build;
 import android.provider.OpenableColumns;
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.BaseActivityEventListener;
+import com.facebook.react.bridge.LifecycleEventListener;
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
@@ -47,7 +48,17 @@ public final class LastCallShareModule extends ReactContextBaseJavaModule {
       if (context.hasActiveReactInstance()) context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class).emit("LastCallShareReceived", null);
     }
   };
-  public LastCallShareModule(ReactApplicationContext context) { super(context); this.context = context; context.addActivityEventListener(listener); }
+  /** A share that launched or resumed the activity is announced once JavaScript can hear it. */
+  private final LifecycleEventListener lifecycle = new LifecycleEventListener() {
+    @Override public void onHostResume() {
+      Activity activity = getCurrentActivity();
+      if (activity == null || !isShare(activity.getIntent())) return;
+      if (context.hasActiveReactInstance()) context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class).emit("LastCallShareReceived", null);
+    }
+    @Override public void onHostPause() {}
+    @Override public void onHostDestroy() {}
+  };
+  public LastCallShareModule(ReactApplicationContext context) { super(context); this.context = context; context.addActivityEventListener(listener); context.addLifecycleEventListener(lifecycle); }
   @Override public String getName() { return "LastCallShare"; }
   @ReactMethod public void addListener(String eventName) {}
   @ReactMethod public void removeListeners(double count) {}

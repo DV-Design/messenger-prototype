@@ -1,3 +1,19 @@
+# 1.0.43 / code58 — share to LastCall on real phones, drafts (2026-11-24)
+
+- [X] Owner's report: "Share → LastCall" opened the app without letting them send the file. Cause: the share was
+  read before navigation existed (cold start on a slower phone) and the push to the picker failed silently, so the
+  app stayed on the chat list. The bridge now keeps the share pending and opens the picker once navigation is
+  ready; the native module also announces a share on activity resume, and JS asks again after 0.6 s and 2 s
+  → Artifacts: [ShareIntentBridge.tsx](apps/mobile/src/components/ShareIntentBridge.tsx), [LastCallShareModule.java](apps/mobile/plugins/share/LastCallShareModule.java)
+- [X] Drafts as in Telegram: text typed and not sent stays in the chat (saved with the encrypted history, survives
+  a restart; during an edit the set-aside text is kept); the chat list shows "Draft: …" in red; "Draft:" in 29 languages
+  → Artifacts: [messenger.ts](packages/core/src/messenger.ts), [chat](apps/mobile/src/app/chat/%5Bid%5D.tsx), [chats](apps/mobile/src/app/(tabs)/index.tsx), [archive.test.ts](packages/core/src/archive.test.ts)
+- [X] `artifacts/LastCall-1.0.43-store.aab` 60495091 bytes, sha256 `05198785f57d7424267442b67d37f8b7bc8842422d55178bfeed8581368f2999`; emulator: draft shown in the list and back in
+  the field after a force-stop; share from Google Photos with the app closed and in the background opens Send to…,
+  the photo was delivered to Alex. `npm run check` passes (mobile 285, server 154, core 315)
+- [ ] The owner's phone: not reproduced there; the emulator never showed the failure, so the fix addresses the most likely cause
+- [ ] Google Play upload of 1.0.43 (1.0.42 is in review)
+
 # 1.0.42 / code57 — GPT review fixes: message requests, history archive, storage, direct-only files (2026-11-24)
 
 - [X] msg-5th: message requests (strangers' mailbox items stay unopened on the server; no contact, no

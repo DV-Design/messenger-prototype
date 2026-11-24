@@ -55,3 +55,19 @@ describe('history beyond the in-memory limit is archived, not lost', () => {
     c.disconnect();
   });
 });
+
+describe('drafts', () => {
+  it('keep unsent text per chat across a restart and clear when emptied', async () => {
+    const s = store(); const first = client(s.value);
+    const id = await fill(first, 1);
+    first.setDraft(id, 'Не отправлено', true); await first.flushState();
+    expect(first.getSnapshot().conversations.find(c => c.id === id)!.draft).toBe('Не отправлено');
+    first.disconnect();
+    const second = client(s.value); await (second as any).restore();
+    expect(second.getSnapshot().conversations.find(c => c.id === id)!.draft).toBe('Не отправлено');
+    expect([...s.rows.values()].join('')).not.toContain('Не отправлено');
+    second.setDraft(id, '   ', true); await second.flushState();
+    expect(second.getSnapshot().conversations.find(c => c.id === id)!.draft).toBeUndefined();
+    second.disconnect();
+  });
+});

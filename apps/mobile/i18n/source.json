@@ -3034,5 +3034,9 @@
  {
   "key": "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.",
   "ru": "Оба телефона в сети, но прямого соединения нет. Файлы ждут его; сообщения доходят."
+ },
+ {
+  "key": "Draft:",
+  "ru": "Черновик:"
  }
 ]

@@ -757,5 +757,6 @@
  "Contacts, messages and files up to 5 MB are encrypted on the device; larger files, up to 1 GB, are kept in the app’s private folder, protected by Android. The outbox waits for the recipient for up to 7 days and survives restarts. In groups, data syncs between participants. Limits: up to 16 files waiting for delivery, up to 2000 stored files / 10 GiB in total and never the last 512 MB of free phone space. On a network change the app tries to preserve the session for 10 seconds.": "聯絡人、訊息和不超過 5 MB 的檔案都在裝置上加密；較大的檔案（最大 1 GB）保存在應用程式的私人資料夾中，受 Android 保護。寄件匣會為收件人等待最長 7 天，重新啟動後仍會保留。在群組中，資料會在成員之間同步。限制：最多 16 個檔案等待傳遞，最多儲存 2000 個檔案 / 共 10 GiB，且絕不佔用手機最後 512 MB 的可用空間。切換網路時，應用程式會嘗試在 10 秒內保持工作階段。",
  "Files arrive directly from people and are kept only on this phone. Files up to 5 MB are encrypted inside LastCall; larger files are kept in the app’s private folder, protected by Android. When the storage is full, new files cannot be received until you free space.": "檔案直接來自對方，只會保存在這支手機上。不超過 5 MB 的檔案會在 LastCall 內加密；較大的檔案保存在應用程式的私人資料夾中，受 Android 保護。儲存空間已滿時，在你釋出空間之前無法接收新檔案。",
  "You turned off the direct connection with this contact: messages go through the server, files and calls are not available.": "你已關閉與這位聯絡人的直接連線：訊息經由伺服器傳輸，無法使用檔案和通話。",
- "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.": "雙方手機都在線上，但無法使用直接連線。檔案會等待直接連線；訊息仍可送達。"
+ "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.": "雙方手機都在線上，但無法使用直接連線。檔案會等待直接連線；訊息仍可送達。",
+ "Draft:": "草稿："
 }

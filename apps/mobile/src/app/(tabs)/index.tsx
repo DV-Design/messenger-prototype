@@ -38,10 +38,10 @@ function chatPreview(item: MessengerConversation, blockedKey: string, own: strin
 }
 
 /** Plain values only, so a row redraws when what it shows changes, not on every update. */
-const ChatListRow = memo(function ChatListRow({ id, title, group, online, unread, updatedAt, preview }: { id: string; title: string; group: boolean; online: boolean; unread: number; updatedAt: number; preview: string }) {
+const ChatListRow = memo(function ChatListRow({ id, title, group, online, unread, updatedAt, preview, draft }: { id: string; title: string; group: boolean; online: boolean; unread: number; updatedAt: number; preview: string; draft?: string }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={t('Chat {title}', { title })} accessibilityHint={t('Hold to delete the chat')} accessibilityActions={[{ name: 'longpress', label: t('Delete chat') }]} onAccessibilityAction={() => confirmDelete(id, title, group)} onLongPress={() => confirmDelete(id, title, group)} onPress={() => router.push({ pathname: '/chat/[id]', params: { id } })} style={({ pressed }) => [styles.listRow, pressed && styles.pressed]}>
     <Avatar name={title} id={id} online={!group && online} group={group} />
-    <View style={styles.rowBody}><Text numberOfLines={1} style={styles.rowName}>{title}</Text><Text numberOfLines={1} style={[styles.rowText, unread > 0 && { color: colors.text }]}>{preview}</Text></View>
+    <View style={styles.rowBody}><Text numberOfLines={1} style={styles.rowName}>{title}</Text><Text numberOfLines={1} style={[styles.rowText, unread > 0 && { color: colors.text }]}>{draft ? <><Text style={{ color: colors.danger }}>{t('Draft:')} </Text>{draft.replace(/\s+/g, ' ')}</> : preview}</Text></View>
     <View style={{ alignSelf: 'flex-start', paddingTop: 3 }}><Text style={styles.time}>{updatedAt ? time(updatedAt) : ''}</Text>{unread > 0 && <View style={styles.unread}><Text style={styles.unreadText}>{unread > 99 ? '99+' : unread}</Text></View>}</View>
   </Pressable>;
 });
@@ -76,7 +76,7 @@ export default function Chats() {
       renderItem={({ item }) => {
         const peer = item.kind === 'direct' ? snapshot.contacts.find(contact => item.memberIds.includes(contact.userId) && contact.userId !== identity?.userId) : undefined;
         return <ChatListRow id={item.id} title={item.title} group={item.kind === 'group'} online={!!peer?.online} unread={item.unread} updatedAt={item.updatedAt}
-          preview={chatPreview(item, blockedKey, identity?.userId)} />;
+          preview={chatPreview(item, blockedKey, identity?.userId)} draft={item.draft} />;
       }} />
   </SafeAreaView>;
 }

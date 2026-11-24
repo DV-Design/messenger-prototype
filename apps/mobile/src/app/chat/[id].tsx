@@ -87,7 +87,8 @@ export default function Chat() {
   const { snapshot, identity, profile } = useMessenger();
   const topOffset = useTopOffset();
   const conversation = snapshot.conversations.find(item => item.id === id);
-  const [draft, setDraft] = useState('');
+  // What was typed and not sent comes back when the chat is opened again, as in Telegram.
+  const [draft, setDraft] = useState(() => conversation?.draft ?? '');
   const [attachments, setAttachments] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -108,6 +109,19 @@ export default function Chat() {
   const [editing, setEditing] = useState<string>();
   const [replying, setReplying] = useState<MessageTarget>();
   const unsentDraft = useRef('');
+  // Saved a moment after typing stops and on leaving the chat; during an edit, the text the edit set aside is kept.
+  const savedDraft = useRef<{ chat?: string; text: string }>({ text: '' });
+  useEffect(() => {
+    const text = editing ? unsentDraft.current : draft;
+    savedDraft.current = { chat: id, text };
+    if (!id) return;
+    const timer = setTimeout(() => client().setDraft(id, text), 400);
+    return () => clearTimeout(timer);
+  }, [draft, editing, id]);
+  useEffect(() => {
+    const saved = savedDraft;
+    return () => { const { chat, text } = saved.current; if (chat) client().setDraft(chat, text, true); };
+  }, []);
   const list = useRef<ComponentRef<typeof FlatList<ChatTimelineRow>>>(null);
   // Like Telegram: while the history scrolls, the date of the topmost message floats above it.
   const [floatingDate, setFloatingDate] = useState('');
