@@ -20,7 +20,13 @@
   arrived and shows its preview from the plain file; older sealed files still open
   → Artifacts: [messenger.ts](packages/core/src/messenger.ts), [storage.ts](apps/mobile/src/storage.ts), [plain-files.test.ts](packages/core/src/plain-files.test.ts), [attachments.ts](apps/mobile/src/attachments.ts), [LOCAL-STORAGE.md](docs/LOCAL-STORAGE.md)
 - [ ] The owner's phone: not reproduced there; the emulator never showed the failure, so the fix addresses the most likely cause
-- [ ] Google Play upload of 1.0.43 (1.0.42 is in review)
+- [X] 2026-11-24/25, owner's yes: privacy policy (files encrypted on the way only) published to the site, previous copy
+  `artifacts/privacy-live-before-2026-11-24.html`; bundle 58 uploaded once (closed testing), open, production (100 %) and
+  internal from the library (production needed the bundle added by hand again); devices unchanged (8 865 / 4 707);
+  internal published at once; production, open and closed sent to Google review in place of 1.0.42. Notes en-US + ru-RU
+- [X] Why the Mac locked: loginwindow log — the screen saver starts after 1200 s idle and the password is required
+  immediately (kLWLockFromScreenSaverIdleLaunch, passwordDelay 0); not VNC. The owner set the screen saver to never
+  (`com.apple.screensaver idleTime 0`)
 
 # 1.0.42 / code57 — GPT review fixes: message requests, history archive, storage, direct-only files (2026-11-24)
 
