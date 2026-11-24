@@ -758,5 +758,8 @@
  "Files arrive directly from people and are kept only on this phone. Files up to 5 MB are encrypted inside LastCall; larger files are kept in the app’s private folder, protected by Android. When the storage is full, new files cannot be received until you free space.": "Fayllar odamlardan to‘g‘ridan-to‘g‘ri keladi va faqat shu telefonda saqlanadi. 5 MB gacha bo‘lgan fayllar LastCall ichida shifrlanadi; kattaroq fayllar ilovaning Android himoyasidagi yopiq jildida saqlanadi. Xotira to‘lganda, joy bo‘shatmaguningizcha yangi fayllarni qabul qilib bo‘lmaydi.",
  "You turned off the direct connection with this contact: messages go through the server, files and calls are not available.": "Siz bu kontakt bilan to‘g‘ridan-to‘g‘ri ulanishni o‘chirdingiz: xabarlar server orqali boradi, fayllar va qo‘ng‘iroqlar mavjud emas.",
  "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.": "Ikkala telefon ham onlayn, lekin to‘g‘ridan-to‘g‘ri ulanish mavjud emas. Fayllar uni kutadi; xabarlar baribir yetib boradi.",
- "Draft:": "Qoralama:"
+ "Draft:": "Qoralama:",
+ "Large file": "Katta fayl",
+ "Files over 5 MB go straight to the recipient’s phone over a direct connection and are encrypted on the way. On both phones they are stored without LastCall’s extra encryption.": "5 MB dan katta fayllar to‘g‘ridan-to‘g‘ri aloqa orqali bevosita qabul qiluvchining telefoniga boradi va yo‘lda shifrlanadi. Ikkala telefonda ham ular LastCall’ning qo‘shimcha shifrlashi qo‘llanilmagan holda saqlanadi.",
+ "Large file · directly to the phone, stored without LastCall encryption": "Katta fayl · to‘g‘ridan-to‘g‘ri telefonga, LastCall shifrlashsiz saqlanadi"
 }

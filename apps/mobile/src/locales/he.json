@@ -758,5 +758,8 @@
  "Files arrive directly from people and are kept only on this phone. Files up to 5 MB are encrypted inside LastCall; larger files are kept in the app’s private folder, protected by Android. When the storage is full, new files cannot be received until you free space.": "קבצים מגיעים ישירות מאנשים ונשמרים רק בטלפון הזה. קבצים עד 5 MB מוצפנים בתוך LastCall; קבצים גדולים יותר נשמרים בתיקייה הפרטית של האפליקציה, בהגנת Android. כשהאחסון מלא, אי אפשר לקבל קבצים חדשים עד שמפנים מקום.",
  "You turned off the direct connection with this contact: messages go through the server, files and calls are not available.": "כיבית את החיבור הישיר עם איש הקשר הזה: הודעות עוברות דרך השרת, קבצים ושיחות אינם זמינים.",
  "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.": "שני הטלפונים מחוברים, אבל חיבור ישיר אינו זמין. קבצים ממתינים לו; הודעות עדיין מגיעות.",
- "Draft:": "טיוטה:"
+ "Draft:": "טיוטה:",
+ "Large file": "קובץ גדול",
+ "Files over 5 MB go straight to the recipient’s phone over a direct connection and are encrypted on the way. On both phones they are stored without LastCall’s extra encryption.": "קבצים מעל 5 MB עוברים ישירות לטלפון של הנמען בחיבור ישיר ומוצפנים בדרך. בשני הטלפונים הם נשמרים בלי ההצפנה הנוספת של LastCall.",
+ "Large file · directly to the phone, stored without LastCall encryption": "קובץ גדול · ישירות לטלפון, נשמר בלי הצפנת LastCall"
 }

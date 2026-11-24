@@ -758,5 +758,8 @@
  "Files arrive directly from people and are kept only on this phone. Files up to 5 MB are encrypted inside LastCall; larger files are kept in the app’s private folder, protected by Android. When the storage is full, new files cannot be received until you free space.": "Les fichiers arrivent directement depuis les autres personnes et ne sont conservés que sur ce téléphone. Les fichiers jusqu'à 5 Mo sont chiffrés dans LastCall ; les fichiers plus volumineux sont conservés dans le dossier privé de l'application, protégé par Android. Lorsque le stockage est plein, aucun nouveau fichier ne peut être reçu tant que vous n'avez pas libéré d'espace.",
  "You turned off the direct connection with this contact: messages go through the server, files and calls are not available.": "Vous avez désactivé la connexion directe avec ce contact : les messages passent par le serveur, les fichiers et les appels ne sont pas disponibles.",
  "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.": "Les deux téléphones sont en ligne, mais aucune connexion directe n'est disponible. Les fichiers l'attendent ; les messages arrivent quand même.",
- "Draft:": "Brouillon :"
+ "Draft:": "Brouillon :",
+ "Large file": "Fichier volumineux",
+ "Files over 5 MB go straight to the recipient’s phone over a direct connection and are encrypted on the way. On both phones they are stored without LastCall’s extra encryption.": "Les fichiers de plus de 5 Mo vont directement sur le téléphone du destinataire par une connexion directe et sont chiffrés pendant le transfert. Sur les deux téléphones, ils sont conservés sans le chiffrement supplémentaire de LastCall.",
+ "Large file · directly to the phone, stored without LastCall encryption": "Fichier volumineux · directement vers le téléphone, conservé sans le chiffrement de LastCall"
 }

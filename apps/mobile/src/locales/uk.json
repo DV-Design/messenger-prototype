@@ -758,5 +758,8 @@
  "Files arrive directly from people and are kept only on this phone. Files up to 5 MB are encrypted inside LastCall; larger files are kept in the app’s private folder, protected by Android. When the storage is full, new files cannot be received until you free space.": "Файли надходять напряму від людей і зберігаються лише на цьому телефоні. Файли до 5 МБ зашифровано всередині LastCall; більші файли зберігаються в приватній папці застосунку під захистом Android. Коли сховище заповнене, нові файли не можна отримати, доки ви не звільните місце.",
  "You turned off the direct connection with this contact: messages go through the server, files and calls are not available.": "Ви вимкнули пряме з’єднання з цим контактом: повідомлення йдуть через сервер, файли й дзвінки недоступні.",
  "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.": "Обидва телефони в мережі, але пряме з’єднання недоступне. Файли чекають на нього; повідомлення все одно надходять.",
- "Draft:": "Чернетка:"
+ "Draft:": "Чернетка:",
+ "Large file": "Великий файл",
+ "Files over 5 MB go straight to the recipient’s phone over a direct connection and are encrypted on the way. On both phones they are stored without LastCall’s extra encryption.": "Файли понад 5 МБ ідуть прямим з’єднанням просто на телефон одержувача й шифруються під час передавання. На обох телефонах вони зберігаються без додаткового шифрування LastCall.",
+ "Large file · directly to the phone, stored without LastCall encryption": "Великий файл · напряму на телефон, зберігається без шифрування LastCall"
 }

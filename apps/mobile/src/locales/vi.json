@@ -758,5 +758,8 @@
  "Files arrive directly from people and are kept only on this phone. Files up to 5 MB are encrypted inside LastCall; larger files are kept in the app’s private folder, protected by Android. When the storage is full, new files cannot be received until you free space.": "Tệp được gửi trực tiếp từ người khác và chỉ được lưu trên điện thoại này. Tệp tối đa 5 MB được mã hóa bên trong LastCall; tệp lớn hơn được lưu trong thư mục riêng của ứng dụng và được Android bảo vệ. Khi bộ nhớ đầy, bạn không thể nhận tệp mới cho tới khi giải phóng dung lượng.",
  "You turned off the direct connection with this contact: messages go through the server, files and calls are not available.": "Bạn đã tắt kết nối trực tiếp với liên hệ này: tin nhắn đi qua máy chủ, tệp và cuộc gọi không khả dụng.",
  "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.": "Cả hai điện thoại đều trực tuyến nhưng kết nối trực tiếp không khả dụng. Tệp sẽ chờ kết nối trực tiếp; tin nhắn vẫn đến.",
- "Draft:": "Bản nháp:"
+ "Draft:": "Bản nháp:",
+ "Large file": "Tệp lớn",
+ "Files over 5 MB go straight to the recipient’s phone over a direct connection and are encrypted on the way. On both phones they are stored without LastCall’s extra encryption.": "Tệp lớn hơn 5 MB được gửi thẳng tới điện thoại của người nhận qua kết nối trực tiếp và được mã hóa trên đường truyền. Trên cả hai điện thoại, tệp được lưu mà không có lớp mã hóa bổ sung của LastCall.",
+ "Large file · directly to the phone, stored without LastCall encryption": "Tệp lớn · gửi thẳng tới điện thoại, lưu không có mã hóa LastCall"
 }

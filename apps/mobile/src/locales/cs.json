@@ -758,5 +758,8 @@
  "Files arrive directly from people and are kept only on this phone. Files up to 5 MB are encrypted inside LastCall; larger files are kept in the app’s private folder, protected by Android. When the storage is full, new files cannot be received until you free space.": "Soubory přicházejí přímo od lidí a ukládají se jen v tomto telefonu. Soubory do 5 MB jsou šifrované uvnitř LastCall; větší soubory se ukládají do soukromé složky aplikace chráněné systémem Android. Když je úložiště plné, nové soubory nelze přijímat, dokud neuvolníte místo.",
  "You turned off the direct connection with this contact: messages go through the server, files and calls are not available.": "Přímé spojení s tímto kontaktem jste vypnuli: zprávy jdou přes server, soubory a hovory nejsou k dispozici.",
  "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.": "Oba telefony jsou online, ale přímé spojení není k dispozici. Soubory na něj čekají; zprávy dál docházejí.",
- "Draft:": "Koncept:"
+ "Draft:": "Koncept:",
+ "Large file": "Velký soubor",
+ "Files over 5 MB go straight to the recipient’s phone over a direct connection and are encrypted on the way. On both phones they are stored without LastCall’s extra encryption.": "Soubory nad 5 MB jdou přímým spojením rovnou do telefonu příjemce a během přenosu jsou šifrované. V obou telefonech se ukládají bez dodatečného šifrování LastCall.",
+ "Large file · directly to the phone, stored without LastCall encryption": "Velký soubor · přímo do telefonu, uložen bez šifrování LastCall"
 }

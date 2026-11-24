@@ -758,5 +758,8 @@
  "Files arrive directly from people and are kept only on this phone. Files up to 5 MB are encrypted inside LastCall; larger files are kept in the app’s private folder, protected by Android. When the storage is full, new files cannot be received until you free space.": "파일은 상대방에게서 직접 전송되며 이 휴대전화에만 보관됩니다. 5 MB 이하의 파일은 LastCall 안에서 암호화되고, 더 큰 파일은 Android가 보호하는 앱 전용 폴더에 보관됩니다. 저장 공간이 가득 차면 공간을 확보할 때까지 새 파일을 받을 수 없습니다.",
  "You turned off the direct connection with this contact: messages go through the server, files and calls are not available.": "이 연락처와의 직접 연결을 껐습니다. 메시지는 서버를 거쳐 전송되며, 파일과 통화는 사용할 수 없습니다.",
  "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.": "두 휴대전화가 모두 온라인이지만 직접 연결을 사용할 수 없습니다. 파일은 직접 연결을 기다리며, 메시지는 계속 전달됩니다.",
- "Draft:": "임시 저장:"
+ "Draft:": "임시 저장:",
+ "Large file": "대용량 파일",
+ "Files over 5 MB go straight to the recipient’s phone over a direct connection and are encrypted on the way. On both phones they are stored without LastCall’s extra encryption.": "5 MB를 넘는 파일은 직접 연결을 통해 수신자의 휴대전화로 바로 전송되며 전송 중에는 암호화됩니다. 양쪽 휴대전화 모두에서 LastCall의 추가 암호화 없이 보관됩니다.",
+ "Large file · directly to the phone, stored without LastCall encryption": "대용량 파일 · 휴대전화로 직접 전송, LastCall 암호화 없이 보관"
 }

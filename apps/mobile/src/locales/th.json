@@ -758,5 +758,8 @@
  "Files arrive directly from people and are kept only on this phone. Files up to 5 MB are encrypted inside LastCall; larger files are kept in the app’s private folder, protected by Android. When the storage is full, new files cannot be received until you free space.": "ไฟล์ส่งตรงมาจากผู้คนและเก็บไว้ในโทรศัพท์เครื่องนี้เท่านั้น ไฟล์ขนาดไม่เกิน 5 MB จะเข้ารหัสอยู่ภายใน LastCall ส่วนไฟล์ที่ใหญ่กว่าจะเก็บไว้ในโฟลเดอร์ส่วนตัวของแอปซึ่ง Android ปกป้องไว้ เมื่อพื้นที่เต็ม จะรับไฟล์ใหม่ไม่ได้จนกว่าคุณจะล้างพื้นที่",
  "You turned off the direct connection with this contact: messages go through the server, files and calls are not available.": "คุณปิดการเชื่อมต่อโดยตรงกับผู้ติดต่อนี้แล้ว: ข้อความส่งผ่านเซิร์ฟเวอร์ ส่วนไฟล์และการโทรใช้ไม่ได้",
  "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.": "โทรศัพท์ทั้งสองเครื่องออนไลน์ แต่การเชื่อมต่อโดยตรงใช้ไม่ได้ ไฟล์จะรอการเชื่อมต่อโดยตรง ส่วนข้อความยังส่งถึงได้",
- "Draft:": "ฉบับร่าง:"
+ "Draft:": "ฉบับร่าง:",
+ "Large file": "ไฟล์ขนาดใหญ่",
+ "Files over 5 MB go straight to the recipient’s phone over a direct connection and are encrypted on the way. On both phones they are stored without LastCall’s extra encryption.": "ไฟล์ที่ใหญ่กว่า 5 MB จะส่งตรงไปยังโทรศัพท์ของผู้รับผ่านการเชื่อมต่อโดยตรง และเข้ารหัสระหว่างทาง บนโทรศัพท์ทั้งสองเครื่อง ไฟล์จะเก็บไว้โดยไม่มีการเข้ารหัสเพิ่มเติมของ LastCall",
+ "Large file · directly to the phone, stored without LastCall encryption": "ไฟล์ขนาดใหญ่ · ส่งตรงไปยังโทรศัพท์ เก็บไว้โดยไม่มีการเข้ารหัสของ LastCall"
 }

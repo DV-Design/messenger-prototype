@@ -758,5 +758,8 @@
  "Files arrive directly from people and are kept only on this phone. Files up to 5 MB are encrypted inside LastCall; larger files are kept in the app’s private folder, protected by Android. When the storage is full, new files cannot be received until you free space.": "File datang langsung dari orang lain dan hanya disimpan di ponsel ini. File hingga 5 MB dienkripsi di dalam LastCall; file yang lebih besar disimpan di folder pribadi aplikasi yang dilindungi oleh Android. Saat penyimpanan penuh, file baru tidak dapat diterima sampai Anda mengosongkan ruang.",
  "You turned off the direct connection with this contact: messages go through the server, files and calls are not available.": "Anda menonaktifkan koneksi langsung dengan kontak ini: pesan dikirim lewat server, file dan panggilan tidak tersedia.",
  "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.": "Kedua ponsel online, tetapi koneksi langsung tidak tersedia. File menunggu koneksi tersebut; pesan tetap sampai.",
- "Draft:": "Draf:"
+ "Draft:": "Draf:",
+ "Large file": "File besar",
+ "Files over 5 MB go straight to the recipient’s phone over a direct connection and are encrypted on the way. On both phones they are stored without LastCall’s extra encryption.": "File di atas 5 MB dikirim langsung ke ponsel penerima melalui koneksi langsung dan dienkripsi selama perjalanan. Di kedua ponsel, file tersebut disimpan tanpa enkripsi tambahan LastCall.",
+ "Large file · directly to the phone, stored without LastCall encryption": "File besar · langsung ke ponsel, disimpan tanpa enkripsi LastCall"
 }

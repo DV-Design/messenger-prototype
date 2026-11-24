@@ -758,5 +758,8 @@
  "Files arrive directly from people and are kept only on this phone. Files up to 5 MB are encrypted inside LastCall; larger files are kept in the app’s private folder, protected by Android. When the storage is full, new files cannot be received until you free space.": "Dosyalar doğrudan kişilerden gelir ve yalnızca bu telefonda saklanır. 5 MB'a kadar dosyalar LastCall içinde şifrelenir; daha büyük dosyalar uygulamanın Android tarafından korunan özel klasöründe saklanır. Depolama alanı dolduğunda yer açana kadar yeni dosyalar alınamaz.",
  "You turned off the direct connection with this contact: messages go through the server, files and calls are not available.": "Bu kişiyle doğrudan bağlantıyı kapattınız: mesajlar sunucu üzerinden gider, dosyalar ve aramalar kullanılamaz.",
  "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.": "İki telefon da çevrimiçi, ancak doğrudan bağlantı kullanılamıyor. Dosyalar bağlantıyı bekler; mesajlar yine de ulaşır.",
- "Draft:": "Taslak:"
+ "Draft:": "Taslak:",
+ "Large file": "Büyük dosya",
+ "Files over 5 MB go straight to the recipient’s phone over a direct connection and are encrypted on the way. On both phones they are stored without LastCall’s extra encryption.": "5 MB'tan büyük dosyalar doğrudan bağlantı üzerinden alıcının telefonuna gider ve yolda şifrelenir. Her iki telefonda da LastCall'un ek şifrelemesi olmadan saklanır.",
+ "Large file · directly to the phone, stored without LastCall encryption": "Büyük dosya · doğrudan telefona, LastCall şifrelemesi olmadan saklanır"
 }

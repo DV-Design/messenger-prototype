@@ -8,9 +8,15 @@
 - [X] Drafts as in Telegram: text typed and not sent stays in the chat (saved with the encrypted history, survives
   a restart; during an edit the set-aside text is kept); the chat list shows "Draft: …" in red; "Draft:" in 29 languages
   → Artifacts: [messenger.ts](packages/core/src/messenger.ts), [chat](apps/mobile/src/app/chat/%5Bid%5D.tsx), [chats](apps/mobile/src/app/(tabs)/index.tsx), [archive.test.ts](packages/core/src/archive.test.ts)
-- [X] `artifacts/LastCall-1.0.43-store.aab` 60495091 bytes, sha256 `05198785f57d7424267442b67d37f8b7bc8842422d55178bfeed8581368f2999`; emulator: draft shown in the list and back in
+- [X] `artifacts/LastCall-1.0.43-store.aab` 60499980 bytes, sha256 `b2c8db5f859fdea32b369df0b56ef225e0e1d87acdf263c9149dd31cc8ad5587` (rebuilt with the large-file notice); emulator: draft shown in the list and back in
   the field after a force-stop; share from Google Photos with the app closed and in the background opens Send to…,
   the photo was delivered to Alex. `npm run check` passes (mobile 285, server 154, core 315)
+- [X] Large files (over 5 MB): a confirmation before sending ("go straight to the recipient's phone over a direct
+  connection and are encrypted on the way; on both phones stored without LastCall's extra encryption") and a note on
+  the file in the chat. The owner asked for "sent without encryption"; the transfer is in fact encrypted (per-file key
+  over the end-to-end session), so the text says what is true. Strings in 29 languages. Emulator: a 6.4 MB image
+  shared to Alex showed the confirmation and arrived (Delivered) with the note
+  → Artifacts: [attachments.ts](apps/mobile/src/attachments.ts), [AttachmentCard.tsx](apps/mobile/src/components/AttachmentCard.tsx)
 - [ ] The owner's phone: not reproduced there; the emulator never showed the failure, so the fix addresses the most likely cause
 - [ ] Google Play upload of 1.0.43 (1.0.42 is in review)
 

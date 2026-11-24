@@ -758,5 +758,8 @@
  "Files arrive directly from people and are kept only on this phone. Files up to 5 MB are encrypted inside LastCall; larger files are kept in the app’s private folder, protected by Android. When the storage is full, new files cannot be received until you free space.": "文件直接来自对方，仅保存在此手机上。不超过 5 MB 的文件在 LastCall 内加密；更大的文件保存在应用的私有文件夹中，受 Android 保护。存储空间已满时，在你释放空间之前无法接收新文件。",
  "You turned off the direct connection with this contact: messages go through the server, files and calls are not available.": "你已关闭与此联系人的直接连接：消息经服务器传输，文件和通话不可用。",
  "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.": "双方手机都在线，但直接连接不可用。文件会等待直接连接；消息仍可送达。",
- "Draft:": "草稿："
+ "Draft:": "草稿：",
+ "Large file": "大文件",
+ "Files over 5 MB go straight to the recipient’s phone over a direct connection and are encrypted on the way. On both phones they are stored without LastCall’s extra encryption.": "超过 5 MB 的文件通过直接连接直达收件人的手机，传输途中会加密。在双方手机上，这些文件存储时都不带 LastCall 的额外加密。",
+ "Large file · directly to the phone, stored without LastCall encryption": "大文件 · 直达手机，存储时不经 LastCall 加密"
 }

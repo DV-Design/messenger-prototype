@@ -758,5 +758,8 @@
  "Files arrive directly from people and are kept only on this phone. Files up to 5 MB are encrypted inside LastCall; larger files are kept in the app’s private folder, protected by Android. When the storage is full, new files cannot be received until you free space.": "Bestanden komen rechtstreeks van mensen en worden alleen op deze telefoon bewaard. Bestanden tot 5 MB worden versleuteld in LastCall; grotere bestanden worden bewaard in de privémap van de app, beschermd door Android. Als de opslag vol is, kunnen er geen nieuwe bestanden worden ontvangen totdat je ruimte vrijmaakt.",
  "You turned off the direct connection with this contact: messages go through the server, files and calls are not available.": "Je hebt de directe verbinding met dit contact uitgeschakeld: berichten gaan via de server, bestanden en gesprekken zijn niet beschikbaar.",
  "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.": "Beide telefoons zijn online, maar een directe verbinding is niet beschikbaar. Bestanden wachten daarop; berichten komen nog steeds aan.",
- "Draft:": "Concept:"
+ "Draft:": "Concept:",
+ "Large file": "Groot bestand",
+ "Files over 5 MB go straight to the recipient’s phone over a direct connection and are encrypted on the way. On both phones they are stored without LastCall’s extra encryption.": "Bestanden groter dan 5 MB gaan via een directe verbinding rechtstreeks naar de telefoon van de ontvanger en worden onderweg versleuteld. Op beide telefoons worden ze bewaard zonder de extra versleuteling van LastCall.",
+ "Large file · directly to the phone, stored without LastCall encryption": "Groot bestand · rechtstreeks naar de telefoon, bewaard zonder LastCall-versleuteling"
 }

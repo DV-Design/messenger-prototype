@@ -3038,5 +3038,17 @@
  {
   "key": "Draft:",
   "ru": "Черновик:"
+ },
+ {
+  "key": "Large file",
+  "ru": "Большой файл"
+ },
+ {
+  "key": "Files over 5 MB go straight to the recipient’s phone over a direct connection and are encrypted on the way. On both phones they are stored without LastCall’s extra encryption.",
+  "ru": "Файлы больше 5 МБ идут напрямую на телефон получателя и шифруются при передаче. На обоих телефонах они хранятся без дополнительного шифрования LastCall."
+ },
+ {
+  "key": "Large file · directly to the phone, stored without LastCall encryption",
+  "ru": "Большой файл · напрямую на телефон, хранится без шифрования LastCall"
  }
 ]

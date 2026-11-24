@@ -758,5 +758,8 @@
  "Files arrive directly from people and are kept only on this phone. Files up to 5 MB are encrypted inside LastCall; larger files are kept in the app’s private folder, protected by Android. When the storage is full, new files cannot be received until you free space.": "Fișierele vin direct de la persoane și sunt păstrate doar pe acest telefon. Fișierele de până la 5 MB sunt criptate în LastCall; fișierele mai mari sunt păstrate în folderul privat al aplicației, protejat de Android. Când spațiul este plin, nu se mai pot primi fișiere noi până nu eliberezi spațiu.",
  "You turned off the direct connection with this contact: messages go through the server, files and calls are not available.": "Ai dezactivat conexiunea directă cu acest contact: mesajele trec prin server, fișierele și apelurile nu sunt disponibile.",
  "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.": "Ambele telefoane sunt online, dar o conexiune directă nu este disponibilă. Fișierele o așteaptă; mesajele ajung în continuare.",
- "Draft:": "Ciornă:"
+ "Draft:": "Ciornă:",
+ "Large file": "Fișier mare",
+ "Files over 5 MB go straight to the recipient’s phone over a direct connection and are encrypted on the way. On both phones they are stored without LastCall’s extra encryption.": "Fișierele de peste 5 MB merg direct pe telefonul destinatarului printr-o conexiune directă și sunt criptate pe drum. Pe ambele telefoane sunt păstrate fără criptarea suplimentară LastCall.",
+ "Large file · directly to the phone, stored without LastCall encryption": "Fișier mare · direct pe telefon, păstrat fără criptarea LastCall"
 }

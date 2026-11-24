@@ -758,5 +758,8 @@
  "Files arrive directly from people and are kept only on this phone. Files up to 5 MB are encrypted inside LastCall; larger files are kept in the app’s private folder, protected by Android. When the storage is full, new files cannot be received until you free space.": "Os arquivos chegam diretamente das pessoas e ficam guardados só neste celular. Arquivos de até 5 MB são criptografados dentro do LastCall; arquivos maiores ficam na pasta privada do app, protegida pelo Android. Quando o armazenamento enche, não é possível receber novos arquivos até você liberar espaço.",
  "You turned off the direct connection with this contact: messages go through the server, files and calls are not available.": "Você desativou a conexão direta com este contato: as mensagens passam pelo servidor; arquivos e chamadas não estão disponíveis.",
  "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.": "Os dois celulares estão online, mas não há conexão direta disponível. Os arquivos aguardam por ela; as mensagens continuam chegando.",
- "Draft:": "Rascunho:"
+ "Draft:": "Rascunho:",
+ "Large file": "Arquivo grande",
+ "Files over 5 MB go straight to the recipient’s phone over a direct connection and are encrypted on the way. On both phones they are stored without LastCall’s extra encryption.": "Arquivos com mais de 5 MB vão direto para o celular do destinatário por uma conexão direta e são criptografados no caminho. Nos dois celulares, eles ficam guardados sem a criptografia extra do LastCall.",
+ "Large file · directly to the phone, stored without LastCall encryption": "Arquivo grande · direto para o celular, guardado sem a criptografia do LastCall"
 }

@@ -758,5 +758,8 @@
  "Files arrive directly from people and are kept only on this phone. Files up to 5 MB are encrypted inside LastCall; larger files are kept in the app’s private folder, protected by Android. When the storage is full, new files cannot be received until you free space.": "ファイルは相手から直接届き、このスマートフォンにのみ保存されます。5 MB までのファイルは LastCall 内で暗号化され、それより大きいファイルは Android によって保護されたアプリ専用フォルダに保存されます。保存領域がいっぱいになると、空き容量を増やすまで新しいファイルを受信できません。",
  "You turned off the direct connection with this contact: messages go through the server, files and calls are not available.": "この連絡先との直接接続をオフにしました。メッセージはサーバー経由で送られ、ファイルと通話は利用できません。",
  "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.": "両方のスマートフォンがオンラインですが、直接接続を利用できません。ファイルは直接接続を待ちます。メッセージは引き続き届きます。",
- "Draft:": "下書き："
+ "Draft:": "下書き：",
+ "Large file": "大きなファイル",
+ "Files over 5 MB go straight to the recipient’s phone over a direct connection and are encrypted on the way. On both phones they are stored without LastCall’s extra encryption.": "5 MB を超えるファイルは直接接続で受信者のスマートフォンに直接送られ、転送中は暗号化されます。どちらのスマートフォンでも、LastCall の追加の暗号化なしで保存されます。",
+ "Large file · directly to the phone, stored without LastCall encryption": "大きなファイル · スマートフォンに直接送信、LastCall の暗号化なしで保存"
 }

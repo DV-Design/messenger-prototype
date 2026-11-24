@@ -758,5 +758,8 @@
  "Files arrive directly from people and are kept only on this phone. Files up to 5 MB are encrypted inside LastCall; larger files are kept in the app’s private folder, protected by Android. When the storage is full, new files cannot be received until you free space.": "Файлдар адамдардан тікелей келеді және тек осы телефонда сақталады. 5 МБ-қа дейінгі файлдар LastCall ішінде шифрланады; одан үлкен файлдар қолданбаның Android қорғайтын жабық қалтасында сақталады. Қойма толғанда, орын босатпайынша жаңа файлдарды алу мүмкін емес.",
  "You turned off the direct connection with this contact: messages go through the server, files and calls are not available.": "Сіз бұл контактпен тікелей байланысты өшірдіңіз: хабарламалар сервер арқылы жіберіледі, файлдар мен қоңыраулар қолжетімсіз.",
  "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.": "Екі телефон да желіде, бірақ тікелей байланыс қолжетімсіз. Файлдар оны күтеді; хабарламалар бәрібір жетеді.",
- "Draft:": "Жоба:"
+ "Draft:": "Жоба:",
+ "Large file": "Үлкен файл",
+ "Files over 5 MB go straight to the recipient’s phone over a direct connection and are encrypted on the way. On both phones they are stored without LastCall’s extra encryption.": "5 МБ-тан асатын файлдар тікелей байланыс арқылы алушының телефонына тура жіберіледі және жолда шифрланады. Екі телефонда да олар LastCall-дың қосымша шифрлауынсыз сақталады.",
+ "Large file · directly to the phone, stored without LastCall encryption": "Үлкен файл · телефонға тікелей, LastCall шифрлауынсыз сақталады"
 }

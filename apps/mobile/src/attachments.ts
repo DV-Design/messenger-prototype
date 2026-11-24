@@ -1,3 +1,4 @@
+import { Alert } from 'react-native';
 import { t } from './i18n';
 import { reportDenied } from './permission-notice';
 import { AccessDenied } from './permission-notice-model';
@@ -10,6 +11,16 @@ import { adoptBulkFile, bulkFile } from './bulk-files';
 import { client } from './runtime';
 import { readMediaForSend, type createMediaScope } from './media-model';
 const MAX_FILE = 5 * 1024 * 1024;
+/**
+ * A file over 5 MB goes straight to the recipient's phone over a direct connection, encrypted on the way
+ * like everything else, but it is kept on both phones without LastCall's extra encryption. Say so before it goes.
+ */
+export function confirmLargeFile(): Promise<boolean> {
+  return new Promise(resolve => Alert.alert(t('Large file'), t('Files over 5 MB go straight to the recipient’s phone over a direct connection and are encrypted on the way. On both phones they are stored without LastCall’s extra encryption.'), [
+    { text: t('Cancel'), style: 'cancel', onPress: () => resolve(false) },
+    { text: t('Send'), onPress: () => resolve(true) },
+  ], { cancelable: true, onDismiss: () => resolve(false) }));
+}
 async function transmit(current: MessengerClient, conversationId: string, uri: string, name: string, mime: string, reportedSize?: number) {
   const file = new File(uri);
   try {
@@ -18,6 +29,7 @@ async function transmit(current: MessengerClient, conversationId: string, uri: s
       // Over 5 MiB: streamed phone to phone from app storage, up to 1 GiB, never loaded whole.
       if (size > MAX_BULK_BYTES) throw new Error(t('Files must be 1 GB or smaller.'));
       if (client() !== current) throw new Error(t('The server changed. Open the chat again.'));
+      if (!(await confirmLargeFile())) return;
       await current.sendLargeFile(conversationId, { name, mime, size: file.size }, async key => adoptBulkFile(key, name, file.uri));
       return;
     }

@@ -758,5 +758,8 @@
  "Files arrive directly from people and are kept only on this phone. Files up to 5 MB are encrypted inside LastCall; larger files are kept in the app’s private folder, protected by Android. When the storage is full, new files cannot be received until you free space.": "Fail tiba terus daripada orang lain dan disimpan hanya pada telefon ini. Fail sehingga 5 MB disulitkan di dalam LastCall; fail yang lebih besar disimpan dalam folder peribadi apl yang dilindungi oleh Android. Apabila storan penuh, fail baharu tidak dapat diterima sehingga anda mengosongkan ruang.",
  "You turned off the direct connection with this contact: messages go through the server, files and calls are not available.": "Anda telah mematikan sambungan terus dengan kenalan ini: mesej dihantar melalui pelayan, fail dan panggilan tidak tersedia.",
  "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.": "Kedua-dua telefon dalam talian, tetapi sambungan terus tidak tersedia. Fail menunggu sambungan itu; mesej masih sampai.",
- "Draft:": "Draf:"
+ "Draft:": "Draf:",
+ "Large file": "Fail besar",
+ "Files over 5 MB go straight to the recipient’s phone over a direct connection and are encrypted on the way. On both phones they are stored without LastCall’s extra encryption.": "Fail melebihi 5 MB dihantar terus ke telefon penerima melalui sambungan terus dan disulitkan semasa dalam perjalanan. Pada kedua-dua telefon, fail itu disimpan tanpa penyulitan tambahan LastCall.",
+ "Large file · directly to the phone, stored without LastCall encryption": "Fail besar · terus ke telefon, disimpan tanpa penyulitan LastCall"
 }

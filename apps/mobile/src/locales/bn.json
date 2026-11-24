@@ -758,5 +758,8 @@
  "Files arrive directly from people and are kept only on this phone. Files up to 5 MB are encrypted inside LastCall; larger files are kept in the app’s private folder, protected by Android. When the storage is full, new files cannot be received until you free space.": "ফাইল সরাসরি মানুষের কাছ থেকে আসে এবং শুধু এই ফোনে রাখা হয়। 5 MB পর্যন্ত ফাইল LastCall-এর ভেতরে এনক্রিপ্ট করা থাকে; এর চেয়ে বড় ফাইল অ্যাপের প্রাইভেট ফোল্ডারে রাখা হয়, যা Android সুরক্ষিত রাখে। স্টোরেজ ভরে গেলে জায়গা খালি না করা পর্যন্ত নতুন ফাইল আসতে পারবে না।",
  "You turned off the direct connection with this contact: messages go through the server, files and calls are not available.": "আপনি এই কন্টাক্টের সাথে সরাসরি কানেকশন বন্ধ করেছেন: মেসেজ সার্ভার দিয়ে যায়, ফাইল ও কল পাওয়া যাবে না।",
  "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.": "দুটো ফোনই অনলাইনে আছে, কিন্তু সরাসরি কানেকশন পাওয়া যাচ্ছে না। ফাইল এর অপেক্ষায় থাকে; মেসেজ তবুও পৌঁছায়।",
- "Draft:": "খসড়া:"
+ "Draft:": "খসড়া:",
+ "Large file": "বড় ফাইল",
+ "Files over 5 MB go straight to the recipient’s phone over a direct connection and are encrypted on the way. On both phones they are stored without LastCall’s extra encryption.": "5 MB-এর চেয়ে বড় ফাইল সরাসরি কানেকশনের মাধ্যমে প্রাপকের ফোনে যায় এবং পথে এনক্রিপ্ট করা থাকে। দুই ফোনেই সেগুলো LastCall-এর বাড়তি এনক্রিপশন ছাড়া রাখা হয়।",
+ "Large file · directly to the phone, stored without LastCall encryption": "বড় ফাইল · সরাসরি ফোনে, LastCall এনক্রিপশন ছাড়া রাখা হয়"
 }
