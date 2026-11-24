@@ -132,7 +132,24 @@ export default function Chat() {
   // A reply's own quote marker line is never sent either — only the typed body is translated.
   // Snapshots reuse the message list while nothing in it changed, so these are rebuilt only when
   // the history itself changes, not on every status tick or presence update.
-  const messages = conversation?.messages ?? NO_MESSAGES;
+  const current = conversation?.messages ?? NO_MESSAGES;
+  // Older messages read from the encrypted archive on request; shown read-only above the in-memory ones.
+  const [older, setOlder] = useState<{ chat: string; messages: MessengerMessage[]; cursor?: string; done: boolean }>({ chat: '', messages: [], done: false });
+  const sameChat = older.chat === conversation?.id;
+  const olderMessages = sameChat ? older.messages : NO_MESSAGES;
+  // The React Compiler memoizes these on their inputs, so the timeline cache keeps its key.
+  const messages = olderMessages.length ? [...olderMessages, ...current.filter(item => !olderMessages.some(old => old.id === item.id && old.from === item.from))] : current;
+  const archivedIds = new Set(olderMessages.map(item => item.from + ':' + item.id));
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const canLoadOlder = !!conversation?.archived && !(sameChat && older.done) && olderMessages.length < conversation.archived;
+  async function loadOlder() {
+    if (!conversation || loadingOlder) return;
+    setLoadingOlder(true);
+    try {
+      const page = await client().loadEarlier(conversation.id, sameChat ? older.cursor : undefined, 50);
+      setOlder({ chat: conversation.id, messages: [...page.messages.slice().reverse(), ...olderMessages], cursor: page.cursor, done: !page.cursor || page.messages.length < 50 });
+    } catch (cause) { setError(errorText(cause)); } finally { setLoadingOlder(false); }
+  }
   const files = conversation?.files ?? NO_FILES;
   const translatable = translatableOf(messages);
   const translations = useTranslations(translated && chatTranslationSupported, translatable, myLanguage.code);
@@ -145,7 +162,7 @@ export default function Chat() {
     const focus = AppState.addEventListener('focus', () => setInteracting(true));
     return () => { change.remove(); blur.remove(); focus.remove(); };
   }, []);
-  const contentVersion = readContentVersion(messages, files);
+  const contentVersion = readContentVersion(current, files);
   const blockedKey = snapshot.blockedContacts.join();
   const reversedTimeline = timelineOf(messages, files, blockedKey, now);
   // Read receipts (signing, saving, waking the senders) start once the chat has finished sliding
@@ -222,7 +239,8 @@ export default function Chat() {
   }
   const messageTarget = (item: MessengerMessage): MessageTarget => ({ id: item.id, type: 'message', author: item.from, own: item.from === identity?.userId, expired: item.status === 'expired', text: item.text, reaction: myReaction(item.reactions, identity?.userId) });
   const fileTarget = (file: MessengerFile): MessageTarget => ({ id: file.id, type: 'file', author: file.senderId, own: file.senderId === identity?.userId, expired: file.deliveryStatus === 'expired', text: fileLabel(file), reaction: myReaction(file.reactions, identity?.userId) });
-  function selectMessage(item: MessengerMessage) { haptic('longPress'); setSelected(messageTarget(item)); }
+  // Archived messages are read-only: no reply, edit, reaction or deletion.
+  function selectMessage(item: MessengerMessage) { if (archivedIds.has(item.from + ':' + item.id)) return; haptic('longPress'); setSelected(messageTarget(item)); }
   function selectFile(file: MessengerFile) { haptic('longPress'); setSelected(fileTarget(file)); }
   function startReply(target: MessageTarget) { setEditing(undefined); setAttachments(false); setReplying(target); }
   function authorName(userId: string): string { return userId === identity?.userId ? t('You') : snapshot.contacts.find(contact => contact.userId === userId)?.displayName ?? t('Member'); }
@@ -339,7 +357,8 @@ export default function Chat() {
           initialNumToRender={12} maxToRenderPerBatch={8} windowSize={9}
           onViewableItemsChanged={onViewable} viewabilityConfig={VIEWABILITY} onScrollBeginDrag={scrollStarted} onMomentumScrollBegin={scrollStarted} onScrollEndDrag={scrollStopped} onMomentumScrollEnd={scrollStopped}
           onScrollToIndexFailed={info => { list.current?.scrollToOffset({ offset: info.averageItemLength * info.index, animated: false }); setTimeout(() => list.current?.scrollToIndex({ index: info.index, animated: true, viewPosition: 0.5 }), 60); }}
-          renderItem={({ item: entry }) => renderRow(entry)} />}
+          renderItem={({ item: entry }) => renderRow(entry)}
+          ListFooterComponent={canLoadOlder ? <View style={{ alignItems: 'center', paddingVertical: 12 }}><Button secondary busy={loadingOlder} title={t('Show earlier messages')} onPress={() => void loadOlder()} /></View> : undefined} />}
         {scrolling && !!floatingDate && <View pointerEvents="none" style={{ position: 'absolute', top: 8, left: 0, right: 0, alignItems: 'center' }}><DayPill label={floatingDate} /></View>}
       </View>
       <PermissionNotice />

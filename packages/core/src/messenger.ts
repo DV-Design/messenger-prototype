@@ -25,7 +25,7 @@ export interface MessengerFile extends SharedFile {timestamp:number;senderId:str
   waiting?:true;}
 /** One member's current reaction, oldest first. */
 export interface ReactionView {userId:string;emoji:ReactionEmoji;}
-export interface Conversation {id:string;kind:'direct'|'group';title:string;memberIds:string[];creatorId?:string;formerIds?:string[];removed?:boolean;messages:MessengerMessage[];files:MessengerFile[];unread:number;updatedAt:number;session?:SessionSnapshot;hidden?:boolean;implicit?:boolean;}
+export interface Conversation {id:string;kind:'direct'|'group';title:string;memberIds:string[];creatorId?:string;formerIds?:string[];removed?:boolean;messages:MessengerMessage[];files:MessengerFile[];unread:number;updatedAt:number;session?:SessionSnapshot;hidden?:boolean;implicit?:boolean;/** Older messages moved out of memory into the encrypted archive; read them with loadEarlier. */archived?:number;}
 export interface PendingIncomingCall extends OpenedCallPush {state:'ringing'|'accepted';revision:number;}
 interface OutgoingInvitation extends CallInvitation {peerId:string;conversationId:string;video:boolean;serverEpoch?:string;offered:boolean;offering:boolean;ringing:boolean;sessionStarted:boolean;revision:number;operation:PendingOperation;timer?:ReturnType<typeof setTimeout>;expiry?:ReturnType<typeof setTimeout>;}
 export interface MessengerSnapshot {status:'idle'|'connecting'|'online'|'offline'|'error';/** The encrypted local history has been read; before that an empty chat list means "not loaded yet", not "no chats". */restored?:boolean;self?:DirectoryUser;contacts:DirectoryUser[];conversations:Conversation[];activeCall?:{conversationId:string;peerId:string;session:SessionSnapshot};pendingIncomingCall?:PendingIncomingCall;verifiedContacts:string[];blockedContacts:string[];movedContacts?:Record<string,DirectoryUser>;error?:string;}
@@ -56,6 +56,8 @@ const MAX_CHANGE_STATE_BYTES=1024*1024;
 const MAX_APPLICATION_BODY=16000;
 const utf8=new TextEncoder();
 const withReactions=(reactions?:ReactionView[])=>reactions?{reactions}:{};
+/** Archive rows sort by time inside a chat, so a page is one range read. */
+const archiveKey=(conversationId:string,m:{timestamp:number;from:string;id:string})=>`a:${conversationId}:${String(Math.max(0,Math.floor(m.timestamp))).padStart(15,'0')}:${m.from}:${m.id}`;
 const messageSchema=z.object({id:peerIdSchema,text:z.string().min(1).max(MAX_TEXT_CHARS),from:roomIdSchema,timestamp:z.number().finite().nonnegative(),status:z.enum(['pending','sent','delivered','received','expired']),conversationId:conversationIdSchema,expiresAt:z.number().finite().nonnegative().optional(),metadata:z.string().max(12000).optional(),recipientIds:z.array(roomIdSchema).max(7).optional(),deliveredTo:z.array(roomIdSchema).max(7).optional(),readBy:z.array(roomIdSchema).max(7).optional(),notifiedTo:z.array(roomIdSchema).max(7).optional(),editedAt:z.number().finite().nonnegative().optional(),originalText:z.string().min(1).max(MAX_TEXT_CHARS).optional()}).strict();
 const fileSchema=z.object({id:peerIdSchema,name:z.string().min(1).max(255),mime:z.string().max(255),size:z.number().int().min(0).max(MAX_BULK_BYTES),large:z.literal(true).optional(),timestamp:z.number().finite().nonnegative(),from:z.enum(['self','peer']),status:z.enum(['sending','receiving','complete','error']),receivedBytes:z.number().nonnegative(),senderId:roomIdSchema,conversationId:conversationIdSchema,metadata:z.string().max(12000).optional(),expiresAt:z.number().finite().nonnegative().optional(),deliveryStatus:z.enum(['pending','sent','delivered','received','expired']).optional(),blobKey:roomIdSchema.optional(),recipientIds:z.array(roomIdSchema).max(7).optional(),deliveredTo:z.array(roomIdSchema).max(7).optional(),readBy:z.array(roomIdSchema).max(7).optional(),notifiedTo:z.array(roomIdSchema).max(7).optional(),waiting:z.literal(true).optional()}).strict().refine(f=>f.large||f.size<=MAX_FILE_BYTES,'File exceeds 5 MiB limit');
 const tombstoneSchema=z.object({id:peerIdSchema,author:roomIdSchema,type:z.enum(['message','file']),expiresAt:z.number().finite().nonnegative()}).strict();
@@ -64,7 +66,7 @@ interface InternalConversation extends Conversation {creatorId?:string;definitio
 interface PendingOperation {controller:AbortController;started:number;timeout:number;timer?:ReturnType<typeof setTimeout>;conversationId:string;peerId?:string;}
 interface PendingMessage {conversationId:string;messageId:string;remaining:string[];type?:'message'|'file';author?:string;createdAt?:number;expiresAt?:number;/** Recipients whose server mailbox holds this item: a text then needs no direct path; a file only announced itself. */mailboxed?:string[];}
 const pendingSchema=z.object({conversationId:conversationIdSchema,messageId:peerIdSchema,remaining:z.array(roomIdSchema).min(1).max(7),type:z.enum(['message','file']).optional(),author:roomIdSchema.optional(),createdAt:z.number().finite().nonnegative().optional(),expiresAt:z.number().finite().nonnegative().optional(),mailboxed:z.array(roomIdSchema).max(7).optional()}).strict();
-const storedConversationSchema=z.object({id:conversationIdSchema,kind:z.enum(['direct','group']),title:z.string().min(1).max(64),memberIds:z.array(roomIdSchema).min(1).max(8),creatorId:roomIdSchema.optional(),formerIds:z.array(roomIdSchema).max(64).optional(),removed:z.boolean().optional(),notifyRemoved:z.array(roomIdSchema).max(8).optional(),joinedAt:z.record(roomIdSchema,z.number().finite().nonnegative()).optional(),definition:groupDefinitionSchema.optional(),receipts:z.array(receiptSchema).max(4000).optional(),readReceipts:z.array(readReceiptSchema).max(1312).optional(),messages:z.array(messageSchema).max(100),files:z.array(fileSchema).max(MAX_STORED_FILES+MAX_FILE_RECORDS_WITHOUT_DATA).optional(),unread:z.number().int().min(0).max(100),updatedAt:z.number().finite().nonnegative(),changes:z.array(messageChangeSchema).max(MAX_MESSAGE_CHANGES).optional(),tombstones:z.array(tombstoneSchema).max(MAX_TOMBSTONES).optional(),reactions:z.array(messageReactionSchema).max(MAX_REACTIONS).optional(),hidden:z.boolean().optional(),implicit:z.boolean().optional()}).strict();
+const storedConversationSchema=z.object({id:conversationIdSchema,kind:z.enum(['direct','group']),title:z.string().min(1).max(64),memberIds:z.array(roomIdSchema).min(1).max(8),creatorId:roomIdSchema.optional(),formerIds:z.array(roomIdSchema).max(64).optional(),removed:z.boolean().optional(),notifyRemoved:z.array(roomIdSchema).max(8).optional(),joinedAt:z.record(roomIdSchema,z.number().finite().nonnegative()).optional(),definition:groupDefinitionSchema.optional(),receipts:z.array(receiptSchema).max(4000).optional(),readReceipts:z.array(readReceiptSchema).max(1312).optional(),messages:z.array(messageSchema).max(100),files:z.array(fileSchema).max(MAX_STORED_FILES+MAX_FILE_RECORDS_WITHOUT_DATA).optional(),unread:z.number().int().min(0).max(100),updatedAt:z.number().finite().nonnegative(),changes:z.array(messageChangeSchema).max(MAX_MESSAGE_CHANGES).optional(),tombstones:z.array(tombstoneSchema).max(MAX_TOMBSTONES).optional(),reactions:z.array(messageReactionSchema).max(MAX_REACTIONS).optional(),hidden:z.boolean().optional(),implicit:z.boolean().optional(),archived:z.number().int().nonnegative().optional()}).strict();
 const storedSchema=z.object({version:z.union([z.literal(2),z.literal(3),z.literal(4),z.literal(5),z.literal(6),z.literal(7)]),contacts:z.array(directoryUserSchema).max(MAX_CONTACTS),conversations:z.array(storedConversationSchema).max(MAX_CONTACTS+MAX_GROUPS),pending:z.array(pendingSchema).max(MAX_PENDING_MESSAGES+MAX_PENDING_FILES),verified:z.array(roomIdSchema).max(MAX_CONTACTS).optional(),blocked:z.array(roomIdSchema).max(MAX_CONTACTS).optional()}).strict().refine(state=>state.conversations.reduce((n,c)=>n+c.messages.length,0)<=MAX_HISTORY_MESSAGES,{message:'History capacity exceeded'});
 type RequestInput<T=DirectoryClientFrame>=T extends {requestId:string}?Omit<T,'requestId'>:never;
 type ReplyType=Exclude<Extract<DirectoryServerFrame,{requestId:string}>['type'],'error'>|'call-state';
@@ -80,6 +82,8 @@ export class MessengerClient {
   private random:RandomBytes;private stopped=true;private opening?:Promise<void>;private loaded=false;private restorePromise?:Promise<void>;
   private reconnect?:ReturnType<typeof setTimeout>;private attempt=0;private epoch=0;private savedTimer?:ReturnType<typeof setTimeout>;private saveQueue=Promise.resolve();private dirty=false;private cancelOpening?:()=>void;
   private callCaptionListeners=new Set<(frame:CallCaptionFrame)=>void>();
+  /** Messages trimmed from memory, waiting to be written to the archive with the next save. */
+  private archiveQueue:Array<{key:string;json:string}>=[];
   private mailboxRefused=new Set<string>();private mailboxPosting?:Promise<void>;private mailboxRepost=false;private mailboxFetching?:Promise<void>;private mailboxRefetch=false;
   private mailboxApp:Array<{to:string;id:string;payload:unknown;expiresAt:number}>=[];private mailboxDefinitions=new Set<string>();private persistFailedAt=0;
   private options: Omit<MessengerOptions, 'inviteCode'>;
@@ -125,7 +129,7 @@ export class MessengerClient {
     Object.freeze(items);this.lists.set(key,items);return items;
   }
   getSnapshot():MessengerSnapshot {
-    const conversations=[...this.conversations.values()].map(c=>{const reactions=this.reactionViews(c);return {id:c.id,kind:c.kind,title:c.title,memberIds:[...c.memberIds],...(c.kind==='group'?{creatorId:c.creatorId,formerIds:c.formerIds?[...c.formerIds]:undefined,removed:c.removed}:{}),messages:this.sharedList(c.id,'messages',c.messages.map(m=>this.sharedView(m,reactions.get('message:'+m.from+':'+m.id),()=>({...m,recipientIds:m.recipientIds?[...m.recipientIds]:undefined,deliveredTo:m.deliveredTo?[...m.deliveredTo]:undefined,readBy:m.readBy?[...m.readBy]:undefined,notifiedTo:m.notifiedTo?[...m.notifiedTo]:undefined,...withReactions(reactions.get('message:'+m.from+':'+m.id))})))),files:this.sharedList(c.id,'files',c.files.map(f=>this.sharedView(f,reactions.get('file:'+f.senderId+':'+f.id),()=>({...f,recipientIds:f.recipientIds?[...f.recipientIds]:undefined,deliveredTo:f.deliveredTo?[...f.deliveredTo]:undefined,readBy:f.readBy?[...f.readBy]:undefined,notifiedTo:f.notifiedTo?[...f.notifiedTo]:undefined,...withReactions(reactions.get('file:'+f.senderId+':'+f.id))})))),unread:c.unread,updatedAt:c.updatedAt,session:c.kind==='direct'?this.pairs.get(c.memberIds.find(id=>id!==this.options.identity.userId)!)?.session.getSnapshot():undefined,...(c.hidden?{hidden:true}:{}),...(c.implicit?{implicit:true}:{})};});
+    const conversations=[...this.conversations.values()].map(c=>{const reactions=this.reactionViews(c);return {id:c.id,kind:c.kind,title:c.title,memberIds:[...c.memberIds],...(c.kind==='group'?{creatorId:c.creatorId,formerIds:c.formerIds?[...c.formerIds]:undefined,removed:c.removed}:{}),messages:this.sharedList(c.id,'messages',c.messages.map(m=>this.sharedView(m,reactions.get('message:'+m.from+':'+m.id),()=>({...m,recipientIds:m.recipientIds?[...m.recipientIds]:undefined,deliveredTo:m.deliveredTo?[...m.deliveredTo]:undefined,readBy:m.readBy?[...m.readBy]:undefined,notifiedTo:m.notifiedTo?[...m.notifiedTo]:undefined,...withReactions(reactions.get('message:'+m.from+':'+m.id))})))),files:this.sharedList(c.id,'files',c.files.map(f=>this.sharedView(f,reactions.get('file:'+f.senderId+':'+f.id),()=>({...f,recipientIds:f.recipientIds?[...f.recipientIds]:undefined,deliveredTo:f.deliveredTo?[...f.deliveredTo]:undefined,readBy:f.readBy?[...f.readBy]:undefined,notifiedTo:f.notifiedTo?[...f.notifiedTo]:undefined,...withReactions(reactions.get('file:'+f.senderId+':'+f.id))})))),unread:c.unread,updatedAt:c.updatedAt,session:c.kind==='direct'?this.pairs.get(c.memberIds.find(id=>id!==this.options.identity.userId)!)?.session.getSnapshot():undefined,...(c.hidden?{hidden:true}:{}),...(c.implicit?{implicit:true}:{}),...(c.archived?{archived:c.archived}:{})};});
     let activeCall:MessengerSnapshot['activeCall'];
     for(const [peerId,pair] of this.pairs){const session=pair.session.getSnapshot();if(session.callState!=='idle'){activeCall={conversationId:directConversationId(this.options.identity.userId,peerId),peerId,session};break;}}
     if(!activeCall&&this.pendingIncoming){const incoming=this.pendingIncoming;activeCall={conversationId:incoming.conversationId,peerId:incoming.callerId,session:{status:'connecting',setup:'invitation',callId:incoming.callId,callVideo:incoming.video,callExpiresAt:incoming.expiresAt,messages:[],files:[],stats:{},muted:false,route:'unknown',callState:'incoming'}};}
@@ -138,7 +142,7 @@ export class MessengerClient {
   private recordWriter?:LocalRecordWriter;private migrating=false;
   private persistent(){return !!(this.options.records||this.options.saveState);}
   private scheduleSave(){if(this.closing||!this.persistent()||this.savedTimer)return;this.savedTimer=setTimeout(()=>{this.savedTimer=undefined;void this.persist().catch(error=>this.report(error));},250);}
-  private stored(){return {version:7,contacts:[...this.contacts.values()].map(c=>({...c,online:false})),conversations:[...this.conversations.values()].map(c=>({id:c.id,kind:c.kind,title:c.title,memberIds:c.memberIds,creatorId:c.creatorId,formerIds:c.formerIds,removed:c.removed,notifyRemoved:c.notifyRemoved,joinedAt:c.joinedAt,definition:c.definition,receipts:c.receipts,readReceipts:c.readReceipts,messages:c.messages,files:c.files.map(({data:_data,...f})=>f),unread:c.unread,updatedAt:c.updatedAt,changes:c.changes,tombstones:c.tombstones,reactions:c.reactions,hidden:c.hidden,implicit:c.implicit})),pending:this.pending,verified:[...this.verified],blocked:[...this.blocked]};}
+  private stored(){return {version:7,contacts:[...this.contacts.values()].map(c=>({...c,online:false})),conversations:[...this.conversations.values()].map(c=>({id:c.id,kind:c.kind,title:c.title,memberIds:c.memberIds,creatorId:c.creatorId,formerIds:c.formerIds,removed:c.removed,notifyRemoved:c.notifyRemoved,joinedAt:c.joinedAt,definition:c.definition,receipts:c.receipts,readReceipts:c.readReceipts,messages:c.messages,files:c.files.map(({data:_data,...f})=>f),unread:c.unread,updatedAt:c.updatedAt,changes:c.changes,tombstones:c.tombstones,reactions:c.reactions,hidden:c.hidden,implicit:c.implicit,archived:c.archived})),pending:this.pending,verified:[...this.verified],blocked:[...this.blocked]};}
   private records(){return this.recordWriter??=localRecordWriter(this.options.records!,this.options.identity,this.random);}
   private async persist():Promise<void>{
     if(!this.dirty||!this.persistent())return this.saveQueue;
@@ -148,9 +152,9 @@ export class MessengerClient {
     const failed=(error:unknown)=>{this.dirty=true;this.persistFailedAt=Date.now();this.report(new Error('Local encrypted state could not be saved'));throw error;};
     if(this.options.records){
       // Only records that changed since the last successful write are encrypted and written.
-      const writer=this.records();
+      const writer=this.records();const archive=this.archiveQueue;this.archiveQueue=[];
       this.saveQueue=this.saveQueue.catch(()=>{}).then(async()=>{
-        await writer.write(state);
+        try{await writer.write(state,archive);}catch(error){this.archiveQueue=[...archive,...this.archiveQueue];throw error;}
         if(this.migrating){this.migrating=false;await this.options.clearLegacyState?.().catch(()=>{/* The records are the history now; the old file is ignored. */});}
       }).catch(failed);
       return this.saveQueue;
@@ -951,6 +955,7 @@ export class MessengerClient {
     for(const p of removed.pending)this.committed.delete(this.pendingKey(p));
     for(const key of removed.blobKeys)if(key){this.blobs.delete(key);try{await this.options.deleteAttachment?.(key);}catch(error){this.report(error);}}
   }
+  private async dropArchive(conversationId:string){if(!this.options.records||!this.records().archives)return;this.archiveQueue=this.archiveQueue.filter(row=>!row.key.startsWith(`a:${conversationId}:`));try{await this.records().dropArchive(`a:${conversationId}:`);}catch(error){this.report(error);}}
   private conversationState(c:InternalConversation){return {messages:c.messages,files:c.files,receipts:c.receipts,readReceipts:c.readReceipts,changes:c.changes,tombstones:c.tombstones,reactions:c.reactions,unread:c.unread,hidden:c.hidden,pending:this.pending};}
   private restoreConversationState(c:InternalConversation,state:ReturnType<MessengerClient['conversationState']>){const {pending,...fields}=state;Object.assign(c,fields);this.pending=pending;this.dirty=true;}
   private signChange(c:InternalConversation,input:{id:string;type:'message'|'file';action:'edit'|'delete';text?:string}):MessageChange{
@@ -982,8 +987,8 @@ export class MessengerClient {
     const pending=this.pending.filter(p=>p.conversationId===c.id);const blobKeys=c.files.map(f=>f.large?attachmentKey(f.senderId,f.id,c.id):f.blobKey);this.pending=this.pending.filter(p=>p.conversationId!==c.id);
     for(const m of c.messages){const expiresAt=m.expiresAt??m.timestamp+OUTBOX_TTL_MS;if(now<expiresAt)this.putTombstone(c,{id:m.id,author:m.from,type:'message',expiresAt});}
     for(const f of c.files){const expiresAt=f.expiresAt??f.timestamp+OUTBOX_TTL_MS;if(now<expiresAt)this.putTombstone(c,{id:f.id,author:f.senderId,type:'file',expiresAt});}
-    c.messages=[];c.files=[];c.receipts=undefined;c.readReceipts=undefined;c.reactions=undefined;c.unread=0;c.hidden=true;this.fitChangeBudget();
-    try{await this.durable();}catch(error){this.restoreConversationState(c,state);throw error;}await this.forgetRemoved({blobKeys,pending});
+    const archived=c.archived;c.messages=[];c.files=[];c.receipts=undefined;c.readReceipts=undefined;c.reactions=undefined;c.unread=0;c.hidden=true;c.archived=undefined;this.fitChangeBudget();
+    try{await this.durable();}catch(error){this.restoreConversationState(c,state);c.archived=archived;throw error;}await this.forgetRemoved({blobKeys,pending});await this.dropArchive(c.id);
   });}
   /** Group membership and persisted blocks both need the contact entry, so those contacts lose only the direct chat. */
   async removeContact(userId:string):Promise<void>{return this.serial(async()=>{
@@ -992,7 +997,7 @@ export class MessengerClient {
     const contact=this.contacts.get(userId)!,wasVerified=this.verified.has(userId),moved=this.moved.get(userId),allPending=this.pending;const pending=allPending.filter(p=>p.conversationId===id);const inGroup=[...this.conversations.values()].some(g=>g.kind==='group'&&g.memberIds.includes(userId));
     this.conversations.delete(id);this.pending=allPending.filter(p=>p.conversationId!==id);this.verified.delete(userId);this.moved.delete(userId);if(!inGroup&&!this.blocked.has(userId))this.contacts.delete(userId);
     try{await this.durable();}catch(error){this.conversations.set(id,c);this.pending=allPending;this.contacts.set(userId,contact);if(wasVerified)this.verified.add(userId);if(moved)this.moved.set(userId,moved);this.dirty=true;throw error;}
-    await this.forgetRemoved({blobKeys:c.files.map(f=>f.large?attachmentKey(f.senderId,f.id,c.id):f.blobKey),pending});
+    await this.forgetRemoved({blobKeys:c.files.map(f=>f.large?attachmentKey(f.senderId,f.id,c.id):f.blobKey),pending});await this.dropArchive(c.id);
     const pair=this.pairs.get(userId);if(pair&&!inGroup){this.pairs.delete(userId);clearTimeout(pair.retry);clearTimeout(pair.pump);pair.session.disconnect();}
     try{this.watch();}catch{/* The next directory connection sends the current watch list. */}this.emit();
   });}
@@ -1131,13 +1136,29 @@ export class MessengerClient {
     try{const pending=this.pending.find(p=>p.conversationId===c.id&&p.messageId===receipt.id&&(p.type??'message')===receipt.type);if(pending)await this.acknowledge(pending,receipt.reader,record);else await this.durable();}
     catch(error){record.readBy=previous;if(!duplicate)c.readReceipts=receipts.filter(r=>r!==receipt);this.dirty=true;throw error;}
   }
+  /**
+   * A message over the in-memory limit goes to the encrypted archive (same database, written in the
+   * same transaction as the trimmed history) instead of being lost. A store without an archive drops it as before.
+   */
+  private archiveMessage(c:InternalConversation,message:MessengerMessage){
+    if(!this.options.records||!this.records().archives)return;
+    this.archiveQueue.push({key:archiveKey(c.id,message),json:JSON.stringify(message)});c.archived=(c.archived??0)+1;
+  }
+  /** Older messages of a chat from the archive, newest first; pass the last `cursor` to read further back. Read-only. */
+  async loadEarlier(conversationId:string,cursor?:string,limit=50):Promise<{messages:MessengerMessage[];cursor?:string}>{
+    await this.restore();const c=this.conversations.get(conversationId);
+    if(!c||!c.archived||!this.options.records||!this.records().archives)return {messages:[]};
+    const rows=await this.records().readArchive(`a:${conversationId}:`,cursor,Math.max(1,Math.min(200,limit)));
+    const messages=rows.map(row=>messageSchema.parse(JSON.parse(row.json))).filter(m=>m.conversationId===conversationId);
+    return {messages,...(rows.length?{cursor:rows.at(-1)!.key}:{})};
+  }
   private trimHistory(){
     const now=Date.now();for(const c of this.conversations.values()){if(c.changes?.some(x=>now>=x.expiresAt))c.changes=c.changes.filter(x=>now<x.expiresAt);if(c.tombstones?.some(x=>now>=x.expiresAt))c.tombstones=c.tombstones.filter(x=>now<x.expiresAt);}
     for(const c of this.conversations.values()){while(c.files.filter(f=>!f.blobKey).length>MAX_FILE_RECORDS_WITHOUT_DATA){const index=c.files.findIndex(f=>!f.blobKey&&f.deliveryStatus==='expired');if(index<0)break;c.files.splice(index,1);}if(c.receipts)c.receipts=c.receipts.filter(r=>c.messages.some(m=>m.id===r.id&&m.from===r.author)||c.files.some(f=>f.id===r.id&&f.senderId===r.author));}
     const pending=new Set([...this.pending.map(p=>p.conversationId+':'+p.messageId),...this.protectedReceive]);
-    for(const c of this.conversations.values())while(c.messages.length>100){const index=c.messages.findIndex(m=>!pending.has(c.id+':'+m.id));if(index<0)break;c.messages.splice(index,1);}
+    for(const c of this.conversations.values())while(c.messages.length>100){const index=c.messages.findIndex(m=>!pending.has(c.id+':'+m.id));if(index<0)break;this.archiveMessage(c,c.messages.splice(index,1)[0]!);}
     let count=[...this.conversations.values()].reduce((n,c)=>n+c.messages.length,0);
-    while(count>MAX_HISTORY_MESSAGES){let oldest:InternalConversation|undefined;let index=-1;let timestamp=Infinity;for(const c of this.conversations.values())for(let i=0;i<c.messages.length;i++){const m=c.messages[i]!;if(!pending.has(c.id+':'+m.id)&&m.timestamp<timestamp){oldest=c;index=i;timestamp=m.timestamp;}}if(!oldest)break;oldest.messages.splice(index,1);count--;}
+    while(count>MAX_HISTORY_MESSAGES){let oldest:InternalConversation|undefined;let index=-1;let timestamp=Infinity;for(const c of this.conversations.values())for(let i=0;i<c.messages.length;i++){const m=c.messages[i]!;if(!pending.has(c.id+':'+m.id)&&m.timestamp<timestamp){oldest=c;index=i;timestamp=m.timestamp;}}if(!oldest)break;this.archiveMessage(oldest,oldest.messages.splice(index,1)[0]!);count--;}
     for(const c of this.conversations.values())if(c.readReceipts)c.readReceipts=c.readReceipts.filter(r=>r.type==='message'?c.messages.some(m=>m.id===r.id&&m.from===r.author):c.files.some(f=>f.id===r.id&&f.senderId===r.author));
     // A reaction lives as long as its message; a taken-back one only until every peer had a week to hear about it.
     for(const c of this.conversations.values())if(c.reactions){c.reactions=c.reactions.filter(r=>(r.emoji||now<r.expiresAt)&&this.hasRecord(c,r.author,r.id,r.type));if(!c.reactions.length)c.reactions=undefined;}

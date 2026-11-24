@@ -25,10 +25,16 @@ import { validateDeviceIdentity, type DeviceIdentity } from './directory.js';
  */
 export interface LocalRecord { key: string; value: string }
 export interface LocalRecordStore {
-  /** Every record, in any order. */
+  /** Every record, in any order (never the archive). */
   load(): Promise<LocalRecord[]>;
-  /** Applies all of it atomically, or none of it. */
-  write(put: LocalRecord[], remove: string[]): Promise<void>;
+  /** Applies all of it atomically, or none of it; `archive` rows are added in the same transaction. */
+  write(put: LocalRecord[], remove: string[], archive?: LocalRecord[]): Promise<void>;
+  /**
+   * Older history kept out of memory: rows whose key starts with `prefix` and sorts below `before`,
+   * newest first. A store without these keeps no archive, and old history is then dropped as before.
+   */
+  loadArchive?(prefix: string, before: string | undefined, limit: number): Promise<LocalRecord[]>;
+  dropArchive?(prefix: string): Promise<void>;
 }
 
 export const RECORD_LIST_FIELDS = ['messages', 'files', 'receipts', 'readReceipts', 'changes', 'tombstones', 'reactions'] as const;
@@ -194,7 +200,13 @@ export class LocalRecordWriter {
 
   /** The stored state, or null when the store has nothing yet. */
   read(): Promise<StoredShape | null> { return this.serial(() => this.readNow()); }
-  write(state: StoredShape): Promise<number> { return this.serial(() => this.writeNow(state)); }
+  write(state: StoredShape, archive: { key: string; json: string }[] = []): Promise<number> { return this.serial(() => this.writeNow(state, archive)); }
+  get archives(): boolean { return typeof this.store.loadArchive === 'function' && typeof this.store.dropArchive === 'function'; }
+  /** One page of archived rows, decrypted, newest first. */
+  readArchive(prefix: string, before: string | undefined, limit: number): Promise<{ key: string; json: string }[]> {
+    return this.serial(async () => (await this.store.loadArchive!(prefix, before, limit)).map(row => ({ key: row.key, json: this.cipher.open(row.key, row.value) })));
+  }
+  dropArchive(prefix: string): Promise<void> { return this.serial(() => this.store.dropArchive!(prefix)); }
 
   private async readNow(): Promise<StoredShape | null> {
     const rows = await this.store.load();
@@ -205,11 +217,12 @@ export class LocalRecordWriter {
   }
 
   /** Writes what changed since the last successful write; returns how many records were written. */
-  private async writeNow(state: StoredShape): Promise<number> {
+  private async writeNow(state: StoredShape, archive: { key: string; json: string }[]): Promise<number> {
     const records = this.layout.layout(state);
     const { put, remove } = this.layout.diff(records);
-    if (!put.length && !remove.length) return 0;
-    await this.store.write(put.map(([key, json]) => ({ key, value: this.cipher.seal(key, json) })), remove);
+    if (!put.length && !remove.length && !archive.length) return 0;
+    const sealed = archive.map(row => ({ key: row.key, value: this.cipher.seal(row.key, row.json) }));
+    await this.store.write(put.map(([key, json]) => ({ key, value: this.cipher.seal(key, json) })), remove, ...(sealed.length ? [sealed] : []));
     this.layout.commit(records);
     return put.length;
   }

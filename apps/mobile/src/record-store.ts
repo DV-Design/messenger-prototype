@@ -27,20 +27,28 @@ async function connect(directory: Directory, name: string): Promise<LocalRecordS
   const db = await SQLite.openDatabaseAsync(name, undefined, path);
   open.add(db);
   // WAL: a write does not block reads, and a crash mid-write leaves the last complete transaction.
-  await db.execAsync('PRAGMA journal_mode = WAL; CREATE TABLE IF NOT EXISTS records (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL) WITHOUT ROWID;');
+  await db.execAsync('PRAGMA journal_mode = WAL; CREATE TABLE IF NOT EXISTS records (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL) WITHOUT ROWID; CREATE TABLE IF NOT EXISTS archive (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL) WITHOUT ROWID;');
   return {
     load: () => db.getAllAsync<{ key: string; value: string }>('SELECT key, value FROM records'),
-    write: (put, remove) => db.withExclusiveTransactionAsync(async transaction => {
+    // Archived messages are written in the same transaction that trims them from the history.
+    write: (put, remove, archive) => db.withExclusiveTransactionAsync(async transaction => {
       const upsert = await transaction.prepareAsync('INSERT OR REPLACE INTO records (key, value) VALUES (?, ?)');
       const drop = await transaction.prepareAsync('DELETE FROM records WHERE key = ?');
+      const keep = archive?.length ? await transaction.prepareAsync('INSERT OR REPLACE INTO archive (key, value) VALUES (?, ?)') : undefined;
       try {
+        for (const row of archive ?? []) await keep!.executeAsync(row.key, row.value);
         for (const key of remove) await drop.executeAsync(key);
         for (const row of put) await upsert.executeAsync(row.key, row.value);
       } finally {
         await upsert.finalizeAsync();
         await drop.finalizeAsync();
+        await keep?.finalizeAsync();
       }
     }),
+    // Keys are `a:<chat>:<zero-padded time>:…`, so one chat's page is one ordered range read.
+    loadArchive: (prefix, before, limit) => db.getAllAsync<{ key: string; value: string }>(
+      'SELECT key, value FROM archive WHERE key >= ? AND key < ? ORDER BY key DESC LIMIT ?', prefix, before ?? `${prefix}\uffff`, limit),
+    dropArchive: async prefix => { await db.runAsync('DELETE FROM archive WHERE key >= ? AND key < ?', prefix, `${prefix}\uffff`); },
   };
 }
 
