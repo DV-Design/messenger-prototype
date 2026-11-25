@@ -767,5 +767,7 @@
  "Record video circle": "丸いビデオを録画",
  "Send video circle": "丸いビデオを送信",
  "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "5 MB を超えるファイルは途中で暗号化されて相手のスマートフォンに届き、サーバーには保存されません。両方のスマートフォンがオンラインである必要があります。",
- "Large file · to the recipient’s phone, not stored on the server": "大きなファイル · 相手のスマートフォンへ、サーバーには保存されません"
+ "Large file · to the recipient’s phone, not stored on the server": "大きなファイル · 相手のスマートフォンへ、サーバーには保存されません",
+ "Open chat": "チャットを開く",
+ "Stop playback": "再生を停止"
 }

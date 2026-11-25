@@ -767,5 +767,7 @@
  "Record video circle": "Rekam video bulat",
  "Send video circle": "Kirim video bulat",
  "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "File di atas 5 MB dikirim ke ponsel penerima, dienkripsi selama perjalanan, dan tidak disimpan di server. Kedua ponsel harus online.",
- "Large file · to the recipient’s phone, not stored on the server": "File besar · ke ponsel penerima, tidak disimpan di server"
+ "Large file · to the recipient’s phone, not stored on the server": "File besar · ke ponsel penerima, tidak disimpan di server",
+ "Open chat": "Buka chat",
+ "Stop playback": "Hentikan pemutaran"
 }

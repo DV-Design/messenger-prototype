@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Image, Pressable, Text, View } from 'react-native';
 import { File, Paths } from 'expo-file-system';
 import * as Crypto from 'expo-crypto';
@@ -10,7 +10,10 @@ import { client } from '../runtime';
 import { deliveryColor, deliveryIcon, deliveryLabel } from '../delivery-model';
 import { mediaKind } from '../media-model';
 import { viewerKind } from '../media-viewer-model';
-import { MediaAttachment } from './MediaAttachment';
+import { MediaAttachment, noteTime } from './MediaAttachment';
+import { useMediaDuration } from '../media-duration';
+import { useNowPlaying } from '../media-player';
+import type { MediaKind } from '../media-model';
 import { useAfterTransition } from '../after-transition';
 import { cachedPreview, rememberPreview } from '../preview-cache';
 
@@ -47,12 +50,7 @@ export function AttachmentCard({ file, self, group = false, sender, onOpen, onLo
   const label = self ? deliveryLabel(file, group) : waiting ? (late ? t('Could not receive') : t('Waiting for the sender')) : file.status === 'receiving' ? t('Receiving…') : file.status === 'error' ? t('Could not receive') : t('Received');
   const note = mediaKind(file.name, file.mime);
   const receipt = self ? <View accessibilityLabel={label}><Icon name={deliveryIcon(file)} size={15} color={deliveryColor(file)} /></View> : null;
-  if (note && available && !file.large) return <Pressable accessibilityHint={t('Hold to delete')} onLongPress={onLongPress} style={[styles.bubble, self && styles.bubbleSelf]}>
-    {!!sender && !self && <Text style={styles.senderName}>{sender}</Text>}
-    {receipt}
-    <MediaAttachment file={file} kind={note} disabled={mediaDisabled} />
-    <View style={[styles.row, { justifyContent: 'space-between', marginTop: 7 }]}><Text style={styles.fileMeta}>{fileSize(file.size)} · {label}</Text><Pressable accessibilityRole="button" accessibilityLabel={t('Save recording')} onPress={onOpen} hitSlop={10}><Icon name="share-outline" size={20} /></Pressable></View>
-  </Pressable>;
+  if (note && available && !file.large) return <NoteCard file={file} kind={note} self={self} sender={sender} label={label} receipt={receipt} mediaDisabled={mediaDisabled} onOpen={onOpen} onLongPress={onLongPress} />;
   return <Pressable accessibilityRole="button" accessibilityLabel={t('File {name}. {label}', { name: file.name, label })} disabled={!available && !onLongPress} onPress={available ? onOpen : undefined} onLongPress={onLongPress} style={[styles.bubble, self && styles.bubbleSelf]}>
     {!!sender && !self && <Text style={styles.senderName}>{sender}</Text>}
     {receipt}
@@ -64,6 +62,32 @@ export function AttachmentCard({ file, self, group = false, sender, onOpen, onLo
       {self && file.large && file.deliveryStatus !== 'delivered' && file.deliveryStatus !== 'expired' && file.receivedBytes > 0 && <Text style={styles.fileMeta}>{t('Sending')} · {transferText(file.receivedBytes, file.size)}</Text>}
       {available && <Text style={[styles.fileMeta, { color: colors.accent }]}> {viewerKind(file) ? t('Tap to view') : t('Tap to open or save')}</Text>}
     </View></View>
+  </Pressable>;
+}
+
+/**
+ * A voice message (in a bubble) or a video circle (bare, like Telegram, with its time and ticks in a
+ * small pill under it). Both show their length, not their size.
+ */
+function NoteCard({ file, kind, self, sender, label, receipt, mediaDisabled, onOpen, onLongPress }: { file: MessengerFile; kind: MediaKind; self: boolean; sender?: string; label: string; receipt: ReactNode; mediaDisabled: boolean; onOpen: () => void; onLongPress?: () => void }) {
+  const ready = useAfterTransition();
+  const duration = useMediaDuration(file, ready);
+  const now = useNowPlaying();
+  const meta = `${noteTime(file, duration, now) ?? (duration === undefined ? '…' : fileSize(file.size))} · ${label}`;
+  if (kind === 'circle') return <Pressable accessibilityHint={t('Hold to delete')} onLongPress={onLongPress} style={{ alignSelf: self ? 'flex-end' : 'flex-start', alignItems: self ? 'flex-end' : 'flex-start', gap: 6, marginHorizontal: 2 }}>
+    {!!sender && !self && <Text style={styles.senderName}>{sender}</Text>}
+    <MediaAttachment file={file} kind="circle" disabled={mediaDisabled} duration={duration} />
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: 'rgba(43, 74, 62, 0.42)' }}>
+      {self && <View accessibilityLabel={label}><Icon name={deliveryIcon(file)} size={15} color={colors.white} /></View>}
+      <Text style={{ color: colors.white, fontSize: 12, fontVariant: ['tabular-nums'] }}>{meta}</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel={t('Save recording')} onPress={onOpen} hitSlop={10}><Icon name="share-outline" size={17} color={colors.white} /></Pressable>
+    </View>
+  </Pressable>;
+  return <Pressable accessibilityHint={t('Hold to delete')} onLongPress={onLongPress} style={[styles.bubble, self && styles.bubbleSelf]}>
+    {!!sender && !self && <Text style={styles.senderName}>{sender}</Text>}
+    {receipt}
+    <MediaAttachment file={file} kind="voice" disabled={mediaDisabled} duration={duration} />
+    <View style={[styles.row, { justifyContent: 'space-between', marginTop: 7 }]}><Text style={[styles.fileMeta, { fontVariant: ['tabular-nums'] }]}>{meta}</Text><Pressable accessibilityRole="button" accessibilityLabel={t('Save recording')} onPress={onOpen} hitSlop={10}><Icon name="share-outline" size={20} /></Pressable></View>
   </Pressable>;
 }
 

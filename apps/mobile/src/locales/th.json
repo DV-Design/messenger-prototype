@@ -767,5 +767,7 @@
  "Record video circle": "อัดวิดีโอวงกลม",
  "Send video circle": "ส่งวิดีโอวงกลม",
  "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "ไฟล์ที่ใหญ่กว่า 5 MB จะส่งไปยังโทรศัพท์ของผู้รับโดยเข้ารหัสระหว่างทาง และไม่ถูกเก็บบนเซิร์ฟเวอร์ โทรศัพท์ทั้งสองเครื่องต้องออนไลน์",
- "Large file · to the recipient’s phone, not stored on the server": "ไฟล์ขนาดใหญ่ · ไปยังโทรศัพท์ผู้รับ ไม่เก็บบนเซิร์ฟเวอร์"
+ "Large file · to the recipient’s phone, not stored on the server": "ไฟล์ขนาดใหญ่ · ไปยังโทรศัพท์ผู้รับ ไม่เก็บบนเซิร์ฟเวอร์",
+ "Open chat": "เปิดแชท",
+ "Stop playback": "หยุดเล่น"
 }

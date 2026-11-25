@@ -1,3 +1,24 @@
+# Next release — keyboard while recording, files over the relay, player, circles, durations (2026-11-25)
+
+- [X] The keyboard stays open while a voice message or circle is recorded; the recording bar shows above it
+  (the field stays mounted and focused; non-collapsable wrappers so Fabric does not re-create it). Emulator: bar
+  above the keyboard while recording, field focused after sending
+- [X] Owner's decision: files try the direct path first and use the TURN relay when ICE finds none within
+  10 s (RELAY_GRACE_MS); large files too, with resume. The relay-only notice is gone; large-file texts and the
+  privacy policy (repo copy, 25 Nov, not published) say files are not stored on the server. Core test for the
+  grace period. Not checked between two real phones behind carrier NAT
+  → Artifacts: [messenger.ts](packages/core/src/messenger.ts), [test](packages/core/src/direct-only-file.test.ts), [privacy.html](infra/public/privacy.html)
+- [X] One app-wide player for voice messages and circles (media-player.ts): playback goes on while a photo is
+  opened (only a video in the viewer takes the speaker) and while other chats are browsed; a "now playing" strip
+  on every screen (pause, open chat, close) and a small floating circle when its chat is not on screen; a call or
+  a recording stops it, leaving the app pauses it. Emulator: circle kept playing on the chat list with the strip
+  and floating circle. Photo viewer path not checked on the emulator
+  → Artifacts: [media-player.ts](apps/mobile/src/media-player.ts), [NowPlayingBar.tsx](apps/mobile/src/components/NowPlayingBar.tsx)
+- [X] Circles without a bubble, time and ticks in a small pill under them; voice messages and circles show their
+  length (read from the MP4 movie header, mvhd) instead of their size. Emulator: 0:02 / 0:03 / 0:11
+  → Artifacts: [AttachmentCard.tsx](apps/mobile/src/components/AttachmentCard.tsx), [media-duration-model.ts](apps/mobile/src/media-duration-model.ts)
+- [ ] Release (version bump, store upload, policy publication) — waits for the owner's yes
+
 # 1.0.44 / code59 — send button race, voice and video circles in the message bar, keyboard (2026-11-25)
 
 - [X] After sending, the field now empties at once (as in Telegram). It used to clear only after the save, so

@@ -767,5 +767,7 @@
  "Record video circle": "Записать видеокружок",
  "Send video circle": "Отправить видеокружок",
  "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "Файл больше 5 МБ идёт на телефон получателя, шифруется в пути и не хранится на сервере. Оба телефона должны быть в сети.",
- "Large file · to the recipient’s phone, not stored on the server": "Большой файл · на телефон получателя, без хранения на сервере"
+ "Large file · to the recipient’s phone, not stored on the server": "Большой файл · на телефон получателя, без хранения на сервере",
+ "Open chat": "Открыть чат",
+ "Stop playback": "Остановить воспроизведение"
 }

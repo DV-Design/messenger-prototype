@@ -767,5 +767,7 @@
  "Record video circle": "Grabar videomensaje circular",
  "Send video circle": "Enviar videomensaje circular",
  "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "Un archivo de más de 5 MB va al teléfono del destinatario, cifrado durante el envío, y no se guarda en el servidor. Ambos teléfonos deben estar en línea.",
- "Large file · to the recipient’s phone, not stored on the server": "Archivo grande · al teléfono del destinatario, sin guardarse en el servidor"
+ "Large file · to the recipient’s phone, not stored on the server": "Archivo grande · al teléfono del destinatario, sin guardarse en el servidor",
+ "Open chat": "Abrir chat",
+ "Stop playback": "Detener reproducción"
 }

@@ -1,54 +1,52 @@
-import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, Pressable, Text, View } from 'react-native';
-import { File, Paths } from 'expo-file-system';
-import * as Crypto from 'expo-crypto';
+import { useEffect } from 'react';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { VideoView } from 'expo-video';
 import type { MessengerFile } from '@messenger/core';
-import { deleteMediaCache, loadFileData, pruneMediaCache } from '../attachments';
-import { MAX_MEDIA_BYTES, type MediaKind } from '../media-model';
-import { styles } from '../styles';
+import { mediaTime, type MediaKind } from '../media-model';
+import { mediaFileKey, nowPlayingVideo, playMediaFile, showCircleInline, useNowPlaying } from '../media-player';
+import { colors, styles } from '../styles';
 import { Icon } from './ui';
 import { t } from '../i18n';
-import { VoiceNote } from './VoiceNote';
-import { VideoNote } from './VideoNote';
-import { stopMediaPlayback } from '../media-playback';
 
-export function MediaAttachment({ file, kind, disabled }: { file: MessengerFile; kind: MediaKind; disabled: boolean }) {
-  const [uri, setUri] = useState<string>();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const generation = useRef(0);
-  const temporary = useRef<string | undefined>(undefined);
-  const busyRef = useRef(false);
-  const reset = useRef(() => {});
-  useEffect(() => { reset.current = () => { generation.current++; busyRef.current = false; setBusy(false); setUri(undefined); deleteMediaCache(temporary.current); temporary.current = undefined; }; });
-  const key = `${file.conversationId}:${file.senderId}:${file.id}`;
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', state => { if (state !== 'active') reset.current(); });
-    // Generation is a cancellation counter, not a rendered native-node ref.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    return () => { subscription.remove(); generation.current++; deleteMediaCache(temporary.current); temporary.current = undefined; };
-  }, [key]);
-  useEffect(() => { if (disabled) reset.current(); }, [disabled]);
-  useEffect(() => { if (!uri) return; const timer = setTimeout(() => reset.current(), 180_000); return () => clearTimeout(timer); }, [uri]);
-  async function open() {
-    if (disabled || busyRef.current || AppState.currentState !== 'active') return;
-    stopMediaPlayback(); pruneMediaCache();
-    busyRef.current = true; setBusy(true); setError('');
-    const attempt = ++generation.current;
-    const nonce = Array.from(Crypto.getRandomBytes(16), byte => byte.toString(16).padStart(2, '0')).join('');
-    const cached = new File(Paths.cache, `lastcall-media-play-${nonce}.${kind === 'voice' ? 'm4a' : file.mime === 'video/quicktime' ? 'mov' : 'mp4'}`);
-    try {
-      const bytes = await loadFileData(file);
-      if (!bytes || !bytes.byteLength || bytes.byteLength > MAX_MEDIA_BYTES) throw new Error(t('Recording is no longer stored on this device.'));
-      if (attempt !== generation.current) return;
-      await cached.write(bytes);
-      if (attempt !== generation.current || AppState.currentState !== 'active') { deleteMediaCache(cached.uri); return; }
-      temporary.current = cached.uri; setUri(cached.uri);
-    } catch { if (attempt === generation.current) setError(t('Could not open the recording. Try again.')); deleteMediaCache(cached.uri); }
-    finally { if (attempt === generation.current) { busyRef.current = false; setBusy(false); } }
+export const CIRCLE_NOTE_SIZE = 220;
+
+/**
+ * A voice message or video circle in the chat. Playback runs in the app-wide player, so it goes on
+ * while a photo is opened or other chats are browsed; this row only shows and controls it.
+ */
+export function MediaAttachment({ file, kind, disabled, duration }: { file: MessengerFile; kind: MediaKind; disabled: boolean; duration?: number | null }) {
+  const now = useNowPlaying();
+  const key = mediaFileKey(file);
+  const active = now?.key === key ? now : undefined;
+  const showing = kind === 'circle' && !!active && !active.loading && !active.error;
+  useEffect(() => (showing ? showCircleInline(key) : undefined), [showing, key]);
+  const length = active?.duration || duration || 0;
+  const start = () => { if (!disabled || active) void playMediaFile(file, kind); };
+  if (kind === 'voice') {
+    const progress = active && length ? Math.min(1, active.position / length) : 0;
+    return <Pressable accessibilityRole="button" accessibilityLabel={active?.playing ? t('Pause voice message') : t('Play voice message')} disabled={disabled && !active} onPress={start} style={[styles.row, { minWidth: 205 }]}>
+      {active?.loading ? <View style={{ width: 43, height: 43, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator /></View> : <Icon name={active?.playing ? 'pause-circle' : 'play-circle'} size={43} />}
+      <View style={{ flex: 1, gap: 5 }}>
+        <Text style={styles.fileName}>{t('Voice message')}</Text>
+        <View style={{ height: 4, borderRadius: 2, backgroundColor: '#C5D9D2', overflow: 'hidden' }}><View style={{ width: `${progress * 100}%`, height: 4, backgroundColor: colors.accent }} /></View>
+        {!!active?.error && <Text style={styles.fileMeta}>{active.error}</Text>}
+      </View>
+    </Pressable>;
   }
-  return <View>{uri ? kind === 'voice' ? <VoiceNote uri={uri} autoPlay onDone={() => reset.current()} /> : <VideoNote uri={uri} autoPlay onDone={() => reset.current()} /> :
-    <Pressable disabled={disabled || busy} accessibilityRole="button" accessibilityLabel={kind === 'voice' ? t('Play voice message') : t('Watch video circle')} onPress={() => void open()} style={[styles.row, kind === 'circle' && { width: 220, height: 220, borderRadius: 110, backgroundColor: '#D6E6E0', justifyContent: 'center' }]}>{busy ? <ActivityIndicator /> : <Icon name="play-circle" size={44} />}<Text style={styles.fileName}>{kind === 'voice' ? t('Voice message') : t('Video circle')}</Text></Pressable>}
-    {!!error && <Text style={styles.fileMeta}>{error}</Text>}
-  </View>;
+  const player = showing ? nowPlayingVideo() : undefined;
+  return <Pressable accessibilityRole="button" accessibilityLabel={active?.playing ? t('Pause video circle') : t('Watch video circle')} disabled={disabled && !active} onPress={start}
+    style={{ width: CIRCLE_NOTE_SIZE, height: CIRCLE_NOTE_SIZE, borderRadius: CIRCLE_NOTE_SIZE / 2, overflow: 'hidden', backgroundColor: '#1B252C', alignItems: 'center', justifyContent: 'center' }}>
+    {player && <VideoView player={player} style={{ position: 'absolute', width: CIRCLE_NOTE_SIZE, height: CIRCLE_NOTE_SIZE }} nativeControls={false} contentFit="cover" surfaceType="textureView" allowsPictureInPicture={false} fullscreenOptions={{ enable: false }} />}
+    {active?.loading ? <ActivityIndicator color="#FFFFFF" /> : !active?.playing && <Icon name="play-circle" size={57} color="#FFFFFF" />}
+    {!!active?.error && <Text style={{ position: 'absolute', bottom: 40, color: '#FFFFFF', fontSize: 12, textAlign: 'center', paddingHorizontal: 20 }}>{active.error}</Text>}
+    {active && length > 0 && <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 4, backgroundColor: 'rgba(255,255,255,0.25)' }}><View style={{ width: `${Math.min(1, active.position / length) * 100}%`, height: 4, backgroundColor: '#FFFFFF' }} /></View>}
+  </Pressable>;
+}
+
+/** "0:12" for a recording whose length is known; while playing, the time left. */
+export function noteTime(file: MessengerFile, duration: number | null | undefined, now: ReturnType<typeof useNowPlaying>): string | undefined {
+  const active = now?.key === mediaFileKey(file) ? now : undefined;
+  const length = active?.duration || duration || 0;
+  if (!length) return undefined;
+  return active && active.position > 0 ? mediaTime(Math.max(0, length - active.position)) : mediaTime(length);
 }

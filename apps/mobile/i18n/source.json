@@ -3074,5 +3074,13 @@
  {
   "key": "Large file · to the recipient’s phone, not stored on the server",
   "ru": "Большой файл · на телефон получателя, без хранения на сервере"
+ },
+ {
+  "key": "Open chat",
+  "ru": "Открыть чат"
+ },
+ {
+  "key": "Stop playback",
+  "ru": "Остановить воспроизведение"
  }
 ]

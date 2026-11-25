@@ -767,5 +767,7 @@
  "Record video circle": "गोल वीडियो रिकॉर्ड करें",
  "Send video circle": "गोल वीडियो भेजें",
  "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "5 MB से बड़ी फ़ाइल रास्ते में एन्क्रिप्ट होकर पाने वाले के फ़ोन तक जाती है और सर्वर पर नहीं रखी जाती। दोनों फ़ोन ऑनलाइन होने चाहिए।",
- "Large file · to the recipient’s phone, not stored on the server": "बड़ी फ़ाइल · पाने वाले के फ़ोन तक, सर्वर पर नहीं रखी जाती"
+ "Large file · to the recipient’s phone, not stored on the server": "बड़ी फ़ाइल · पाने वाले के फ़ोन तक, सर्वर पर नहीं रखी जाती",
+ "Open chat": "चैट खोलें",
+ "Stop playback": "चलाना रोकें"
 }

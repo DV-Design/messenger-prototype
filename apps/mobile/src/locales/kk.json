@@ -767,5 +767,7 @@
  "Record video circle": "Дөңгелек бейне жазу",
  "Send video circle": "Дөңгелек бейнені жіберу",
  "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "5 МБ-тан үлкен файл жолда шифрланып, алушының телефонына барады және серверде сақталмайды. Екі телефон да желіде болуы керек.",
- "Large file · to the recipient’s phone, not stored on the server": "Үлкен файл · алушының телефонына, серверде сақталмайды"
+ "Large file · to the recipient’s phone, not stored on the server": "Үлкен файл · алушының телефонына, серверде сақталмайды",
+ "Open chat": "Чатты ашу",
+ "Stop playback": "Ойнатуды тоқтату"
 }

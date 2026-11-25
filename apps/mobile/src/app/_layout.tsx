@@ -7,6 +7,7 @@ import { PushBridge } from '../components/PushBridge';
 import { CallOverlay } from '../components/CallOverlay';
 import { CallBarLayout } from '../call-bar';
 import { LiveLocationBarLayout } from '../components/LiveLocationBar';
+import { NowPlayingLayout } from '../components/NowPlayingBar';
 import { PermissionSetupGate } from '../components/PermissionSetupGate';
 import { NotificationNavigationBridge } from '../components/NotificationNavigationBridge';
 import { UpdateNotice } from '../components/UpdateNotice';
@@ -22,13 +23,13 @@ export default function RootLayout() {
   useEffect(() => startFeedback(), []);
   return <SafeAreaProvider><StatusBar style="dark" />
     {!ready ? <View style={[styles.screen, { justifyContent: 'center' }]}><ActivityIndicator color={colors.accent} size="large" /></View> : <>
-      <CallBarLayout><LiveLocationBarLayout><Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
+      <CallBarLayout><LiveLocationBarLayout><NowPlayingLayout><Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
         <Stack.Screen name="(tabs)" /><Stack.Screen name="onboarding" /><Stack.Screen name="chat/[id]" /><Stack.Screen name="group/[id]" /><Stack.Screen name="contact/[id]" />
         <Stack.Screen name="new-group" options={{ presentation: 'modal' }} />
         <Stack.Screen name="permissions" options={{ presentation: 'modal' }} />
         <Stack.Screen name="share" options={{ presentation: 'modal' }} />
         <Stack.Screen name="requests" />
-      </Stack></LiveLocationBarLayout></CallBarLayout><PermissionSetupGate /><PushBridge /><NotificationNavigationBridge /><ShareIntentBridge /><UpdateNotice /><CallOverlay />
+      </Stack></NowPlayingLayout></LiveLocationBarLayout></CallBarLayout><PermissionSetupGate /><PushBridge /><NotificationNavigationBridge /><ShareIntentBridge /><UpdateNotice /><CallOverlay />
     </>}
   </SafeAreaProvider>;
 }

@@ -767,5 +767,7 @@
  "Record video circle": "Nagraj wideo w kółku",
  "Send video circle": "Wyślij wideo w kółku",
  "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "Plik większy niż 5 MB trafia na telefon odbiorcy, jest szyfrowany w drodze i nie jest przechowywany na serwerze. Oba telefony muszą być online.",
- "Large file · to the recipient’s phone, not stored on the server": "Duży plik · na telefon odbiorcy, bez przechowywania na serwerze"
+ "Large file · to the recipient’s phone, not stored on the server": "Duży plik · na telefon odbiorcy, bez przechowywania na serwerze",
+ "Open chat": "Otwórz czat",
+ "Stop playback": "Zatrzymaj odtwarzanie"
 }

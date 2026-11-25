@@ -767,5 +767,7 @@
  "Record video circle": "ضبط ویدیوی دایره‌ای",
  "Send video circle": "ارسال ویدیوی دایره‌ای",
  "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "فایل بزرگ‌تر از ۵ مگابایت در مسیر رمزگذاری می‌شود و به تلفن گیرنده می‌رسد و روی سرور ذخیره نمی‌شود. هر دو تلفن باید آنلاین باشند.",
- "Large file · to the recipient’s phone, not stored on the server": "فایل بزرگ · به تلفن گیرنده، بدون ذخیره روی سرور"
+ "Large file · to the recipient’s phone, not stored on the server": "فایل بزرگ · به تلفن گیرنده، بدون ذخیره روی سرور",
+ "Open chat": "باز کردن گفتگو",
+ "Stop playback": "توقف پخش"
 }

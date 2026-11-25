@@ -29,7 +29,8 @@ export function MediaViewer({ file, title, autoPlay, onClose, onShare }: { file?
     if (!file || !kind) return;
     let canceled = false;
     let temporary: string | undefined;
-    stopMediaPlayback();
+    // A photo leaves a voice message or circle playing; a video takes the speaker when it starts.
+    if (kind === 'video') stopMediaPlayback();
     void (async () => {
       if (file.large) {
         const stored = bulkFile(attachmentKey(file.senderId, file.id, file.conversationId), file.name);

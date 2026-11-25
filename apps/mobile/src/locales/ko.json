@@ -767,5 +767,7 @@
  "Record video circle": "원형 동영상 녹화",
  "Send video circle": "원형 동영상 보내기",
  "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "5MB가 넘는 파일은 전송 중 암호화되어 받는 사람의 휴대폰으로 가며 서버에 저장되지 않습니다. 두 휴대폰 모두 온라인이어야 합니다.",
- "Large file · to the recipient’s phone, not stored on the server": "대용량 파일 · 받는 사람의 휴대폰으로, 서버에 저장되지 않음"
+ "Large file · to the recipient’s phone, not stored on the server": "대용량 파일 · 받는 사람의 휴대폰으로, 서버에 저장되지 않음",
+ "Open chat": "채팅 열기",
+ "Stop playback": "재생 중지"
 }
