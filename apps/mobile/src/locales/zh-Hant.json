@@ -753,11 +753,8 @@
  "Wants to start a chat": "想開始聊天",
  "Accept": "接受",
  "You turned off the direct connection with this contact: messages go through the server, files and calls are not available.": "你已關閉與這位聯絡人的直接連線：訊息經由伺服器傳輸，無法使用檔案和通話。",
- "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.": "雙方手機都在線上，但無法使用直接連線。檔案會等待直接連線；訊息仍可送達。",
  "Draft:": "草稿：",
  "Large file": "大型檔案",
- "A file over 5 MB goes straight to the recipient’s phone over a direct connection, encrypted on the way. Both phones need to be online.": "超過 5 MB 的檔案會透過直接連線直接傳送到收件人的手機，傳輸過程中加密。雙方手機都必須在線上。",
- "Large file · directly to the recipient’s phone": "大型檔案 · 直接傳送到收件人的手機",
  "Files arrive directly from people, encrypted on the way, and are kept only on this phone, in the app’s private folder. When the storage is full, new files cannot be received until you free space.": "檔案直接來自對方，傳輸過程中加密，且只會保存在這支手機上應用程式的私人資料夾中。儲存空間已滿時，在你釋出空間之前無法接收新檔案。",
  "Contacts and messages are encrypted on the device. Files, up to 1 GB, are encrypted on the way and kept in the app’s private folder. The outbox waits for the recipient for up to 7 days and survives restarts. In groups, data syncs between participants. Limits: up to 16 files waiting for delivery, up to 2000 stored files / 10 GiB in total and never the last 512 MB of free phone space. On a network change the app tries to preserve the session for 10 seconds.": "聯絡人和訊息都在裝置上加密。最大 1 GB 的檔案會在傳輸過程中加密，並保存在應用程式的私人資料夾中。寄件匣會為收件人等待最長 7 天，重新啟動後仍會保留。在群組中，資料會在成員之間同步。限制：最多 16 個檔案等待傳遞，最多儲存 2000 個檔案 / 共 10 GiB，且絕不佔用手機最後 512 MB 的可用空間。切換網路時，應用程式會嘗試在 10 秒內保持工作階段。",
  "Slide to cancel": "滑動取消",
@@ -768,5 +765,7 @@
  "Hold to record a video circle, release to send. Tap to switch to voice.": "按住錄製圓形影片，放開傳送。點按切換到語音。",
  "Stop and watch": "停止並觀看",
  "Record video circle": "錄製圓形影片",
- "Send video circle": "傳送圓形影片"
+ "Send video circle": "傳送圓形影片",
+ "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "超過 5 MB 的檔案會傳到對方手機，傳輸途中加密，不會儲存在伺服器上。兩支手機都需要在線。",
+ "Large file · to the recipient’s phone, not stored on the server": "大型檔案 · 傳到對方手機，不儲存在伺服器上"
 }

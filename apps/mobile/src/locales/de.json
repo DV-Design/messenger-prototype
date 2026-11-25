@@ -753,11 +753,8 @@
  "Wants to start a chat": "Möchte einen Chat beginnen",
  "Accept": "Annehmen",
  "You turned off the direct connection with this contact: messages go through the server, files and calls are not available.": "Du hast die direkte Verbindung zu diesem Kontakt ausgeschaltet: Nachrichten gehen über den Server, Dateien und Anrufe sind nicht verfügbar.",
- "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.": "Beide Telefone sind online, aber eine direkte Verbindung ist nicht verfügbar. Dateien warten darauf; Nachrichten kommen weiterhin an.",
  "Draft:": "Entwurf:",
  "Large file": "Große Datei",
- "A file over 5 MB goes straight to the recipient’s phone over a direct connection, encrypted on the way. Both phones need to be online.": "Eine Datei über 5 MB geht über eine direkte Verbindung direkt auf das Telefon des Empfängers, auf dem Übertragungsweg verschlüsselt. Beide Telefone müssen online sein.",
- "Large file · directly to the recipient’s phone": "Große Datei · direkt auf das Telefon des Empfängers",
  "Files arrive directly from people, encrypted on the way, and are kept only on this phone, in the app’s private folder. When the storage is full, new files cannot be received until you free space.": "Dateien kommen direkt von anderen Personen, auf dem Übertragungsweg verschlüsselt, und werden nur auf diesem Telefon gespeichert, im privaten Ordner der App. Ist der Speicher voll, können keine neuen Dateien empfangen werden, bis du Platz freigibst.",
  "Contacts and messages are encrypted on the device. Files, up to 1 GB, are encrypted on the way and kept in the app’s private folder. The outbox waits for the recipient for up to 7 days and survives restarts. In groups, data syncs between participants. Limits: up to 16 files waiting for delivery, up to 2000 stored files / 10 GiB in total and never the last 512 MB of free phone space. On a network change the app tries to preserve the session for 10 seconds.": "Kontakte und Nachrichten werden auf dem Gerät verschlüsselt. Dateien bis 1 GB werden auf dem Übertragungsweg verschlüsselt und im privaten Ordner der App gespeichert. Der Postausgang wartet bis zu 7 Tage auf den Empfänger und übersteht Neustarts. In Gruppen werden Daten zwischen den Mitgliedern synchronisiert. Limits: bis zu 16 Dateien in der Zustellwarteschlange, insgesamt bis zu 2000 gespeicherte Dateien / 10 GiB und niemals die letzten 512 MB freier Speicher auf dem Telefon. Bei einem Netzwechsel versucht die App 10 Sekunden lang, die Sitzung zu halten.",
  "Slide to cancel": "Zum Abbrechen wischen",
@@ -768,5 +765,7 @@
  "Hold to record a video circle, release to send. Tap to switch to voice.": "Gedrückt halten, um ein Rundvideo aufzunehmen, loslassen zum Senden. Tippen, um zu Sprache zu wechseln.",
  "Stop and watch": "Stoppen und ansehen",
  "Record video circle": "Rundvideo aufnehmen",
- "Send video circle": "Rundvideo senden"
+ "Send video circle": "Rundvideo senden",
+ "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "Eine Datei über 5 MB geht verschlüsselt auf das Telefon des Empfängers und wird nicht auf dem Server gespeichert. Beide Telefone müssen online sein.",
+ "Large file · to the recipient’s phone, not stored on the server": "Große Datei · auf das Telefon des Empfängers, nicht auf dem Server gespeichert"
 }

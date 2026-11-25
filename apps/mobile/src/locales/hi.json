@@ -753,11 +753,8 @@
  "Wants to start a chat": "चैट शुरू करना चाहते हैं",
  "Accept": "स्वीकार करें",
  "You turned off the direct connection with this contact: messages go through the server, files and calls are not available.": "आपने इस संपर्क के साथ सीधा कनेक्शन बंद कर दिया है: मैसेज सर्वर से जाते हैं, फ़ाइलें और कॉल उपलब्ध नहीं हैं।",
- "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.": "दोनों फ़ोन ऑनलाइन हैं, लेकिन सीधा कनेक्शन उपलब्ध नहीं है। फ़ाइलें उसका इंतज़ार करती हैं; मैसेज फिर भी पहुँचते हैं।",
  "Draft:": "ड्राफ़्ट:",
  "Large file": "बड़ी फ़ाइल",
- "A file over 5 MB goes straight to the recipient’s phone over a direct connection, encrypted on the way. Both phones need to be online.": "5 MB से बड़ी फ़ाइल सीधे कनेक्शन के ज़रिए प्राप्तकर्ता के फ़ोन पर ही जाती है और ट्रांसफ़र के दौरान एन्क्रिप्ट होती है। दोनों फ़ोन ऑनलाइन होने चाहिए।",
- "Large file · directly to the recipient’s phone": "बड़ी फ़ाइल · सीधे प्राप्तकर्ता के फ़ोन पर",
  "Files arrive directly from people, encrypted on the way, and are kept only on this phone, in the app’s private folder. When the storage is full, new files cannot be received until you free space.": "फ़ाइलें सीधे लोगों से, ट्रांसफ़र के दौरान एन्क्रिप्टेड होकर आती हैं और सिर्फ़ इसी फ़ोन पर, ऐप के निजी फ़ोल्डर में रखी जाती हैं। स्टोरेज भर जाने पर, जगह खाली करने तक नई फ़ाइलें नहीं मिल सकतीं।",
  "Contacts and messages are encrypted on the device. Files, up to 1 GB, are encrypted on the way and kept in the app’s private folder. The outbox waits for the recipient for up to 7 days and survives restarts. In groups, data syncs between participants. Limits: up to 16 files waiting for delivery, up to 2000 stored files / 10 GiB in total and never the last 512 MB of free phone space. On a network change the app tries to preserve the session for 10 seconds.": "संपर्क और मैसेज डिवाइस पर एन्क्रिप्ट होते हैं। 1 GB तक की फ़ाइलें ट्रांसफ़र के दौरान एन्क्रिप्ट होती हैं और ऐप के निजी फ़ोल्डर में रखी जाती हैं। आउटबॉक्स प्राप्तकर्ता का 7 दिन तक इंतज़ार करता है और रीस्टार्ट के बाद भी बना रहता है। ग्रुप में डेटा सदस्यों के बीच सिंक होता है। सीमाएँ: डिलीवरी के इंतज़ार में 16 फ़ाइलें तक, कुल 2000 सेव फ़ाइलें / 10 GiB तक, और फ़ोन की आखिरी 512 MB खाली जगह कभी इस्तेमाल नहीं होती। नेटवर्क बदलने पर ऐप 10 सेकंड तक सेशन बचाए रखने की कोशिश करता है।",
  "Slide to cancel": "रद्द करने के लिए स्लाइड करें",
@@ -768,5 +765,7 @@
  "Hold to record a video circle, release to send. Tap to switch to voice.": "गोल वीडियो रिकॉर्ड करने के लिए दबाकर रखें, भेजने के लिए छोड़ दें। आवाज़ पर जाने के लिए टैप करें।",
  "Stop and watch": "रोकें और देखें",
  "Record video circle": "गोल वीडियो रिकॉर्ड करें",
- "Send video circle": "गोल वीडियो भेजें"
+ "Send video circle": "गोल वीडियो भेजें",
+ "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "5 MB से बड़ी फ़ाइल रास्ते में एन्क्रिप्ट होकर पाने वाले के फ़ोन तक जाती है और सर्वर पर नहीं रखी जाती। दोनों फ़ोन ऑनलाइन होने चाहिए।",
+ "Large file · to the recipient’s phone, not stored on the server": "बड़ी फ़ाइल · पाने वाले के फ़ोन तक, सर्वर पर नहीं रखी जाती"
 }

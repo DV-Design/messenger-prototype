@@ -753,11 +753,8 @@
  "Wants to start a chat": "চ্যাট শুরু করতে চান",
  "Accept": "গ্রহণ",
  "You turned off the direct connection with this contact: messages go through the server, files and calls are not available.": "আপনি এই কন্টাক্টের সাথে সরাসরি কানেকশন বন্ধ করেছেন: মেসেজ সার্ভার দিয়ে যায়, ফাইল ও কল পাওয়া যাবে না।",
- "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.": "দুটো ফোনই অনলাইনে আছে, কিন্তু সরাসরি কানেকশন পাওয়া যাচ্ছে না। ফাইল এর অপেক্ষায় থাকে; মেসেজ তবুও পৌঁছায়।",
  "Draft:": "খসড়া:",
  "Large file": "বড় ফাইল",
- "A file over 5 MB goes straight to the recipient’s phone over a direct connection, encrypted on the way. Both phones need to be online.": "5 MB-এর বেশি ফাইল সরাসরি কানেকশনে সোজা প্রাপকের ফোনে যায় এবং ট্রান্সফারের সময় এনক্রিপ্ট করা থাকে। দুটো ফোনই অনলাইনে থাকতে হবে।",
- "Large file · directly to the recipient’s phone": "বড় ফাইল · সরাসরি প্রাপকের ফোনে",
  "Files arrive directly from people, encrypted on the way, and are kept only on this phone, in the app’s private folder. When the storage is full, new files cannot be received until you free space.": "ফাইল সরাসরি মানুষের কাছ থেকে, ট্রান্সফারের সময় এনক্রিপ্ট করা অবস্থায় আসে এবং শুধু এই ফোনে, অ্যাপের ব্যক্তিগত ফোল্ডারে রাখা হয়। স্টোরেজ ভরে গেলে জায়গা খালি না করা পর্যন্ত নতুন ফাইল আসতে পারবে না।",
  "Contacts and messages are encrypted on the device. Files, up to 1 GB, are encrypted on the way and kept in the app’s private folder. The outbox waits for the recipient for up to 7 days and survives restarts. In groups, data syncs between participants. Limits: up to 16 files waiting for delivery, up to 2000 stored files / 10 GiB in total and never the last 512 MB of free phone space. On a network change the app tries to preserve the session for 10 seconds.": "কন্টাক্ট ও মেসেজ ডিভাইসে এনক্রিপ্ট করা থাকে। সর্বোচ্চ 1 GB-এর ফাইল ট্রান্সফারের সময় এনক্রিপ্ট করা থাকে এবং অ্যাপের ব্যক্তিগত ফোল্ডারে রাখা হয়। আউটবক্স প্রাপকের জন্য 7 দিন পর্যন্ত অপেক্ষা করে এবং রিস্টার্টের পরও থাকে। গ্রুপে ডেটা সদস্যদের মধ্যে সিঙ্ক হয়। সীমা: পৌঁছানোর অপেক্ষায় সর্বোচ্চ 16টি ফাইল, মোট সর্বোচ্চ 2000টি সংরক্ষিত ফাইল / 10 GiB, আর ফোনের শেষ 512 MB খালি জায়গা কখনো ব্যবহার হয় না। নেটওয়ার্ক বদলালে অ্যাপ 10 সেকেন্ড পর্যন্ত সেশন ধরে রাখার চেষ্টা করে।",
  "Slide to cancel": "বাতিল করতে স্লাইড করুন",
@@ -768,5 +765,7 @@
  "Hold to record a video circle, release to send. Tap to switch to voice.": "গোল ভিডিও রেকর্ড করতে চেপে ধরে রাখুন, পাঠাতে ছেড়ে দিন। ভয়েসে যেতে ট্যাপ করুন।",
  "Stop and watch": "থামান ও দেখুন",
  "Record video circle": "গোল ভিডিও রেকর্ড করুন",
- "Send video circle": "গোল ভিডিও পাঠান"
+ "Send video circle": "গোল ভিডিও পাঠান",
+ "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "৫ MB-এর বড় ফাইল পথে এনক্রিপ্ট হয়ে প্রাপকের ফোনে যায় এবং সার্ভারে রাখা হয় না। দুটি ফোনই অনলাইনে থাকতে হবে।",
+ "Large file · to the recipient’s phone, not stored on the server": "বড় ফাইল · প্রাপকের ফোনে, সার্ভারে রাখা হয় না"
 }

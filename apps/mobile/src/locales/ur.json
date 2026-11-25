@@ -753,11 +753,8 @@
  "Wants to start a chat": "چیٹ شروع کرنا چاہتا ہے",
  "Accept": "قبول کریں",
  "You turned off the direct connection with this contact: messages go through the server, files and calls are not available.": "آپ نے اس رابطے کے ساتھ براہ راست کنکشن بند کر دیا ہے: پیغامات سرور کے ذریعے جاتے ہیں، فائلیں اور کالز دستیاب نہیں ہیں۔",
- "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.": "دونوں فون آن لائن ہیں، لیکن براہ راست کنکشن دستیاب نہیں۔ فائلیں اس کا انتظار کرتی ہیں؛ پیغامات پھر بھی پہنچ جاتے ہیں۔",
  "Draft:": "مسودہ:",
  "Large file": "بڑی فائل",
- "A file over 5 MB goes straight to the recipient’s phone over a direct connection, encrypted on the way. Both phones need to be online.": "5 MB سے بڑی فائل براہ راست کنکشن کے ذریعے سیدھی وصول کنندہ کے فون پر جاتی ہے اور منتقلی کے دوران انکرپٹڈ رہتی ہے۔ دونوں فون آن لائن ہونے چاہئیں۔",
- "Large file · directly to the recipient’s phone": "بڑی فائل · براہ راست وصول کنندہ کے فون پر",
  "Files arrive directly from people, encrypted on the way, and are kept only on this phone, in the app’s private folder. When the storage is full, new files cannot be received until you free space.": "فائلیں براہ راست لوگوں سے، منتقلی کے دوران انکرپٹڈ حالت میں آتی ہیں اور صرف اس فون پر، ایپ کے نجی فولڈر میں رکھی جاتی ہیں۔ اسٹوریج بھر جانے پر، جگہ خالی کرنے تک نئی فائلیں موصول نہیں ہو سکتیں۔",
  "Contacts and messages are encrypted on the device. Files, up to 1 GB, are encrypted on the way and kept in the app’s private folder. The outbox waits for the recipient for up to 7 days and survives restarts. In groups, data syncs between participants. Limits: up to 16 files waiting for delivery, up to 2000 stored files / 10 GiB in total and never the last 512 MB of free phone space. On a network change the app tries to preserve the session for 10 seconds.": "رابطے اور پیغامات ڈیوائس پر انکرپٹڈ ہیں۔ 1 GB تک کی فائلیں منتقلی کے دوران انکرپٹڈ ہوتی ہیں اور ایپ کے نجی فولڈر میں رکھی جاتی ہیں۔ بھیجنے کی قطار وصول کنندہ کا 7 دن تک انتظار کرتی ہے اور ری اسٹارٹ کے بعد بھی برقرار رہتی ہے۔ گروپس میں ڈیٹا شرکاء کے درمیان ہم آہنگ ہوتا ہے۔ حدیں: ترسیل کے انتظار میں زیادہ سے زیادہ 16 فائلیں، کل زیادہ سے زیادہ 2000 محفوظ فائلیں / 10 GiB، اور فون کی خالی جگہ کے آخری 512 MB کبھی استعمال نہیں ہوتے۔ نیٹ ورک بدلنے پر ایپ 10 سیکنڈ تک سیشن برقرار رکھنے کی کوشش کرتی ہے۔",
  "Slide to cancel": "منسوخ کرنے کے لیے سلائیڈ کریں",
@@ -768,5 +765,7 @@
  "Hold to record a video circle, release to send. Tap to switch to voice.": "گول ویڈیو ریکارڈ کرنے کے لیے دبائے رکھیں، بھیجنے کے لیے چھوڑ دیں۔ آواز پر جانے کے لیے ٹیپ کریں۔",
  "Stop and watch": "روکیں اور دیکھیں",
  "Record video circle": "گول ویڈیو ریکارڈ کریں",
- "Send video circle": "گول ویڈیو بھیجیں"
+ "Send video circle": "گول ویڈیو بھیجیں",
+ "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "5 MB سے بڑی فائل راستے میں انکرپٹ ہو کر وصول کنندہ کے فون تک جاتی ہے اور سرور پر محفوظ نہیں ہوتی۔ دونوں فون آن لائن ہونے چاہییں۔",
+ "Large file · to the recipient’s phone, not stored on the server": "بڑی فائل · وصول کنندہ کے فون تک، سرور پر محفوظ نہیں"
 }

@@ -753,11 +753,8 @@
  "Wants to start a chat": "Хочет начать переписку",
  "Accept": "Принять",
  "You turned off the direct connection with this contact: messages go through the server, files and calls are not available.": "Вы отключили прямое соединение с этим контактом: сообщения идут через сервер, файлы и звонки недоступны.",
- "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.": "Оба телефона в сети, но прямого соединения нет. Файлы ждут его; сообщения доходят.",
  "Draft:": "Черновик:",
  "Large file": "Большой файл",
- "A file over 5 MB goes straight to the recipient’s phone over a direct connection, encrypted on the way. Both phones need to be online.": "Файл больше 5 МБ идёт напрямую на телефон получателя и шифруется в пути. Оба телефона должны быть в сети.",
- "Large file · directly to the recipient’s phone": "Большой файл · напрямую на телефон получателя",
  "Files arrive directly from people, encrypted on the way, and are kept only on this phone, in the app’s private folder. When the storage is full, new files cannot be received until you free space.": "Файлы приходят напрямую от людей, в пути зашифрованы, и хранятся только на этом телефоне, в закрытой папке приложения. Когда хранилище заполнено, новые файлы не принимаются, пока вы не освободите место.",
  "Contacts and messages are encrypted on the device. Files, up to 1 GB, are encrypted on the way and kept in the app’s private folder. The outbox waits for the recipient for up to 7 days and survives restarts. In groups, data syncs between participants. Limits: up to 16 files waiting for delivery, up to 2000 stored files / 10 GiB in total and never the last 512 MB of free phone space. On a network change the app tries to preserve the session for 10 seconds.": "Контакты и сообщения зашифрованы на устройстве. Файлы до 1 ГБ шифруются в пути и хранятся в закрытой папке приложения. Очередь отправки ждёт получателя до 7 дней и сохраняется после перезапуска. В группах данные синхронизируются между участниками. Ограничения: до 16 файлов в ожидании доставки, до 2000 файлов / 10 ГиБ всего и никогда не последние 512 МБ свободного места на телефоне. При смене сети приложение пытается сохранить сеанс 10 секунд.",
  "Slide to cancel": "Влево — отмена",
@@ -768,5 +765,7 @@
  "Hold to record a video circle, release to send. Tap to switch to voice.": "Удерживайте, чтобы записать кружок, отпустите, чтобы отправить. Нажмите, чтобы переключиться на голос.",
  "Stop and watch": "Остановить и посмотреть",
  "Record video circle": "Записать видеокружок",
- "Send video circle": "Отправить видеокружок"
+ "Send video circle": "Отправить видеокружок",
+ "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "Файл больше 5 МБ идёт на телефон получателя, шифруется в пути и не хранится на сервере. Оба телефона должны быть в сети.",
+ "Large file · to the recipient’s phone, not stored on the server": "Большой файл · на телефон получателя, без хранения на сервере"
 }

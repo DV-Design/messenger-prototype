@@ -753,11 +753,8 @@
  "Wants to start a chat": "Vrea să înceapă un chat",
  "Accept": "Acceptă",
  "You turned off the direct connection with this contact: messages go through the server, files and calls are not available.": "Ai dezactivat conexiunea directă cu acest contact: mesajele trec prin server, fișierele și apelurile nu sunt disponibile.",
- "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.": "Ambele telefoane sunt online, dar o conexiune directă nu este disponibilă. Fișierele o așteaptă; mesajele ajung în continuare.",
  "Draft:": "Ciornă:",
  "Large file": "Fișier mare",
- "A file over 5 MB goes straight to the recipient’s phone over a direct connection, encrypted on the way. Both phones need to be online.": "Un fișier mai mare de 5 MB ajunge direct pe telefonul destinatarului printr-o conexiune directă, criptat pe parcursul transferului. Ambele telefoane trebuie să fie online.",
- "Large file · directly to the recipient’s phone": "Fișier mare · direct pe telefonul destinatarului",
  "Files arrive directly from people, encrypted on the way, and are kept only on this phone, in the app’s private folder. When the storage is full, new files cannot be received until you free space.": "Fișierele vin direct de la persoane, criptate pe parcursul transferului, și sunt păstrate doar pe acest telefon, în folderul privat al aplicației. Când spațiul este plin, nu se mai pot primi fișiere noi până nu eliberezi spațiu.",
  "Contacts and messages are encrypted on the device. Files, up to 1 GB, are encrypted on the way and kept in the app’s private folder. The outbox waits for the recipient for up to 7 days and survives restarts. In groups, data syncs between participants. Limits: up to 16 files waiting for delivery, up to 2000 stored files / 10 GiB in total and never the last 512 MB of free phone space. On a network change the app tries to preserve the session for 10 seconds.": "Contactele și mesajele sunt criptate pe dispozitiv. Fișierele de până la 1 GB sunt criptate pe parcursul transferului și păstrate în folderul privat al aplicației. Coada de trimitere așteaptă destinatarul până la 7 zile și se păstrează după reporniri. În grupuri, datele se sincronizează între participanți. Limite: până la 16 fișiere în așteptarea livrării, până la 2000 de fișiere stocate / 10 GiB în total și niciodată ultimii 512 MB de spațiu liber de pe telefon. La schimbarea rețelei, aplicația încearcă să păstreze sesiunea timp de 10 secunde.",
  "Slide to cancel": "Glisați pentru a anula",
@@ -768,5 +765,7 @@
  "Hold to record a video circle, release to send. Tap to switch to voice.": "Țineți apăsat pentru a înregistra un video rotund, eliberați pentru a trimite. Atingeți pentru a trece la voce.",
  "Stop and watch": "Opriți și vizionați",
  "Record video circle": "Înregistrați un video rotund",
- "Send video circle": "Trimiteți videoclipul rotund"
+ "Send video circle": "Trimiteți videoclipul rotund",
+ "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "Un fișier de peste 5 MB ajunge pe telefonul destinatarului, criptat pe drum, și nu este stocat pe server. Ambele telefoane trebuie să fie online.",
+ "Large file · to the recipient’s phone, not stored on the server": "Fișier mare · către telefonul destinatarului, fără stocare pe server"
 }

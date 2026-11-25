@@ -753,11 +753,8 @@
  "Wants to start a chat": "Ingin memulai chat",
  "Accept": "Terima",
  "You turned off the direct connection with this contact: messages go through the server, files and calls are not available.": "Anda menonaktifkan koneksi langsung dengan kontak ini: pesan dikirim lewat server, file dan panggilan tidak tersedia.",
- "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.": "Kedua ponsel online, tetapi koneksi langsung tidak tersedia. File menunggu koneksi tersebut; pesan tetap sampai.",
  "Draft:": "Draf:",
  "Large file": "File besar",
- "A file over 5 MB goes straight to the recipient’s phone over a direct connection, encrypted on the way. Both phones need to be online.": "File lebih dari 5 MB langsung dikirim ke ponsel penerima melalui koneksi langsung, terenkripsi selama pengiriman. Kedua ponsel harus online.",
- "Large file · directly to the recipient’s phone": "File besar · langsung ke ponsel penerima",
  "Files arrive directly from people, encrypted on the way, and are kept only on this phone, in the app’s private folder. When the storage is full, new files cannot be received until you free space.": "File datang langsung dari orang lain, terenkripsi selama pengiriman, dan hanya disimpan di ponsel ini, di folder privat aplikasi. Saat penyimpanan penuh, file baru tidak dapat diterima sampai Anda mengosongkan ruang.",
  "Contacts and messages are encrypted on the device. Files, up to 1 GB, are encrypted on the way and kept in the app’s private folder. The outbox waits for the recipient for up to 7 days and survives restarts. In groups, data syncs between participants. Limits: up to 16 files waiting for delivery, up to 2000 stored files / 10 GiB in total and never the last 512 MB of free phone space. On a network change the app tries to preserve the session for 10 seconds.": "Kontak dan pesan dienkripsi di perangkat. File hingga 1 GB dienkripsi selama pengiriman dan disimpan di folder privat aplikasi. Kotak keluar menunggu penerima hingga 7 hari dan tetap ada setelah aplikasi dimulai ulang. Di grup, data disinkronkan antaranggota. Batas: hingga 16 file menunggu pengiriman, hingga 2000 file tersimpan / total 10 GiB, dan 512 MB terakhir ruang kosong ponsel tidak pernah dipakai. Saat jaringan berganti, aplikasi mencoba mempertahankan sesi selama 10 detik.",
  "Slide to cancel": "Geser untuk membatalkan",
@@ -768,5 +765,7 @@
  "Hold to record a video circle, release to send. Tap to switch to voice.": "Tahan untuk merekam video bulat, lepaskan untuk mengirim. Ketuk untuk beralih ke suara.",
  "Stop and watch": "Hentikan dan tonton",
  "Record video circle": "Rekam video bulat",
- "Send video circle": "Kirim video bulat"
+ "Send video circle": "Kirim video bulat",
+ "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "File di atas 5 MB dikirim ke ponsel penerima, dienkripsi selama perjalanan, dan tidak disimpan di server. Kedua ponsel harus online.",
+ "Large file · to the recipient’s phone, not stored on the server": "File besar · ke ponsel penerima, tidak disimpan di server"
 }

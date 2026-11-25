@@ -50,6 +50,8 @@ const MAX_SESSIONS=16;
 const MAX_DIRECTORY_FRAME=128*1024;
 /** Own files waiting for delivery (the sender-held outbox). */
 export const MAX_PENDING_FILES=16;
+/** How long files wait for ICE to find a direct path before they use the TURN relay. */
+export const RELAY_GRACE_MS=10_000;
 /** Files kept on this phone: received and sent, delivered or not. */
 export const MAX_STORED_FILES=2000;
 export const MAX_STORED_FILE_BYTES=10*1024*1024*1024;
@@ -81,7 +83,7 @@ type RequestInput<T=DirectoryClientFrame>=T extends {requestId:string}?Omit<T,'r
 type ReplyType=Exclude<Extract<DirectoryServerFrame,{requestId:string}>['type'],'error'>|'call-state';
 export type ReportReason='spam'|'harassment'|'illegal'|'other';
 interface Request {expected:ReplyType;resolve:(frame:DirectoryServerFrame)=>void;reject:(e:Error)=>void;timer:ReturnType<typeof setTimeout>;}
-interface Pair {session:PeerSession;connecting?:Promise<void>;retry?:ReturnType<typeof setTimeout>;attempt:number;flushing:boolean;notified:boolean;lastUsed:number;lastSent:Map<string,number>;definitions:Set<string>;pump?:ReturnType<typeof setTimeout>;}
+interface Pair {session:PeerSession;/** Since when the session has run without a direct path (TURN relay or unknown). */indirectSince?:number;connecting?:Promise<void>;retry?:ReturnType<typeof setTimeout>;attempt:number;flushing:boolean;notified:boolean;lastUsed:number;lastSent:Map<string,number>;definitions:Set<string>;pump?:ReturnType<typeof setTimeout>;}
 export class MessengerClient {
   private status:MessengerSnapshot['status']='idle';private self?:DirectoryUser;private error?:string;
   private contacts=new Map<string,DirectoryUser>();private conversations=new Map<string,InternalConversation>();private pending:PendingMessage[]=[];private verified=new Set<string>();private blocked=new Set<string>();private moved=new Map<string,DirectoryUser>();
@@ -850,11 +852,11 @@ export class MessengerClient {
         for(const p of pending){if(this.viaMailbox(p,peerId))continue;const item=p.type==='file'?c.files.find(f=>f.id===p.messageId&&f.senderId===(p.author??own)):c.messages.find(m=>m.id===p.messageId&&m.from===(p.author??own));if(item)records.push({type:p.type??'message',item,author:p.author??own});}
         // Retained signed history is a bounded anti-entropy source for group peers.
         if(c.kind==='group'&&c.definition){const since=c.joinedAt?.[peerId]??0;for(const m of c.messages)if(m.from!==peerId&&m.from!==own&&c.memberIds.includes(m.from)&&m.timestamp>=since&&m.metadata&&Date.now()<(m.expiresAt??0))records.push({type:'message',item:m,author:m.from});for(const f of c.files)if(f.senderId!==peerId&&f.senderId!==own&&c.memberIds.includes(f.senderId)&&f.timestamp>=since&&f.metadata&&f.blobKey&&Date.now()<(f.expiresAt??0))records.push({type:'file',item:f,author:f.senderId});}
-        let route:'direct'|'relay'|'unknown'|undefined;
+        let routeOk:boolean|undefined;
         for(const {type,item,author} of records){
           if(type==='file'&&(item as MessengerFile).large){if(author===own)this.startBulk(peerId,pair,c,item as MessengerFile);continue;}
-          // Every file, voice note and video circle goes phone to phone only: through a TURN relay it waits for a direct path instead.
-          if(type==='file'){route??=typeof pair.session.currentRoute==='function'?await pair.session.currentRoute():'direct';if(route!=='direct')continue;}
+          // Files try the direct path first; if ICE finds none, they go through the TURN relay (still end-to-end encrypted).
+          if(type==='file'){routeOk??=await this.fileRouteOk(pair);if(!routeOk)continue;}
           if(c.kind==='group'&&(c.receipts??[]).some(r=>r.id===item.id&&r.author===author&&r.recipient===peerId))continue;
           if(c.kind==='group'&&author===own&&!item.metadata&&c.definition){item.metadata=JSON.stringify(signGroupOrigin(this.options.identity,{groupId:c.id,id:item.id,type,timestamp:item.timestamp,expiresAt:item.expiresAt??item.timestamp+OUTBOX_TTL_MS,hash:type==='message'?contentHash('message',(item as MessengerMessage).originalText??(item as MessengerMessage).text):contentHash('file',(await this.getFileData(c.id,item.id,author))!, (item as MessengerFile).name,(item as MessengerFile).mime)}));await this.durable();}const key=c.id+':'+author+':'+item.id;if(Date.now()-(pair.lastSent.get(key)??0)<5000)continue;pair.lastSent.set(key,Date.now());
           try{if(type==='message'){const message=item as MessengerMessage;await pair.session.sendText(message.originalText??message.text,{messageId:message.id,conversationId:c.id,metadata:message.metadata,timestamp:message.timestamp});}
@@ -928,24 +930,35 @@ export class MessengerClient {
     try{await this.durable();}catch(error){c.files=c.files.filter(f=>f!==record);this.pending=this.pending.filter(item=>item!==p);c.hidden=hidden;c.implicit=implicit;this.dirty=true;throw error;}
     this.committed.add(this.pendingKey(p));await this.expirePending();this.kick(c);
   });}
+  /**
+   * Files go phone to phone. The direct path is tried first; when the session has run for
+   * RELAY_GRACE_MS without one (carrier NAT, strict firewalls), they use the TURN relay, which only
+   * forwards the encrypted stream and stores nothing.
+   */
+  private async fileRouteOk(pair:Pair):Promise<boolean>{
+    const route=typeof pair.session.currentRoute==='function'?await pair.session.currentRoute():'direct';
+    if(route==='direct'){pair.indirectSince=undefined;return true;}
+    pair.indirectSince??=this.now();
+    return this.now()-pair.indirectSince>=RELAY_GRACE_MS;
+  }
   /** One large file at a time per recipient; the next starts when this one ends, a failed one is retried. */
   private bulkActive=new Set<string>();
   private startBulk(peerId:string,pair:Pair,c:InternalConversation,file:MessengerFile){
     const store=this.options.bulkFiles;if(!store||this.bulkActive.has(peerId)||!pair.session.supportsBulk())return;
     this.bulkActive.add(peerId);const own=this.options.identity.userId;
     void (async()=>{
-      let sent=false;
+      let sent=false;let routeWait=false;
       try{
-        if(await pair.session.currentRoute()!=='direct')return; // direct phone-to-phone only: wait for a direct path rather than use TURN
+        if(!await this.fileRouteOk(pair)){routeWait=true;return;} // the direct path is still being tried
         const key=attachmentKey(own,file.id,c.id);
-        await pair.session.sendBulk({id:file.id,conversationId:c.id,name:file.name,mime:file.mime,size:file.size,metadata:file.metadata},(offset,length)=>store.read(key,file.name,offset,length),async()=>await pair.session.currentRoute()==='direct');
+        await pair.session.sendBulk({id:file.id,conversationId:c.id,name:file.name,mime:file.mime,size:file.size,metadata:file.metadata},(offset,length)=>store.read(key,file.name,offset,length),()=>this.fileRouteOk(pair));
         sent=true;const p=this.pending.find(item=>item.type==='file'&&item.conversationId===c.id&&item.messageId===file.id&&(item.author??own)===own);
         if(p&&p.remaining.includes(peerId)&&Date.now()<p.expiresAt!)await this.acknowledge(p,peerId,file);
         this.emit();
       }catch(error){if(/free space|did not accept|update LastCall/.test(String((error as Error)?.message)))this.report(error);}
       finally{
         this.bulkActive.delete(peerId);
-        if(!this.closing)setTimeout(()=>{void this.flushPeer(peerId).catch(e=>this.report(e));},sent?0:30000);
+        if(!this.closing)setTimeout(()=>{void this.flushPeer(peerId).catch(e=>this.report(e));},sent?0:routeWait?RELAY_GRACE_MS/2:30000);
       }
     })();
   }

@@ -753,11 +753,8 @@
  "Wants to start a chat": "Chce rozpocząć czat",
  "Accept": "Akceptuj",
  "You turned off the direct connection with this contact: messages go through the server, files and calls are not available.": "Połączenie bezpośrednie z tym kontaktem zostało przez ciebie wyłączone: wiadomości idą przez serwer, pliki i połączenia są niedostępne.",
- "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.": "Oba telefony są online, ale połączenie bezpośrednie jest niedostępne. Pliki czekają na nie; wiadomości nadal docierają.",
  "Draft:": "Wersja robocza:",
  "Large file": "Duży plik",
- "A file over 5 MB goes straight to the recipient’s phone over a direct connection, encrypted on the way. Both phones need to be online.": "Plik większy niż 5 MB trafia prosto na telefon odbiorcy przez połączenie bezpośrednie, szyfrowany w trakcie przesyłania. Oba telefony muszą być online.",
- "Large file · directly to the recipient’s phone": "Duży plik · bezpośrednio na telefon odbiorcy",
  "Files arrive directly from people, encrypted on the way, and are kept only on this phone, in the app’s private folder. When the storage is full, new files cannot be received until you free space.": "Pliki przychodzą bezpośrednio od ludzi, szyfrowane w trakcie przesyłania, i są przechowywane tylko na tym telefonie, w prywatnym folderze aplikacji. Gdy pamięć jest pełna, nowych plików nie można odbierać, dopóki nie zwolnisz miejsca.",
  "Contacts and messages are encrypted on the device. Files, up to 1 GB, are encrypted on the way and kept in the app’s private folder. The outbox waits for the recipient for up to 7 days and survives restarts. In groups, data syncs between participants. Limits: up to 16 files waiting for delivery, up to 2000 stored files / 10 GiB in total and never the last 512 MB of free phone space. On a network change the app tries to preserve the session for 10 seconds.": "Kontakty i wiadomości są szyfrowane na urządzeniu. Pliki do 1 GB są szyfrowane w trakcie przesyłania i przechowywane w prywatnym folderze aplikacji. Kolejka wysyłania czeka na odbiorcę do 7 dni i przetrwa ponowne uruchomienie. W grupach dane są synchronizowane między uczestnikami. Limity: do 16 plików oczekujących na dostarczenie, łącznie do 2000 przechowywanych plików / 10 GiB i nigdy ostatnie 512 MB wolnego miejsca na telefonie. Przy zmianie sieci aplikacja przez 10 sekund próbuje utrzymać sesję.",
  "Slide to cancel": "Przesuń, aby anulować",
@@ -768,5 +765,7 @@
  "Hold to record a video circle, release to send. Tap to switch to voice.": "Przytrzymaj, aby nagrać wideo w kółku, puść, aby wysłać. Dotknij, aby przełączyć na głos.",
  "Stop and watch": "Zatrzymaj i obejrzyj",
  "Record video circle": "Nagraj wideo w kółku",
- "Send video circle": "Wyślij wideo w kółku"
+ "Send video circle": "Wyślij wideo w kółku",
+ "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "Plik większy niż 5 MB trafia na telefon odbiorcy, jest szyfrowany w drodze i nie jest przechowywany na serwerze. Oba telefony muszą być online.",
+ "Large file · to the recipient’s phone, not stored on the server": "Duży plik · na telefon odbiorcy, bez przechowywania na serwerze"
 }

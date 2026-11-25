@@ -3016,24 +3016,12 @@
   "ru": "Вы отключили прямое соединение с этим контактом: сообщения идут через сервер, файлы и звонки недоступны."
  },
  {
-  "key": "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.",
-  "ru": "Оба телефона в сети, но прямого соединения нет. Файлы ждут его; сообщения доходят."
- },
- {
   "key": "Draft:",
   "ru": "Черновик:"
  },
  {
   "key": "Large file",
   "ru": "Большой файл"
- },
- {
-  "key": "A file over 5 MB goes straight to the recipient’s phone over a direct connection, encrypted on the way. Both phones need to be online.",
-  "ru": "Файл больше 5 МБ идёт напрямую на телефон получателя и шифруется в пути. Оба телефона должны быть в сети."
- },
- {
-  "key": "Large file · directly to the recipient’s phone",
-  "ru": "Большой файл · напрямую на телефон получателя"
  },
  {
   "key": "Files arrive directly from people, encrypted on the way, and are kept only on this phone, in the app’s private folder. When the storage is full, new files cannot be received until you free space.",
@@ -3078,5 +3066,13 @@
  {
   "key": "Send video circle",
   "ru": "Отправить видеокружок"
+ },
+ {
+  "key": "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.",
+  "ru": "Файл больше 5 МБ идёт на телефон получателя, шифруется в пути и не хранится на сервере. Оба телефона должны быть в сети."
+ },
+ {
+  "key": "Large file · to the recipient’s phone, not stored on the server",
+  "ru": "Большой файл · на телефон получателя, без хранения на сервере"
  }
 ]

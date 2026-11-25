@@ -753,11 +753,8 @@
  "Wants to start a chat": "チャットの開始を希望しています",
  "Accept": "承認",
  "You turned off the direct connection with this contact: messages go through the server, files and calls are not available.": "この連絡先との直接接続をオフにしました。メッセージはサーバー経由で送られ、ファイルと通話は利用できません。",
- "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.": "両方のスマートフォンがオンラインですが、直接接続を利用できません。ファイルは直接接続を待ちます。メッセージは引き続き届きます。",
  "Draft:": "下書き：",
  "Large file": "大きなファイル",
- "A file over 5 MB goes straight to the recipient’s phone over a direct connection, encrypted on the way. Both phones need to be online.": "5 MB を超えるファイルは、直接接続で受信者のスマートフォンに直接送られ、転送中は暗号化されます。両方のスマートフォンがオンラインである必要があります。",
- "Large file · directly to the recipient’s phone": "大きなファイル · 受信者のスマートフォンに直接",
  "Files arrive directly from people, encrypted on the way, and are kept only on this phone, in the app’s private folder. When the storage is full, new files cannot be received until you free space.": "ファイルは相手から直接届き、転送中は暗号化され、このスマートフォンのアプリのプライベートフォルダにのみ保存されます。保存領域がいっぱいになると、空き容量を増やすまで新しいファイルを受信できません。",
  "Contacts and messages are encrypted on the device. Files, up to 1 GB, are encrypted on the way and kept in the app’s private folder. The outbox waits for the recipient for up to 7 days and survives restarts. In groups, data syncs between participants. Limits: up to 16 files waiting for delivery, up to 2000 stored files / 10 GiB in total and never the last 512 MB of free phone space. On a network change the app tries to preserve the session for 10 seconds.": "連絡先とメッセージは端末上で暗号化されます。最大 1 GB のファイルは転送中に暗号化され、アプリのプライベートフォルダに保存されます。送信トレイは受信者を最大7日間待ち、再起動後も保持されます。グループでは、データは参加者間で同期されます。制限：配信待ちのファイルは最大16件、保存ファイルは最大2000件 / 合計 10 GiB まで。また、スマートフォンの空き容量のうち最後の 512 MB は決して使用しません。ネットワークが切り替わると、アプリは10秒間セッションの維持を試みます。",
  "Slide to cancel": "スライドしてキャンセル",
@@ -768,5 +765,7 @@
  "Hold to record a video circle, release to send. Tap to switch to voice.": "長押しで丸いビデオを録画、指を離すと送信。タップで音声に切り替え。",
  "Stop and watch": "停止して見る",
  "Record video circle": "丸いビデオを録画",
- "Send video circle": "丸いビデオを送信"
+ "Send video circle": "丸いビデオを送信",
+ "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "5 MB を超えるファイルは途中で暗号化されて相手のスマートフォンに届き、サーバーには保存されません。両方のスマートフォンがオンラインである必要があります。",
+ "Large file · to the recipient’s phone, not stored on the server": "大きなファイル · 相手のスマートフォンへ、サーバーには保存されません"
 }

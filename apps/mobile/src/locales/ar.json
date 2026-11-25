@@ -753,11 +753,8 @@
  "Wants to start a chat": "يريد بدء محادثة",
  "Accept": "قبول",
  "You turned off the direct connection with this contact: messages go through the server, files and calls are not available.": "لقد أوقفت الاتصال المباشر مع جهة الاتصال هذه: تمر الرسائل عبر الخادم، والملفات والمكالمات غير متاحة.",
- "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.": "الهاتفان متصلان بالشبكة، لكن الاتصال المباشر غير متاح. تنتظر الملفات توفره؛ أما الرسائل فتصل رغم ذلك.",
  "Draft:": "مسودة:",
  "Large file": "ملف كبير",
- "A file over 5 MB goes straight to the recipient’s phone over a direct connection, encrypted on the way. Both phones need to be online.": "يُرسَل الملف الأكبر من 5 م.ب مباشرة إلى هاتف المستلم عبر اتصال مباشر، مشفرًا أثناء النقل. يجب أن يكون الهاتفان متصلين بالشبكة.",
- "Large file · directly to the recipient’s phone": "ملف كبير · مباشرة إلى هاتف المستلم",
  "Files arrive directly from people, encrypted on the way, and are kept only on this phone, in the app’s private folder. When the storage is full, new files cannot be received until you free space.": "تصل الملفات مباشرة من الأشخاص، مشفرة أثناء النقل، وتُحفظ على هذا الهاتف فقط، في المجلد الخاص بالتطبيق. عندما تمتلئ المساحة لا يمكن استلام ملفات جديدة حتى تُفرغ مساحة.",
  "Contacts and messages are encrypted on the device. Files, up to 1 GB, are encrypted on the way and kept in the app’s private folder. The outbox waits for the recipient for up to 7 days and survives restarts. In groups, data syncs between participants. Limits: up to 16 files waiting for delivery, up to 2000 stored files / 10 GiB in total and never the last 512 MB of free phone space. On a network change the app tries to preserve the session for 10 seconds.": "جهات الاتصال والرسائل مشفرة على الجهاز. الملفات، حتى 1 غ.ب، تُشفَّر أثناء النقل وتُحفظ في المجلد الخاص بالتطبيق. تنتظر قائمة الإرسال المستلم لمدة تصل إلى 7 أيام وتبقى بعد إعادة التشغيل. في المجموعات تتزامن البيانات بين المشاركين. الحدود: حتى 16 ملفًا بانتظار التسليم، وحتى 2000 ملف مخزَّن / 10 GiB إجمالًا، ولا تُستخدم أبدًا آخر 512 م.ب من المساحة الحرة في الهاتف. عند تغيّر الشبكة يحاول التطبيق الحفاظ على الجلسة لمدة 10 ثوانٍ.",
  "Slide to cancel": "اسحب للإلغاء",
@@ -768,5 +765,7 @@
  "Hold to record a video circle, release to send. Tap to switch to voice.": "اضغط مطولًا لتسجيل فيديو دائري، وارفع إصبعك للإرسال. انقر للتبديل إلى الصوت.",
  "Stop and watch": "إيقاف ومشاهدة",
  "Record video circle": "تسجيل فيديو دائري",
- "Send video circle": "إرسال الفيديو الدائري"
+ "Send video circle": "إرسال الفيديو الدائري",
+ "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "يصل الملف الأكبر من 5 ميغابايت إلى هاتف المستلم مشفّرًا أثناء النقل، ولا يُخزَّن على الخادم. يجب أن يكون الهاتفان متصلين.",
+ "Large file · to the recipient’s phone, not stored on the server": "ملف كبير · إلى هاتف المستلم دون تخزين على الخادم"
 }

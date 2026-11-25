@@ -753,11 +753,8 @@
  "Wants to start a chat": "Quiere iniciar un chat",
  "Accept": "Aceptar",
  "You turned off the direct connection with this contact: messages go through the server, files and calls are not available.": "Has desactivado la conexión directa con este contacto: los mensajes pasan por el servidor; los archivos y las llamadas no están disponibles.",
- "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.": "Ambos teléfonos están en línea, pero no hay conexión directa disponible. Los archivos esperan a que la haya; los mensajes siguen llegando.",
  "Draft:": "Borrador:",
  "Large file": "Archivo grande",
- "A file over 5 MB goes straight to the recipient’s phone over a direct connection, encrypted on the way. Both phones need to be online.": "Un archivo de más de 5 MB va directamente al teléfono del destinatario por una conexión directa, cifrado en tránsito. Ambos teléfonos deben estar en línea.",
- "Large file · directly to the recipient’s phone": "Archivo grande · directamente al teléfono del destinatario",
  "Files arrive directly from people, encrypted on the way, and are kept only on this phone, in the app’s private folder. When the storage is full, new files cannot be received until you free space.": "Los archivos llegan directamente de otras personas, cifrados en tránsito, y se guardan solo en este teléfono, en la carpeta privada de la app. Cuando el almacenamiento está lleno, no se pueden recibir archivos nuevos hasta que liberes espacio.",
  "Contacts and messages are encrypted on the device. Files, up to 1 GB, are encrypted on the way and kept in the app’s private folder. The outbox waits for the recipient for up to 7 days and survives restarts. In groups, data syncs between participants. Limits: up to 16 files waiting for delivery, up to 2000 stored files / 10 GiB in total and never the last 512 MB of free phone space. On a network change the app tries to preserve the session for 10 seconds.": "Los contactos y los mensajes se cifran en el dispositivo. Los archivos, de hasta 1 GB, se cifran en tránsito y se guardan en la carpeta privada de la app. La cola de envío espera al destinatario hasta 7 días y se conserva tras los reinicios. En los grupos, los datos se sincronizan entre los participantes. Límites: hasta 16 archivos pendientes de entrega, hasta 2000 archivos guardados / 10 GiB en total, y nunca los últimos 512 MB de espacio libre del teléfono. Al cambiar de red, la app intenta mantener la sesión durante 10 segundos.",
  "Slide to cancel": "Desliza para cancelar",
@@ -768,5 +765,7 @@
  "Hold to record a video circle, release to send. Tap to switch to voice.": "Mantén pulsado para grabar un videomensaje circular y suelta para enviar. Toca para cambiar a voz.",
  "Stop and watch": "Detener y ver",
  "Record video circle": "Grabar videomensaje circular",
- "Send video circle": "Enviar videomensaje circular"
+ "Send video circle": "Enviar videomensaje circular",
+ "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "Un archivo de más de 5 MB va al teléfono del destinatario, cifrado durante el envío, y no se guarda en el servidor. Ambos teléfonos deben estar en línea.",
+ "Large file · to the recipient’s phone, not stored on the server": "Archivo grande · al teléfono del destinatario, sin guardarse en el servidor"
 }

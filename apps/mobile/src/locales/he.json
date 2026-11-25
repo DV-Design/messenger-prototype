@@ -753,11 +753,8 @@
  "Wants to start a chat": "רוצה להתחיל צ׳אט",
  "Accept": "אישור",
  "You turned off the direct connection with this contact: messages go through the server, files and calls are not available.": "כיבית את החיבור הישיר עם איש הקשר הזה: הודעות עוברות דרך השרת, קבצים ושיחות אינם זמינים.",
- "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.": "שני הטלפונים מחוברים, אבל חיבור ישיר אינו זמין. קבצים ממתינים לו; הודעות עדיין מגיעות.",
  "Draft:": "טיוטה:",
  "Large file": "קובץ גדול",
- "A file over 5 MB goes straight to the recipient’s phone over a direct connection, encrypted on the way. Both phones need to be online.": "קובץ גדול מ-5 MB עובר ישירות לטלפון של הנמען בחיבור ישיר, מוצפן בזמן ההעברה. שני הטלפונים צריכים להיות מחוברים.",
- "Large file · directly to the recipient’s phone": "קובץ גדול · ישירות לטלפון של הנמען",
  "Files arrive directly from people, encrypted on the way, and are kept only on this phone, in the app’s private folder. When the storage is full, new files cannot be received until you free space.": "קבצים מגיעים ישירות מאנשים, מוצפנים בזמן ההעברה, ונשמרים רק בטלפון הזה, בתיקייה הפרטית של האפליקציה. כשהאחסון מלא, אי אפשר לקבל קבצים חדשים עד שמפנים מקום.",
  "Contacts and messages are encrypted on the device. Files, up to 1 GB, are encrypted on the way and kept in the app’s private folder. The outbox waits for the recipient for up to 7 days and survives restarts. In groups, data syncs between participants. Limits: up to 16 files waiting for delivery, up to 2000 stored files / 10 GiB in total and never the last 512 MB of free phone space. On a network change the app tries to preserve the session for 10 seconds.": "אנשי קשר והודעות מוצפנים במכשיר. קבצים, עד 1 GB, מוצפנים בזמן ההעברה ונשמרים בתיקייה הפרטית של האפליקציה. תור השליחה ממתין לנמען עד 7 ימים ונשמר גם אחרי הפעלה מחדש. בקבוצות הנתונים מסתנכרנים בין המשתתפים. מגבלות: עד 16 קבצים שממתינים למסירה, עד 2000 קבצים שמורים / 10 GiB בסך הכול, ולעולם לא נעשה שימוש ב-512 MB האחרונים של השטח הפנוי בטלפון. כשהרשת מתחלפת, האפליקציה מנסה לשמור על החיבור במשך 10 שניות.",
  "Slide to cancel": "החליקו לביטול",
@@ -768,5 +765,7 @@
  "Hold to record a video circle, release to send. Tap to switch to voice.": "החזיקו כדי להקליט סרטון עגול, שחררו כדי לשלוח. הקישו כדי לעבור לקול.",
  "Stop and watch": "עצירה וצפייה",
  "Record video circle": "הקלטת סרטון עגול",
- "Send video circle": "שליחת הסרטון העגול"
+ "Send video circle": "שליחת הסרטון העגול",
+ "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "קובץ גדול מ־5 MB מגיע לטלפון של הנמען, מוצפן בדרך, ואינו נשמר בשרת. שני הטלפונים צריכים להיות מחוברים.",
+ "Large file · to the recipient’s phone, not stored on the server": "קובץ גדול · לטלפון של הנמען, בלי שמירה בשרת"
 }

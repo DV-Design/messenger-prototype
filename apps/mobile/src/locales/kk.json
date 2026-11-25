@@ -753,11 +753,8 @@
  "Wants to start a chat": "Хат алмасуды бастағысы келеді",
  "Accept": "Қабылдау",
  "You turned off the direct connection with this contact: messages go through the server, files and calls are not available.": "Сіз бұл контактпен тікелей байланысты өшірдіңіз: хабарламалар сервер арқылы жіберіледі, файлдар мен қоңыраулар қолжетімсіз.",
- "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.": "Екі телефон да желіде, бірақ тікелей байланыс қолжетімсіз. Файлдар оны күтеді; хабарламалар бәрібір жетеді.",
  "Draft:": "Жоба:",
  "Large file": "Үлкен файл",
- "A file over 5 MB goes straight to the recipient’s phone over a direct connection, encrypted on the way. Both phones need to be online.": "5 МБ-тан үлкен файл тікелей байланыс арқылы алушының телефонына тура жіберіледі және тасымалдау кезінде шифрланады. Екі телефон да желіде болуы керек.",
- "Large file · directly to the recipient’s phone": "Үлкен файл · тікелей алушының телефонына",
  "Files arrive directly from people, encrypted on the way, and are kept only on this phone, in the app’s private folder. When the storage is full, new files cannot be received until you free space.": "Файлдар адамдардан тікелей, тасымалдау кезінде шифрланып келеді және тек осы телефонда, қолданбаның жабық қалтасында сақталады. Қойма толғанда, орын босатпайынша жаңа файлдарды алу мүмкін емес.",
  "Contacts and messages are encrypted on the device. Files, up to 1 GB, are encrypted on the way and kept in the app’s private folder. The outbox waits for the recipient for up to 7 days and survives restarts. In groups, data syncs between participants. Limits: up to 16 files waiting for delivery, up to 2000 stored files / 10 GiB in total and never the last 512 MB of free phone space. On a network change the app tries to preserve the session for 10 seconds.": "Контактілер мен хабарламалар құрылғыда шифрланады. 1 ГБ-қа дейінгі файлдар тасымалдау кезінде шифрланады және қолданбаның жабық қалтасында сақталады. Жіберу кезегі алушыны 7 күнге дейін күтеді және қайта іске қосқаннан кейін де сақталады. Топтарда деректер қатысушылар арасында синхрондалады. Шектеулер: жеткізуді күтетін 16 файлға дейін, барлығы 2000 сақталған файлға / 10 ГиБ-қа дейін, әрі телефондағы бос орынның соңғы 512 МБ-ы ешқашан пайдаланылмайды. Желі ауысқанда қолданба сеансты 10 секунд бойы сақтауға тырысады.",
  "Slide to cancel": "Солға — бас тарту",
@@ -768,5 +765,7 @@
  "Hold to record a video circle, release to send. Tap to switch to voice.": "Дөңгелек бейне жазу үшін басып тұрыңыз, жіберу үшін жіберіп қойыңыз. Дауысқа ауысу үшін түртіңіз.",
  "Stop and watch": "Тоқтатып, көру",
  "Record video circle": "Дөңгелек бейне жазу",
- "Send video circle": "Дөңгелек бейнені жіберу"
+ "Send video circle": "Дөңгелек бейнені жіберу",
+ "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "5 МБ-тан үлкен файл жолда шифрланып, алушының телефонына барады және серверде сақталмайды. Екі телефон да желіде болуы керек.",
+ "Large file · to the recipient’s phone, not stored on the server": "Үлкен файл · алушының телефонына, серверде сақталмайды"
 }

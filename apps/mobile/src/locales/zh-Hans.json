@@ -753,11 +753,8 @@
  "Wants to start a chat": "想开始聊天",
  "Accept": "接受",
  "You turned off the direct connection with this contact: messages go through the server, files and calls are not available.": "你已关闭与此联系人的直接连接：消息经服务器传输，文件和通话不可用。",
- "Both phones are online, but a direct connection is not available. Files wait for one; messages still arrive.": "双方手机都在线，但直接连接不可用。文件会等待直接连接；消息仍可送达。",
  "Draft:": "草稿：",
  "Large file": "大文件",
- "A file over 5 MB goes straight to the recipient’s phone over a direct connection, encrypted on the way. Both phones need to be online.": "超过 5 MB 的文件会通过直接连接直接发送到收件人的手机，传输过程中加密。双方手机都需要在线。",
- "Large file · directly to the recipient’s phone": "大文件 · 直接发送到收件人的手机",
  "Files arrive directly from people, encrypted on the way, and are kept only on this phone, in the app’s private folder. When the storage is full, new files cannot be received until you free space.": "文件直接来自对方，传输过程中加密，并且仅保存在此手机上应用的私有文件夹中。存储空间已满时，在你释放空间之前无法接收新文件。",
  "Contacts and messages are encrypted on the device. Files, up to 1 GB, are encrypted on the way and kept in the app’s private folder. The outbox waits for the recipient for up to 7 days and survives restarts. In groups, data syncs between participants. Limits: up to 16 files waiting for delivery, up to 2000 stored files / 10 GiB in total and never the last 512 MB of free phone space. On a network change the app tries to preserve the session for 10 seconds.": "联系人和消息在设备上加密。最大 1 GB 的文件在传输过程中加密，并保存在应用的私有文件夹中。发件队列会为收件人等待最长 7 天，重启后仍会保留。在群组中，数据在成员之间同步。限制：最多 16 个文件等待投递，最多存储 2000 个文件 / 共 10 GiB，并且永远不会占用手机最后 512 MB 的可用空间。网络切换时，应用会尝试在 10 秒内保持会话。",
  "Slide to cancel": "滑动取消",
@@ -768,5 +765,7 @@
  "Hold to record a video circle, release to send. Tap to switch to voice.": "按住录制圆形视频，松开发送。点按切换到语音。",
  "Stop and watch": "停止并观看",
  "Record video circle": "录制圆形视频",
- "Send video circle": "发送圆形视频"
+ "Send video circle": "发送圆形视频",
+ "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "超过 5 MB 的文件会发送到对方手机，传输途中加密，不会存储在服务器上。两部手机都需要在线。",
+ "Large file · to the recipient’s phone, not stored on the server": "大文件 · 发送到对方手机，不存储在服务器上"
 }

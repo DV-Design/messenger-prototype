@@ -12,11 +12,11 @@ import { client } from './runtime';
 import { readMediaForSend, type createMediaScope } from './media-model';
 const MAX_FILE = 5 * 1024 * 1024;
 /**
- * A file over 5 MB goes straight to the recipient's phone over a direct connection, encrypted on the way
- * like everything else, but it is kept on both phones without LastCall's extra encryption. Say so before it goes.
+ * A file over 5 MB goes to the recipient's phone (directly, or through the TURN relay when no direct
+ * path exists), encrypted on the way like everything else, but it is kept on both phones without LastCall's extra encryption. Say so before it goes.
  */
 export function confirmLargeFile(): Promise<boolean> {
-  return new Promise(resolve => Alert.alert(t('Large file'), t('A file over 5 MB goes straight to the recipient’s phone over a direct connection, encrypted on the way. Both phones need to be online.'), [
+  return new Promise(resolve => Alert.alert(t('Large file'), t('A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.'), [
     { text: t('Cancel'), style: 'cancel', onPress: () => resolve(false) },
     { text: t('Send'), onPress: () => resolve(true) },
   ], { cancelable: true, onDismiss: () => resolve(false) }));
