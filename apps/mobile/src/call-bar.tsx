@@ -30,19 +30,19 @@ export function CallBarLayout({ children }: { children: ReactNode }) {
   const insets = useSafeAreaInsets();
   const above = useTopOffset();
   const now = useClock(bar.collapsed && bar.activeSince !== undefined);
-  if (!bar.collapsed) return <>{children}</>;
   const detail = bar.activeSince !== undefined ? callDuration(now - bar.activeSince) : bar.status;
+  // Same tree whether or not the strip shows, so the screens under it are not re-created.
   return <View style={{ flex: 1 }}>
-    <StatusBar style="light" />
-    <Pressable accessibilityRole="button" accessibilityLabel={t('Return to call with {name}', { name: bar.name })} onPress={() => setCallBar({ collapsed: false })}
+    {bar.collapsed && <StatusBar style="light" />}
+    {bar.collapsed && <Pressable accessibilityRole="button" accessibilityLabel={t('Return to call with {name}', { name: bar.name })} onPress={() => setCallBar({ collapsed: false })}
       style={({ pressed }) => ({ backgroundColor: colors.accent, paddingTop: insets.top, paddingLeft: insets.left + 16, paddingRight: insets.right + 16, opacity: pressed ? 0.85 : 1 })}>
       <View style={{ height: TOP_STRIP_HEIGHT, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
         <Icon name="call" color={colors.white} size={15} />
         <Text numberOfLines={1} style={{ color: colors.white, fontWeight: '600', fontSize: 14, flexShrink: 1 }}>{bar.name}</Text>
         <Text style={{ color: colors.white, fontSize: 14, fontVariant: ['tabular-nums'] }}>{detail}</Text>
       </View>
-    </Pressable>
-    <SafeAreaInsetsContext.Provider value={{ ...insets, top: 0 }}><TopOffset.Provider value={above + insets.top + TOP_STRIP_HEIGHT}>
+    </Pressable>}
+    <SafeAreaInsetsContext.Provider value={bar.collapsed ? { ...insets, top: 0 } : insets}><TopOffset.Provider value={bar.collapsed ? above + insets.top + TOP_STRIP_HEIGHT : above}>
       <View style={{ flex: 1 }}>{children}</View>
     </TopOffset.Provider></SafeAreaInsetsContext.Provider>
   </View>;

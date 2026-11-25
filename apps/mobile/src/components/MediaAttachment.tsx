@@ -6,6 +6,7 @@ import { mediaTime, type MediaKind } from '../media-model';
 import { mediaFileKey, nowPlayingVideo, playMediaFile, showCircleInline, useNowPlaying } from '../media-player';
 import { colors, styles } from '../styles';
 import { Icon } from './ui';
+import { ProgressRing } from './ProgressRing';
 import { t } from '../i18n';
 
 export const CIRCLE_NOTE_SIZE = 220;
@@ -33,13 +34,14 @@ export function MediaAttachment({ file, kind, disabled, duration }: { file: Mess
       </View>
     </Pressable>;
   }
-  const player = showing ? nowPlayingVideo() : undefined;
+  // Only after this row is counted and the floating circle has let the surface go.
+  const player = showing && active.inlineViews > 0 && !active.floating ? nowPlayingVideo() : undefined;
   return <Pressable accessibilityRole="button" accessibilityLabel={active?.playing ? t('Pause video circle') : t('Watch video circle')} disabled={disabled && !active} onPress={start}
     style={{ width: CIRCLE_NOTE_SIZE, height: CIRCLE_NOTE_SIZE, borderRadius: CIRCLE_NOTE_SIZE / 2, overflow: 'hidden', backgroundColor: '#1B252C', alignItems: 'center', justifyContent: 'center' }}>
     {player && <VideoView player={player} style={{ position: 'absolute', width: CIRCLE_NOTE_SIZE, height: CIRCLE_NOTE_SIZE }} nativeControls={false} contentFit="cover" surfaceType="textureView" allowsPictureInPicture={false} fullscreenOptions={{ enable: false }} />}
     {active?.loading ? <ActivityIndicator color="#FFFFFF" /> : !active?.playing && <Icon name="play-circle" size={57} color="#FFFFFF" />}
     {!!active?.error && <Text style={{ position: 'absolute', bottom: 40, color: '#FFFFFF', fontSize: 12, textAlign: 'center', paddingHorizontal: 20 }}>{active.error}</Text>}
-    {active && length > 0 && <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 4, backgroundColor: 'rgba(255,255,255,0.25)' }}><View style={{ width: `${Math.min(1, active.position / length) * 100}%`, height: 4, backgroundColor: '#FFFFFF' }} /></View>}
+    {active && length > 0 && <ProgressRing size={CIRCLE_NOTE_SIZE} width={4} progress={active.position / length} />}
   </Pressable>;
 }
 

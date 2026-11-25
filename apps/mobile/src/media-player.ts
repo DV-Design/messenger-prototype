@@ -20,6 +20,12 @@ export type NowPlaying = {
   playing: boolean; loading: boolean; position: number; duration: number;
   /** Chat rows showing this circle right now; when none does, a small floating circle shows it. */
   inlineViews: number;
+  /**
+   * The floating circle holds the video surface. A player shows in one view at a time: a view that
+   * goes away takes the surface with it, so a new view attaches only after the old one let go
+   * (otherwise the circle stays black while it plays).
+   */
+  floating: boolean;
   error?: string;
 };
 
@@ -69,7 +75,7 @@ export async function playMediaFile(file: MessengerFile, kind: MediaKind) {
   if (state?.key === key) { togglePlayback(); return; }
   stopNowPlaying();
   const mine = ++generation;
-  publish({ key, kind, conversationId: file.conversationId, playing: false, loading: true, position: 0, duration: 0, inlineViews: 0 });
+  publish({ key, kind, conversationId: file.conversationId, playing: false, loading: true, position: 0, duration: 0, inlineViews: 0, floating: false });
   // Anything else that takes the speaker (a recording, a video in the viewer) stops this one.
   release = claimMediaPlayback(stopNowPlaying);
   const nonce = Array.from(Crypto.getRandomBytes(16), byte => byte.toString(16).padStart(2, '0')).join('');
@@ -106,10 +112,12 @@ export async function playMediaFile(file: MessengerFile, kind: MediaKind) {
     }
   } catch {
     deleteMediaCache(cached.uri);
-    if (mine === generation) { stopNowPlaying(); publish({ key, kind, conversationId: file.conversationId, playing: false, loading: false, position: 0, duration: 0, inlineViews: 0, error: t('Could not open the recording. Try again.') }); setTimeout(() => { if (state?.error && state.key === key) publish(undefined); }, 4000); }
+    if (mine === generation) { stopNowPlaying(); publish({ key, kind, conversationId: file.conversationId, playing: false, loading: false, position: 0, duration: 0, inlineViews: 0, floating: false, error: t('Could not open the recording. Try again.') }); setTimeout(() => { if (state?.error && state.key === key) publish(undefined); }, 4000); }
   }
 }
 
+/** The floating circle took or released the video surface. */
+export function setFloatingShown(key: string, shown: boolean) { if (state?.key === key && state.floating !== shown) patch({ floating: shown }); }
 /** A chat row showing the circle that is playing; returns the call that says it went away. */
 export function showCircleInline(key: string) {
   if (state?.key === key) patch({ inlineViews: state.inlineViews + 1 });

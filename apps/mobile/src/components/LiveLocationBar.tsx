@@ -13,9 +13,9 @@ export function LiveLocationBarLayout({ children }: { children: ReactNode }) {
   const bar = useSyncExternalStore(subscribeLiveShare, liveShareSnapshot);
   const insets = useSafeAreaInsets();
   const above = useTopOffset();
-  if (!bar.active) return <>{children}</>;
+  // Same tree whether or not the strip shows, so the screens under it are not re-created.
   return <View style={{ flex: 1 }}>
-    <Pressable accessibilityRole="button" accessibilityLabel={t('Open the chat sharing your location')}
+    {bar.active && <Pressable accessibilityRole="button" accessibilityLabel={t('Open the chat sharing your location')}
       onPress={() => router.push({ pathname: '/chat/[id]', params: { id: bar.conversationId } })}
       style={({ pressed }) => ({ backgroundColor: '#2B4A3E', paddingTop: insets.top, paddingLeft: insets.left + 16, paddingRight: insets.right + 8, opacity: pressed ? 0.85 : 1 })}>
       <View style={{ height: TOP_STRIP_HEIGHT, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -25,8 +25,8 @@ export function LiveLocationBarLayout({ children }: { children: ReactNode }) {
           <Text style={{ color: '#FFB4AC', fontWeight: '700', fontSize: 13 }}>{t('Stop')}</Text>
         </Pressable>
       </View>
-    </Pressable>
-    <SafeAreaInsetsContext.Provider value={{ ...insets, top: 0 }}><TopOffset.Provider value={above + insets.top + TOP_STRIP_HEIGHT}>
+    </Pressable>}
+    <SafeAreaInsetsContext.Provider value={bar.active ? { ...insets, top: 0 } : insets}><TopOffset.Provider value={bar.active ? above + insets.top + TOP_STRIP_HEIGHT : above}>
       <View style={{ flex: 1 }}>{children}</View>
     </TopOffset.Provider></SafeAreaInsetsContext.Provider>
   </View>;

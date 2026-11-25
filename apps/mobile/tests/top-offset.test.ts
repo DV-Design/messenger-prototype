@@ -6,10 +6,12 @@ const source = (path: string) => readFileSync(new URL(`../src/${path}`, import.m
 
 // The call bar and the live location bar push every screen down. KeyboardAvoidingView measures itself
 // from its parent, so the chat must add their height or the message field stays under the keyboard.
-test('top strips report how far they push the screens down', () => {
-  for (const file of ['call-bar.tsx', 'components/LiveLocationBar.tsx']) {
-    assert.match(source(file), /<TopOffset\.Provider value=\{above \+ insets\.top \+ TOP_STRIP_HEIGHT\}>/, file);
+test('top strips report how far they push the screens down and never re-create the screens', () => {
+  for (const file of ['call-bar.tsx', 'components/LiveLocationBar.tsx', 'components/NowPlayingBar.tsx']) {
+    assert.match(source(file), /<TopOffset\.Provider value=\{\w+(\.\w+)? \? above \+ insets\.top \+ TOP_STRIP_HEIGHT : above\}>/, file);
     assert.match(source(file), /height: TOP_STRIP_HEIGHT/, file);
+    // A hidden strip returning a bare fragment would change the tree and re-mount every screen.
+    assert.doesNotMatch(source(file), /return <>\{children\}<\/>/, file);
   }
 });
 
