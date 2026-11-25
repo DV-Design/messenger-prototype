@@ -14,7 +14,9 @@
   → Artifacts: [circle-thumbnail.ts](apps/mobile/src/circle-thumbnail.ts)
 - [X] `artifacts/LastCall-1.0.46-store.aab` 60516566 bytes, sha256 `2e679cbda1ea84e27ade4366c25f92d6e81fa3d0cdd8c01e5e32ad3b59ad88b8`; mobile tests 287 pass; smoke-tested on the
   emulator (chat list, text sent, circle preview and playback with the ring)
-- [ ] Google Play upload of 1.0.46
+- [X] 2026-11-25, owner's yes: bundle 61 uploaded once (closed testing), open and production (100 %; the bundle
+  added by hand on the production draft) and internal from the library; internal published; production, open and
+  closed sent to Google review. Notes en-US + ru-RU
 
 # 1.0.45 / code60 — keyboard while recording, files over the relay, player, circles, durations (2026-11-25)
 
