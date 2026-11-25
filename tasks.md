@@ -20,7 +20,10 @@
 - [X] `artifacts/LastCall-1.0.45-store.aab` 60507544 bytes, sha256 `02ff65ee43e12715f12d0b8838d5964324d141de626f91aca09354fbc39082ca`; smoke-tested on the emulator (text sent,
   voice recorded with the keyboard open and sent, 0:02 shown); privacy policy (25 Nov, TURN for files) published to
   the site with the owner's yes, previous copy `artifacts/privacy-live-before-2026-11-25.html`
-- [ ] Google Play upload of 1.0.45
+- [X] 2026-11-25, owner's yes: bundle 60 uploaded once (closed testing; the file dialog needed the path typed
+  by key code under the Russian layout), open and production (100 %) and internal from the library (open and
+  internal drafts finished by hand); internal published; production, open and closed sent to Google review.
+  Notes en-US + ru-RU
 
 # 1.0.44 / code59 — send button race, voice and video circles in the message bar, keyboard (2026-11-25)
 
