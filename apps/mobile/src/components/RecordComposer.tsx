@@ -323,7 +323,7 @@ export function RecordComposer({ ref, conversationId, disabled, trailing, above,
   </View>;
   const flip = circle && (Platform.OS === 'android' ? phase === 'locked' : false)
     ? <IconButton name="camera-reverse-outline" label={t('Switch camera')} disabled={switching} onPress={() => { capture.current?.flip(); }} /> : null;
-  let body: ReactNode = children;
+  let body: ReactNode = null;
   if (phase === 'hold' || phase === 'starting') {
     body = <View style={{ flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10 }}>
       {timer}
@@ -361,7 +361,15 @@ export function RecordComposer({ ref, conversationId, disabled, trailing, above,
   return <View style={{ flex: 1 }}>
     <View style={{ flex: 1 }}>{above}{overlay}</View>
     <View style={styles.composer}>
-      {body}
+      {/* The text field stays mounted and focused under the recording, so the keyboard does not
+          close and the bar does not jump while recording, as in Telegram. */}
+      {/* collapsable={false}: a flattened wrapper would be re-created natively when its style changes,
+          taking focus from the field and closing the keyboard. */}
+      <View collapsable={false} style={{ flex: 1, flexDirection: 'row', alignItems: 'flex-end' }}>
+        <View collapsable={false} importantForAccessibility={body ? 'no-hide-descendants' : 'auto'} pointerEvents={body ? 'none' : 'auto'}
+          style={[{ flex: 1, flexDirection: 'row', alignItems: 'flex-end', gap: 6 }, !!body && { position: 'absolute', left: 0, right: 0, bottom: 0, opacity: 0 }]}>{children}</View>
+        {body}
+      </View>
       {showTrailing ? trailing : <View>
         {phase === 'hold' && <Animated.View pointerEvents="none" style={{ position: 'absolute', bottom: 62, alignSelf: 'center', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 9, borderRadius: 20, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, transform: [{ translateY: drag.y.interpolate({ inputRange: [-LOCK_DISTANCE, 0], outputRange: [-24, 0], extrapolate: 'clamp' }) }] }}>
           <Icon name="lock-open-outline" size={20} color={colors.secondary} /><Icon name="chevron-up" size={16} color={colors.secondary} />
