@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, Text, View } from 'react-native';
 import { VideoView } from 'expo-video';
 import type { MessengerFile } from '@messenger/core';
 import { mediaTime, type MediaKind } from '../media-model';
@@ -7,6 +7,8 @@ import { mediaFileKey, nowPlayingVideo, playMediaFile, showCircleInline, useNowP
 import { colors, styles } from '../styles';
 import { Icon } from './ui';
 import { ProgressRing } from './ProgressRing';
+import { useCircleThumbnail } from '../circle-thumbnail';
+import { useAfterTransition } from '../after-transition';
 import { t } from '../i18n';
 
 export const CIRCLE_NOTE_SIZE = 220;
@@ -23,6 +25,8 @@ export function MediaAttachment({ file, kind, disabled, duration }: { file: Mess
   useEffect(() => (showing ? showCircleInline(key) : undefined), [showing, key]);
   const length = active?.duration || duration || 0;
   const start = () => { if (!disabled || active) void playMediaFile(file, kind); };
+  const ready = useAfterTransition();
+  const thumbnail = useCircleThumbnail(file, kind === 'circle' && ready);
   if (kind === 'voice') {
     const progress = active && length ? Math.min(1, active.position / length) : 0;
     return <Pressable accessibilityRole="button" accessibilityLabel={active?.playing ? t('Pause voice message') : t('Play voice message')} disabled={disabled && !active} onPress={start} style={[styles.row, { minWidth: 205 }]}>
@@ -38,6 +42,7 @@ export function MediaAttachment({ file, kind, disabled, duration }: { file: Mess
   const player = showing && active.inlineViews > 0 && !active.floating ? nowPlayingVideo() : undefined;
   return <Pressable accessibilityRole="button" accessibilityLabel={active?.playing ? t('Pause video circle') : t('Watch video circle')} disabled={disabled && !active} onPress={start}
     style={{ width: CIRCLE_NOTE_SIZE, height: CIRCLE_NOTE_SIZE, borderRadius: CIRCLE_NOTE_SIZE / 2, overflow: 'hidden', backgroundColor: '#1B252C', alignItems: 'center', justifyContent: 'center' }}>
+    {!!thumbnail && <Image source={{ uri: thumbnail }} resizeMode="cover" style={{ position: 'absolute', width: CIRCLE_NOTE_SIZE, height: CIRCLE_NOTE_SIZE }} />}
     {player && <VideoView player={player} style={{ position: 'absolute', width: CIRCLE_NOTE_SIZE, height: CIRCLE_NOTE_SIZE }} nativeControls={false} contentFit="cover" surfaceType="textureView" allowsPictureInPicture={false} fullscreenOptions={{ enable: false }} />}
     {active?.loading ? <ActivityIndicator color="#FFFFFF" /> : !active?.playing && <Icon name="play-circle" size={57} color="#FFFFFF" />}
     {!!active?.error && <Text style={{ position: 'absolute', bottom: 40, color: '#FFFFFF', fontSize: 12, textAlign: 'center', paddingHorizontal: 20 }}>{active.error}</Text>}

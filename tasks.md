@@ -1,4 +1,4 @@
-# Next release — black circles, progress ring (2026-11-25)
+# 1.0.46 / code61 — black circles, progress ring, circle previews (2026-11-25)
 
 - [X] Circles went black while playing (owner, 1.0.45): the player was shown in two views at once (the floating
   circle appeared before the chat row registered, then let go of the surface), and the strip appearing changed the
@@ -8,8 +8,10 @@
   jump, keeps playing on the chat list in the floating circle and after returning to the chat
 - [X] Playback progress drawn as a ring around the circle (and the floating one), like Telegram, without SVG
   → Artifacts: [ProgressRing.tsx](apps/mobile/src/components/ProgressRing.tsx), [NowPlayingBar.tsx](apps/mobile/src/components/NowPlayingBar.tsx), [media-player.ts](apps/mobile/src/media-player.ts)
-- [ ] Circles that are not playing are a dark placeholder: no first-frame preview yet (needs a thumbnail library;
-  install of expo-video-thumbnails was stopped by the owner and reverted)
+- [X] Circles that are not playing show their first frame (owner's yes to expo-video-thumbnails ~58.0.3): made
+  once from the stored recording, kept as a small JPEG in `cache/lastcall-thumbs`, pruned after a week. Emulator:
+  both circles show their first frame with the play button
+  → Artifacts: [circle-thumbnail.ts](apps/mobile/src/circle-thumbnail.ts)
 
 # 1.0.45 / code60 — keyboard while recording, files over the relay, player, circles, durations (2026-11-25)
 

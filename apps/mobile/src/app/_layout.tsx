@@ -14,12 +14,13 @@ import { UpdateNotice } from '../components/UpdateNotice';
 import { ShareIntentBridge } from '../components/ShareIntentBridge';
 import { useMessenger } from '../runtime';
 import { pruneMediaCache } from '../attachments';
+import { pruneCircleThumbnails } from '../circle-thumbnail';
 import { startFeedback } from '../feedback';
 import { colors, styles } from '../styles';
 
 export default function RootLayout() {
   const { ready } = useMessenger();
-  useEffect(() => { pruneMediaCache(); }, []);
+  useEffect(() => { pruneMediaCache(); pruneCircleThumbnails(); }, []);
   useEffect(() => startFeedback(), []);
   return <SafeAreaProvider><StatusBar style="dark" />
     {!ready ? <View style={[styles.screen, { justifyContent: 'center' }]}><ActivityIndicator color={colors.accent} size="large" /></View> : <>
