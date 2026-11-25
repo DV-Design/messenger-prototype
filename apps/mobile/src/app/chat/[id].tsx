@@ -15,6 +15,7 @@ import { colors, styles } from '../../styles';
 import { transportNotice } from '../../transport-notice';
 import { canMarkRead, readContentVersion, waitingForDelivery } from '../../delivery-model';
 import { MediaComposer } from '../../components/MediaComposer';
+import { VoiceComposer, type VoiceComposerHandle } from '../../components/VoiceComposer';
 import type { MediaKind } from '../../media-model';
 import { chatTimeline, dayLabel, withDays, type ChatTimelineRow } from '../../timeline-model';
 import { haptic, messageSent, setOpenChat } from '../../feedback';
@@ -93,6 +94,11 @@ export default function Chat() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [recording, setRecording] = useState<MediaKind>();
+  // A voice message being recorded in the message bar (video circles keep their own screen).
+  const [voiceActive, setVoiceActive] = useState(false);
+  const voice = useRef<VoiceComposerHandle>(null);
+  const [hint, setHint] = useState('');
+  useEffect(() => { if (!hint) return; const timer = setTimeout(() => setHint(''), 2500); return () => clearTimeout(timer); }, [hint]);
   const [locationOpen, setLocationOpen] = useState(false);
   const [viewingLocation, setViewingLocation] = useState<string>();
   // A photo or video opened full screen; other files go straight to the share menu.
@@ -109,6 +115,9 @@ export default function Chat() {
   const [editing, setEditing] = useState<string>();
   const [replying, setReplying] = useState<MessageTarget>();
   const unsentDraft = useRef('');
+  // What the field holds now, for a failed send that puts its text back only into an empty field.
+  const typedNow = useRef(draft);
+  useEffect(() => { typedNow.current = draft; }, [draft]);
   // Saved a moment after typing stops and on leaving the chat; during an edit, the text the edit set aside is kept.
   const savedDraft = useRef<{ chat?: string; text: string }>({ text: '' });
   useEffect(() => {
@@ -197,7 +206,7 @@ export default function Chat() {
   const safety = peer && identity ? safetyCode(identity.publicKey, peer.publicKey) : '';
   const peerVerified = !!peer && snapshot.verifiedContacts.includes(peer.userId);
   const moved = !group && peer ? snapshot.movedContacts?.[peer.userId] : undefined;
-  const canCall = !group && !blockedPeer && !snapshot.activeCall && !recording && (snapshot.status === 'online' || conversation.session?.status === 'connected');
+  const canCall = !group && !blockedPeer && !snapshot.activeCall && !recording && !voiceActive && (snapshot.status === 'online' || conversation.session?.status === 'connected');
   const notice = transportNotice({ directory: snapshot.status, group, peerOnline: peer?.online, session: conversation.session,
     pending: conversation.messages.filter(item => item.from === identity?.userId && waitingForDelivery(item)).length
       + conversation.files.filter(item => item.senderId === identity?.userId && waitingForDelivery(item)).length,
@@ -212,17 +221,26 @@ export default function Chat() {
     const text = draft;
     const edited = editing;
     const replyTarget = replying;
-    void action(async () => {
-      if (edited) {
-        // An edit keeps whatever quote the message already carried; only the typed body changes.
-        const original = conversation!.messages.find(m => m.id === edited);
-        const quote = original ? parseReplyText(original.text) : undefined;
-        await client().editMessage(conversation!.id, edited, quote ? formatReplyText(quote, text) : text);
-      } else if (replyTarget) {
-        await client().sendText(conversation!.id, formatReplyText({ type: replyTarget.type, author: replyTarget.author, id: replyTarget.id }, text));
-        messageSent();
-      } else { await client().sendText(conversation!.id, text); messageSent(); }
-      setEditing(undefined); setReplying(undefined); setDraft(edited ? unsentDraft.current : '');
+    if (!text.trim()) return;
+    // The field empties at once, as in Telegram. Clearing it only after the save had finished let
+    // the next typed words race the reset: the field kept text while the state was empty, so the
+    // send button turned back into the microphone. Texts queue in order inside the client, so the
+    // next one can be sent before this one is saved.
+    setEditing(undefined); setReplying(undefined); setDraft(edited ? unsentDraft.current : ''); setError('');
+    const chatId = conversation!.id;
+    let operation: Promise<void>;
+    if (edited) {
+      // An edit keeps whatever quote the message already carried; only the typed body changes.
+      const original = conversation!.messages.find(m => m.id === edited);
+      const quote = original ? parseReplyText(original.text) : undefined;
+      operation = client().editMessage(chatId, edited, quote ? formatReplyText(quote, text) : text);
+    } else operation = client().sendText(chatId, replyTarget ? formatReplyText({ type: replyTarget.type, author: replyTarget.author, id: replyTarget.id }, text) : text).then(messageSent);
+    operation.catch(cause => {
+      haptic('reject'); setError(errorText(cause));
+      // Nothing typed is lost: the text comes back if the field is still empty.
+      if (typedNow.current.trim()) return;
+      if (edited) { unsentDraft.current = typedNow.current; setEditing(edited); } else if (replyTarget) setReplying(replyTarget);
+      setDraft(text);
     });
   }
   function cancelReply() { setReplying(undefined); }
@@ -232,7 +250,11 @@ export default function Chat() {
     setAttachments(false);
     void action(async () => { if (await (kind === 'media' ? pickMedia(conversation!.id) : pickDocument(conversation!.id))) messageSent(); });
   }
-  function record(kind: MediaKind) { if (busy || snapshot.activeCall) return; setAttachments(false); setRecording(kind); }
+  function record(kind: MediaKind) {
+    if (busy || snapshot.activeCall || voiceActive) return;
+    setAttachments(false);
+    if (kind === 'voice') voice.current?.startLocked(); else setRecording(kind);
+  }
   function openLocation() { setAttachments(false); setLocationOpen(true); }
   function sendLocation(lat: number, lng: number, label?: string) {
     setLocationOpen(false);
@@ -320,7 +342,7 @@ export default function Chat() {
     openFile: file => { if (viewerKind(file)) setViewingFile(file); else void action(() => shareFile(file)); },
   });
   const swipe = !blockedPeer && !editing && !conversation.removed;
-  const mediaDisabled = !focused || !!snapshot.activeCall || !!recording;
+  const mediaDisabled = !focused || !!snapshot.activeCall || !!recording || voiceActive;
   function renderRow(entry: ChatTimelineRow) {
     if (entry.kind === 'day') return <DayPill label={entry.label} />;
     if (entry.kind === 'message') {
@@ -391,15 +413,17 @@ export default function Chat() {
         <Pressable style={styles.attachment} accessibilityRole="button" onPress={sendContact}><Icon name="person-outline" size={27} /><Text style={styles.rowText}> {t('Share contact')}</Text></Pressable>
       </View></View>}
       {conversation.removed && <Text style={[styles.info, { textAlign: 'center', padding: 14, backgroundColor: '#F3F5F6' }]}>{t('You were removed from this group. The history stays on this phone.')}</Text>}
-      {!blockedPeer && !conversation.removed && <View style={styles.composer}>{!editing && <IconButton name={attachments ? 'close' : 'attach'} label={t('Attach file')} disabled={busy} onPress={() => setAttachments(!attachments)} />}
+      {!!hint && <Text accessibilityLiveRegion="polite" style={[styles.info, { textAlign: 'center', paddingVertical: 7, backgroundColor: '#EDF5F1' }]}>{hint}</Text>}
+      {!blockedPeer && !conversation.removed && <VoiceComposer ref={voice} conversationId={conversation.id} disabled={!!snapshot.activeCall || !!recording || !focused}
+        onActiveChange={active => { setVoiceActive(active); if (active) setAttachments(false); }} onError={setError} onHint={setHint}
+        trailing={draft.trim() || editing ? <Pressable style={[styles.send, busy && styles.disabled]} accessibilityRole="button" accessibilityLabel={editing ? t('Save changes') : t('Send message')} disabled={busy || !draft.trim()} onPress={send}><Icon name={editing ? 'checkmark' : 'arrow-up'} color={colors.white} size={25} /></Pressable> : undefined}>
+        {!editing && <IconButton name={attachments ? 'close' : 'attach'} label={t('Attach file')} disabled={busy} onPress={() => setAttachments(!attachments)} />}
         <TextInput style={styles.composerInput} value={draft} onChangeText={setDraft} multiline maxLength={4000} placeholder={t('Message')} placeholderTextColor={colors.secondary} accessibilityLabel={t('Message text')} />
-         {!draft.trim() && !editing && <IconButton name="mic-outline" label={t('Record voice message')} disabled={busy || !!snapshot.activeCall} onPress={() => record('voice')} />}
-        {!!draft.trim() && <Pressable style={[styles.send, busy && styles.disabled]} accessibilityRole="button" accessibilityLabel={editing ? t('Save changes') : t('Send message')} disabled={busy} onPress={send}><Icon name={editing ? 'checkmark' : 'arrow-up'} color={colors.white} size={25} /></Pressable>}
-      </View>}
+      </VoiceComposer>}
     </KeyboardAvoidingView></SettledProvider>
     {!!recording && focused && <MediaComposer key={`${id}:${recording}`} kind={recording} conversationId={conversation.id} blocked={!!snapshot.activeCall} onClose={() => setRecording(undefined)} />}
     {locationViewer()}
-    <MediaViewer file={viewingFile} title={viewingFile ? nameOf(viewingFile.senderId) : ''} autoPlay={!snapshot.activeCall && !recording} onClose={closeViewer} onShare={file => shareFile(file).catch(cause => setError(errorText(cause)))} />
+    <MediaViewer file={viewingFile} title={viewingFile ? nameOf(viewingFile.senderId) : ''} autoPlay={!snapshot.activeCall && !recording && !voiceActive} onClose={closeViewer} onShare={file => shareFile(file).catch(cause => setError(errorText(cause)))} />
     <ContactPicker visible={contactsOpen} onClose={closeContacts} onPick={sendPickedContact} />
     <LocationPicker visible={locationOpen} busy={busy} onClose={() => setLocationOpen(false)} onSendPoint={sendLocation} onStartLive={shareLiveLocation} />
     {!group && peer && identity && <SafetyCode visible={safetyOpen} title={peer.displayName} code={safety} verified={peerVerified} sessionReady={!!conversation.session?.contentE2E} onClose={() => setSafetyOpen(false)} onVerify={() => void action(async () => { await client().markContactVerified(peer.userId); setSafetyOpen(false); })} />}

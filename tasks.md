@@ -1,3 +1,18 @@
+# Next release — send button race, voice messages in the message bar (2026-11-25)
+
+- [X] After sending, the field now empties at once (as in Telegram). It used to clear only after the save, so
+  words typed meanwhile raced the reset: the field showed text while the app thought it was empty and kept the
+  microphone instead of the send button (emulator before: "Hel" sent, field "Helih"; after: field "Ih").
+  A failed send puts its text back into an empty field.
+  → Artifacts: [chat](apps/mobile/src/app/chat/[id].tsx)
+- [X] Voice messages are recorded in the message bar, Telegram style: hold to record, release to send, slide
+  left to cancel, slide up to record hands-free (trash, timer, level, stop to listen, send). A short tap shows
+  "Hold to record, release to send." Voice from the attach menu starts hands-free. Video circles keep their
+  screen. 5 new strings in 30 languages. Emulator: hold 3 s sent and read; slide-left cancel; tap hint; lock,
+  stop, listen, send (305 KB, read); menu start and delete.
+  → Artifacts: [VoiceComposer](apps/mobile/src/components/VoiceComposer.tsx)
+- [ ] Not checked: a real phone (Gboard/Samsung keyboard, TalkBack double-tap starts hands-free), iOS.
+
 # 1.0.43 / code58 — share to LastCall on real phones, drafts (2026-11-24)
 
 - [X] Owner's report: "Share → LastCall" opened the app without letting them send the file. Cause: the share was

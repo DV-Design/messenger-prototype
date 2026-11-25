@@ -759,5 +759,10 @@
  "A file over 5 MB goes straight to the recipient’s phone over a direct connection, encrypted on the way. Both phones need to be online.": "5 MB を超えるファイルは、直接接続で受信者のスマートフォンに直接送られ、転送中は暗号化されます。両方のスマートフォンがオンラインである必要があります。",
  "Large file · directly to the recipient’s phone": "大きなファイル · 受信者のスマートフォンに直接",
  "Files arrive directly from people, encrypted on the way, and are kept only on this phone, in the app’s private folder. When the storage is full, new files cannot be received until you free space.": "ファイルは相手から直接届き、転送中は暗号化され、このスマートフォンのアプリのプライベートフォルダにのみ保存されます。保存領域がいっぱいになると、空き容量を増やすまで新しいファイルを受信できません。",
- "Contacts and messages are encrypted on the device. Files, up to 1 GB, are encrypted on the way and kept in the app’s private folder. The outbox waits for the recipient for up to 7 days and survives restarts. In groups, data syncs between participants. Limits: up to 16 files waiting for delivery, up to 2000 stored files / 10 GiB in total and never the last 512 MB of free phone space. On a network change the app tries to preserve the session for 10 seconds.": "連絡先とメッセージは端末上で暗号化されます。最大 1 GB のファイルは転送中に暗号化され、アプリのプライベートフォルダに保存されます。送信トレイは受信者を最大7日間待ち、再起動後も保持されます。グループでは、データは参加者間で同期されます。制限：配信待ちのファイルは最大16件、保存ファイルは最大2000件 / 合計 10 GiB まで。また、スマートフォンの空き容量のうち最後の 512 MB は決して使用しません。ネットワークが切り替わると、アプリは10秒間セッションの維持を試みます。"
+ "Contacts and messages are encrypted on the device. Files, up to 1 GB, are encrypted on the way and kept in the app’s private folder. The outbox waits for the recipient for up to 7 days and survives restarts. In groups, data syncs between participants. Limits: up to 16 files waiting for delivery, up to 2000 stored files / 10 GiB in total and never the last 512 MB of free phone space. On a network change the app tries to preserve the session for 10 seconds.": "連絡先とメッセージは端末上で暗号化されます。最大 1 GB のファイルは転送中に暗号化され、アプリのプライベートフォルダに保存されます。送信トレイは受信者を最大7日間待ち、再起動後も保持されます。グループでは、データは参加者間で同期されます。制限：配信待ちのファイルは最大16件、保存ファイルは最大2000件 / 合計 10 GiB まで。また、スマートフォンの空き容量のうち最後の 512 MB は決して使用しません。ネットワークが切り替わると、アプリは10秒間セッションの維持を試みます。",
+ "Hold to record, release to send.": "長押しで録音、指を離すと送信します。",
+ "Slide to cancel": "スライドしてキャンセル",
+ "Delete recording": "録音を削除",
+ "Stop and listen": "停止して再生",
+ "Send voice message": "ボイスメッセージを送信"
 }
