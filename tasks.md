@@ -25,7 +25,11 @@
   → Artifacts: [KeyboardSpace](apps/mobile/src/components/KeyboardSpace.tsx), [test](apps/mobile/tests/top-offset.test.ts)
 - [X] `artifacts/LastCall-1.0.44-store.aab` 60502770 bytes, sha256 `23a70d9b8c27e5367fd65e89f9755c9b228958d54f0490bcc131a76730415b29`;
   mobile tests 285 pass, locales check pass; smoke-tested on the emulator as above
-- [ ] Google Play upload of 1.0.44
+- [X] 2026-11-25, owner's yes: bundle 59 uploaded once (closed testing; the form saved before the notes field
+  appeared, so name and notes were set on the draft afterwards and Play's 35 empty templates replaced), open and
+  production (100 %) and internal from the library; devices 8 893 phones / 4 713 tablets; internal published at once;
+  production, open and closed sent to Google review. Notes en-US + ru-RU. The upload first stalled: the Mac ran out
+  of memory (two emulators, 29 GB) and macOS paused Safari; emulators shut down, the owner resumed Safari
 - [ ] Not checked: the owner's phone (keyboard fix, front camera, TalkBack), iOS.
 
 # 1.0.43 / code58 — share to LastCall on real phones, drafts (2026-11-24)
