@@ -15,6 +15,11 @@ test('top strips report how far they push the screens down', () => {
 
 test('the chat keyboard avoidance counts the top strips', () => {
   const chat = source('app/chat/[id].tsx');
-  assert.match(chat, /<KeyboardAvoidingView[^>]*keyboardVerticalOffset=\{topOffset\}/);
+  assert.match(chat, /<KeyboardSpace iosOffset=\{topOffset\}>/);
   assert.match(chat, /const topOffset = useTopOffset\(\);/);
+  // iOS keeps KeyboardAvoidingView with the offset; Android measures the area against the keyboard
+  // in window coordinates, so the strips are counted without an offset.
+  const space = source('components/KeyboardSpace.tsx');
+  assert.match(space, /<KeyboardAvoidingView[^>]*keyboardVerticalOffset=\{iosOffset\}/);
+  assert.match(space, /measureInWindow/);
 });

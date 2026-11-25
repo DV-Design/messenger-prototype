@@ -760,9 +760,13 @@
  "Large file · directly to the recipient’s phone": "বড় ফাইল · সরাসরি প্রাপকের ফোনে",
  "Files arrive directly from people, encrypted on the way, and are kept only on this phone, in the app’s private folder. When the storage is full, new files cannot be received until you free space.": "ফাইল সরাসরি মানুষের কাছ থেকে, ট্রান্সফারের সময় এনক্রিপ্ট করা অবস্থায় আসে এবং শুধু এই ফোনে, অ্যাপের ব্যক্তিগত ফোল্ডারে রাখা হয়। স্টোরেজ ভরে গেলে জায়গা খালি না করা পর্যন্ত নতুন ফাইল আসতে পারবে না।",
  "Contacts and messages are encrypted on the device. Files, up to 1 GB, are encrypted on the way and kept in the app’s private folder. The outbox waits for the recipient for up to 7 days and survives restarts. In groups, data syncs between participants. Limits: up to 16 files waiting for delivery, up to 2000 stored files / 10 GiB in total and never the last 512 MB of free phone space. On a network change the app tries to preserve the session for 10 seconds.": "কন্টাক্ট ও মেসেজ ডিভাইসে এনক্রিপ্ট করা থাকে। সর্বোচ্চ 1 GB-এর ফাইল ট্রান্সফারের সময় এনক্রিপ্ট করা থাকে এবং অ্যাপের ব্যক্তিগত ফোল্ডারে রাখা হয়। আউটবক্স প্রাপকের জন্য 7 দিন পর্যন্ত অপেক্ষা করে এবং রিস্টার্টের পরও থাকে। গ্রুপে ডেটা সদস্যদের মধ্যে সিঙ্ক হয়। সীমা: পৌঁছানোর অপেক্ষায় সর্বোচ্চ 16টি ফাইল, মোট সর্বোচ্চ 2000টি সংরক্ষিত ফাইল / 10 GiB, আর ফোনের শেষ 512 MB খালি জায়গা কখনো ব্যবহার হয় না। নেটওয়ার্ক বদলালে অ্যাপ 10 সেকেন্ড পর্যন্ত সেশন ধরে রাখার চেষ্টা করে।",
- "Hold to record, release to send.": "রেকর্ড করতে চেপে ধরে রাখুন, পাঠাতে ছেড়ে দিন।",
  "Slide to cancel": "বাতিল করতে স্লাইড করুন",
  "Delete recording": "রেকর্ডিং মুছুন",
  "Stop and listen": "থামান ও শুনুন",
- "Send voice message": "ভয়েস মেসেজ পাঠান"
+ "Send voice message": "ভয়েস মেসেজ পাঠান",
+ "Hold to record a voice message, release to send. Tap to switch to video.": "ভয়েস মেসেজ রেকর্ড করতে চেপে ধরে রাখুন, পাঠাতে ছেড়ে দিন। ভিডিওতে যেতে ট্যাপ করুন।",
+ "Hold to record a video circle, release to send. Tap to switch to voice.": "গোল ভিডিও রেকর্ড করতে চেপে ধরে রাখুন, পাঠাতে ছেড়ে দিন। ভয়েসে যেতে ট্যাপ করুন।",
+ "Stop and watch": "থামান ও দেখুন",
+ "Record video circle": "গোল ভিডিও রেকর্ড করুন",
+ "Send video circle": "গোল ভিডিও পাঠান"
 }

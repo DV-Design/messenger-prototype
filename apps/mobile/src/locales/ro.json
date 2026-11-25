@@ -760,9 +760,13 @@
  "Large file · directly to the recipient’s phone": "Fișier mare · direct pe telefonul destinatarului",
  "Files arrive directly from people, encrypted on the way, and are kept only on this phone, in the app’s private folder. When the storage is full, new files cannot be received until you free space.": "Fișierele vin direct de la persoane, criptate pe parcursul transferului, și sunt păstrate doar pe acest telefon, în folderul privat al aplicației. Când spațiul este plin, nu se mai pot primi fișiere noi până nu eliberezi spațiu.",
  "Contacts and messages are encrypted on the device. Files, up to 1 GB, are encrypted on the way and kept in the app’s private folder. The outbox waits for the recipient for up to 7 days and survives restarts. In groups, data syncs between participants. Limits: up to 16 files waiting for delivery, up to 2000 stored files / 10 GiB in total and never the last 512 MB of free phone space. On a network change the app tries to preserve the session for 10 seconds.": "Contactele și mesajele sunt criptate pe dispozitiv. Fișierele de până la 1 GB sunt criptate pe parcursul transferului și păstrate în folderul privat al aplicației. Coada de trimitere așteaptă destinatarul până la 7 zile și se păstrează după reporniri. În grupuri, datele se sincronizează între participanți. Limite: până la 16 fișiere în așteptarea livrării, până la 2000 de fișiere stocate / 10 GiB în total și niciodată ultimii 512 MB de spațiu liber de pe telefon. La schimbarea rețelei, aplicația încearcă să păstreze sesiunea timp de 10 secunde.",
- "Hold to record, release to send.": "Țineți apăsat pentru a înregistra, eliberați pentru a trimite.",
  "Slide to cancel": "Glisați pentru a anula",
  "Delete recording": "Ștergeți înregistrarea",
  "Stop and listen": "Opriți și ascultați",
- "Send voice message": "Trimiteți mesajul vocal"
+ "Send voice message": "Trimiteți mesajul vocal",
+ "Hold to record a voice message, release to send. Tap to switch to video.": "Țineți apăsat pentru a înregistra un mesaj vocal, eliberați pentru a trimite. Atingeți pentru a trece la video.",
+ "Hold to record a video circle, release to send. Tap to switch to voice.": "Țineți apăsat pentru a înregistra un video rotund, eliberați pentru a trimite. Atingeți pentru a trece la voce.",
+ "Stop and watch": "Opriți și vizionați",
+ "Record video circle": "Înregistrați un video rotund",
+ "Send video circle": "Trimiteți videoclipul rotund"
 }

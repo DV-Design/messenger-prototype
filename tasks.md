@@ -1,4 +1,4 @@
-# Next release — send button race, voice messages in the message bar (2026-11-25)
+# 1.0.44 / code59 — send button race, voice and video circles in the message bar, keyboard (2026-11-25)
 
 - [X] After sending, the field now empties at once (as in Telegram). It used to clear only after the save, so
   words typed meanwhile raced the reset: the field showed text while the app thought it was empty and kept the
@@ -11,7 +11,22 @@
   screen. 5 new strings in 30 languages. Emulator: hold 3 s sent and read; slide-left cancel; tap hint; lock,
   stop, listen, send (305 KB, read); menu start and delete.
   → Artifacts: [VoiceComposer](apps/mobile/src/components/VoiceComposer.tsx)
-- [ ] Not checked: a real phone (Gboard/Samsung keyboard, TalkBack double-tap starts hands-free), iOS.
+- [X] Video circles are recorded in the message bar too, Telegram style: a tap on the button switches voice and
+  circle (remembered while the app runs), the round camera shows over the chat; hold/release, slide to cancel, slide
+  up to lock (trash, timer, switch camera on Android, stop to watch, send). The camera falls back to the other lens
+  when the chosen one is missing. The separate recording screen is gone (MediaComposer, RecordingWaveform removed).
+  5 new strings in 30 languages. Emulator (back camera only): hold sent a circle (566 KB, read), lock, stop, preview,
+  send (723 KB, read), switch back to voice and send
+  → Artifacts: [RecordComposer](apps/mobile/src/components/RecordComposer.tsx), [CircleCapture](apps/mobile/src/components/CircleCapture.tsx)
+- [X] The message bar no longer slides under the keyboard (owner's phone, two-line message, three-line offline
+  notice). React Native's KeyboardAvoidingView on Android keeps the height of its first layout; KeyboardSpace now
+  measures the area against the keyboard each time. Not reproduced on the emulator before the fix; after it the bar
+  stays on the keyboard with a multi-line text and a translation strip toggled while typing
+  → Artifacts: [KeyboardSpace](apps/mobile/src/components/KeyboardSpace.tsx), [test](apps/mobile/tests/top-offset.test.ts)
+- [X] `artifacts/LastCall-1.0.44-store.aab` 60502770 bytes, sha256 `23a70d9b8c27e5367fd65e89f9755c9b228958d54f0490bcc131a76730415b29`;
+  mobile tests 285 pass, locales check pass; smoke-tested on the emulator as above
+- [ ] Google Play upload of 1.0.44
+- [ ] Not checked: the owner's phone (keyboard fix, front camera, TalkBack), iOS.
 
 # 1.0.43 / code58 — share to LastCall on real phones, drafts (2026-11-24)
 

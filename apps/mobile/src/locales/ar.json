@@ -760,9 +760,13 @@
  "Large file · directly to the recipient’s phone": "ملف كبير · مباشرة إلى هاتف المستلم",
  "Files arrive directly from people, encrypted on the way, and are kept only on this phone, in the app’s private folder. When the storage is full, new files cannot be received until you free space.": "تصل الملفات مباشرة من الأشخاص، مشفرة أثناء النقل، وتُحفظ على هذا الهاتف فقط، في المجلد الخاص بالتطبيق. عندما تمتلئ المساحة لا يمكن استلام ملفات جديدة حتى تُفرغ مساحة.",
  "Contacts and messages are encrypted on the device. Files, up to 1 GB, are encrypted on the way and kept in the app’s private folder. The outbox waits for the recipient for up to 7 days and survives restarts. In groups, data syncs between participants. Limits: up to 16 files waiting for delivery, up to 2000 stored files / 10 GiB in total and never the last 512 MB of free phone space. On a network change the app tries to preserve the session for 10 seconds.": "جهات الاتصال والرسائل مشفرة على الجهاز. الملفات، حتى 1 غ.ب، تُشفَّر أثناء النقل وتُحفظ في المجلد الخاص بالتطبيق. تنتظر قائمة الإرسال المستلم لمدة تصل إلى 7 أيام وتبقى بعد إعادة التشغيل. في المجموعات تتزامن البيانات بين المشاركين. الحدود: حتى 16 ملفًا بانتظار التسليم، وحتى 2000 ملف مخزَّن / 10 GiB إجمالًا، ولا تُستخدم أبدًا آخر 512 م.ب من المساحة الحرة في الهاتف. عند تغيّر الشبكة يحاول التطبيق الحفاظ على الجلسة لمدة 10 ثوانٍ.",
- "Hold to record, release to send.": "اضغط مطولًا للتسجيل، وارفع إصبعك للإرسال.",
  "Slide to cancel": "اسحب للإلغاء",
  "Delete recording": "حذف التسجيل",
  "Stop and listen": "إيقاف واستماع",
- "Send voice message": "إرسال رسالة صوتية"
+ "Send voice message": "إرسال رسالة صوتية",
+ "Hold to record a voice message, release to send. Tap to switch to video.": "اضغط مطولًا لتسجيل رسالة صوتية، وارفع إصبعك للإرسال. انقر للتبديل إلى الفيديو.",
+ "Hold to record a video circle, release to send. Tap to switch to voice.": "اضغط مطولًا لتسجيل فيديو دائري، وارفع إصبعك للإرسال. انقر للتبديل إلى الصوت.",
+ "Stop and watch": "إيقاف ومشاهدة",
+ "Record video circle": "تسجيل فيديو دائري",
+ "Send video circle": "إرسال الفيديو الدائري"
 }

@@ -760,9 +760,13 @@
  "Large file · directly to the recipient’s phone": "بڑی فائل · براہ راست وصول کنندہ کے فون پر",
  "Files arrive directly from people, encrypted on the way, and are kept only on this phone, in the app’s private folder. When the storage is full, new files cannot be received until you free space.": "فائلیں براہ راست لوگوں سے، منتقلی کے دوران انکرپٹڈ حالت میں آتی ہیں اور صرف اس فون پر، ایپ کے نجی فولڈر میں رکھی جاتی ہیں۔ اسٹوریج بھر جانے پر، جگہ خالی کرنے تک نئی فائلیں موصول نہیں ہو سکتیں۔",
  "Contacts and messages are encrypted on the device. Files, up to 1 GB, are encrypted on the way and kept in the app’s private folder. The outbox waits for the recipient for up to 7 days and survives restarts. In groups, data syncs between participants. Limits: up to 16 files waiting for delivery, up to 2000 stored files / 10 GiB in total and never the last 512 MB of free phone space. On a network change the app tries to preserve the session for 10 seconds.": "رابطے اور پیغامات ڈیوائس پر انکرپٹڈ ہیں۔ 1 GB تک کی فائلیں منتقلی کے دوران انکرپٹڈ ہوتی ہیں اور ایپ کے نجی فولڈر میں رکھی جاتی ہیں۔ بھیجنے کی قطار وصول کنندہ کا 7 دن تک انتظار کرتی ہے اور ری اسٹارٹ کے بعد بھی برقرار رہتی ہے۔ گروپس میں ڈیٹا شرکاء کے درمیان ہم آہنگ ہوتا ہے۔ حدیں: ترسیل کے انتظار میں زیادہ سے زیادہ 16 فائلیں، کل زیادہ سے زیادہ 2000 محفوظ فائلیں / 10 GiB، اور فون کی خالی جگہ کے آخری 512 MB کبھی استعمال نہیں ہوتے۔ نیٹ ورک بدلنے پر ایپ 10 سیکنڈ تک سیشن برقرار رکھنے کی کوشش کرتی ہے۔",
- "Hold to record, release to send.": "ریکارڈ کرنے کے لیے دبائے رکھیں، بھیجنے کے لیے چھوڑ دیں۔",
  "Slide to cancel": "منسوخ کرنے کے لیے سلائیڈ کریں",
  "Delete recording": "ریکارڈنگ حذف کریں",
  "Stop and listen": "روکیں اور سنیں",
- "Send voice message": "صوتی پیغام بھیجیں"
+ "Send voice message": "صوتی پیغام بھیجیں",
+ "Hold to record a voice message, release to send. Tap to switch to video.": "صوتی پیغام ریکارڈ کرنے کے لیے دبائے رکھیں، بھیجنے کے لیے چھوڑ دیں۔ ویڈیو پر جانے کے لیے ٹیپ کریں۔",
+ "Hold to record a video circle, release to send. Tap to switch to voice.": "گول ویڈیو ریکارڈ کرنے کے لیے دبائے رکھیں، بھیجنے کے لیے چھوڑ دیں۔ آواز پر جانے کے لیے ٹیپ کریں۔",
+ "Stop and watch": "روکیں اور دیکھیں",
+ "Record video circle": "گول ویڈیو ریکارڈ کریں",
+ "Send video circle": "گول ویڈیو بھیجیں"
 }

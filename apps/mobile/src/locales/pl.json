@@ -760,9 +760,13 @@
  "Large file · directly to the recipient’s phone": "Duży plik · bezpośrednio na telefon odbiorcy",
  "Files arrive directly from people, encrypted on the way, and are kept only on this phone, in the app’s private folder. When the storage is full, new files cannot be received until you free space.": "Pliki przychodzą bezpośrednio od ludzi, szyfrowane w trakcie przesyłania, i są przechowywane tylko na tym telefonie, w prywatnym folderze aplikacji. Gdy pamięć jest pełna, nowych plików nie można odbierać, dopóki nie zwolnisz miejsca.",
  "Contacts and messages are encrypted on the device. Files, up to 1 GB, are encrypted on the way and kept in the app’s private folder. The outbox waits for the recipient for up to 7 days and survives restarts. In groups, data syncs between participants. Limits: up to 16 files waiting for delivery, up to 2000 stored files / 10 GiB in total and never the last 512 MB of free phone space. On a network change the app tries to preserve the session for 10 seconds.": "Kontakty i wiadomości są szyfrowane na urządzeniu. Pliki do 1 GB są szyfrowane w trakcie przesyłania i przechowywane w prywatnym folderze aplikacji. Kolejka wysyłania czeka na odbiorcę do 7 dni i przetrwa ponowne uruchomienie. W grupach dane są synchronizowane między uczestnikami. Limity: do 16 plików oczekujących na dostarczenie, łącznie do 2000 przechowywanych plików / 10 GiB i nigdy ostatnie 512 MB wolnego miejsca na telefonie. Przy zmianie sieci aplikacja przez 10 sekund próbuje utrzymać sesję.",
- "Hold to record, release to send.": "Przytrzymaj, aby nagrać, puść, aby wysłać.",
  "Slide to cancel": "Przesuń, aby anulować",
  "Delete recording": "Usuń nagranie",
  "Stop and listen": "Zatrzymaj i odsłuchaj",
- "Send voice message": "Wyślij wiadomość głosową"
+ "Send voice message": "Wyślij wiadomość głosową",
+ "Hold to record a voice message, release to send. Tap to switch to video.": "Przytrzymaj, aby nagrać wiadomość głosową, puść, aby wysłać. Dotknij, aby przełączyć na wideo.",
+ "Hold to record a video circle, release to send. Tap to switch to voice.": "Przytrzymaj, aby nagrać wideo w kółku, puść, aby wysłać. Dotknij, aby przełączyć na głos.",
+ "Stop and watch": "Zatrzymaj i obejrzyj",
+ "Record video circle": "Nagraj wideo w kółku",
+ "Send video circle": "Wyślij wideo w kółku"
 }

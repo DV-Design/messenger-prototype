@@ -760,9 +760,13 @@
  "Large file · directly to the recipient’s phone": "Fail besar · terus ke telefon penerima",
  "Files arrive directly from people, encrypted on the way, and are kept only on this phone, in the app’s private folder. When the storage is full, new files cannot be received until you free space.": "Fail tiba terus daripada orang lain, disulitkan semasa pemindahan, dan disimpan hanya pada telefon ini, dalam folder peribadi apl. Apabila storan penuh, fail baharu tidak dapat diterima sehingga anda mengosongkan ruang.",
  "Contacts and messages are encrypted on the device. Files, up to 1 GB, are encrypted on the way and kept in the app’s private folder. The outbox waits for the recipient for up to 7 days and survives restarts. In groups, data syncs between participants. Limits: up to 16 files waiting for delivery, up to 2000 stored files / 10 GiB in total and never the last 512 MB of free phone space. On a network change the app tries to preserve the session for 10 seconds.": "Kenalan dan mesej disulitkan pada peranti. Fail sehingga 1 GB disulitkan semasa pemindahan dan disimpan dalam folder peribadi apl. Peti keluar menunggu penerima sehingga 7 hari dan kekal selepas apl dimulakan semula. Dalam kumpulan, data disegerakkan antara ahli. Had: sehingga 16 fail menunggu penghantaran, sehingga 2000 fail disimpan / 10 GiB keseluruhan dan 512 MB terakhir ruang kosong telefon tidak sekali-kali digunakan. Apabila rangkaian bertukar, apl cuba mengekalkan sesi selama 10 saat.",
- "Hold to record, release to send.": "Tahan untuk merakam, lepaskan untuk menghantar.",
  "Slide to cancel": "Leret untuk membatalkan",
  "Delete recording": "Padam rakaman",
  "Stop and listen": "Henti dan dengar",
- "Send voice message": "Hantar mesej suara"
+ "Send voice message": "Hantar mesej suara",
+ "Hold to record a voice message, release to send. Tap to switch to video.": "Tahan untuk merakam mesej suara, lepaskan untuk menghantar. Ketik untuk bertukar kepada video.",
+ "Hold to record a video circle, release to send. Tap to switch to voice.": "Tahan untuk merakam video bulat, lepaskan untuk menghantar. Ketik untuk bertukar kepada suara.",
+ "Stop and watch": "Henti dan tonton",
+ "Record video circle": "Rakam video bulat",
+ "Send video circle": "Hantar video bulat"
 }

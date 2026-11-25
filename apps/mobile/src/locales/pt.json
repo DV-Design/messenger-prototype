@@ -760,9 +760,13 @@
  "Large file · directly to the recipient’s phone": "Arquivo grande · direto para o celular do destinatário",
  "Files arrive directly from people, encrypted on the way, and are kept only on this phone, in the app’s private folder. When the storage is full, new files cannot be received until you free space.": "Os arquivos chegam diretamente das pessoas, criptografados em trânsito, e ficam guardados só neste celular, na pasta privada do app. Quando o armazenamento enche, não é possível receber novos arquivos até você liberar espaço.",
  "Contacts and messages are encrypted on the device. Files, up to 1 GB, are encrypted on the way and kept in the app’s private folder. The outbox waits for the recipient for up to 7 days and survives restarts. In groups, data syncs between participants. Limits: up to 16 files waiting for delivery, up to 2000 stored files / 10 GiB in total and never the last 512 MB of free phone space. On a network change the app tries to preserve the session for 10 seconds.": "Contatos e mensagens são criptografados no aparelho. Arquivos de até 1 GB são criptografados em trânsito e guardados na pasta privada do app. A fila de envio aguarda o destinatário por até 7 dias e é mantida após reinicializações. Nos grupos, os dados são sincronizados entre os participantes. Limites: até 16 arquivos aguardando entrega, até 2000 arquivos armazenados / 10 GiB no total e nunca os últimos 512 MB de espaço livre do celular. Ao mudar de rede, o app tenta manter a sessão por 10 segundos.",
- "Hold to record, release to send.": "Mantenha pressionado para gravar e solte para enviar.",
  "Slide to cancel": "Deslize para cancelar",
  "Delete recording": "Excluir gravação",
  "Stop and listen": "Parar e ouvir",
- "Send voice message": "Enviar mensagem de voz"
+ "Send voice message": "Enviar mensagem de voz",
+ "Hold to record a voice message, release to send. Tap to switch to video.": "Mantenha pressionado para gravar uma mensagem de voz e solte para enviar. Toque para mudar para vídeo.",
+ "Hold to record a video circle, release to send. Tap to switch to voice.": "Mantenha pressionado para gravar um vídeo circular e solte para enviar. Toque para mudar para voz.",
+ "Stop and watch": "Parar e assistir",
+ "Record video circle": "Gravar vídeo circular",
+ "Send video circle": "Enviar vídeo circular"
 }

@@ -760,9 +760,13 @@
  "Large file · directly to the recipient’s phone": "Groot bestand · rechtstreeks naar de telefoon van de ontvanger",
  "Files arrive directly from people, encrypted on the way, and are kept only on this phone, in the app’s private folder. When the storage is full, new files cannot be received until you free space.": "Bestanden komen rechtstreeks van mensen, onderweg versleuteld, en worden alleen op deze telefoon bewaard, in de privémap van de app. Als de opslag vol is, kunnen er geen nieuwe bestanden worden ontvangen totdat je ruimte vrijmaakt.",
  "Contacts and messages are encrypted on the device. Files, up to 1 GB, are encrypted on the way and kept in the app’s private folder. The outbox waits for the recipient for up to 7 days and survives restarts. In groups, data syncs between participants. Limits: up to 16 files waiting for delivery, up to 2000 stored files / 10 GiB in total and never the last 512 MB of free phone space. On a network change the app tries to preserve the session for 10 seconds.": "Contacten en berichten worden op het apparaat versleuteld. Bestanden tot 1 GB worden onderweg versleuteld en bewaard in de privémap van de app. De wachtrij wacht tot 7 dagen op de ontvanger en blijft bewaard na een herstart. In groepen worden gegevens tussen deelnemers gesynchroniseerd. Limieten: maximaal 16 bestanden die wachten op bezorging, maximaal 2000 opgeslagen bestanden / 10 GiB in totaal en nooit de laatste 512 MB vrije ruimte op de telefoon. Bij een netwerkwissel probeert de app de sessie 10 seconden te behouden.",
- "Hold to record, release to send.": "Houd ingedrukt om op te nemen, laat los om te versturen.",
  "Slide to cancel": "Veeg om te annuleren",
  "Delete recording": "Opname verwijderen",
  "Stop and listen": "Stoppen en beluisteren",
- "Send voice message": "Spraakbericht versturen"
+ "Send voice message": "Spraakbericht versturen",
+ "Hold to record a voice message, release to send. Tap to switch to video.": "Houd ingedrukt om een spraakbericht op te nemen, laat los om te versturen. Tik om naar video te wisselen.",
+ "Hold to record a video circle, release to send. Tap to switch to voice.": "Houd ingedrukt om een rondje-video op te nemen, laat los om te versturen. Tik om naar spraak te wisselen.",
+ "Stop and watch": "Stoppen en bekijken",
+ "Record video circle": "Rondje-video opnemen",
+ "Send video circle": "Rondje-video versturen"
 }

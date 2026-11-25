@@ -760,9 +760,13 @@
  "Large file · directly to the recipient’s phone": "대용량 파일 · 수신자의 휴대전화로 바로 전송",
  "Files arrive directly from people, encrypted on the way, and are kept only on this phone, in the app’s private folder. When the storage is full, new files cannot be received until you free space.": "파일은 상대방에게서 직접 전송되고 전송 중에 암호화되며, 이 휴대전화에서 앱의 비공개 폴더에만 보관됩니다. 저장 공간이 가득 차면 공간을 확보할 때까지 새 파일을 받을 수 없습니다.",
  "Contacts and messages are encrypted on the device. Files, up to 1 GB, are encrypted on the way and kept in the app’s private folder. The outbox waits for the recipient for up to 7 days and survives restarts. In groups, data syncs between participants. Limits: up to 16 files waiting for delivery, up to 2000 stored files / 10 GiB in total and never the last 512 MB of free phone space. On a network change the app tries to preserve the session for 10 seconds.": "연락처와 메시지는 기기에서 암호화됩니다. 최대 1 GB의 파일은 전송 중에 암호화되며 앱의 비공개 폴더에 보관됩니다. 보낼 편지함은 수신자를 최대 7일 동안 기다리며 다시 시작해도 유지됩니다. 그룹에서는 데이터가 참여자 간에 동기화됩니다. 제한: 전달 대기 파일 최대 16개, 저장 파일 최대 2000개 / 총 10 GiB이며, 휴대전화의 마지막 여유 공간 512 MB는 절대 사용하지 않습니다. 네트워크가 바뀌면 앱은 10초 동안 세션을 유지하려고 시도합니다.",
- "Hold to record, release to send.": "길게 눌러 녹음하고, 손을 떼면 전송됩니다.",
  "Slide to cancel": "밀어서 취소",
  "Delete recording": "녹음 삭제",
  "Stop and listen": "정지하고 듣기",
- "Send voice message": "음성 메시지 보내기"
+ "Send voice message": "음성 메시지 보내기",
+ "Hold to record a voice message, release to send. Tap to switch to video.": "길게 눌러 음성 메시지를 녹음하고 손을 떼면 전송됩니다. 탭하면 동영상으로 전환됩니다.",
+ "Hold to record a video circle, release to send. Tap to switch to voice.": "길게 눌러 원형 동영상을 녹화하고 손을 떼면 전송됩니다. 탭하면 음성으로 전환됩니다.",
+ "Stop and watch": "정지하고 보기",
+ "Record video circle": "원형 동영상 녹화",
+ "Send video circle": "원형 동영상 보내기"
 }

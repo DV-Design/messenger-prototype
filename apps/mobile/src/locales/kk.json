@@ -760,9 +760,13 @@
  "Large file · directly to the recipient’s phone": "Үлкен файл · тікелей алушының телефонына",
  "Files arrive directly from people, encrypted on the way, and are kept only on this phone, in the app’s private folder. When the storage is full, new files cannot be received until you free space.": "Файлдар адамдардан тікелей, тасымалдау кезінде шифрланып келеді және тек осы телефонда, қолданбаның жабық қалтасында сақталады. Қойма толғанда, орын босатпайынша жаңа файлдарды алу мүмкін емес.",
  "Contacts and messages are encrypted on the device. Files, up to 1 GB, are encrypted on the way and kept in the app’s private folder. The outbox waits for the recipient for up to 7 days and survives restarts. In groups, data syncs between participants. Limits: up to 16 files waiting for delivery, up to 2000 stored files / 10 GiB in total and never the last 512 MB of free phone space. On a network change the app tries to preserve the session for 10 seconds.": "Контактілер мен хабарламалар құрылғыда шифрланады. 1 ГБ-қа дейінгі файлдар тасымалдау кезінде шифрланады және қолданбаның жабық қалтасында сақталады. Жіберу кезегі алушыны 7 күнге дейін күтеді және қайта іске қосқаннан кейін де сақталады. Топтарда деректер қатысушылар арасында синхрондалады. Шектеулер: жеткізуді күтетін 16 файлға дейін, барлығы 2000 сақталған файлға / 10 ГиБ-қа дейін, әрі телефондағы бос орынның соңғы 512 МБ-ы ешқашан пайдаланылмайды. Желі ауысқанда қолданба сеансты 10 секунд бойы сақтауға тырысады.",
- "Hold to record, release to send.": "Жазу үшін басып тұрыңыз, жіберу үшін жіберіп қойыңыз.",
  "Slide to cancel": "Солға — бас тарту",
  "Delete recording": "Жазбаны жою",
  "Stop and listen": "Тоқтатып, тыңдау",
- "Send voice message": "Дауыстық хабар жіберу"
+ "Send voice message": "Дауыстық хабар жіберу",
+ "Hold to record a voice message, release to send. Tap to switch to video.": "Дауыстық хабар жазу үшін басып тұрыңыз, жіберу үшін жіберіп қойыңыз. Бейнеге ауысу үшін түртіңіз.",
+ "Hold to record a video circle, release to send. Tap to switch to voice.": "Дөңгелек бейне жазу үшін басып тұрыңыз, жіберу үшін жіберіп қойыңыз. Дауысқа ауысу үшін түртіңіз.",
+ "Stop and watch": "Тоқтатып, көру",
+ "Record video circle": "Дөңгелек бейне жазу",
+ "Send video circle": "Дөңгелек бейнені жіберу"
 }

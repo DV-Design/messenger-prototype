@@ -760,9 +760,13 @@
  "Large file · directly to the recipient’s phone": "Tệp lớn · trực tiếp tới điện thoại của người nhận",
  "Files arrive directly from people, encrypted on the way, and are kept only on this phone, in the app’s private folder. When the storage is full, new files cannot be received until you free space.": "Tệp được gửi trực tiếp từ người khác, được mã hóa trong khi truyền, và chỉ được lưu trên điện thoại này, trong thư mục riêng của ứng dụng. Khi bộ nhớ đầy, bạn không thể nhận tệp mới cho tới khi giải phóng dung lượng.",
  "Contacts and messages are encrypted on the device. Files, up to 1 GB, are encrypted on the way and kept in the app’s private folder. The outbox waits for the recipient for up to 7 days and survives restarts. In groups, data syncs between participants. Limits: up to 16 files waiting for delivery, up to 2000 stored files / 10 GiB in total and never the last 512 MB of free phone space. On a network change the app tries to preserve the session for 10 seconds.": "Liên hệ và tin nhắn được mã hóa trên thiết bị. Tệp tối đa 1 GB được mã hóa trong khi truyền và lưu trong thư mục riêng của ứng dụng. Hộp thư đi chờ người nhận tối đa 7 ngày và vẫn còn sau khi khởi động lại. Trong nhóm, dữ liệu được đồng bộ giữa các thành viên. Giới hạn: tối đa 16 tệp chờ gửi, tổng cộng tối đa 2000 tệp đã lưu / 10 GiB và không bao giờ dùng 512 MB dung lượng trống cuối cùng của điện thoại. Khi mạng thay đổi, ứng dụng cố giữ phiên trong 10 giây.",
- "Hold to record, release to send.": "Nhấn giữ để ghi âm, thả ra để gửi.",
  "Slide to cancel": "Trượt để hủy",
  "Delete recording": "Xóa bản ghi",
  "Stop and listen": "Dừng và nghe lại",
- "Send voice message": "Gửi tin nhắn thoại"
+ "Send voice message": "Gửi tin nhắn thoại",
+ "Hold to record a voice message, release to send. Tap to switch to video.": "Nhấn giữ để ghi tin nhắn thoại, thả ra để gửi. Chạm để chuyển sang video.",
+ "Hold to record a video circle, release to send. Tap to switch to voice.": "Nhấn giữ để quay video tròn, thả ra để gửi. Chạm để chuyển sang giọng nói.",
+ "Stop and watch": "Dừng và xem",
+ "Record video circle": "Quay video tròn",
+ "Send video circle": "Gửi video tròn"
 }

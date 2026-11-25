@@ -760,9 +760,13 @@
  "Large file · directly to the recipient’s phone": "ไฟล์ขนาดใหญ่ · ส่งตรงไปยังโทรศัพท์ของผู้รับ",
  "Files arrive directly from people, encrypted on the way, and are kept only on this phone, in the app’s private folder. When the storage is full, new files cannot be received until you free space.": "ไฟล์ส่งตรงมาจากผู้คน โดยเข้ารหัสระหว่างการส่ง และเก็บไว้ในโทรศัพท์เครื่องนี้เท่านั้น ในโฟลเดอร์ส่วนตัวของแอป เมื่อพื้นที่เต็ม จะรับไฟล์ใหม่ไม่ได้จนกว่าคุณจะล้างพื้นที่",
  "Contacts and messages are encrypted on the device. Files, up to 1 GB, are encrypted on the way and kept in the app’s private folder. The outbox waits for the recipient for up to 7 days and survives restarts. In groups, data syncs between participants. Limits: up to 16 files waiting for delivery, up to 2000 stored files / 10 GiB in total and never the last 512 MB of free phone space. On a network change the app tries to preserve the session for 10 seconds.": "ผู้ติดต่อและข้อความจะเข้ารหัสในอุปกรณ์ ไฟล์ขนาดสูงสุด 1 GB จะเข้ารหัสระหว่างการส่งและเก็บไว้ในโฟลเดอร์ส่วนตัวของแอป กล่องขาออกจะรอผู้รับสูงสุด 7 วัน และยังอยู่แม้รีสตาร์ท ในกลุ่ม ข้อมูลจะซิงค์ระหว่างสมาชิก ขีดจำกัด: รอส่งได้สูงสุด 16 ไฟล์ เก็บไฟล์ได้รวมสูงสุด 2000 ไฟล์ / 10 GiB และจะไม่ใช้พื้นที่ว่าง 512 MB สุดท้ายของโทรศัพท์ เมื่อเครือข่ายเปลี่ยน แอปจะพยายามรักษาเซสชันไว้ 10 วินาที",
- "Hold to record, release to send.": "กดค้างไว้เพื่ออัด ปล่อยเพื่อส่ง",
  "Slide to cancel": "เลื่อนเพื่อยกเลิก",
  "Delete recording": "ลบเสียงที่อัด",
  "Stop and listen": "หยุดและฟัง",
- "Send voice message": "ส่งข้อความเสียง"
+ "Send voice message": "ส่งข้อความเสียง",
+ "Hold to record a voice message, release to send. Tap to switch to video.": "กดค้างไว้เพื่ออัดข้อความเสียง ปล่อยเพื่อส่ง แตะเพื่อสลับเป็นวิดีโอ",
+ "Hold to record a video circle, release to send. Tap to switch to voice.": "กดค้างไว้เพื่ออัดวิดีโอวงกลม ปล่อยเพื่อส่ง แตะเพื่อสลับเป็นเสียง",
+ "Stop and watch": "หยุดและดู",
+ "Record video circle": "อัดวิดีโอวงกลม",
+ "Send video circle": "ส่งวิดีโอวงกลม"
 }

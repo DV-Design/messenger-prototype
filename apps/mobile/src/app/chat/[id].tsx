@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
 import { Redirect, router, useIsFocused, useLocalSearchParams } from 'expo-router';
-import { Alert, AppState, FlatList, KeyboardAvoidingView, Linking, Platform, Pressable, Text, TextInput, View } from 'react-native';
+import { Alert, AppState, FlatList, Linking, Pressable, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from '../../components/SafeArea';
 import { safetyEmoji, type MessengerFile, type MessengerMessage, type ReactionEmoji, type ReactionView } from '@messenger/core';
 import { intlLocale, t } from '../../i18n';
@@ -14,8 +14,8 @@ import { client, errorText, useMessenger } from '../../runtime';
 import { colors, styles } from '../../styles';
 import { transportNotice } from '../../transport-notice';
 import { canMarkRead, readContentVersion, waitingForDelivery } from '../../delivery-model';
-import { MediaComposer } from '../../components/MediaComposer';
-import { VoiceComposer, type VoiceComposerHandle } from '../../components/VoiceComposer';
+import { RecordComposer, type RecordComposerHandle } from '../../components/RecordComposer';
+import { KeyboardSpace } from '../../components/KeyboardSpace';
 import type { MediaKind } from '../../media-model';
 import { chatTimeline, dayLabel, withDays, type ChatTimelineRow } from '../../timeline-model';
 import { haptic, messageSent, setOpenChat } from '../../feedback';
@@ -93,10 +93,9 @@ export default function Chat() {
   const [attachments, setAttachments] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [recording, setRecording] = useState<MediaKind>();
-  // A voice message being recorded in the message bar (video circles keep their own screen).
+  // A voice message or video circle being recorded in the message bar.
   const [voiceActive, setVoiceActive] = useState(false);
-  const voice = useRef<VoiceComposerHandle>(null);
+  const recorder = useRef<RecordComposerHandle>(null);
   const [hint, setHint] = useState('');
   useEffect(() => { if (!hint) return; const timer = setTimeout(() => setHint(''), 2500); return () => clearTimeout(timer); }, [hint]);
   const [locationOpen, setLocationOpen] = useState(false);
@@ -206,7 +205,7 @@ export default function Chat() {
   const safety = peer && identity ? safetyCode(identity.publicKey, peer.publicKey) : '';
   const peerVerified = !!peer && snapshot.verifiedContacts.includes(peer.userId);
   const moved = !group && peer ? snapshot.movedContacts?.[peer.userId] : undefined;
-  const canCall = !group && !blockedPeer && !snapshot.activeCall && !recording && !voiceActive && (snapshot.status === 'online' || conversation.session?.status === 'connected');
+  const canCall = !group && !blockedPeer && !snapshot.activeCall && !voiceActive && (snapshot.status === 'online' || conversation.session?.status === 'connected');
   const notice = transportNotice({ directory: snapshot.status, group, peerOnline: peer?.online, session: conversation.session,
     pending: conversation.messages.filter(item => item.from === identity?.userId && waitingForDelivery(item)).length
       + conversation.files.filter(item => item.senderId === identity?.userId && waitingForDelivery(item)).length,
@@ -253,7 +252,7 @@ export default function Chat() {
   function record(kind: MediaKind) {
     if (busy || snapshot.activeCall || voiceActive) return;
     setAttachments(false);
-    if (kind === 'voice') voice.current?.startLocked(); else setRecording(kind);
+    recorder.current?.startLocked(kind);
   }
   function openLocation() { setAttachments(false); setLocationOpen(true); }
   function sendLocation(lat: number, lng: number, label?: string) {
@@ -342,7 +341,7 @@ export default function Chat() {
     openFile: file => { if (viewerKind(file)) setViewingFile(file); else void action(() => shareFile(file)); },
   });
   const swipe = !blockedPeer && !editing && !conversation.removed;
-  const mediaDisabled = !focused || !!snapshot.activeCall || !!recording || voiceActive;
+  const mediaDisabled = !focused || !!snapshot.activeCall || voiceActive;
   function renderRow(entry: ChatTimelineRow) {
     if (entry.kind === 'day') return <DayPill label={entry.label} />;
     if (entry.kind === 'message') {
@@ -361,28 +360,8 @@ export default function Chat() {
     return <FileRow file={file} sender={sender} mediaDisabled={mediaDisabled} handlers={rowHandlers} selfId={identity?.userId} group={group} blocked={blocked} swipe={swipe} names={names}
       version={rowVersion(file, [sender, mediaDisabled, group, swipe, blockedKey, names])} />;
   }
-  return <SafeAreaView style={styles.whiteScreen} edges={['top', 'bottom']}>
-    <View style={styles.chatHeader}><IconButton name="chevron-back" label={t('Back to chats')} onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)')} />
-      <Pressable accessibilityRole="button" accessibilityHint={group ? t('Opens group info') : t('Opens contact info')} disabled={!group && !peer} onPress={() => group ? router.push({ pathname: '/group/[id]', params: { id: conversation.id } }) : router.push({ pathname: '/contact/[id]', params: { id: conversation.id } })} style={{ flexDirection: 'row', alignItems: 'center', flex: 1, minWidth: 0 }}>
-        <Avatar name={conversation.title} id={conversation.id} group={group} size={41} /><View style={[styles.flex, { marginLeft: 7 }]}><Text numberOfLines={1} style={styles.chatName}>{conversation.title}</Text><Text numberOfLines={1} style={[styles.chatStatus, !group && peer?.online && { color: colors.accent }]}>{group ? (conversation.removed ? t('You are no longer a member') : t('Members: {count}', { count: conversation.memberIds.length })) : lastSeen(!!peer?.online, peer?.lastSeen ?? 0)}</Text></View>
-      </Pressable>
-      {chatTranslationSupported && <IconButton name="language-outline" color={translated ? colors.white : undefined} label={translated ? t('Show original') : t('Translate to {language}', { language: myLanguage.label })} onPress={() => void setChatTranslated(conversation.id, !translated)} active={translated} />}
-      <IconButton name="call-outline" label={group ? t('Group calls unavailable') : t('Audio call')} disabled={!canCall || busy} onPress={() => void action(() => client().startCall(conversation.id, false))} />
-      <IconButton name="videocam-outline" label={group ? t('Group video calls unavailable') : t('Video call')} disabled={!canCall || busy} onPress={() => void action(() => client().startCall(conversation.id, true))} />
-      <IconButton name="ellipsis-horizontal" label={t('Safety options')} onPress={() => setSafetyMenuOpen(true)} />
-    </View>
-    {blockedPeer && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 15, paddingVertical: 9, backgroundColor: '#FDECEF' }}><Icon name="ban-outline" size={17} color="#A22D3B" /><Text style={[styles.info, { flex: 1, color: '#A22D3B' }]}> {t('You blocked this contact. Unblock to see messages and calls.')}</Text></View>}
-    {hiddenBlocked && <Text style={[styles.info, { textAlign: 'center', paddingVertical: 8, paddingHorizontal: 15 }]}> {t('Messages from blocked users are hidden.')}</Text>}
-    <Pressable accessibilityRole="button" accessibilityLabel={t('Delivery status. Open connection settings')} onPress={() => router.push('/(tabs)/settings')} style={{ paddingHorizontal: 15, paddingVertical: 9, backgroundColor: notice.warning ? '#FFF2D8' : '#EDF5F1' }}><Text style={[styles.info, { color: notice.warning ? '#7B5924' : '#4E7161' }]}>{notice.text}</Text></Pressable>
-    {translated && chatTranslationSupported && <Pressable accessibilityRole="button" accessibilityLabel={t('Show original')} onPress={() => void setChatTranslated(conversation.id, false)} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 15, paddingVertical: 8, backgroundColor: '#EAF3FA' }}>
-      <Icon name="language-outline" size={17} color={colors.blue} /><Text style={[styles.info, { flex: 1, color: '#2A5F82' }]}>{translations.error || (translations.busy ? t('Translating to {language}…', { language: myLanguage.label }) : t('Translated to {language}', { language: myLanguage.label }))}</Text>
-      <Text style={{ color: colors.blue, fontSize: 13, fontWeight: '600' }}>{t('Show original')}</Text>
-    </Pressable>}
-    {moved && peer && !blockedPeer && <View accessibilityRole="alert" style={{ gap: 9, paddingHorizontal: 15, paddingVertical: 10, backgroundColor: '#FFF2D8' }}>
-      <Text style={[styles.info, { color: '#7B5924' }]}>{t('{name} restored the account on a new key. This is not confirmed to be the same person until you compare the safety code in the new chat. Messages not yet delivered here will not reach the new key and expire after 7 days. This chat stays as history.', { name: peer.displayName })}</Text>
-      <Button secondary busy={busy} title={t('Open new chat')} onPress={() => void action(async () => { const next = await client().acceptMovedContact(peer.userId); router.push({ pathname: '/chat/[id]', params: { id: next } }); })} />
-    </View>}
-    <SettledProvider settled={settled}><KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={topOffset}>
+  // Everything between the header strips and the message bar; a video circle is recorded over it.
+  const aboveBar = <>
       <View style={styles.conversation}>
         {group && <Text style={[styles.info, { textAlign: 'center', paddingVertical: 8, paddingHorizontal: 15 }]}> {t('Group up to 8 members · group calls are not available yet')}</Text>}
         {reversedTimeline.length === 0
@@ -414,16 +393,38 @@ export default function Chat() {
       </View></View>}
       {conversation.removed && <Text style={[styles.info, { textAlign: 'center', padding: 14, backgroundColor: '#F3F5F6' }]}>{t('You were removed from this group. The history stays on this phone.')}</Text>}
       {!!hint && <Text accessibilityLiveRegion="polite" style={[styles.info, { textAlign: 'center', paddingVertical: 7, backgroundColor: '#EDF5F1' }]}>{hint}</Text>}
-      {!blockedPeer && !conversation.removed && <VoiceComposer ref={voice} conversationId={conversation.id} disabled={!!snapshot.activeCall || !!recording || !focused}
+  </>;
+  return <SafeAreaView style={styles.whiteScreen} edges={['top', 'bottom']}>
+    <View style={styles.chatHeader}><IconButton name="chevron-back" label={t('Back to chats')} onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)')} />
+      <Pressable accessibilityRole="button" accessibilityHint={group ? t('Opens group info') : t('Opens contact info')} disabled={!group && !peer} onPress={() => group ? router.push({ pathname: '/group/[id]', params: { id: conversation.id } }) : router.push({ pathname: '/contact/[id]', params: { id: conversation.id } })} style={{ flexDirection: 'row', alignItems: 'center', flex: 1, minWidth: 0 }}>
+        <Avatar name={conversation.title} id={conversation.id} group={group} size={41} /><View style={[styles.flex, { marginLeft: 7 }]}><Text numberOfLines={1} style={styles.chatName}>{conversation.title}</Text><Text numberOfLines={1} style={[styles.chatStatus, !group && peer?.online && { color: colors.accent }]}>{group ? (conversation.removed ? t('You are no longer a member') : t('Members: {count}', { count: conversation.memberIds.length })) : lastSeen(!!peer?.online, peer?.lastSeen ?? 0)}</Text></View>
+      </Pressable>
+      {chatTranslationSupported && <IconButton name="language-outline" color={translated ? colors.white : undefined} label={translated ? t('Show original') : t('Translate to {language}', { language: myLanguage.label })} onPress={() => void setChatTranslated(conversation.id, !translated)} active={translated} />}
+      <IconButton name="call-outline" label={group ? t('Group calls unavailable') : t('Audio call')} disabled={!canCall || busy} onPress={() => void action(() => client().startCall(conversation.id, false))} />
+      <IconButton name="videocam-outline" label={group ? t('Group video calls unavailable') : t('Video call')} disabled={!canCall || busy} onPress={() => void action(() => client().startCall(conversation.id, true))} />
+      <IconButton name="ellipsis-horizontal" label={t('Safety options')} onPress={() => setSafetyMenuOpen(true)} />
+    </View>
+    {blockedPeer && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 15, paddingVertical: 9, backgroundColor: '#FDECEF' }}><Icon name="ban-outline" size={17} color="#A22D3B" /><Text style={[styles.info, { flex: 1, color: '#A22D3B' }]}> {t('You blocked this contact. Unblock to see messages and calls.')}</Text></View>}
+    {hiddenBlocked && <Text style={[styles.info, { textAlign: 'center', paddingVertical: 8, paddingHorizontal: 15 }]}> {t('Messages from blocked users are hidden.')}</Text>}
+    <Pressable accessibilityRole="button" accessibilityLabel={t('Delivery status. Open connection settings')} onPress={() => router.push('/(tabs)/settings')} style={{ paddingHorizontal: 15, paddingVertical: 9, backgroundColor: notice.warning ? '#FFF2D8' : '#EDF5F1' }}><Text style={[styles.info, { color: notice.warning ? '#7B5924' : '#4E7161' }]}>{notice.text}</Text></Pressable>
+    {translated && chatTranslationSupported && <Pressable accessibilityRole="button" accessibilityLabel={t('Show original')} onPress={() => void setChatTranslated(conversation.id, false)} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 15, paddingVertical: 8, backgroundColor: '#EAF3FA' }}>
+      <Icon name="language-outline" size={17} color={colors.blue} /><Text style={[styles.info, { flex: 1, color: '#2A5F82' }]}>{translations.error || (translations.busy ? t('Translating to {language}…', { language: myLanguage.label }) : t('Translated to {language}', { language: myLanguage.label }))}</Text>
+      <Text style={{ color: colors.blue, fontSize: 13, fontWeight: '600' }}>{t('Show original')}</Text>
+    </Pressable>}
+    {moved && peer && !blockedPeer && <View accessibilityRole="alert" style={{ gap: 9, paddingHorizontal: 15, paddingVertical: 10, backgroundColor: '#FFF2D8' }}>
+      <Text style={[styles.info, { color: '#7B5924' }]}>{t('{name} restored the account on a new key. This is not confirmed to be the same person until you compare the safety code in the new chat. Messages not yet delivered here will not reach the new key and expire after 7 days. This chat stays as history.', { name: peer.displayName })}</Text>
+      <Button secondary busy={busy} title={t('Open new chat')} onPress={() => void action(async () => { const next = await client().acceptMovedContact(peer.userId); router.push({ pathname: '/chat/[id]', params: { id: next } }); })} />
+    </View>}
+    <SettledProvider settled={settled}><KeyboardSpace iosOffset={topOffset}>
+      {!blockedPeer && !conversation.removed ? <RecordComposer ref={recorder} conversationId={conversation.id} disabled={!!snapshot.activeCall || !focused} above={aboveBar}
         onActiveChange={active => { setVoiceActive(active); if (active) setAttachments(false); }} onError={setError} onHint={setHint}
         trailing={draft.trim() || editing ? <Pressable style={[styles.send, busy && styles.disabled]} accessibilityRole="button" accessibilityLabel={editing ? t('Save changes') : t('Send message')} disabled={busy || !draft.trim()} onPress={send}><Icon name={editing ? 'checkmark' : 'arrow-up'} color={colors.white} size={25} /></Pressable> : undefined}>
         {!editing && <IconButton name={attachments ? 'close' : 'attach'} label={t('Attach file')} disabled={busy} onPress={() => setAttachments(!attachments)} />}
         <TextInput style={styles.composerInput} value={draft} onChangeText={setDraft} multiline maxLength={4000} placeholder={t('Message')} placeholderTextColor={colors.secondary} accessibilityLabel={t('Message text')} />
-      </VoiceComposer>}
-    </KeyboardAvoidingView></SettledProvider>
-    {!!recording && focused && <MediaComposer key={`${id}:${recording}`} kind={recording} conversationId={conversation.id} blocked={!!snapshot.activeCall} onClose={() => setRecording(undefined)} />}
+      </RecordComposer> : aboveBar}
+    </KeyboardSpace></SettledProvider>
     {locationViewer()}
-    <MediaViewer file={viewingFile} title={viewingFile ? nameOf(viewingFile.senderId) : ''} autoPlay={!snapshot.activeCall && !recording && !voiceActive} onClose={closeViewer} onShare={file => shareFile(file).catch(cause => setError(errorText(cause)))} />
+    <MediaViewer file={viewingFile} title={viewingFile ? nameOf(viewingFile.senderId) : ''} autoPlay={!snapshot.activeCall && !voiceActive} onClose={closeViewer} onShare={file => shareFile(file).catch(cause => setError(errorText(cause)))} />
     <ContactPicker visible={contactsOpen} onClose={closeContacts} onPick={sendPickedContact} />
     <LocationPicker visible={locationOpen} busy={busy} onClose={() => setLocationOpen(false)} onSendPoint={sendLocation} onStartLive={shareLiveLocation} />
     {!group && peer && identity && <SafetyCode visible={safetyOpen} title={peer.displayName} code={safety} verified={peerVerified} sessionReady={!!conversation.session?.contentE2E} onClose={() => setSafetyOpen(false)} onVerify={() => void action(async () => { await client().markContactVerified(peer.userId); setSafetyOpen(false); })} />}

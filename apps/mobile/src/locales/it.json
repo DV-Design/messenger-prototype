@@ -760,9 +760,13 @@
  "Large file · directly to the recipient’s phone": "File di grandi dimensioni · direttamente al telefono del destinatario",
  "Files arrive directly from people, encrypted on the way, and are kept only on this phone, in the app’s private folder. When the storage is full, new files cannot be received until you free space.": "I file arrivano direttamente dalle persone, crittografati durante il trasferimento, e sono conservati solo su questo telefono, nella cartella privata dell'app. Quando lo spazio è pieno, non puoi ricevere nuovi file finché non liberi spazio.",
  "Contacts and messages are encrypted on the device. Files, up to 1 GB, are encrypted on the way and kept in the app’s private folder. The outbox waits for the recipient for up to 7 days and survives restarts. In groups, data syncs between participants. Limits: up to 16 files waiting for delivery, up to 2000 stored files / 10 GiB in total and never the last 512 MB of free phone space. On a network change the app tries to preserve the session for 10 seconds.": "Contatti e messaggi sono crittografati sul dispositivo. I file, fino a 1 GB, sono crittografati durante il trasferimento e conservati nella cartella privata dell'app. La coda di invio attende il destinatario fino a 7 giorni e resta anche dopo i riavvii. Nei gruppi i dati si sincronizzano tra i partecipanti. Limiti: fino a 16 file in attesa di consegna, fino a 2000 file salvati / 10 GiB in totale e mai gli ultimi 512 MB di spazio libero del telefono. Quando cambia la rete, l'app prova a mantenere la sessione per 10 secondi.",
- "Hold to record, release to send.": "Tieni premuto per registrare, rilascia per inviare.",
  "Slide to cancel": "Scorri per annullare",
  "Delete recording": "Elimina registrazione",
  "Stop and listen": "Interrompi e ascolta",
- "Send voice message": "Invia messaggio vocale"
+ "Send voice message": "Invia messaggio vocale",
+ "Hold to record a voice message, release to send. Tap to switch to video.": "Tieni premuto per registrare un messaggio vocale, rilascia per inviare. Tocca per passare al video.",
+ "Hold to record a video circle, release to send. Tap to switch to voice.": "Tieni premuto per registrare un videomessaggio circolare, rilascia per inviare. Tocca per passare alla voce.",
+ "Stop and watch": "Interrompi e guarda",
+ "Record video circle": "Registra videomessaggio circolare",
+ "Send video circle": "Invia videomessaggio circolare"
 }

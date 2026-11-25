@@ -760,9 +760,13 @@
  "Large file · directly to the recipient’s phone": "大文件 · 直接发送到收件人的手机",
  "Files arrive directly from people, encrypted on the way, and are kept only on this phone, in the app’s private folder. When the storage is full, new files cannot be received until you free space.": "文件直接来自对方，传输过程中加密，并且仅保存在此手机上应用的私有文件夹中。存储空间已满时，在你释放空间之前无法接收新文件。",
  "Contacts and messages are encrypted on the device. Files, up to 1 GB, are encrypted on the way and kept in the app’s private folder. The outbox waits for the recipient for up to 7 days and survives restarts. In groups, data syncs between participants. Limits: up to 16 files waiting for delivery, up to 2000 stored files / 10 GiB in total and never the last 512 MB of free phone space. On a network change the app tries to preserve the session for 10 seconds.": "联系人和消息在设备上加密。最大 1 GB 的文件在传输过程中加密，并保存在应用的私有文件夹中。发件队列会为收件人等待最长 7 天，重启后仍会保留。在群组中，数据在成员之间同步。限制：最多 16 个文件等待投递，最多存储 2000 个文件 / 共 10 GiB，并且永远不会占用手机最后 512 MB 的可用空间。网络切换时，应用会尝试在 10 秒内保持会话。",
- "Hold to record, release to send.": "按住录音，松开发送。",
  "Slide to cancel": "滑动取消",
  "Delete recording": "删除录音",
  "Stop and listen": "停止并试听",
- "Send voice message": "发送语音消息"
+ "Send voice message": "发送语音消息",
+ "Hold to record a voice message, release to send. Tap to switch to video.": "按住录制语音消息，松开发送。点按切换到视频。",
+ "Hold to record a video circle, release to send. Tap to switch to voice.": "按住录制圆形视频，松开发送。点按切换到语音。",
+ "Stop and watch": "停止并观看",
+ "Record video circle": "录制圆形视频",
+ "Send video circle": "发送圆形视频"
 }

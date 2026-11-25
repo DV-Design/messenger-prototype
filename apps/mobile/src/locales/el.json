@@ -760,9 +760,13 @@
  "Large file · directly to the recipient’s phone": "Μεγάλο αρχείο · απευθείας στο τηλέφωνο του παραλήπτη",
  "Files arrive directly from people, encrypted on the way, and are kept only on this phone, in the app’s private folder. When the storage is full, new files cannot be received until you free space.": "Τα αρχεία φτάνουν απευθείας από τα άτομα, κρυπτογραφημένα κατά τη μεταφορά, και φυλάσσονται μόνο σε αυτό το τηλέφωνο, στον ιδιωτικό φάκελο της εφαρμογής. Όταν ο χώρος γεμίσει, δεν μπορούν να ληφθούν νέα αρχεία μέχρι να ελευθερώσετε χώρο.",
  "Contacts and messages are encrypted on the device. Files, up to 1 GB, are encrypted on the way and kept in the app’s private folder. The outbox waits for the recipient for up to 7 days and survives restarts. In groups, data syncs between participants. Limits: up to 16 files waiting for delivery, up to 2000 stored files / 10 GiB in total and never the last 512 MB of free phone space. On a network change the app tries to preserve the session for 10 seconds.": "Οι επαφές και τα μηνύματα κρυπτογραφούνται στη συσκευή. Τα αρχεία, έως 1 GB, κρυπτογραφούνται κατά τη μεταφορά και φυλάσσονται στον ιδιωτικό φάκελο της εφαρμογής. Τα εξερχόμενα περιμένουν τον παραλήπτη έως 7 ημέρες και διατηρούνται μετά από επανεκκίνηση. Στις ομάδες, τα δεδομένα συγχρονίζονται μεταξύ των μελών. Όρια: έως 16 αρχεία σε αναμονή παράδοσης, έως 2000 αποθηκευμένα αρχεία / 10 GiB συνολικά, και ποτέ τα τελευταία 512 MB ελεύθερου χώρου του τηλεφώνου. Όταν αλλάζει το δίκτυο, η εφαρμογή προσπαθεί να διατηρήσει τη συνεδρία για 10 δευτερόλεπτα.",
- "Hold to record, release to send.": "Πατήστε παρατεταμένα για εγγραφή, αφήστε για αποστολή.",
  "Slide to cancel": "Σύρετε για ακύρωση",
  "Delete recording": "Διαγραφή ηχογράφησης",
  "Stop and listen": "Διακοπή και ακρόαση",
- "Send voice message": "Αποστολή φωνητικού μηνύματος"
+ "Send voice message": "Αποστολή φωνητικού μηνύματος",
+ "Hold to record a voice message, release to send. Tap to switch to video.": "Πατήστε παρατεταμένα για εγγραφή φωνητικού μηνύματος, αφήστε για αποστολή. Πατήστε για εναλλαγή σε βίντεο.",
+ "Hold to record a video circle, release to send. Tap to switch to voice.": "Πατήστε παρατεταμένα για εγγραφή στρογγυλού βίντεο, αφήστε για αποστολή. Πατήστε για εναλλαγή σε φωνή.",
+ "Stop and watch": "Διακοπή και προβολή",
+ "Record video circle": "Εγγραφή στρογγυλού βίντεο",
+ "Send video circle": "Αποστολή στρογγυλού βίντεο"
 }
