@@ -1,4 +1,4 @@
-# Next release — circles, calls, stickers and GIFs (2026-11-26)
+# 1.0.47 / code62 — circles, calls, stickers and GIFs (2026-11-26)
 
 - [X] Circles: a tap anywhere on a playing circle (its centre included) pauses or resumes (a transparent layer over
   the native video view takes the tap); the circle grows to ~86 % of the width while it plays. Emulator: both
@@ -21,7 +21,10 @@
   About and "Powered by KLIPY". 13 strings in 30 languages; privacy policy updated in the repo (26 Nov, not
   published). Emulator: sticker sent and animated, KLIPY trending loaded, GIF sent and animated
   → Artifacts: [StickerPanel.tsx](apps/mobile/src/components/StickerPanel.tsx), [sticker-model.ts](apps/mobile/src/sticker-model.ts), [klipy.ts](apps/mobile/src/klipy.ts)
-- [ ] Release (version bump, store upload, policy publication) — waits for the owner's yes
+- [X] `artifacts/LastCall-1.0.47-store.aab` 62467519 bytes, sha256 `6471234ea6d88526c8efd0debcb9309ab6414e67b630f78fd046bef8f743c8b5`, built with the KLIPY key; smoke-tested on
+  the emulator (chat list, text, sticker, GIF); privacy policy (26 Nov, KLIPY) published with the owner's yes, previous
+  copy `artifacts/privacy-live-before-2026-11-26.html`
+- [ ] Google Play upload of 1.0.47
 
 # 1.0.46 / code61 — black circles, progress ring, circle previews (2026-11-25)
 
