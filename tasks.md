@@ -219,19 +219,22 @@
 
 # GPT review suggestions (2026-11-24) — planned, not started here
 
-- [ ] msg-5th (already in progress in the working tree, uncommitted): "Message requests". A stranger's
+- [X] msg-5th (already in progress in the working tree, uncommitted): "Message requests". A stranger's
   first mailbox item makes them a contact and a push-wake source before decryption; an incoming connect
   can open WebRTC (IP exposure) before acceptance; blocking differs between mailbox and direct paths.
   Separate decisions: accept messages / allow calls and push / allow direct connection; blocking acts
   before any connection or write
-- [ ] msg-11x: "Clear all data" counts and deletes only blobKey files, not large attachments (repro: 1 KiB
+  msg-5th closed 2026-11-24
+- [ ] msg-11x (step 1 done in 1.0.42, step 2 encryption of large files open): "Clear all data" counts and deletes only blobKey files, not large attachments (repro: 1 KiB
   + 100 MiB → shows 1 file, 1 KiB); files over 5 MiB and .part copies are not LastCall-encrypted while the
   settings text says all files are. One accounting for both kinds first, then chunked encryption
-- [ ] msg-9ri: history trimmed to 100 texts per chat / 500 overall and dropped from storage; one busy chat
+- [X] msg-9ri: history trimmed to 100 texts per chat / 500 overall and dropped from storage; one busy chat
   pushes out another. Page from SQLite, limit only what is in memory; or make retention a visible choice
-- [ ] msg-co5: currentRoute() can call a pair "direct" without candidate details; route checked only
+  2026-11-24: done, msg-9ri closed (c68109b)
+- [X] msg-co5: currentRoute() can call a pair "direct" without candidate details; route checked only
   before a large transfer starts. Require a confirmed direct pair (selected candidate pair id), pause on
   network change and resume from offset; status "Both online, but a direct connection is unavailable"
+  2026-11-24: done, msg-co5 closed (b34f7b8)
 
 # 1.0.40 / code55 — encrypted server mailbox, unread-only notices, new store listing (2026-11-23)
 
@@ -595,10 +598,11 @@ removes (planned next as step 4).
 - [X] Smoke test of this exact AAB (bundletool universal APK, upload-key signed) on two
   emulators: startup, chat opens at newest messages (voice note renders in the inverted list),
   quoted reply delivered, map tiles render, location card opens Google Maps
-- [ ] Play warns that 7 previously supported devices (2 phones, 5 tablets) are dropped:
+- [X] Play warns that 7 previously supported devices (2 phones, 5 tablets) are dropped:
   the bundle now requires `glEsVersion 0x00020000` (react-native-maps) and likely the implied
   `android.hardware.location.gps` feature from the location permission. Declare the location
   features `required="false"` in the next build
+  2026-11-26: the current manifest declares no location features (none implied at targetSdk 36); Wi-Fi and portrait optional since 1.0.36; GLES 2.0 stays for maps (msg-gbz closed)
 - [ ] Maps key: add the Play App Signing SHA-1 to the key's Android restriction if not done yet,
   otherwise Play-installed builds may show a grey map (only the upload-key build was checked)
 - [ ] Physical phones, contact picker with real contacts, live location in the background
