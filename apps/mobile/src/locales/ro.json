@@ -769,5 +769,18 @@
  "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "Un fișier de peste 5 MB ajunge pe telefonul destinatarului, criptat pe drum, și nu este stocat pe server. Ambele telefoane trebuie să fie online.",
  "Large file · to the recipient’s phone, not stored on the server": "Fișier mare · către telefonul destinatarului, fără stocare pe server",
  "Open chat": "Deschide conversația",
- "Stop playback": "Oprește redarea"
+ "Stop playback": "Oprește redarea",
+ "Sticker": "Autocolant",
+ "GIF": "GIF",
+ "Stickers and GIF": "Autocolante și GIF",
+ "Animated stickers: Noto Emoji by Google, CC BY 4.0. GIF and sticker search: KLIPY; your phone contacts KLIPY directly when you search or show a GIF.": "Autocolante animate: Noto Emoji de la Google, CC BY 4.0. Căutare de GIF-uri și autocolante: KLIPY; telefonul se conectează direct la KLIPY când căutați sau afișați un GIF.",
+ "Turn off camera": "Opriți camera",
+ "Sticker {emoji}": "Autocolant {emoji}",
+ "Stickers": "Autocolante",
+ "Search stickers": "Căutați autocolante",
+ "Send sticker {emoji}": "Trimiteți autocolantul {emoji}",
+ "GIF search is not set up in this version yet.": "Căutarea de GIF-uri nu este încă configurată în această versiune.",
+ "Search GIFs": "Căutați GIF-uri",
+ "Could not load. Check the connection and try again.": "Nu s-a putut încărca. Verificați conexiunea și încercați din nou.",
+ "Powered by KLIPY": "Oferit de KLIPY"
 }

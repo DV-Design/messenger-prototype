@@ -769,5 +769,18 @@
  "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "超过 5 MB 的文件会发送到对方手机，传输途中加密，不会存储在服务器上。两部手机都需要在线。",
  "Large file · to the recipient’s phone, not stored on the server": "大文件 · 发送到对方手机，不存储在服务器上",
  "Open chat": "打开聊天",
- "Stop playback": "停止播放"
+ "Stop playback": "停止播放",
+ "Sticker": "贴纸",
+ "GIF": "GIF",
+ "Stickers and GIF": "贴纸和 GIF",
+ "Animated stickers: Noto Emoji by Google, CC BY 4.0. GIF and sticker search: KLIPY; your phone contacts KLIPY directly when you search or show a GIF.": "动画贴纸：Google 的 Noto Emoji，CC BY 4.0 许可。GIF 和贴纸搜索：KLIPY；搜索或显示 GIF 时，手机会直接连接 KLIPY。",
+ "Turn off camera": "关闭摄像头",
+ "Sticker {emoji}": "贴纸 {emoji}",
+ "Stickers": "贴纸",
+ "Search stickers": "搜索贴纸",
+ "Send sticker {emoji}": "发送贴纸 {emoji}",
+ "GIF search is not set up in this version yet.": "此版本尚未设置 GIF 搜索。",
+ "Search GIFs": "搜索 GIF",
+ "Could not load. Check the connection and try again.": "加载失败。请检查网络连接后重试。",
+ "Powered by KLIPY": "由 KLIPY 提供"
 }

@@ -769,5 +769,18 @@
  "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "Fail melebihi 5 MB dihantar ke telefon penerima, disulitkan semasa penghantaran, dan tidak disimpan di pelayan. Kedua-dua telefon perlu dalam talian.",
  "Large file · to the recipient’s phone, not stored on the server": "Fail besar · ke telefon penerima, tidak disimpan di pelayan",
  "Open chat": "Buka sembang",
- "Stop playback": "Hentikan main balik"
+ "Stop playback": "Hentikan main balik",
+ "Sticker": "Pelekat",
+ "GIF": "GIF",
+ "Stickers and GIF": "Pelekat dan GIF",
+ "Animated stickers: Noto Emoji by Google, CC BY 4.0. GIF and sticker search: KLIPY; your phone contacts KLIPY directly when you search or show a GIF.": "Pelekat animasi: Noto Emoji oleh Google, CC BY 4.0. Carian GIF dan pelekat: KLIPY; telefon anda menghubungi KLIPY secara terus apabila anda mencari atau memaparkan GIF.",
+ "Turn off camera": "Matikan kamera",
+ "Sticker {emoji}": "Pelekat {emoji}",
+ "Stickers": "Pelekat",
+ "Search stickers": "Cari pelekat",
+ "Send sticker {emoji}": "Hantar pelekat {emoji}",
+ "GIF search is not set up in this version yet.": "Carian GIF belum disediakan dalam versi ini.",
+ "Search GIFs": "Cari GIF",
+ "Could not load. Check the connection and try again.": "Gagal dimuatkan. Semak sambungan dan cuba lagi.",
+ "Powered by KLIPY": "Dikuasakan oleh KLIPY"
 }

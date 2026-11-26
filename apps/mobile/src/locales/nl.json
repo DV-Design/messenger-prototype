@@ -769,5 +769,18 @@
  "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "Een bestand groter dan 5 MB gaat versleuteld naar de telefoon van de ontvanger en wordt niet op de server opgeslagen. Beide telefoons moeten online zijn.",
  "Large file · to the recipient’s phone, not stored on the server": "Groot bestand · naar de telefoon van de ontvanger, niet opgeslagen op de server",
  "Open chat": "Chat openen",
- "Stop playback": "Afspelen stoppen"
+ "Stop playback": "Afspelen stoppen",
+ "Sticker": "Sticker",
+ "GIF": "GIF",
+ "Stickers and GIF": "Stickers en GIF",
+ "Animated stickers: Noto Emoji by Google, CC BY 4.0. GIF and sticker search: KLIPY; your phone contacts KLIPY directly when you search or show a GIF.": "Geanimeerde stickers: Noto Emoji van Google, CC BY 4.0. Zoeken naar GIF’s en stickers: KLIPY; je telefoon maakt rechtstreeks verbinding met KLIPY wanneer je zoekt of een GIF toont.",
+ "Turn off camera": "Camera uitzetten",
+ "Sticker {emoji}": "Sticker {emoji}",
+ "Stickers": "Stickers",
+ "Search stickers": "Stickers zoeken",
+ "Send sticker {emoji}": "Sticker {emoji} versturen",
+ "GIF search is not set up in this version yet.": "Zoeken naar GIF’s is in deze versie nog niet ingesteld.",
+ "Search GIFs": "GIF’s zoeken",
+ "Could not load. Check the connection and try again.": "Laden mislukt. Controleer de verbinding en probeer het opnieuw.",
+ "Powered by KLIPY": "Mogelijk gemaakt door KLIPY"
 }

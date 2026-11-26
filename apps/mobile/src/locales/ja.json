@@ -769,5 +769,18 @@
  "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "5 MB を超えるファイルは途中で暗号化されて相手のスマートフォンに届き、サーバーには保存されません。両方のスマートフォンがオンラインである必要があります。",
  "Large file · to the recipient’s phone, not stored on the server": "大きなファイル · 相手のスマートフォンへ、サーバーには保存されません",
  "Open chat": "チャットを開く",
- "Stop playback": "再生を停止"
+ "Stop playback": "再生を停止",
+ "Sticker": "スタンプ",
+ "GIF": "GIF",
+ "Stickers and GIF": "スタンプとGIF",
+ "Animated stickers: Noto Emoji by Google, CC BY 4.0. GIF and sticker search: KLIPY; your phone contacts KLIPY directly when you search or show a GIF.": "アニメーションスタンプ：Google の Noto Emoji（CC BY 4.0）。GIF とスタンプの検索：KLIPY。検索や GIF の表示のとき、スマートフォンは KLIPY に直接接続します。",
+ "Turn off camera": "カメラをオフ",
+ "Sticker {emoji}": "スタンプ {emoji}",
+ "Stickers": "スタンプ",
+ "Search stickers": "スタンプを検索",
+ "Send sticker {emoji}": "スタンプ {emoji} を送信",
+ "GIF search is not set up in this version yet.": "このバージョンでは GIF 検索はまだ設定されていません。",
+ "Search GIFs": "GIF を検索",
+ "Could not load. Check the connection and try again.": "読み込めませんでした。接続を確認してもう一度お試しください。",
+ "Powered by KLIPY": "Powered by KLIPY"
 }

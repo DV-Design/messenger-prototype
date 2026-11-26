@@ -3082,5 +3082,57 @@
  {
   "key": "Stop playback",
   "ru": "Остановить воспроизведение"
+ },
+ {
+  "key": "Sticker",
+  "ru": "Стикер"
+ },
+ {
+  "key": "GIF",
+  "ru": "GIF"
+ },
+ {
+  "key": "Stickers and GIF",
+  "ru": "Стикеры и GIF"
+ },
+ {
+  "key": "Animated stickers: Noto Emoji by Google, CC BY 4.0. GIF and sticker search: KLIPY; your phone contacts KLIPY directly when you search or show a GIF.",
+  "ru": "Анимированные стикеры: Noto Emoji от Google, CC BY 4.0. Поиск GIF и стикеров: KLIPY; телефон обращается к KLIPY напрямую, когда вы ищете или показываете GIF."
+ },
+ {
+  "key": "Turn off camera",
+  "ru": "Выключить камеру"
+ },
+ {
+  "key": "Sticker {emoji}",
+  "ru": "Стикер {emoji}"
+ },
+ {
+  "key": "Stickers",
+  "ru": "Стикеры"
+ },
+ {
+  "key": "Search stickers",
+  "ru": "Поиск стикеров"
+ },
+ {
+  "key": "Send sticker {emoji}",
+  "ru": "Отправить стикер {emoji}"
+ },
+ {
+  "key": "GIF search is not set up in this version yet.",
+  "ru": "Поиск GIF в этой версии ещё не настроен."
+ },
+ {
+  "key": "Search GIFs",
+  "ru": "Поиск GIF"
+ },
+ {
+  "key": "Could not load. Check the connection and try again.",
+  "ru": "Не удалось загрузить. Проверьте соединение и попробуйте ещё раз."
+ },
+ {
+  "key": "Powered by KLIPY",
+  "ru": "При поддержке KLIPY"
  }
 ]

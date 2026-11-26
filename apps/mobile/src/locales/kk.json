@@ -769,5 +769,18 @@
  "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "5 МБ-тан үлкен файл жолда шифрланып, алушының телефонына барады және серверде сақталмайды. Екі телефон да желіде болуы керек.",
  "Large file · to the recipient’s phone, not stored on the server": "Үлкен файл · алушының телефонына, серверде сақталмайды",
  "Open chat": "Чатты ашу",
- "Stop playback": "Ойнатуды тоқтату"
+ "Stop playback": "Ойнатуды тоқтату",
+ "Sticker": "Стикер",
+ "GIF": "GIF",
+ "Stickers and GIF": "Стикерлер және GIF",
+ "Animated stickers: Noto Emoji by Google, CC BY 4.0. GIF and sticker search: KLIPY; your phone contacts KLIPY directly when you search or show a GIF.": "Анимациялы стикерлер: Google ұсынған Noto Emoji, CC BY 4.0. GIF және стикер іздеу: KLIPY; іздегенде не GIF көрсеткенде телефон KLIPY-ге тікелей қосылады.",
+ "Turn off camera": "Камераны өшіру",
+ "Sticker {emoji}": "Стикер {emoji}",
+ "Stickers": "Стикерлер",
+ "Search stickers": "Стикер іздеу",
+ "Send sticker {emoji}": "{emoji} стикерін жіберу",
+ "GIF search is not set up in this version yet.": "Бұл нұсқада GIF іздеу әлі бапталмаған.",
+ "Search GIFs": "GIF іздеу",
+ "Could not load. Check the connection and try again.": "Жүктелмеді. Байланысты тексеріп, қайталап көріңіз.",
+ "Powered by KLIPY": "KLIPY қолдауымен"
 }

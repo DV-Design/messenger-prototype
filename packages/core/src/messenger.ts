@@ -1185,6 +1185,8 @@ export class MessengerClient {
     const incoming=this.pendingIncoming;if(incoming){void this.callAction(incoming,'end').catch(()=>{});this.clearPendingIncoming(true);}const pending=this.pendingCall;this.pendingCall=undefined;if(pending){clearTimeout(pending.timer);pending.controller.abort(new Error('Call cancelled'));}const active=this.getSnapshot().activeCall;if(active)this.pairs.get(active.peerId)?.session.endCall();else if(pending)this.pairs.get(pending.peerId!)?.session.endCall();this.emit();
   }
   setMuted(muted:boolean):void{const active=this.getSnapshot().activeCall;if(active)this.pairs.get(active.peerId)?.session.setMuted(muted);}
+  /** Turns the camera on or off in the active call (audio to video and back). */
+  async setCallVideo(on:boolean):Promise<void>{const active=this.getSnapshot().activeCall;if(!active)throw new Error('No active call');const session=this.pairs.get(active.peerId)?.session;if(!session)throw new Error('No active call');await session.setVideo(on);}
   /** Called only by a foreground, focused chat; notification previews never call this. */
   markRead(conversationId:string):Promise<void>{if(this.closing)return Promise.resolve();return this.serial(async()=>{
     await this.restore();const c=this.conversations.get(conversationId);if(!c)return;

@@ -769,5 +769,18 @@
  "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "超過 5 MB 的檔案會傳到對方手機，傳輸途中加密，不會儲存在伺服器上。兩支手機都需要在線。",
  "Large file · to the recipient’s phone, not stored on the server": "大型檔案 · 傳到對方手機，不儲存在伺服器上",
  "Open chat": "開啟聊天",
- "Stop playback": "停止播放"
+ "Stop playback": "停止播放",
+ "Sticker": "貼圖",
+ "GIF": "GIF",
+ "Stickers and GIF": "貼圖和 GIF",
+ "Animated stickers: Noto Emoji by Google, CC BY 4.0. GIF and sticker search: KLIPY; your phone contacts KLIPY directly when you search or show a GIF.": "動畫貼圖：Google 的 Noto Emoji，CC BY 4.0 授權。GIF 和貼圖搜尋：KLIPY；搜尋或顯示 GIF 時，手機會直接連線 KLIPY。",
+ "Turn off camera": "關閉相機",
+ "Sticker {emoji}": "貼圖 {emoji}",
+ "Stickers": "貼圖",
+ "Search stickers": "搜尋貼圖",
+ "Send sticker {emoji}": "傳送貼圖 {emoji}",
+ "GIF search is not set up in this version yet.": "此版本尚未設定 GIF 搜尋。",
+ "Search GIFs": "搜尋 GIF",
+ "Could not load. Check the connection and try again.": "無法載入。請檢查連線後再試一次。",
+ "Powered by KLIPY": "由 KLIPY 提供"
 }

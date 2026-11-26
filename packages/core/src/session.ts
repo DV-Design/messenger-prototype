@@ -13,6 +13,8 @@ export interface SharedFile {id:string;name:string;mime:string;size:number;from:
 export interface SessionSnapshot {
   status:'idle'|'connecting'|'waiting'|'connected'|'disconnected'|'error';error?:string;
   callId?:string;callVideo?:boolean;callExpiresAt?:number;callRinging?:boolean;setup?:'invitation';
+  /** Whether the other side is sending video now (read from the negotiated video direction); unknown before. */
+  peerVideo?:boolean;
   messages:ChatMessage[];callState:'idle'|'outgoing'|'incoming'|'active';muted:boolean;
   localStream?:MediaStream;remoteStream?:MediaStream;route:'unknown'|'direct'|'relay';
   recovering?:boolean;contentE2E?:boolean;callCaptions?:boolean;
@@ -430,6 +432,7 @@ export class PeerSession {
       for(const candidate of this.pendingCandidates.splice(0))await pc.addIceCandidate(candidate);
       if(body.description.type==='offer'){const answer=await pc.createAnswer();if(this.pc!==pc)return;await pc.setLocalDescription(answer);if(this.pc!==pc)return;this.signal({kind:'description',description:{type:'answer',sdp:pc.localDescription?.sdp??answer.sdp??''}});}
       else if(this.offerAgain)await this.offer();
+      this.updatePeerVideo(pc);
       this.armTransportDeadline(pc.signalingState==='have-local-offer'?'SDP answer':'ICE/data channel');
     }else if(body.kind==='candidate'){
       if(pc.remoteDescription)await pc.addIceCandidate(body.candidate);else {if(this.pendingCandidates.length>=128)throw new Error('Too many queued ICE candidates');this.pendingCandidates.push(body.candidate);}
@@ -513,7 +516,61 @@ export class PeerSession {
     const pc=this.pc;const senders=pc?.getSenders().filter(sender=>sender.track);
     if(pc&&senders?.length)void this.serial(async()=>{if(this.pc!==pc)return;for(const sender of senders){try{pc.removeTrack(sender);}catch{}}await this.negotiate();}).catch(()=>{});
     this.remoteMedia=undefined;
-    this.change({callState:'idle',callExpiresAt:undefined,callRinging:undefined,muted:false,localStream:undefined,remoteStream:undefined});
+    this.change({callState:'idle',callExpiresAt:undefined,callRinging:undefined,muted:false,localStream:undefined,remoteStream:undefined,peerVideo:undefined});
+  }
+  /**
+   * Turns the camera on or off during an active call, either side, any number of times. The video
+   * track is added or removed and the connection renegotiated; the other side learns it from the
+   * negotiated direction (no new signal, so older apps on the other side keep working).
+   */
+  async setVideo(on:boolean):Promise<void>{
+    const pc=this.pc;const callId=this.callId;
+    if(!pc||!callId||this.state.callState!=='active')throw new Error('No active call');
+    const stream=this.state.localStream;const has=!!stream?.getVideoTracks().some(track=>track.readyState!=='ended');
+    if(on===has)return;
+    const create=this.options.createMediaStream??(typeof MediaStream!=='undefined'?(tracks:MediaStreamTrack[])=>new MediaStream(tracks):undefined);
+    if(on){
+      const media=this.options.getUserMedia??(constraints=>navigator.mediaDevices.getUserMedia(constraints));
+      if(this.mediaPending)throw new Error('Media permission request is already pending');
+      this.mediaPending=true;let camera:MediaStream;
+      try{camera=await media({audio:false,video:{width:{ideal:1280,max:1280},height:{ideal:720,max:720},frameRate:{ideal:30,max:30}}});}finally{this.mediaPending=false;}
+      const track=camera.getVideoTracks()[0];
+      if(!track||this.pc!==pc||this.callId!==callId){camera.getTracks().forEach(item=>item.stop());throw new Error('Call cancelled');}
+      try{await this.serial(async()=>{
+        if(this.pc!==pc||this.callId!==callId)throw new Error('Call cancelled');
+        // Reuse the video transceiver left by an earlier "camera off", so toggling does not add m-lines.
+        const idle=pc.getTransceivers?.().find(item=>item.currentDirection!=='stopped'&&!item.sender.track&&item.receiver.track?.kind==='video');
+        let sender:RTCRtpSender;
+        if(idle){await idle.sender.replaceTrack(track);idle.direction='sendrecv';sender=idle.sender;}
+        else sender=pc.addTrack(track,...(stream?[stream]:[]));
+        this.videoPolicy=new AdaptiveVideoPolicy();this.previousVideoLoss=undefined;this.previousVideoPackets=undefined;this.previousVideoEncoding=undefined;
+        await this.applyEncoderTarget(pc,sender,track,callId,this.videoPolicy.current());
+        const tracks=[...(stream?.getAudioTracks()??[]),track];
+        this.callVideo=true;this.change({localStream:create?create(tracks):stream});
+        await this.negotiate();
+      });}catch(error){track.stop();throw error;}
+    }else{
+      await this.serial(async()=>{
+        if(this.pc!==pc||this.callId!==callId)return;
+        for(const sender of pc.getSenders().filter(item=>item.track?.kind==='video')){
+          sender.track?.stop();
+          const transceiver=pc.getTransceivers?.().find(item=>item.sender===sender);
+          if(transceiver){await sender.replaceTrack(null);transceiver.direction='recvonly';}else{try{pc.removeTrack(sender);}catch{}}
+        }
+        const tracks=stream?.getAudioTracks()??[];
+        this.callVideo=false;this.change({localStream:create?create(tracks):stream});
+        await this.negotiate();
+      });
+    }
+  }
+  /** Reads whether the other side now sends video from the negotiated direction of the video transceivers. */
+  private updatePeerVideo(pc:RTCPeerConnection){
+    try{
+      const video=(pc.getTransceivers?.()??[]).filter(item=>item.receiver?.track?.kind==='video'&&item.currentDirection!=='stopped');
+      if(!pc.getTransceivers)return;
+      const sending=video.some(item=>{const direction=item.currentDirection??item.direction;return direction==='sendrecv'||direction==='recvonly';});
+      if(this.state.peerVideo!==sending)this.change({peerVideo:sending});
+    }catch{/* Older engines without transceivers: the screen falls back to the remote tracks. */}
   }
   setMuted(muted:boolean):void{this.state.localStream?.getAudioTracks().forEach(track=>{track.enabled=!muted;});this.change({muted});}
   private wireSend(frame:DataFrame){

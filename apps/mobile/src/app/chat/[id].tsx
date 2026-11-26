@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
 import { Redirect, router, useIsFocused, useLocalSearchParams } from 'expo-router';
-import { Alert, AppState, FlatList, Linking, Pressable, Text, TextInput, View } from 'react-native';
+import { Alert, AppState, FlatList, Keyboard, Linking, Pressable, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from '../../components/SafeArea';
 import { safetyEmoji, type MessengerFile, type MessengerMessage, type ReactionEmoji, type ReactionView } from '@messenger/core';
 import { intlLocale, t } from '../../i18n';
@@ -19,6 +19,9 @@ import { KeyboardSpace } from '../../components/KeyboardSpace';
 import type { MediaKind } from '../../media-model';
 import { chatTimeline, dayLabel, withDays, type ChatTimelineRow } from '../../timeline-model';
 import { haptic, messageSent, setOpenChat } from '../../feedback';
+import { StickerPanel } from '../../components/StickerPanel';
+import { STICKER_MARK, formatGif, formatSticker } from '../../sticker-model';
+import { klipyShared, type KlipyItem, type KlipyKind } from '../../klipy';
 import { chatTranslationSupported, setChatTranslated, useChatTranslated, useTranslations } from '../../chat-translation';
 import { useMyLanguage } from '../../my-language';
 import { PermissionNotice } from '../../components/PermissionNotice';
@@ -62,7 +65,7 @@ function translatableOf(messages: readonly MessengerMessage[]): MessengerMessage
   let items = translatables.get(messages);
   if (!items) {
     items = messages.map(item => ({ ...item, text: replyBody(item.text) }))
-      .filter(item => !!item.text && !parseLocationText(item.text) && !parseContactText(item.text));
+      .filter(item => !!item.text && !item.text.startsWith(STICKER_MARK) && !parseLocationText(item.text) && !parseContactText(item.text));
     translatables.set(messages, items);
   }
   return items;
@@ -91,6 +94,8 @@ export default function Chat() {
   // What was typed and not sent comes back when the chat is opened again, as in Telegram.
   const [draft, setDraft] = useState(() => conversation?.draft ?? '');
   const [attachments, setAttachments] = useState(false);
+  // Stickers and GIFs panel, opened from the smiley in the message bar.
+  const [stickersOpen, setStickersOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   // A voice message or video circle being recorded in the message bar.
@@ -265,6 +270,15 @@ export default function Chat() {
     void action(async () => { await startLiveLocation(conversation!.id, identity!.userId, lat, lng, minutes); messageSent(); });
   }
   function sendContact() { setAttachments(false); setContactsOpen(true); }
+  // Stickers and GIFs go as short text messages through the encrypted mailbox; the panel stays open.
+  function sendSticker(emoji: string) {
+    void client().sendText(conversation!.id, formatSticker(emoji)).then(messageSent).catch(cause => setError(errorText(cause)));
+  }
+  function sendKlipy(kind: KlipyKind, item: KlipyItem) {
+    void client().sendText(conversation!.id, formatGif({ ...item.send, ...(kind === 'stickers' ? { sticker: true } : {}) }))
+      .then(() => { messageSent(); klipyShared(kind, item.slug); }).catch(cause => setError(errorText(cause)));
+  }
+  function toggleStickers() { setAttachments(false); if (!stickersOpen) Keyboard.dismiss(); setStickersOpen(!stickersOpen); }
   function sendPickedContact(contact: PhoneContact) {
     setContactsOpen(false);
     void action(async () => { await client().sendText(conversation!.id, formatContactText(contact.name, contact.phones)); messageSent(); });
@@ -381,6 +395,7 @@ export default function Chat() {
       {!!error && <Pressable accessibilityRole="button" accessibilityLabel={t('Hide error')} onPress={() => setError('')}><Text style={[styles.error, { borderRadius: 0 }]}>{error}</Text></Pressable>}
       {!blockedPeer && !!editing && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 15, paddingRight: 4, paddingVertical: 4, backgroundColor: '#EDF5F1' }}><Icon name="create-outline" size={17} /><Text style={[styles.info, { flex: 1 }]}>{t('Editing message')}</Text><IconButton name="close" label={t('Cancel editing')} disabled={busy} onPress={cancelEdit} /></View>}
       {!blockedPeer && !editing && !!replying && <View style={{ paddingLeft: 15, paddingRight: 4, backgroundColor: '#EDF5F1' }}><ReplyChip authorName={authorName(replying.author)} text={quotedMessageSnippet(replying.text ?? '')} onClose={cancelReply} /></View>}
+      {!blockedPeer && stickersOpen && !editing && !conversation.removed && <StickerPanel onSticker={sendSticker} onKlipy={sendKlipy} />}
       {!blockedPeer && attachments && !editing && <View><View style={styles.attachmentMenu}>
         <Pressable style={styles.attachment} accessibilityRole="button" onPress={() => attach('media')}><Icon name="images-outline" size={27} /><Text style={styles.rowText}> {t('Photos and video')}</Text></Pressable>
         <Pressable style={styles.attachment} accessibilityRole="button" onPress={() => attach('document')}><Icon name="document-outline" size={27} /><Text style={styles.rowText}> {t('File up to 1 GB')}</Text></Pressable>
@@ -419,7 +434,8 @@ export default function Chat() {
       {!blockedPeer && !conversation.removed ? <RecordComposer ref={recorder} conversationId={conversation.id} disabled={!!snapshot.activeCall || !focused} above={aboveBar}
         onActiveChange={active => { setVoiceActive(active); if (active) setAttachments(false); }} onError={setError} onHint={setHint}
         trailing={draft.trim() || editing ? <Pressable style={[styles.send, busy && styles.disabled]} accessibilityRole="button" accessibilityLabel={editing ? t('Save changes') : t('Send message')} disabled={busy || !draft.trim()} onPress={send}><Icon name={editing ? 'checkmark' : 'arrow-up'} color={colors.white} size={25} /></Pressable> : undefined}>
-        {!editing && <IconButton name={attachments ? 'close' : 'attach'} label={t('Attach file')} disabled={busy} onPress={() => setAttachments(!attachments)} />}
+        {!editing && <IconButton name={attachments ? 'close' : 'attach'} label={t('Attach file')} disabled={busy} onPress={() => { setStickersOpen(false); setAttachments(!attachments); }} />}
+        {!editing && <IconButton name={stickersOpen ? 'close' : 'happy-outline'} label={t('Stickers and GIF')} onPress={toggleStickers} />}
         <TextInput style={styles.composerInput} value={draft} onChangeText={setDraft} multiline maxLength={4000} placeholder={t('Message')} placeholderTextColor={colors.secondary} accessibilityLabel={t('Message text')} />
       </RecordComposer> : aboveBar}
     </KeyboardSpace></SettledProvider>

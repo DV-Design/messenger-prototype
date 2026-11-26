@@ -6,6 +6,9 @@ import { colors, styles } from '../styles';
 import { messageParts } from '../message-links';
 import { deliveryColor, deliveryIcon, deliveryLabel } from '../delivery-model';
 import { parseContactText, parseLocationText } from '../location-contact';
+import { parseGif, parseSticker } from '../sticker-model';
+import { knownSticker } from '../stickers';
+import { GifView, StickerView } from './StickerMessage';
 import { parseReplyText, type ParsedReply } from '../reply';
 import { myReaction, nextReaction } from '../reaction-model';
 import { AttachmentCard } from './AttachmentCard';
@@ -65,6 +68,21 @@ export const MessageRow = memo(function MessageRow({ item, sender, quote, transl
   const location = parseLocationText(body);
   const contact = !location ? parseContactText(body) : undefined;
   const select = () => handlers.act.selectMessage(item);
+  // Stickers and GIFs stand on their own like in Telegram: no bubble, the time and ticks in a small pill.
+  const sticker = !reply && !expired ? parseSticker(item.text, knownSticker) : undefined;
+  const gif = !reply && !expired && !sticker ? parseGif(item.text) : undefined;
+  if (sticker || gif) return <SwipeToReply enabled={swipe} onReply={() => handlers.act.replyToMessage(item)}>
+    <Pressable accessibilityLabel={sticker ? t('Sticker {emoji}', { emoji: sticker }) : t('GIF')} accessibilityHint={t('Hold to reply, react, edit, copy or delete')} accessibilityActions={[{ name: 'longpress', label: t('Message actions') }]} onAccessibilityAction={select} onLongPress={select}
+      style={{ alignSelf: own ? 'flex-end' : 'flex-start', alignItems: own ? 'flex-end' : 'flex-start', gap: 4, marginVertical: 2 }}>
+      {group && !own && <Text style={styles.senderName}>{sender}</Text>}
+      {sticker ? <StickerView emoji={sticker} /> : <GifView gif={gif!} />}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, backgroundColor: 'rgba(43, 74, 62, 0.42)' }}>
+        <Text style={{ color: colors.white, fontSize: 12 }}>{time(item.timestamp)}</Text>
+        {own && <View accessibilityLabel={label}><Icon name={deliveryIcon(item)} size={14} color={colors.white} /></View>}
+      </View>
+      <Reactions record={{ id: item.id, type: 'message', author: item.from }} reactions={item.reactions} own={own} handlers={handlers} selfId={selfId} blocked={blocked} names={names} />
+    </Pressable>
+  </SwipeToReply>;
   return <SwipeToReply enabled={swipe} onReply={() => handlers.act.replyToMessage(item)}>
     <Pressable accessibilityHint={t('Hold to reply, react, edit, copy or delete')} accessibilityActions={[{ name: 'longpress', label: t('Message actions') }]} onAccessibilityAction={select} onLongPress={select} style={[styles.bubble, own && styles.bubbleSelf]}>
       {group && !own && <Text style={styles.senderName}>{sender}</Text>}

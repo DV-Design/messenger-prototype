@@ -769,5 +769,18 @@
  "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "5 MB üzerindeki bir dosya alıcının telefonuna yolda şifrelenerek gider ve sunucuda saklanmaz. İki telefonun da çevrimiçi olması gerekir.",
  "Large file · to the recipient’s phone, not stored on the server": "Büyük dosya · alıcının telefonuna, sunucuda saklanmaz",
  "Open chat": "Sohbeti aç",
- "Stop playback": "Oynatmayı durdur"
+ "Stop playback": "Oynatmayı durdur",
+ "Sticker": "Çıkartma",
+ "GIF": "GIF",
+ "Stickers and GIF": "Çıkartmalar ve GIF",
+ "Animated stickers: Noto Emoji by Google, CC BY 4.0. GIF and sticker search: KLIPY; your phone contacts KLIPY directly when you search or show a GIF.": "Animasyonlu çıkartmalar: Google Noto Emoji, CC BY 4.0. GIF ve çıkartma arama: KLIPY; arama yaptığınızda veya bir GIF gösterdiğinizde telefonunuz KLIPY’ye doğrudan bağlanır.",
+ "Turn off camera": "Kamerayı kapat",
+ "Sticker {emoji}": "Çıkartma {emoji}",
+ "Stickers": "Çıkartmalar",
+ "Search stickers": "Çıkartma ara",
+ "Send sticker {emoji}": "{emoji} çıkartmasını gönder",
+ "GIF search is not set up in this version yet.": "GIF arama bu sürümde henüz ayarlanmadı.",
+ "Search GIFs": "GIF ara",
+ "Could not load. Check the connection and try again.": "Yüklenemedi. Bağlantıyı kontrol edip yeniden deneyin.",
+ "Powered by KLIPY": "KLIPY tarafından desteklenmektedir"
 }

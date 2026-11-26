@@ -1,3 +1,5 @@
+import { richPreview } from '../../sticker-model';
+import { knownSticker } from '../../stickers';
 import { memo, useState } from 'react';
 import { router } from 'expo-router';
 import { ActivityIndicator, Alert, FlatList, Pressable, Text, TextInput, View } from 'react-native';
@@ -32,7 +34,7 @@ function chatPreview(item: MessengerConversation, blockedKey: string, own: strin
   const message = latest?.kind === 'message' ? latest.item : undefined;
   const file = latest?.kind === 'attachment' ? latest.item : undefined;
   const kind = file && mediaKind(file.name, file.mime);
-  const text = message ? `${message.from === own ? t('You: ') : ''}${message.text}` : file ? `${file.senderId === own ? t('You: ') : ''}${kind === 'voice' ? t('Voice message') : kind === 'circle' ? t('Video circle') : t('File: {name}', { name: file.name })}` : item.kind === 'group' ? t('Members: {count}', { count: item.memberIds.length }) : t('Start a conversation');
+  const text = message ? `${message.from === own ? t('You: ') : ''}${richPreview(message.text, knownSticker, { sticker: t('Sticker'), gif: t('GIF') }) ?? message.text}` : file ? `${file.senderId === own ? t('You: ') : ''}${kind === 'voice' ? t('Voice message') : kind === 'circle' ? t('Video circle') : t('File: {name}', { name: file.name })}` : item.kind === 'group' ? t('Members: {count}', { count: item.memberIds.length }) : t('Start a conversation');
   previews.set(item.messages, { files: item.files, key, text });
   return text;
 }

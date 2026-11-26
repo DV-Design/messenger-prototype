@@ -769,5 +769,18 @@
  "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "5 MB dan katta fayl yo‘lda shifrlanib, qabul qiluvchining telefoniga boradi va serverda saqlanmaydi. Ikkala telefon ham onlayn bo‘lishi kerak.",
  "Large file · to the recipient’s phone, not stored on the server": "Katta fayl · qabul qiluvchining telefoniga, serverda saqlanmaydi",
  "Open chat": "Chatni ochish",
- "Stop playback": "Ijroni to‘xtatish"
+ "Stop playback": "Ijroni to‘xtatish",
+ "Sticker": "Stiker",
+ "GIF": "GIF",
+ "Stickers and GIF": "Stikerlar va GIF",
+ "Animated stickers: Noto Emoji by Google, CC BY 4.0. GIF and sticker search: KLIPY; your phone contacts KLIPY directly when you search or show a GIF.": "Animatsion stikerlar: Google’ning Noto Emoji to‘plami, CC BY 4.0. GIF va stiker qidiruvi: KLIPY; qidirganingizda yoki GIF ko‘rsatilganda telefon KLIPY’ga to‘g‘ridan-to‘g‘ri ulanadi.",
+ "Turn off camera": "Kamerani o‘chirish",
+ "Sticker {emoji}": "Stiker {emoji}",
+ "Stickers": "Stikerlar",
+ "Search stickers": "Stiker qidirish",
+ "Send sticker {emoji}": "{emoji} stikerini yuborish",
+ "GIF search is not set up in this version yet.": "Bu versiyada GIF qidiruvi hali sozlanmagan.",
+ "Search GIFs": "GIF qidirish",
+ "Could not load. Check the connection and try again.": "Yuklab bo‘lmadi. Ulanishni tekshirib, qayta urinib ko‘ring.",
+ "Powered by KLIPY": "KLIPY tomonidan taqdim etilgan"
 }

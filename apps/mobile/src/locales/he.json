@@ -769,5 +769,18 @@
  "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "קובץ גדול מ־5 MB מגיע לטלפון של הנמען, מוצפן בדרך, ואינו נשמר בשרת. שני הטלפונים צריכים להיות מחוברים.",
  "Large file · to the recipient’s phone, not stored on the server": "קובץ גדול · לטלפון של הנמען, בלי שמירה בשרת",
  "Open chat": "פתיחת הצ׳אט",
- "Stop playback": "עצירת ההשמעה"
+ "Stop playback": "עצירת ההשמעה",
+ "Sticker": "מדבקה",
+ "GIF": "GIF",
+ "Stickers and GIF": "מדבקות ו־GIF",
+ "Animated stickers: Noto Emoji by Google, CC BY 4.0. GIF and sticker search: KLIPY; your phone contacts KLIPY directly when you search or show a GIF.": "מדבקות מונפשות: Noto Emoji של Google, ברישיון CC BY 4.0. חיפוש GIF ומדבקות: KLIPY; הטלפון פונה ל־KLIPY ישירות כשאתם מחפשים או מציגים GIF.",
+ "Turn off camera": "כיבוי המצלמה",
+ "Sticker {emoji}": "מדבקה {emoji}",
+ "Stickers": "מדבקות",
+ "Search stickers": "חיפוש מדבקות",
+ "Send sticker {emoji}": "שליחת המדבקה {emoji}",
+ "GIF search is not set up in this version yet.": "חיפוש GIF עוד לא הוגדר בגרסה הזו.",
+ "Search GIFs": "חיפוש GIF",
+ "Could not load. Check the connection and try again.": "הטעינה נכשלה. בדקו את החיבור ונסו שוב.",
+ "Powered by KLIPY": "מופעל על ידי KLIPY"
 }

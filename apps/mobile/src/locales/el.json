@@ -769,5 +769,18 @@
  "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "Ένα αρχείο πάνω από 5 MB πηγαίνει στο τηλέφωνο του παραλήπτη κρυπτογραφημένο στη διαδρομή και δεν αποθηκεύεται στον διακομιστή. Και τα δύο τηλέφωνα πρέπει να είναι συνδεδεμένα.",
  "Large file · to the recipient’s phone, not stored on the server": "Μεγάλο αρχείο · στο τηλέφωνο του παραλήπτη, χωρίς αποθήκευση στον διακομιστή",
  "Open chat": "Άνοιγμα συνομιλίας",
- "Stop playback": "Διακοπή αναπαραγωγής"
+ "Stop playback": "Διακοπή αναπαραγωγής",
+ "Sticker": "Αυτοκόλλητο",
+ "GIF": "GIF",
+ "Stickers and GIF": "Αυτοκόλλητα και GIF",
+ "Animated stickers: Noto Emoji by Google, CC BY 4.0. GIF and sticker search: KLIPY; your phone contacts KLIPY directly when you search or show a GIF.": "Κινούμενα αυτοκόλλητα: Noto Emoji της Google, CC BY 4.0. Αναζήτηση GIF και αυτοκόλλητων: KLIPY· το τηλέφωνο συνδέεται απευθείας με το KLIPY όταν αναζητάτε ή εμφανίζετε ένα GIF.",
+ "Turn off camera": "Απενεργοποίηση κάμερας",
+ "Sticker {emoji}": "Αυτοκόλλητο {emoji}",
+ "Stickers": "Αυτοκόλλητα",
+ "Search stickers": "Αναζήτηση αυτοκόλλητων",
+ "Send sticker {emoji}": "Αποστολή αυτοκόλλητου {emoji}",
+ "GIF search is not set up in this version yet.": "Η αναζήτηση GIF δεν έχει ρυθμιστεί ακόμη σε αυτήν την έκδοση.",
+ "Search GIFs": "Αναζήτηση GIF",
+ "Could not load. Check the connection and try again.": "Η φόρτωση απέτυχε. Ελέγξτε τη σύνδεση και δοκιμάστε ξανά.",
+ "Powered by KLIPY": "Με την υποστήριξη του KLIPY"
 }

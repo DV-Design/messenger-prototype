@@ -38,6 +38,7 @@ function CallPanel() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [audioMenu, setAudioMenu] = useState(false);
+  const [videoBusy, setVideoBusy] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [controls] = useState(() => new VideoControlsController(setControlsVisible));
   const audio = useCallAudioRoutes(call?.session.callId);
@@ -49,7 +50,8 @@ function CallPanel() {
 
   const local = call?.session.localStream;
   const remote = call?.session.remoteStream;
-  const remoteVideo = !!remote?.getVideoTracks().some(track => track.readyState !== 'ended');
+  // The other side may turn its camera off mid-call: its track then stays but no longer carries video.
+  const remoteVideo = call?.session.peerVideo !== false && !!remote?.getVideoTracks().some(track => track.readyState !== 'ended');
   const localVideo = !!local?.getVideoTracks().some(track => track.readyState !== 'ended');
   // Show the local camera as the main stage only while an outgoing call waits
   // for the peer. An incoming/active call without a remote video track must
@@ -127,6 +129,12 @@ function CallPanel() {
     if (callId) nativeCallPip()?.clear(callId);
     client().endCall();
   };
+  // Audio to video and back during the call, as in Telegram: either side, any number of times.
+  async function toggleVideo() {
+    setVideoBusy(true); setError('');
+    try { await client().setCallVideo(!localVideo); } catch (cause) { if (!(cause instanceof AccessDenied)) setError(errorText(cause)); }
+    finally { setVideoBusy(false); }
+  }
   async function accept() {
     setBusy(true); setError('');
     try { if (!(await answerCurrentSystemCall())) await client().acceptCall(); } catch (cause) { if (!(cause instanceof AccessDenied)) setError(errorText(cause)); }
@@ -138,6 +146,7 @@ function CallPanel() {
             <Pressable accessibilityRole="button" accessibilityLabel={t('Answer call')} disabled={busy} style={[styles.callControl, busy && styles.disabled]} onPress={() => void accept()}><View style={[styles.callCircle, { backgroundColor: colors.accent }]}><Icon name="call" color={colors.white} size={28} /></View><Text style={styles.callControlLabel}>{busy ? t('Connecting…') : t('Answer')}</Text></Pressable>
           </> : <>
             <Pressable accessibilityRole="button" accessibilityLabel={call.session.muted ? t('Unmute microphone') : t('Mute microphone')} style={styles.callControl} onPress={() => { controls.interact(); client().setMuted(!call.session.muted); }}><View style={styles.callCircle}><Icon name={call.session.muted ? 'mic-off' : 'mic'} color={colors.white} size={28} /></View><Text style={styles.callControlLabel}>{call.session.muted ? t('Unmute') : t('Microphone')}</Text></Pressable>
+            {callState === 'active' && <Pressable accessibilityRole="switch" accessibilityState={{ checked: localVideo, disabled: videoBusy }} accessibilityLabel={localVideo ? t('Turn off camera') : t('Turn on camera')} disabled={videoBusy} style={[styles.callControl, videoBusy && styles.disabled]} onPress={() => { controls.interact(); void toggleVideo(); }}><View style={[styles.callCircle, localVideo && { backgroundColor: colors.accent }]}><Icon name={localVideo ? 'videocam' : 'videocam-off'} color={colors.white} size={28} /></View><Text style={styles.callControlLabel}>{t('Camera')}</Text></Pressable>}
             {activeVideo && camera.state.available && <Pressable accessibilityRole="button" accessibilityLabel={t('Switch camera')} disabled={camera.state.busy} style={[styles.callControl, camera.state.busy && styles.disabled]} onPress={() => { controls.interact(); void camera.switchCamera(); }}><View style={styles.callCircle}><Icon name="camera-reverse" color={colors.white} size={28} /></View><Text style={styles.callControlLabel}>{frontCamera ? t('Rear') : t('Front')}</Text></Pressable>}
             {captions.supported && callState === 'active' && <Pressable accessibilityRole="switch" accessibilityState={{ checked: captions.view.enabled }} accessibilityLabel={captions.view.enabled ? t('Turn off captions') : t('Turn on captions')} style={styles.callControl} onPress={() => { controls.interact(); captions.toggle(); }}><View style={[styles.callCircle, captions.view.enabled && { backgroundColor: colors.accent }]}><Icon name="language" color={colors.white} size={28} /></View><Text style={styles.callControlLabel}>{t('Captions')}</Text></Pressable>}
             {captions.voiceSupported && callState === 'active' && <Pressable accessibilityRole="switch" accessibilityState={{ checked: captions.view.voice !== 'off' && captions.view.voice !== 'download' }} accessibilityLabel={captions.view.voice !== 'off' && captions.view.voice !== 'download' ? t('Turn off spoken translation') : t('Turn on spoken translation')} style={styles.callControl} onPress={() => { controls.interact(); captions.toggleVoice(); }}><View style={[styles.callCircle, captions.view.voiceActive && { backgroundColor: colors.accent }]}><Icon name="megaphone" color={colors.white} size={26} /></View><Text style={styles.callControlLabel}>{t('Voice')}</Text></Pressable>}
@@ -167,6 +176,10 @@ function CallPanel() {
         <View style={{ position: 'absolute', right: 15, top: insets.top + 10 }}><IconButton name="chevron-down" label={t('Minimize call')} color={colors.white} onPress={minimize} /></View>
         {!captions.view.enabled && !captions.view.asked && <Avatar name={name} id={call.peerId} size={94} />}<Text style={styles.callName}>{name}</Text><Text style={styles.callSubtitle}>{status}</Text>{!!safetyCode && <Text style={[styles.callSubtitle, { fontSize: 22 }]}> {t('Verification code: {code}', { code: safetyCode })}</Text>}
         <CallCaptions view={captions.view} onEnable={captions.toggle} onDecline={captions.decline} />
+        {/* Own camera turned on while the other side is on audio: a small self view, never the main stage. */}
+        {callState === 'active' && localVideo && <View pointerEvents="none" style={[styles.callVideoPip, { top: insets.top + 60, right: insets.right + 16, width: 108, height: 152 }]}>
+          <RTCView style={styles.flex} objectFit="cover" zOrder={1} mirror={frontCamera} streamURL={(local as unknown as NativeMediaStream).toURL()} />
+        </View>}
         {!!notice && <Text style={styles.error}>{notice}</Text>}<PermissionNotice dark />{controlsStrip}
       </SafeAreaView>}
       {menuVisible && <View style={StyleSheet.absoluteFill}>

@@ -1,3 +1,5 @@
+import { richPreview } from './sticker-model';
+import { knownSticker } from './stickers';
 import { t } from './i18n';
 import { parseContactText, parseLocationText } from './location-contact';
 
@@ -35,5 +37,7 @@ export function quotedMessageSnippet(text: string): string {
   if (location) return location.live ? t('Live location') : t('Location');
   const contact = parseContactText(body);
   if (contact) return `👤 ${contact.name}`;
+  const rich = richPreview(body, knownSticker, { sticker: t('Sticker'), gif: t('GIF') });
+  if (rich) return rich;
   return body.replace(/\s+/g, ' ').trim();
 }

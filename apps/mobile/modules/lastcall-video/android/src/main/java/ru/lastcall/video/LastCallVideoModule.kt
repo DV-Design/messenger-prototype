@@ -14,6 +14,22 @@ class LastCallVideoModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("LastCallVideo")
 
+    AsyncFunction("composeCircle") { segments: List<String>, endedAtMs: List<Double>, audio: String, audioStartedAtMs: Double, output: String, withGaps: Boolean ->
+      val context = appContext.reactContext
+        ?: throw CodedException("E_CONCAT_CONTEXT", "The app context is unavailable.", null)
+      if (segments.size != endedAtMs.size) throw CodedException("E_COMPOSE_INPUTS", "Every segment needs its end time.", null)
+      if (merging) throw CodedException("E_CONCAT_BUSY", "A video is already being processed.", null)
+      merging = true
+      try {
+        val placed = segments.mapIndexed { i, path -> CircleMerger.Segment(toFile(path), endedAtMs[i].toLong()) }
+        runBlocking { CircleMerger.compose(context, placed, toFile(audio), audioStartedAtMs.toLong(), toFile(output), withGaps) }.toDouble()
+      } catch (error: CircleMerger.MergeException) {
+        throw CodedException(error.errorCode, error.message, error.cause)
+      } finally {
+        merging = false
+      }
+    }
+
     AsyncFunction("concatMp4") { inputs: List<String>, output: String ->
       val context = appContext.reactContext
         ?: throw CodedException("E_CONCAT_CONTEXT", "The app context is unavailable.", null)

@@ -1,3 +1,28 @@
+# Next release — circles, calls, stickers and GIFs (2026-11-26)
+
+- [X] Circles: a tap anywhere on a playing circle (its centre included) pauses or resumes (a transparent layer over
+  the native video view takes the tap); the circle grows to ~86 % of the width while it plays. Emulator: both
+- [X] Circles keep the voice across camera switches (Android): the camera records silent segments, the voice is
+  recorded on its own from start to end, and Media3 lays the segments on the voice's timeline with a held gap
+  while the lens changes (native `composeCircle`; falls back to back-to-back segments under the same voice).
+  Emulator: a 4 s circle was composed (Media3 1.9.1, ~8 s software encode) and sent with its preview. Not
+  checked: an actual lens switch (the emulator has one camera) and the encode time on a phone
+  → Artifacts: [CircleMerger.kt](apps/mobile/modules/lastcall-video/android/src/main/java/ru/lastcall/video/CircleMerger.kt), [RecordComposer.tsx](apps/mobile/src/components/RecordComposer.tsx)
+- [X] Calls switch between audio and video at any time, either side: `setVideo` adds or removes the video track and
+  renegotiates (the idle transceiver is reused); the other side reads it from the negotiated direction
+  (`peerVideo`), no new signal, so older apps keep working. Camera button in the call; own camera with the other
+  side on audio is a small self view. Not checked between two phones
+  → Artifacts: [session.ts](packages/core/src/session.ts), [CallOverlay.tsx](apps/mobile/src/components/CallOverlay.tsx)
+- [X] Owner's decision after research (Tenor API shut down 30 Jun 2026, GIPHY production key paid): stickers from
+  Noto Animated Emoji (51 Lottie files, CC BY 4.0, bundled, sent as an invisible mark + the emoji so older apps
+  show the emoji) and GIF / sticker search from KLIPY (called from the phone; key in `~/.config/lastcall/klipy.key`,
+  never in the repo; no ad parameters; sent as an invisible mark + the KLIPY URL). Panel from the smiley in the
+  message bar; stickers and GIFs shown without a bubble; previews and quotes say Sticker / GIF; attribution in
+  About and "Powered by KLIPY". 13 strings in 30 languages; privacy policy updated in the repo (26 Nov, not
+  published). Emulator: sticker sent and animated, KLIPY trending loaded, GIF sent and animated
+  → Artifacts: [StickerPanel.tsx](apps/mobile/src/components/StickerPanel.tsx), [sticker-model.ts](apps/mobile/src/sticker-model.ts), [klipy.ts](apps/mobile/src/klipy.ts)
+- [ ] Release (version bump, store upload, policy publication) — waits for the owner's yes
+
 # 1.0.46 / code61 — black circles, progress ring, circle previews (2026-11-25)
 
 - [X] Circles went black while playing (owner, 1.0.45): the player was shown in two views at once (the floating

@@ -769,5 +769,18 @@
  "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "Un file oltre 5 MB arriva al telefono del destinatario, cifrato durante il trasferimento, e non viene salvato sul server. Entrambi i telefoni devono essere online.",
  "Large file · to the recipient’s phone, not stored on the server": "File grande · al telefono del destinatario, non salvato sul server",
  "Open chat": "Apri chat",
- "Stop playback": "Interrompi riproduzione"
+ "Stop playback": "Interrompi riproduzione",
+ "Sticker": "Sticker",
+ "GIF": "GIF",
+ "Stickers and GIF": "Sticker e GIF",
+ "Animated stickers: Noto Emoji by Google, CC BY 4.0. GIF and sticker search: KLIPY; your phone contacts KLIPY directly when you search or show a GIF.": "Sticker animati: Noto Emoji di Google, CC BY 4.0. Ricerca di GIF e sticker: KLIPY; il telefono contatta KLIPY direttamente quando cerchi o mostri una GIF.",
+ "Turn off camera": "Spegni fotocamera",
+ "Sticker {emoji}": "Sticker {emoji}",
+ "Stickers": "Sticker",
+ "Search stickers": "Cerca sticker",
+ "Send sticker {emoji}": "Invia sticker {emoji}",
+ "GIF search is not set up in this version yet.": "La ricerca di GIF non è ancora configurata in questa versione.",
+ "Search GIFs": "Cerca GIF",
+ "Could not load. Check the connection and try again.": "Impossibile caricare. Controlla la connessione e riprova.",
+ "Powered by KLIPY": "Offerto da KLIPY"
 }

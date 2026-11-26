@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { ActivityIndicator, Image, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, Text, View, useWindowDimensions } from 'react-native';
 import { VideoView } from 'expo-video';
 import type { MessengerFile } from '@messenger/core';
 import { mediaTime, type MediaKind } from '../media-model';
@@ -19,6 +19,7 @@ export const CIRCLE_NOTE_SIZE = 220;
  */
 export function MediaAttachment({ file, kind, disabled, duration }: { file: MessengerFile; kind: MediaKind; disabled: boolean; duration?: number | null }) {
   const now = useNowPlaying();
+  const { width: screenWidth } = useWindowDimensions();
   const key = mediaFileKey(file);
   const active = now?.key === key ? now : undefined;
   const showing = kind === 'circle' && !!active && !active.loading && !active.error;
@@ -40,14 +41,20 @@ export function MediaAttachment({ file, kind, disabled, duration }: { file: Mess
   }
   // Only after this row is counted and the floating circle has let the surface go.
   const player = showing && active.inlineViews > 0 && !active.floating ? nowPlayingVideo() : undefined;
-  return <Pressable accessibilityRole="button" accessibilityLabel={active?.playing ? t('Pause video circle') : t('Watch video circle')} disabled={disabled && !active} onPress={start}
-    style={{ width: CIRCLE_NOTE_SIZE, height: CIRCLE_NOTE_SIZE, borderRadius: CIRCLE_NOTE_SIZE / 2, overflow: 'hidden', backgroundColor: '#1B252C', alignItems: 'center', justifyContent: 'center' }}>
-    {!!thumbnail && <Image source={{ uri: thumbnail }} resizeMode="cover" style={{ position: 'absolute', width: CIRCLE_NOTE_SIZE, height: CIRCLE_NOTE_SIZE }} />}
-    {player && <VideoView player={player} style={{ position: 'absolute', width: CIRCLE_NOTE_SIZE, height: CIRCLE_NOTE_SIZE }} nativeControls={false} contentFit="cover" surfaceType="textureView" allowsPictureInPicture={false} fullscreenOptions={{ enable: false }} />}
-    {active?.loading ? <ActivityIndicator color="#FFFFFF" /> : !active?.playing && <Icon name="play-circle" size={57} color="#FFFFFF" />}
-    {!!active?.error && <Text style={{ position: 'absolute', bottom: 40, color: '#FFFFFF', fontSize: 12, textAlign: 'center', paddingHorizontal: 20 }}>{active.error}</Text>}
-    {active && length > 0 && <ProgressRing size={CIRCLE_NOTE_SIZE} width={4} progress={active.position / length} />}
-  </Pressable>;
+  // Larger while it plays, as in Telegram; back to the normal size when it ends or is closed.
+  const size = active && !active.error ? Math.min(Math.round(screenWidth * 0.86), 360) : CIRCLE_NOTE_SIZE;
+  return <View style={{ width: size, height: size, borderRadius: size / 2, overflow: 'hidden', backgroundColor: '#1B252C' }}>
+    {!!thumbnail && <Image source={{ uri: thumbnail }} resizeMode="cover" style={{ position: 'absolute', width: size, height: size }} />}
+    {player && <VideoView player={player} style={{ position: 'absolute', width: size, height: size }} nativeControls={false} contentFit="cover" surfaceType="textureView" allowsPictureInPicture={false} fullscreenOptions={{ enable: false }} />}
+    {/* Above the video view, so a tap anywhere on the circle (its centre included) pauses or resumes
+        instead of going to the native player. */}
+    <Pressable accessibilityRole="button" accessibilityLabel={active?.playing ? t('Pause video circle') : t('Watch video circle')} disabled={disabled && !active} onPress={start}
+      style={{ position: 'absolute', top: 0, left: 0, width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      {active?.loading ? <ActivityIndicator color="#FFFFFF" /> : !active?.playing && <Icon name="play-circle" size={57} color="#FFFFFF" />}
+      {!!active?.error && <Text style={{ position: 'absolute', bottom: 40, color: '#FFFFFF', fontSize: 12, textAlign: 'center', paddingHorizontal: 20 }}>{active.error}</Text>}
+      {active && length > 0 && <ProgressRing size={size} width={4} progress={active.position / length} />}
+    </Pressable>
+  </View>;
 }
 
 /** "0:12" for a recording whose length is known; while playing, the time left. */

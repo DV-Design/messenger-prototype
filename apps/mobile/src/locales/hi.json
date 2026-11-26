@@ -769,5 +769,18 @@
  "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "5 MB से बड़ी फ़ाइल रास्ते में एन्क्रिप्ट होकर पाने वाले के फ़ोन तक जाती है और सर्वर पर नहीं रखी जाती। दोनों फ़ोन ऑनलाइन होने चाहिए।",
  "Large file · to the recipient’s phone, not stored on the server": "बड़ी फ़ाइल · पाने वाले के फ़ोन तक, सर्वर पर नहीं रखी जाती",
  "Open chat": "चैट खोलें",
- "Stop playback": "चलाना रोकें"
+ "Stop playback": "चलाना रोकें",
+ "Sticker": "स्टिकर",
+ "GIF": "GIF",
+ "Stickers and GIF": "स्टिकर और GIF",
+ "Animated stickers: Noto Emoji by Google, CC BY 4.0. GIF and sticker search: KLIPY; your phone contacts KLIPY directly when you search or show a GIF.": "एनिमेटेड स्टिकर: Google का Noto Emoji, CC BY 4.0। GIF और स्टिकर खोज: KLIPY; खोजने या GIF दिखाने पर आपका फ़ोन सीधे KLIPY से जुड़ता है।",
+ "Turn off camera": "कैमरा बंद करें",
+ "Sticker {emoji}": "स्टिकर {emoji}",
+ "Stickers": "स्टिकर",
+ "Search stickers": "स्टिकर खोजें",
+ "Send sticker {emoji}": "स्टिकर {emoji} भेजें",
+ "GIF search is not set up in this version yet.": "इस वर्ज़न में GIF खोज अभी सेट नहीं है।",
+ "Search GIFs": "GIF खोजें",
+ "Could not load. Check the connection and try again.": "लोड नहीं हो सका। कनेक्शन जाँचें और फिर कोशिश करें।",
+ "Powered by KLIPY": "KLIPY द्वारा संचालित"
 }

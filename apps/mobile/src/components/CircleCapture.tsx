@@ -15,7 +15,7 @@ export type CircleCaptureHandle = {
   /** Turns the lens. On Android also while recording (a new segment, merged at the end); on iOS only before. */
   flip: () => boolean;
 };
-type Segment = { uri: string; ms: number };
+type Segment = { uri: string; ms: number; endedAt: number };
 /** The lens chosen last time, as Telegram remembers it. */
 let lastFacing: 'front' | 'back' = 'front';
 export const CIRCLE_SIZE = 250;
@@ -24,9 +24,14 @@ export const CIRCLE_SIZE = 250;
  * The round camera of a video circle being recorded in the message bar. Unmounting it cancels the
  * recording and deletes what was captured; a finished recording is handed over with its duration.
  */
-export function CircleCapture({ ref, nonce, onReady, onFinished, onFailed, onSwitching }: {
+export function CircleCapture({ ref, nonce, onReady, onFinished, onSegments, onFailed, onSwitching }: {
   ref?: Ref<CircleCaptureHandle>;
   nonce: string;
+  /**
+   * When given, the camera records silently (the voice is recorded on its own, without a break at
+   * a lens switch) and the segments are handed over as they are, with when each one ended.
+   */
+  onSegments?: (segments: { uri: string; endedAt: number }[]) => void;
   onReady: () => void;
   onFinished: (uri: string, seconds: number) => void;
   onFailed: (message: string) => void;
@@ -44,8 +49,9 @@ export function CircleCapture({ ref, nonce, onReady, onFinished, onFailed, onSwi
   const next = useRef<'switch' | 'stop' | null>(null);
   const restartPending = useRef(false);
   const restartTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const callbacks = useRef({ onReady, onFinished, onFailed, onSwitching });
-  useEffect(() => { callbacks.current = { onReady, onFinished, onFailed, onSwitching }; });
+  const callbacks = useRef({ onReady, onFinished, onSegments, onFailed, onSwitching });
+  useEffect(() => { callbacks.current = { onReady, onFinished, onSegments, onFailed, onSwitching }; });
+  const silent = useRef(!!onSegments).current;
 
   function discard() { for (const segment of segments.current) deleteMediaCache(segment.uri); segments.current = []; elapsed.current = 0; }
   function clearRestart() { restartPending.current = false; if (restartTimer.current) clearTimeout(restartTimer.current); restartTimer.current = undefined; }
@@ -56,6 +62,7 @@ export function CircleCapture({ ref, nonce, onReady, onFinished, onFailed, onSwi
     segments.current = []; elapsed.current = 0;
     if (!alive.current) { for (const segment of recorded) deleteMediaCache(segment.uri); return; }
     if (!recorded.length) { callbacks.current.onFailed(t('The camera did not save the recording.')); return; }
+    if (silent && callbacks.current.onSegments) { callbacks.current.onSegments(recorded.map(segment => ({ uri: segment.uri, endedAt: segment.endedAt }))); return; }
     if (recorded.length === 1) { callbacks.current.onFinished(recorded[0]!.uri, Math.min(MEDIA_SECONDS.circle, measured / 1000)); return; }
     const merged = new File(Paths.cache, `lastcall-circle-merge-${nonce}-${Date.now()}.mp4`);
     try {
@@ -74,13 +81,14 @@ export function CircleCapture({ ref, nonce, onReady, onFinished, onFailed, onSwi
     segmentStarted.current = Date.now(); recording.current = true;
     callbacks.current.onSwitching(false);
     try {
-      const result = await camera.current!.recordAsync({ maxDuration: remaining, maxFileSize: MAX_MEDIA_BYTES, ...(Platform.OS === 'ios' ? { codec: 'avc1' as const } : {}) });
+      const result = await camera.current!.recordAsync({ maxDuration: remaining, maxFileSize: MAX_MEDIA_BYTES, ...(silent ? { mute: true } : {}), ...(Platform.OS === 'ios' ? { codec: 'avc1' as const } : {}) });
+      const endedAt = Date.now();
       const measured = segmentStarted.current ? Math.min(remaining * 1000, Date.now() - segmentStarted.current) : 0;
       segmentStarted.current = 0;
       const then = next.current; next.current = null;
       if (!result?.uri) throw new Error(t('The camera did not save the recording.'));
       if (!alive.current) { deleteMediaCache(result.uri); discard(); recording.current = false; return; }
-      segments.current.push({ uri: result.uri, ms: measured }); elapsed.current += measured;
+      segments.current.push({ uri: result.uri, ms: measured, endedAt }); elapsed.current += measured;
       if (then === 'switch') {
         // Stop before changing the lens: Android OEMs finalize a recording when its camera is rebound.
         ready.current = false; restartPending.current = true;

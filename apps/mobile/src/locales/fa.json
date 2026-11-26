@@ -769,5 +769,18 @@
  "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "فایل بزرگ‌تر از ۵ مگابایت در مسیر رمزگذاری می‌شود و به تلفن گیرنده می‌رسد و روی سرور ذخیره نمی‌شود. هر دو تلفن باید آنلاین باشند.",
  "Large file · to the recipient’s phone, not stored on the server": "فایل بزرگ · به تلفن گیرنده، بدون ذخیره روی سرور",
  "Open chat": "باز کردن گفتگو",
- "Stop playback": "توقف پخش"
+ "Stop playback": "توقف پخش",
+ "Sticker": "استیکر",
+ "GIF": "GIF",
+ "Stickers and GIF": "استیکرها و GIF",
+ "Animated stickers: Noto Emoji by Google, CC BY 4.0. GIF and sticker search: KLIPY; your phone contacts KLIPY directly when you search or show a GIF.": "استیکرهای متحرک: Noto Emoji از Google، مجوز CC BY 4.0. جست‌وجوی GIF و استیکر: KLIPY؛ وقتی جست‌وجو می‌کنید یا GIF نمایش داده می‌شود، تلفن مستقیم به KLIPY وصل می‌شود.",
+ "Turn off camera": "خاموش کردن دوربین",
+ "Sticker {emoji}": "استیکر {emoji}",
+ "Stickers": "استیکرها",
+ "Search stickers": "جست‌وجوی استیکر",
+ "Send sticker {emoji}": "ارسال استیکر {emoji}",
+ "GIF search is not set up in this version yet.": "جست‌وجوی GIF در این نسخه هنوز راه‌اندازی نشده است.",
+ "Search GIFs": "جست‌وجوی GIF",
+ "Could not load. Check the connection and try again.": "بارگیری نشد. اتصال را بررسی کنید و دوباره تلاش کنید.",
+ "Powered by KLIPY": "با پشتیبانی KLIPY"
 }

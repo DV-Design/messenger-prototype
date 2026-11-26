@@ -17,6 +17,7 @@ import { Icon, IconButton } from './ui';
 import { VoiceNote } from './VoiceNote';
 import { VideoNote } from './VideoNote';
 import { CircleCapture, type CircleCaptureHandle } from './CircleCapture';
+import { composeCircle } from '../video-merge';
 
 const VOICE_OPTIONS = { ...RecordingPresets.HIGH_QUALITY, bitRate: 64_000, numberOfChannels: 1, isMeteringEnabled: true, directory: 'cache' as const };
 /** A touch shorter than this is a tap: it switches between voice and video circle, as in Telegram. */
@@ -28,6 +29,12 @@ const LOCK_DISTANCE = 80;
 const LEVEL_BARS = 28;
 /** Voice or circle, remembered while the app runs. */
 let lastKind: MediaKind = 'voice';
+/**
+ * Android records a circle's voice on its own, from start to end, so switching the camera (which
+ * stops and restarts the camera recording) leaves no break in the voice; the silent camera segments
+ * are then laid on its timeline. iOS cannot switch the lens while recording and keeps camera audio.
+ */
+const CIRCLE_VOICE = Platform.OS === 'android';
 
 /**
  * hold: the finger is on the button; locked: recording hands-free; preview: stopped, check it
@@ -65,6 +72,7 @@ export function RecordComposer({ ref, conversationId, disabled, trailing, above,
   const attempt = useRef(0);
   const nonce = useRef('');
   const started = useRef(0);
+  const audioStarted = useRef(0);
   const released = useRef(false);
   const wantLocked = useRef(false);
   const stopThen = useRef<'send' | 'preview'>('send');
@@ -105,7 +113,7 @@ export function RecordComposer({ ref, conversationId, disabled, trailing, above,
     const current = phaseRef.current;
     if (current === 'idle' || current === 'sending') return;
     scope.current.cancel(); attempt.current++;
-    if (kindRef.current === 'voice' && current !== 'preview') {
+    if ((kindRef.current === 'voice' || CIRCLE_VOICE) && current !== 'preview') {
       const abandoned = rawUri.current ?? recorder.uri;
       void recorder.stop().catch(() => {}).finally(() => { deleteMediaCache(abandoned); void resetAudio(); });
     }
@@ -144,20 +152,21 @@ export function RecordComposer({ ref, conversationId, disabled, trailing, above,
       stopMediaPlayback(); pruneMediaCache();
       if (!(await permissions(value, locked))) { if (mine === attempt.current) setPhase('idle'); return; }
       allowed();
-      if (value === 'circle') { setCameraOn(true); return; } // continues in cameraReady
+      if (value === 'circle' && !CIRCLE_VOICE) { setCameraOn(true); return; } // continues in cameraReady
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true, shouldPlayInBackground: false, allowsBackgroundRecording: false, interruptionMode: 'doNotMix' });
       allowed();
-      await recorder.prepareToRecordAsync({ ...VOICE_OPTIONS, fileName: `lastcall-voice-${nonce.current}` });
+      await recorder.prepareToRecordAsync({ ...VOICE_OPTIONS, fileName: `lastcall-${value === 'circle' ? 'circle-voice' : 'voice'}-${nonce.current}` });
       rawUri.current = recorder.uri;
       allowed();
       if (mine !== attempt.current) return;
+      if (value === 'circle') { setCameraOn(true); return; } // the voice starts with the camera, in cameraReady
       if (!wantLocked.current && released.current) { cancel.current(); props.current.onHint(holdHint('voice')); return; }
       started.current = Date.now(); setSeconds(0); setLevels([]);
       recorder.record({ forDuration: MEDIA_SECONDS.voice });
       setPhase(wantLocked.current ? 'locked' : 'hold'); haptic('longPress');
     } catch (cause) {
       if (mine !== attempt.current) return;
-      if (value === 'voice') { try { await recorder.stop(); } catch { /* not started */ } await resetAudio(); }
+      if (value === 'voice' || CIRCLE_VOICE) { try { await recorder.stop(); } catch { /* not started */ } await resetAudio(); }
       deleteMediaCache(rawUri.current); rawUri.current = null; setCameraOn(false);
       setPhase('idle'); props.current.onError(errorText(cause));
     }
@@ -167,6 +176,7 @@ export function RecordComposer({ ref, conversationId, disabled, trailing, above,
     try { allowed(); } catch (cause) { cancel.current(); props.current.onError(errorText(cause)); return; }
     if (!wantLocked.current && released.current) { cancel.current(); props.current.onHint(holdHint('circle')); return; }
     if (!capture.current?.record()) return;
+    if (CIRCLE_VOICE) { recorder.record({ forDuration: MEDIA_SECONDS.circle + 2 }); audioStarted.current = Date.now(); }
     started.current = Date.now(); setSeconds(0);
     setPhase(wantLocked.current ? 'locked' : 'hold'); haptic('longPress');
   }
@@ -186,6 +196,28 @@ export function RecordComposer({ ref, conversationId, disabled, trailing, above,
     if (mine !== attempt.current) return;
     await recorded(recorder.uri ?? rawUri.current, Math.min(MEDIA_SECONDS.voice, duration));
   }
+  /** Android: the camera's silent segments and the continuous voice become one circle. */
+  async function circleSegments(segments: { uri: string; endedAt: number }[]) {
+    const mine = attempt.current;
+    if (phaseRef.current === 'hold' || phaseRef.current === 'locked') { stopThen.current = 'preview'; setPhase('stopping'); } // the time limit
+    try { await recorder.stop(); } catch { /* already stopped */ }
+    await resetAudio();
+    const voice = recorder.uri ?? rawUri.current;
+    const drop = () => { for (const segment of segments) deleteMediaCache(segment.uri); };
+    if (mine !== attempt.current || !voice) { drop(); deleteMediaCache(voice); if (mine === attempt.current) { forget(); setPhase('idle'); props.current.onError(t('Recording stopped by the system.')); } return; }
+    const output = new File(Paths.cache, `lastcall-circle-merge-${nonce.current}-${Date.now()}.mp4`);
+    try {
+      const ms = await composeCircle(segments, voice, audioStarted.current, output.uri);
+      drop(); deleteMediaCache(voice); rawUri.current = null;
+      if (mine !== attempt.current) { deleteMediaCache(output.uri); return; }
+      await recorded(output.uri, Math.min(MEDIA_SECONDS.circle, ms / 1000));
+    } catch (cause) {
+      drop(); deleteMediaCache(voice); deleteMediaCache(output.uri); rawUri.current = null;
+      if (mine !== attempt.current) return;
+      forget(); setPhase('idle'); props.current.onError(errorText(cause));
+    }
+  }
+
   /** A finished recording, voice or circle: kept under its own name, then sent or shown. */
   async function recorded(uri: string | null, duration: number) {
     const value = kindRef.current;
@@ -354,6 +386,7 @@ export function RecordComposer({ ref, conversationId, disabled, trailing, above,
     ? <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(237, 245, 241, 0.92)' }}>
       {cameraOn ? <CircleCapture ref={capture} nonce={nonce.current} onReady={cameraReady} onSwitching={setSwitching}
         onFinished={(uri, duration) => void recorded(uri, duration)}
+        onSegments={CIRCLE_VOICE ? segments => void circleSegments(segments) : undefined}
         onFailed={message => { cancel.current(); props.current.onError(message); }} />
         : recording ? <VideoNote uri={recording.uri} autoPlay /> : null}
     </View> : null;

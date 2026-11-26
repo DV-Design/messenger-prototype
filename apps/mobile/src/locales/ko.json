@@ -769,5 +769,18 @@
  "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "5MB가 넘는 파일은 전송 중 암호화되어 받는 사람의 휴대폰으로 가며 서버에 저장되지 않습니다. 두 휴대폰 모두 온라인이어야 합니다.",
  "Large file · to the recipient’s phone, not stored on the server": "대용량 파일 · 받는 사람의 휴대폰으로, 서버에 저장되지 않음",
  "Open chat": "채팅 열기",
- "Stop playback": "재생 중지"
+ "Stop playback": "재생 중지",
+ "Sticker": "스티커",
+ "GIF": "GIF",
+ "Stickers and GIF": "스티커 및 GIF",
+ "Animated stickers: Noto Emoji by Google, CC BY 4.0. GIF and sticker search: KLIPY; your phone contacts KLIPY directly when you search or show a GIF.": "애니메이션 스티커: Google의 Noto Emoji, CC BY 4.0. GIF 및 스티커 검색: KLIPY. 검색하거나 GIF를 표시할 때 휴대폰이 KLIPY에 직접 연결됩니다.",
+ "Turn off camera": "카메라 끄기",
+ "Sticker {emoji}": "스티커 {emoji}",
+ "Stickers": "스티커",
+ "Search stickers": "스티커 검색",
+ "Send sticker {emoji}": "스티커 {emoji} 보내기",
+ "GIF search is not set up in this version yet.": "이 버전에서는 아직 GIF 검색이 설정되지 않았습니다.",
+ "Search GIFs": "GIF 검색",
+ "Could not load. Check the connection and try again.": "불러오지 못했습니다. 연결을 확인하고 다시 시도하세요.",
+ "Powered by KLIPY": "Powered by KLIPY"
 }

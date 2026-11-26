@@ -769,5 +769,18 @@
  "A file over 5 MB goes to the recipient’s phone, encrypted on the way, and is not stored on the server. Both phones need to be online.": "Tệp trên 5 MB được gửi đến điện thoại người nhận, được mã hóa trên đường truyền và không lưu trên máy chủ. Cả hai điện thoại cần trực tuyến.",
  "Large file · to the recipient’s phone, not stored on the server": "Tệp lớn · đến điện thoại người nhận, không lưu trên máy chủ",
  "Open chat": "Mở cuộc trò chuyện",
- "Stop playback": "Dừng phát"
+ "Stop playback": "Dừng phát",
+ "Sticker": "Nhãn dán",
+ "GIF": "GIF",
+ "Stickers and GIF": "Nhãn dán và GIF",
+ "Animated stickers: Noto Emoji by Google, CC BY 4.0. GIF and sticker search: KLIPY; your phone contacts KLIPY directly when you search or show a GIF.": "Nhãn dán động: Noto Emoji của Google, CC BY 4.0. Tìm GIF và nhãn dán: KLIPY; điện thoại kết nối trực tiếp với KLIPY khi bạn tìm kiếm hoặc hiển thị GIF.",
+ "Turn off camera": "Tắt camera",
+ "Sticker {emoji}": "Nhãn dán {emoji}",
+ "Stickers": "Nhãn dán",
+ "Search stickers": "Tìm nhãn dán",
+ "Send sticker {emoji}": "Gửi nhãn dán {emoji}",
+ "GIF search is not set up in this version yet.": "Tìm kiếm GIF chưa được thiết lập trong phiên bản này.",
+ "Search GIFs": "Tìm GIF",
+ "Could not load. Check the connection and try again.": "Không tải được. Kiểm tra kết nối rồi thử lại.",
+ "Powered by KLIPY": "Được cung cấp bởi KLIPY"
 }

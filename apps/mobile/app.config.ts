@@ -10,6 +10,11 @@ const androidPackage = process.env.LASTCALL_ANDROID_PACKAGE ?? (distribution ===
 const iosBundleIdentifier = process.env.LASTCALL_IOS_BUNDLE_ID ?? (distribution === 'store' ? 'ru.lastcall.app' : 'dev.messenger.prototype');
 // Android needs the Google Maps SDK for the location picker; iOS uses Apple Maps and needs no key.
 const androidGoogleMapsApiKey = process.env.LASTCALL_ANDROID_MAPS_API_KEY;
+// KLIPY (GIF and sticker search) client key: from the environment or a file outside the repository.
+// The app calls KLIPY directly from the phone; without a key the GIF tab says search is not set up.
+const klipyKey = process.env.LASTCALL_KLIPY_KEY ?? (() => {
+  try { return require('node:fs').readFileSync(require('node:path').join(require('node:os').homedir(), '.config/lastcall/klipy.key'), 'utf8').trim(); } catch { return ''; }
+})();
 const config: ExpoConfig = {
   name: 'LastCall',
   slug: 'messenger-prototype',
@@ -46,7 +51,7 @@ const config: ExpoConfig = {
     blockedPermissions: ['android.permission.WRITE_CONTACTS', 'android.permission.READ_CALL_LOG', 'android.permission.WRITE_CALL_LOG', 'android.permission.READ_PHONE_NUMBERS', 'android.permission.CALL_PHONE', 'android.permission.READ_PHONE_STATE', 'android.permission.SYSTEM_ALERT_WINDOW'],
     // Only development builds permit local HTTP; release servers must use HTTPS.
   },
-  extra: { nativeFcmConfigured: !!googleServicesFile, distribution, directUpdates: distribution === 'direct' },
+  extra: { nativeFcmConfigured: !!googleServicesFile, distribution, directUpdates: distribution === 'direct', klipyKey: /^[A-Za-z0-9_-]{16,128}$/.test(klipyKey) ? klipyKey : '' },
   plugins: [
     './plugins/withLastCallNamespace.cjs',
     // The languages LastCall has (i18n/languages.json); Android keeps only these translations and lists them in its per-app language setting.
