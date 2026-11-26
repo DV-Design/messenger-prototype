@@ -24,7 +24,10 @@
 - [X] `artifacts/LastCall-1.0.47-store.aab` 62467519 bytes, sha256 `6471234ea6d88526c8efd0debcb9309ab6414e67b630f78fd046bef8f743c8b5`, built with the KLIPY key; smoke-tested on
   the emulator (chat list, text, sticker, GIF); privacy policy (26 Nov, KLIPY) published with the owner's yes, previous
   copy `artifacts/privacy-live-before-2026-11-26.html`
-- [ ] Google Play upload of 1.0.47
+- [X] 2026-11-26, owner's yes: bundle 62 uploaded once (closed testing), open, production (100 %) and internal from
+  the library; internal published; production, open and closed sent to Google review. Notes en-US + ru-RU
+- [ ] KLIPY production key: the current key is a test key (100 calls an hour for the whole app); request production
+  access in the KLIPY partner panel before many people use GIF search
 
 # 1.0.46 / code61 — black circles, progress ring, circle previews (2026-11-25)
 
