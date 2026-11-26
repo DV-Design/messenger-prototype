@@ -275,7 +275,7 @@ export class Directory {
       } else if (frame.type === 'services') {
         if(frame.callInviteV1===true)connection.callInviteV1=true;
         if(frame.mailboxV1===true){connection.mailboxV1=true;this.mailbox.enable(connection.userId);}
-        this.options.send(ws, { type: 'services', requestId: frame.requestId, capabilities: this.services.capabilities(connection.userId,frame.callInviteV1===true,frame.deliveryV1===true,frame.mailboxV1===true) });
+        this.options.send(ws, { type: 'services', requestId: frame.requestId, capabilities: this.services.capabilities(connection.userId,frame.callInviteV1===true,frame.deliveryV1===true,frame.mailboxV1===true,frame.endpointsV1===true) });
       } else if (frame.type === 'mailbox-put') {
         if (!this.row(frame.to)) throw new ServiceError('invalid-target', 'Unknown recipient');
         this.options.send(ws, { type: 'mailbox-stored', requestId: frame.requestId, ...this.mailbox.put(connection.userId, frame.to, frame.items) });

@@ -116,7 +116,7 @@ export const directoryClientFrameSchema=z.discriminatedUnion('type',[
   callOfferFrameSchema,callReceivedFrameSchema,callActionFrameSchema,callStateGetFrameSchema,
   z.object({type:z.literal('resolve-profile'),publicKey:roomIdSchema,signature:z.string().regex(/^[0-9a-f]{128}$/)}).strict(),
   z.object({type:z.literal('list-users'),requestId:peerIdSchema,cursor:usernameSchema.optional()}).strict(),
-  z.object({type:z.literal('services'),requestId:peerIdSchema,callInviteV1:z.literal(true).optional(),deliveryV1:z.literal(true).optional(),mailboxV1:z.literal(true).optional()}).strict(),
+  z.object({type:z.literal('services'),requestId:peerIdSchema,callInviteV1:z.literal(true).optional(),deliveryV1:z.literal(true).optional(),mailboxV1:z.literal(true).optional(),endpointsV1:z.literal(true).optional()}).strict(),
   /** Encrypted items for one recipient; the server keeps them until that phone takes them, up to seven days. */
   z.object({type:z.literal('mailbox-put'),requestId:peerIdSchema,to:roomIdSchema,items:z.array(mailboxPutItemSchema).min(1).max(MAX_MAILBOX_PUT_ITEMS)}).strict(),
   z.object({type:z.literal('mailbox-fetch'),requestId:peerIdSchema,after:z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional()}).strict(),

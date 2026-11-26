@@ -1,3 +1,5 @@
+import { chooseServer, saveEndpoints, savedEndpoints } from './server-endpoints';
+import { shouldSwitch } from './server-endpoints-model';
 import { emailLocale, t } from './i18n';
 import { useEffect, useSyncExternalStore } from 'react';
 import { AppState, NativeModules, Platform } from 'react-native';
@@ -51,12 +53,15 @@ function acceptCanonical(serverUrl: string, user: DirectoryUser) {
   }
   return profile;
 }
-async function buildManager(profile: LocalProfile, signal?: AbortSignal, registration?: RegistrationCredentials): Promise<MessengerClient> {
+async function buildManager(profile: LocalProfile, signal?: AbortSignal, registration?: RegistrationCredentials, connectUrl?: string): Promise<MessengerClient> {
   if (!state.identity) throw new Error(t('The device key is not loaded yet.'));
   const persistence = { ...await sealedStateAdapter(state.identity, profile.serverUrl), bulkFiles };
+  // The account (and its local history) stays bound to profile.serverUrl; the connection goes to
+  // the first server that answers, the Italian primary when it is reachable.
+  const serverUrl = connectUrl ?? await chooseServer(profile.serverUrl);
   if (signal?.aborted) throw new Error('Wake expired');
   const current = ++generation;
-  const next = new MessengerClient({ whenIdle: whenTransitionsIdle, reconcileDeliveryOnConnect: true, mailbox: true, callCaptions: Platform.OS === 'android' && Number(Platform.Version) >= 33 && !!NativeModules.LastCallCaptions, ...profile, ...registration, identity: state.identity, ...nativeRtc, ...persistence,
+  const next = new MessengerClient({ whenIdle: whenTransitionsIdle, reconcileDeliveryOnConnect: true, mailbox: true, callCaptions: Platform.OS === 'android' && Number(Platform.Version) >= 33 && !!NativeModules.LastCallCaptions, ...profile, serverUrl, onEndpoints: saveEndpoints, ...registration, identity: state.identity, ...nativeRtc, ...persistence,
     onChange: snapshot => {
       if (current !== generation) return;
       // Bursts of core changes (opening a chat marks it read, saves, sends receipts) reach React once per frame.
@@ -76,7 +81,32 @@ async function buildManager(profile: LocalProfile, signal?: AbortSignal, registr
   });
   previewScopes.set(next, `${profile.serverUrl}:${state.identity.userId}`);
   publish({ snapshot: next.getSnapshot() });
+  watchServer(next, current, profile, serverUrl);
   return next;
+}
+/**
+ * Falls back to another server when this one stays unreachable in the foreground (never during a
+ * call): from the primary to the account's own address after 20 s, and from there back to the
+ * primary once it answers again, checked after a minute.
+ */
+function watchServer(manager: MessengerClient, current: number, profile: LocalProfile, serverUrl: string) {
+  let offlineSince: number | undefined;
+  let switching = false;
+  const timer = setInterval(() => {
+    if (current !== generation) { clearInterval(timer); return; }
+    const snapshot = manager.getSnapshot();
+    if (snapshot.status === 'online') { offlineSince = undefined; return; }
+    offlineSince ??= Date.now();
+    const onHome = serverUrl.toLowerCase() === profile.serverUrl.replace(/\/+$/, '').toLowerCase();
+    if (switching || !shouldSwitch({ offlineMs: Date.now() - offlineSince, foreground: AppState.currentState === 'active', inCall: !!snapshot.activeCall, onHome, hasAlternatives: savedEndpoints().length > 0 })) return;
+    switching = true;
+    void chooseServer(profile.serverUrl, onHome ? undefined : serverUrl).then(async target => {
+      if (current !== generation || target === serverUrl) { switching = false; offlineSince = Date.now(); return; }
+      clearInterval(timer);
+      const replacement = await managers.replace(() => buildManager(profile, undefined, undefined, target));
+      await replacement.connect();
+    }).catch(() => { switching = false; offlineSince = Date.now(); });
+  }, 5000);
 }
 function installManager(profile: LocalProfile, registration?: RegistrationCredentials): Promise<MessengerClient> {
   return managers.replace(() => buildManager(profile, undefined, registration));

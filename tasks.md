@@ -1,3 +1,25 @@
+# Replication — Italy primary, Mac standby (2026-11-26)
+
+- [X] Owner's decision: Independence (Italy) is the primary server at `https://p2p-it.lienad.ru:4443` (Docker
+  `lastcall-server` + Caddy, wildcard `*.lienad.ru` cert so the name is not in CT logs; Cloudflare record marked
+  `no-ddns`, the DDNS script now skips such records). Italy coturn on 3478/5349, relay 20000–20400, 2 Mbit/s per
+  session, added after the Mac TURN. Xray and sing-box on Independence untouched and still active
+- [X] Cutover 2026-11-26 23:20: Mac database (88 users) moved to Italy; `p2p.lienad.ru` keeps working through the
+  new Mac router (nginx `messenger-router`, alias `messenger-signaling`) → ssh tunnel (`lastcall-relay`, port
+  forward only) → Italy, so older apps and people who cannot reach port 4443 see the same server
+- [X] Server addresses only for signed-in clients that ask (`endpointsV1` → `capabilities.endpoints`,
+  `CLIENT_ENDPOINTS`); the app keeps them on the phone, tries Italy first (3 s health check) and falls back to
+  `p2p.lienad.ru`; switches after 20 s / 60 s offline in the foreground, never during a call. Tests:
+  server-endpoints.test.ts, endpoints.test.ts. Reaches phones with the next release (not yet built)
+- [X] Mac standby: `replicate.sh` every 10 minutes (sqlite backup from Italy, 144 copies), `watchdog.sh`
+  promotes the Mac after 2 minutes down from here and from the RU relay, fails back after Italy is reachable for
+  10 minutes (launchd `ru.lienad.lastcall-replicate`, `ru.lienad.lastcall-watchdog`). Not tested end to end yet
+  (needs a planned outage of a few minutes)
+  → Artifacts: [README.md](infra/failover/README.md), [watchdog.sh](infra/failover/watchdog.sh), [server-endpoints.ts](apps/mobile/src/server-endpoints.ts)
+- [ ] Planned failover test (stop Italy, watch promote and failback)
+- [ ] Wildcard cert renewal job (expires 2027-02-24; copy to Italy `/opt/lastcall/certs` and `/etc/lastcall-turn`)
+- [ ] Real client address on the Mac path: the shared nginx-stream has PROXY protocol off (needs the owner's OK)
+
 # 1.0.47 / code62 — circles, calls, stickers and GIFs (2026-11-26)
 
 - [X] Circles: a tap anywhere on a playing circle (its centre included) pauses or resumes (a transparent layer over

@@ -6,7 +6,9 @@ services:
       context: ..
       dockerfile: infra/Dockerfile.server
     image: messenger-signaling:preview
-    container_name: messenger-signaling
+    # Standby for the Italian primary (infra/failover): the router owns the name messenger-signaling
+    # that Caddy uses; this server runs only when the watchdog promotes the Mac.
+    container_name: messenger-local
     environment:
       HOST: 0.0.0.0
       PORT: 8787
@@ -32,6 +34,8 @@ services:
       # TURN credentials are issued only over authenticated directory requests.
       REQUIRE_ICE_AUTH: '1'
       TURN_URLS: ${TURN_URLS:-}
+      # Given to signed-in clients only: Italy first, the Mac fallback second.
+      CLIENT_ENDPOINTS: https://p2p-it.lienad.ru:4443,https://p2p.lienad.ru
       TURN_SHARED_SECRET: ${TURN_SHARED_SECRET:-}
       TURN_TTL_SECONDS: ${TURN_TTL_SECONDS:-600}
       # Email registration and recovery; empty values leave it off.
@@ -48,7 +52,7 @@ services:
       GOOGLE_APPLICATION_CREDENTIALS: ''
     networks:
       proxy:
-        aliases: [messenger-signaling]
+        aliases: [messenger-local]
     read_only: true
     volumes:
       - directory:/data

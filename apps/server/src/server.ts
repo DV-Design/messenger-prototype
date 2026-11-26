@@ -300,6 +300,8 @@ export function optionsFromEnv(env: NodeJS.ProcessEnv = process.env): ServerOpti
     host: env.HOST || '127.0.0.1', port: numberEnv(env, 'PORT', 8787, 0, 65535),
     ...(env.ALLOWED_ORIGINS !== undefined ? { allowedOrigins: list('ALLOWED_ORIGINS') } : {}),
     turnSharedSecret: env.TURN_SHARED_SECRET, turnUrls, stunUrls,
+    // Primary first, then the fallback; given to signed-in clients only.
+    ...(env.CLIENT_ENDPOINTS ? { clientEndpoints: list('CLIENT_ENDPOINTS').map(url => { if (!/^https:\/\/[a-z0-9.-]+(:\d{1,5})?$/i.test(url)) throw new Error('CLIENT_ENDPOINTS must be https://host[:port] values'); return url; }).slice(0, 4) } : {}),
     requireIceAuth: env.REQUIRE_ICE_AUTH === '1',
     // Phone registration was retired. Legacy SMS environment values are ignored.
     pushProvider: env.GOOGLE_APPLICATION_CREDENTIALS ? createFcmPushProvider(env.GOOGLE_APPLICATION_CREDENTIALS) : undefined,

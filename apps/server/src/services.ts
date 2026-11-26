@@ -14,6 +14,8 @@ const DELIVERY_MAX_PAUSE_MS = 86_400_000;
 const DELIVERY_MAX_ATTEMPTS = 12;
 interface DeliveryRow { sender_id: string; recipient_id: string; expires_at: number; recipient_pushed_at: number; recipient_attempts: number; sender_pushed_at: number }
 export interface ServiceOptions {
+  /** Server addresses for signed-in clients that ask (primary first); never shown to anyone else. */
+  clientEndpoints?: string[];
   /** Private legacy regression injection only. No environment switch enables phone features. */
   enableLegacyPhoneServices?: boolean;
   smsProvider?: SMSProvider;
@@ -110,9 +112,9 @@ export class DirectoryServices {
     this.db.prepare('INSERT INTO moderation_reports (created_at, reporter_id, target_id, target_kind, conversation_id, reason, details) VALUES (?, ?, ?, ?, ?, ?, ?)')
       .run(this.now(), reporterId, targetId, targetKind, conversationId ?? null, reason, details ?? '');
   }
-  capabilities(userId: string,callInviteV1=false,deliveryV1=false,mailboxV1=false): ServiceCapabilities {
+  capabilities(userId: string,callInviteV1=false,deliveryV1=false,mailboxV1=false,endpointsV1=false): ServiceCapabilities {
     // Released clients parse this strictly, so the field exists only for those that asked.
-    return { ...(mailboxV1?{mailboxV1:true}:{}),...(deliveryV1&&this.options.pushProvider?.sendDelivery?{deliveryV1:true}:{}),...(callInviteV1?{callInviteV1:true,serverEpoch:this.calls.epoch}:{}),phoneVerification: Boolean(this.options.smsProvider && this.secret), push: Boolean(this.options.pushProvider), relay: this.ice().some(server => (Array.isArray(server.urls) ? server.urls : [server.urls]).some(url => /^turns?:/.test(url))), phoneVerified: Boolean(this.options.enableLegacyPhoneServices && this.verified(userId)) };
+    return { ...(endpointsV1&&this.options.clientEndpoints?.length?{endpoints:[...this.options.clientEndpoints]}:{}),...(mailboxV1?{mailboxV1:true}:{}),...(deliveryV1&&this.options.pushProvider?.sendDelivery?{deliveryV1:true}:{}),...(callInviteV1?{callInviteV1:true,serverEpoch:this.calls.epoch}:{}),phoneVerification: Boolean(this.options.smsProvider && this.secret), push: Boolean(this.options.pushProvider), relay: this.ice().some(server => (Array.isArray(server.urls) ? server.urls : [server.urls]).some(url => /^turns?:/.test(url))), phoneVerified: Boolean(this.options.enableLegacyPhoneServices && this.verified(userId)) };
   }
   private verified(userId: string) { return Boolean(this.db.prepare('SELECT 1 FROM verified_phones WHERE user_id = ?').get(userId)); }
   private checkOpen() { if (this.closed) throw unavailable(); }
