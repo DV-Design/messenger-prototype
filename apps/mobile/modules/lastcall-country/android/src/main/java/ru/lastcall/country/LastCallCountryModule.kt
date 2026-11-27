@@ -1,7 +1,5 @@
 package ru.lastcall.country
 
-import android.content.Context
-import android.telephony.TelephonyManager
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingClientStateListener
 import com.android.billingclient.api.BillingResult
@@ -13,21 +11,12 @@ import expo.modules.kotlin.modules.ModuleDefinition
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Countries the phone itself knows, for the sign-up policy only. None of these needs a runtime
- * permission: the Google Play account country comes from Play Billing's BillingConfig (no purchase
- * is made), the network and SIM countries from TelephonyManager. Each is null when unavailable.
+ * The Google Play account country, for the sign-up policy only: Play Billing's BillingConfig (no
+ * purchase is made, no runtime permission). Null when unavailable.
  */
 class LastCallCountryModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("LastCallCountry")
-
-    AsyncFunction("telephony") {
-      val telephony = appContext.reactContext?.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
-      mapOf(
-        "network" to telephony?.networkCountryIso?.takeIf { it.isNotBlank() }?.uppercase(),
-        "sim" to telephony?.simCountryIso?.takeIf { it.isNotBlank() }?.uppercase(),
-      )
-    }
 
     AsyncFunction("playCountry") { promise: Promise ->
       val context = appContext.reactContext

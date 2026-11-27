@@ -33,4 +33,8 @@ fi
 if [ "$(docker inspect lastcall-coturn --format '{{.State.Running}}' 2>/dev/null || true)" = true ]; then
   docker restart lastcall-coturn >/dev/null || fail 'Certificates updated but TURN restart failed; inspect lastcall-coturn'
   printf '%s\n' 'LastCall TURN certificate updated; only lastcall-coturn restarted'
+elif launchctl print "gui/$(id -u)/dev.lastcall.turn" >/dev/null 2>&1; then
+  # The native macOS relay (launch agent dev.lastcall.turn) reads the certificate at start.
+  launchctl kickstart -k "gui/$(id -u)/dev.lastcall.turn" || fail 'Certificates updated but native TURN restart failed'
+  printf '%s\n' 'LastCall TURN certificate updated; only the native TURN agent restarted'
 else printf '%s\n' 'LastCall TURN certificate updated; TURN is not running'; fi

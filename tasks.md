@@ -17,8 +17,8 @@
   (needs a planned outage of a few minutes)
   → Artifacts: [README.md](infra/failover/README.md), [watchdog.sh](infra/failover/watchdog.sh), [server-endpoints.ts](apps/mobile/src/server-endpoints.ts)
 - [ ] Planned failover test (stop Italy, watch promote and failback)
-- [ ] Wildcard cert renewal job (expires 2027-02-24; copy to Italy `/opt/lastcall/certs` and `/etc/lastcall-turn`)
-- [ ] Real client address on the Mac path: the shared nginx-stream has PROXY protocol off (needs the owner's OK)
+- [X] Wildcard cert renewal job (expires 2027-02-24; copy to Italy `/opt/lastcall/certs` and `/etc/lastcall-turn`) — done 2026-11-27: infra/certs/renew-certs.sh daily at 04:20 (ru.lienad.lastcall-certs)
+- [X] Real client address on the Mac path: the shared nginx-stream has PROXY protocol off (needs the owner's OK) — not needed (owner, 2026-11-27): the country comes from Google Play only
 
 # 1.0.47 / code62 — circles, calls, stickers and GIFs (2026-11-26)
 
@@ -443,20 +443,20 @@ removes (planned next as step 4).
   `2ed414189228f2ba41b4a729b3146a0eae5e9c7160aabeac6cddba40440dc856`; smoke-tested on the emulator
   and published to internal testing as "LastCall 1.0.33 internal" (also carries the blank-screen fix
   and invitation sharing)
-- [ ] Privacy policy paragraph (country check, phone countries) still only in the repository
+- [X] Privacy policy paragraph (country check, phone countries) still only in the repository — owner, 2026-11-27: not to be published
 
 # Invitation system review (2026-11-17)
 
 - [X] Code review of the Codex invites work: gate, single use, hashing, quotas, admins — sound
   → Artifacts: [REGISTRATION-INVITES.md](docs/REGISTRATION-INVITES.md) (Review 2026-11-17)
-- [ ] **Production sees no client IPs** (router + Docker on macOS): country is unknown for
+- [X] **Production sees no client IPs** (router + Docker on macOS): country is unknown for
   everyone, so every new sign-up worldwide needs an invitation; IP rate limits are one bucket.
-  Needs an operator change of the shared SNI router/Caddy
+  Needs an operator change of the shared SNI router/Caddy — not needed (owner, 2026-11-27): REGISTRATION_COUNTRY_SOURCE=play, the address is not used
 - [X] Share invitation (message text) and paste of the whole message accepted
 - [X] Privacy policy paragraph about the country check (repo only, not published)
-- [ ] Restrict-only device country signals (SIM/network/region) against VPN bypass
+- [X] Restrict-only device country signals (SIM/network/region) against VPN bypass — superseded (owner, 2026-11-27): only the Google Play country is sent
 - [ ] Decide whether Google Play should exclude the restricted countries
-- [ ] Monthly DB-IP refresh
+- [X] Monthly DB-IP refresh — not needed while REGISTRATION_COUNTRY_SOURCE=play
 
 # Blank screen and freezes after a long time in the background (2026-11-17)
 
@@ -603,8 +603,8 @@ removes (planned next as step 4).
   `android.hardware.location.gps` feature from the location permission. Declare the location
   features `required="false"` in the next build
   2026-11-26: the current manifest declares no location features (none implied at targetSdk 36); Wi-Fi and portrait optional since 1.0.36; GLES 2.0 stays for maps (msg-gbz closed)
-- [ ] Maps key: add the Play App Signing SHA-1 to the key's Android restriction if not done yet,
-  otherwise Play-installed builds may show a grey map (only the upload-key build was checked)
+- [X] Maps key: add the Play App Signing SHA-1 to the key's Android restriction if not done yet,
+  otherwise Play-installed builds may show a grey map (only the upload-key build was checked) — owner, 2026-11-27: Google Maps works in the Play build
 - [X] Physical phones, contact picker with real contacts, live location in the background — closed without a check (owner, 2026-11-27)
 
 # Quoted replies and newest-first chat loading (msg-2z1)
@@ -855,8 +855,8 @@ Status: Play Console draft app created (app ID 4973089023189492670), store listi
   → [camera](https://p2p.lienad.ru/demo/lastcall-foreground-camera.mp4), [microphone](https://p2p.lienad.ru/demo/lastcall-foreground-microphone.mp4), [phone call](https://p2p.lienad.ru/demo/lastcall-foreground-phone-call.mp4)
 - [X] Add internal tester `populizator@googlemail.com`
 - [X] Configure closed-testing countries and release: Alpha is active in 178 countries/regions
-- [ ] Reach 12 closed-testing testers and run 14 days (the dashboard showed 2 on 2026-11-04)
-  → User will add testers (`store/PLAY-TESTING.md`)
+- [X] Reach 12 closed-testing testers and run 14 days (the dashboard showed 2 on 2026-11-04)
+  → User will add testers (`store/PLAY-TESTING.md`) — owner, 2026-11-27: the app is already live in Google Play
 - [ ] Add Russian store listing translation (AI-assets disclosure confirmed as not AI)
 
 # LastCall 1.0.7 / code21: segmented circle camera switch (published, verified)

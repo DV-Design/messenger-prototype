@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 import { requireOptionalNativeModule } from 'expo-modules-core';
 import { pickCountryHints } from './country-hints-model';
 
-interface CountryNative { playCountry(): Promise<string | null>; telephony(): Promise<{ network: string | null; sim: string | null }> }
+interface CountryNative { playCountry(): Promise<string | null> }
 let native: CountryNative | null | undefined;
 const within = <T,>(promise: Promise<T>, ms: number, fallback: T) =>
   Promise.race([promise.catch(() => fallback), new Promise<T>(resolve => setTimeout(() => resolve(fallback), ms))]);
@@ -12,9 +12,6 @@ export async function collectCountryHints(): Promise<string[]> {
   if (Platform.OS !== 'android') return [];
   native ??= requireOptionalNativeModule<CountryNative>('LastCallCountry');
   if (!native) return [];
-  const [play, telephony] = await Promise.all([
-    within(native.playCountry(), 4000, null),
-    within(native.telephony(), 2000, { network: null, sim: null }),
-  ]);
-  return pickCountryHints({ play, ...telephony });
+  const play = await within(native.playCountry(), 4000, null);
+  return pickCountryHints({ play });
 }

@@ -313,7 +313,9 @@ export function optionsFromEnv(env: NodeJS.ProcessEnv = process.env): ServerOpti
     registrationMode,
     registrationRestrictedCountries: env.REGISTRATION_RESTRICTED_COUNTRIES === undefined ? [...DEFAULT_RESTRICTED_COUNTRIES] : list('REGISTRATION_RESTRICTED_COUNTRIES'),
     registrationAdminUserIds: list('REGISTRATION_ADMIN_USER_IDS'),
-    ...(registrationMode === 'market' ? {
+    // REGISTRATION_COUNTRY_SOURCE=play: only the Google Play country the phone reports decides;
+    // the connection's address is not looked up at all.
+    ...(registrationMode === 'market' && env.REGISTRATION_COUNTRY_SOURCE !== 'play' ? {
       registrationCountryForIp: createRegistrationCountryLookup(env.REGISTRATION_GEOIP_DB || '/app/dbip-country.mmdb'),
     } : {}),
     emailGlobalPerHour: numberEnv(env, 'EMAIL_GLOBAL_PER_HOUR', 200, 1, 100_000),

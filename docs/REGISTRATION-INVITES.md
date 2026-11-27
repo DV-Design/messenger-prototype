@@ -57,32 +57,29 @@ not the address or country. The endpoint is exposed on the same signaling routes
 returns `404` for that path; clients must treat `404` as a legacy server rather than as
 permission, and rely on the registration refusal from the server.
 
-## Countries reported by the phone (since server 2026-11-17 and app 1.0.33)
+## Country from Google Play (since 2026-11-27, app 1.0.48)
 
-The production server sees only a Docker gateway address, so the connection's country is
-unknown. The Android app therefore reports up to two countries at sign-up:
-
-- the **Google Play account country** (Play Billing `BillingConfig.countryCode`; no purchase is
-  made, but the library adds the `com.android.vending.BILLING` permission to the manifest);
-- the **mobile network** the phone is on now (`TelephonyManager.getNetworkCountryIso`); the
-  **SIM** country (`getSimCountryIso`) is used only when there is no network, because a SIM
-  says where a number comes from, not where the person is.
+Owner's decision: the registration decision uses **only the Google Play account country** the
+Android app reports (Play Billing `BillingConfig.countryCode`; no purchase is made, but the library
+adds the `com.android.vending.BILLING` permission). The connection's address is not looked up
+(`REGISTRATION_COUNTRY_SOURCE=play`, the public Compose default), and the app no longer reads the
+mobile network or SIM country. `REGISTRATION_COUNTRY_SOURCE` unset or `address` restores the address
+check described above.
 
 The server announces support with `"countryHints": true` in `/registration-policy`, and the app
-sends the countries only to such a server: in the `x-lastcall-country-hints` header of that
-request and in the `authenticate` / `email-start` frames of a registration. They are never put
-in a URL, logged or stored. In `market` mode the decision is:
+sends the country only to such a server: in the `x-lastcall-country-hints` header of that request
+and in the `authenticate` / `email-start` frames of a registration. It is never put in a URL, logged
+or stored. In `market` mode:
 
-| Known countries (address + reported) | Result |
+| Reported countries | Result |
 |---|---|
-| none | invitation required |
+| none (no Play account, Play unavailable, iOS, apps before 1.0.33) | invitation required |
 | any restricted country among them | invitation required |
 | at least one, none restricted | open |
 
-Malformed reported values are ignored. A modified client can leave countries out (then it needs
-an invitation) or lie about them; this check is meant to stop ordinary sign-ups from restricted
-markets, including those behind a VPN, not a determined attacker. Old apps send nothing and
-keep needing an invitation. iOS sends nothing yet.
+Apps 1.0.33–1.0.47 also send the network country; it still counts toward caution only. Malformed
+values mean an invitation. A modified client can lie about the country; this check is meant to stop
+ordinary sign-ups from restricted markets, not a determined attacker.
 
 ## Invitations
 

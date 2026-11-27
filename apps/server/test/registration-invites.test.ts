@@ -285,3 +285,14 @@ it('weighs countries the phone reports, only toward caution, on HTTP and at regi
   const russianAddress = await start({ registrationMode: 'market', registrationCountryForIp: () => 'RU' });
   expect(await new Client(russianAddress.url).auth(createDeviceIdentity(), `hint_addr_${++nextRequest}`, undefined, undefined, ['RS'])).toMatchObject({ type: 'error', code: 'invite-required' });
 });
+
+it('REGISTRATION_COUNTRY_SOURCE=play decides by the reported Google Play country only', async () => {
+  const play = optionsFromEnv({ REGISTRATION_MODE: 'market', REGISTRATION_COUNTRY_SOURCE: 'play' });
+  expect(play.registrationCountryForIp).toBeUndefined();
+  const { registrationPolicy } = await import('../src/registration-invites.js');
+  const decide = registrationPolicy(play);
+  expect(decide('80.211.139.213', ['RS'])).toBe('open');
+  expect(decide('80.211.139.213', ['RU'])).toBe('invite');
+  expect(decide('80.211.139.213', [])).toBe('invite');
+  expect(decide('80.211.139.213')).toBe('invite');
+});
