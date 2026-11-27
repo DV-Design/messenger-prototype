@@ -1,3 +1,21 @@
+# 1.0.49 (in progress) — Telegram sign-up, access requests, search by number, Russian data (2026-11-27)
+
+- [X] Server: our Telegram bot (long polling), one-time link, own contact only, no +888; keyed phone hash;
+  sign-up with a confirmed number needs no invitation and no email; recovery by number; access
+  requests DM'd from @lastcall to administrators, approve in Settings → Invitations → Requests, the
+  code goes to the waiting app; phone-find with Everyone / My contacts / Nobody. 8 server tests
+  → Artifacts: [TELEGRAM-SIGNUP.md](docs/TELEGRAM-SIGNUP.md), [phone-auth.ts](apps/server/src/phone-auth.ts), [telegram-bot.ts](apps/server/src/telegram-bot.ts)
+- [X] App: new start screen (Continue with Telegram / Restore / Other ways / Ask for access), phone
+  settings, find friends from contacts, administrator requests; 61 strings in 30 languages
+- [X] Russian numbers: ru-store on the Russian server (Python, localhost, tunnel from Italy), written
+  first; 10-minute reconciliation; age-encrypted copies every 30 minutes fetched by Italy (key only on
+  the Mac). Deployed; Italy server deployed (access requests on, Telegram off until the bot token)
+- [ ] Bot token from the owner (@BotFather), then TELEGRAM_BOT_TOKEN on Italy and the Mac standby
+- [ ] Emulator check of the whole flow with the real bot, then build 1.0.49 (owner's yes to publish)
+- [ ] Play Data safety: phone number (collected, account management), contacts (sent for search, not
+  stored); privacy policy text — the owner said not to publish the country paragraph
+- [ ] Roskomnadzor notices (personal data operator, cross-border transfer) — owner / lawyer
+
 # 1.0.48 / code63 — server choice, Google Play country (2026-11-27)
 
 - [X] The app learns the server list after sign-in and connects to the Italian server directly
