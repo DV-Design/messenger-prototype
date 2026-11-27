@@ -116,6 +116,27 @@ export class Directory {
     try { await this.options.ruStore.putUser(record); }
     catch { throw new ServiceError('region-unavailable', 'Sign-up for Russian numbers is temporarily unavailable; try again later'); }
   }
+  private ruReconciledAt = 0;
+  private ruReconciling = false;
+  /**
+   * Every 10 minutes: Italy's current copy of each Russian user (name, last seen, push token, who
+   * they follow) goes to the Russian store, and anyone no longer here is removed there.
+   */
+  private async ruReconcile(now: number) {
+    const store = this.options.ruStore;
+    if (!store || this.ruReconciling || now - this.ruReconciledAt < 600_000) return;
+    this.ruReconciling = true; this.ruReconciledAt = now;
+    try {
+      const rows = this.db.prepare("SELECT d.* FROM directory_users d JOIN verified_phones p ON p.user_id = d.user_id WHERE p.country = 'RU'").all() as ProfileRow[];
+      for (const row of rows) {
+        const push = this.db.prepare('SELECT token FROM push_tokens WHERE user_id = ?').get(row.user_id) as { token: string } | undefined;
+        const watching = (this.db.prepare('SELECT sender_id FROM push_consent WHERE recipient_id = ? LIMIT 200').all(row.user_id) as Array<{ sender_id: string }>).map(item => item.sender_id);
+        await store.putUser({ ...this.ruRecord(row.user_id, row.public_key, row.username, row.display_name), lastSeen: row.last_seen, watching, ...(push ? { pushToken: push.token } : {}) });
+      }
+      await store.syncIndex(rows.map(row => row.user_id));
+    } catch { console.error('ru-store reconciliation failed; retrying in 10 minutes'); }
+    finally { this.ruReconciling = false; }
+  }
   private ruForget(userId: string) { void this.options.ruStore?.deleteUser(userId).catch(() => console.error('ru-store delete failed; the next reconciliation retries')); }
   /** Moves a profile to a new device key, carrying its email and phone bindings. Callers provide the transaction. */
   private moveAccountInside(old: ProfileRow, userId: string, publicKey: string, phone?: { outcome: PhoneOutcome; visibility: PhoneVisibility }) {
@@ -189,6 +210,7 @@ export class Directory {
     try { this.services.expire(); this.email.expire(); this.invites.expire(); this.mailbox.expire(); this.phone.expire(); this.access.expire(); } catch { console.error('Directory quota cleanup failed'); }
     void this.mailbox.tick().catch(() => { /* Retried on the next tick. */ });
     void this.services.deliveryTick(this.isOnline).catch(() => { /* Retried on the next tick. */ });
+    void this.ruReconcile(now);
     for (const connection of this.connections.values()) {
       if (!connection.userId && now >= connection.expiresAt) this.options.reject(connection.ws, 'auth-expired', 'Authentication challenge expired', true);
     }

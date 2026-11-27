@@ -1,0 +1,19 @@
+[Unit]
+Description=LastCall ru-store (Russian users' data, localhost only)
+After=network.target
+
+[Service]
+User=lastcall-ru
+Group=lastcall-ru
+ExecStart=/usr/bin/python3 /opt/lastcall-ru/ru_store.py
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/lastcall-ru
+MemoryMax=150M
+
+[Install]
+WantedBy=multi-user.target

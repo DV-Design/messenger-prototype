@@ -68,8 +68,15 @@ Owner's decisions of 2026-11-27. This file describes the design; it is not evide
 - Registration, recovery and number linking of a Russian user write the profile, number, number
   hash and email hash to `ru-store` **first**; Italy commits only after the Russian write
   succeeded. Without the Russian server, Russian sign-ups wait ("try again later").
-- Later changes (last seen, push token, contacts watch list, deletion) are sent to `ru-store`
-  right after Italy commits; a full reconciliation of all Russian users runs every 10 minutes.
+- Later changes (name, last seen, push token, who they follow) reach `ru-store` with a full
+  reconciliation of all Russian users every 10 minutes; deletions and moves are sent at once and
+  the reconciliation removes anyone Italy no longer has.
+- Deployment: `infra/ru-store/` (Python standard library, systemd, 127.0.0.1:8790, user
+  `lastcall-ru`); Italy's `lastcall-ru-tunnel` container reaches it as `lastcall-store` (port
+  forward only). Backups: `ru_backup.py` every 30 minutes on the Russian server, fetched by Italy's
+  `lastcall-ru-pull.timer` into `/var/lib/lastcall-backup/ru/`; the age private key is
+  `~/.config/lastcall/ru-backup/key.txt` on the Mac.
+- The Mac standby has no ru-store: while it serves (Italy down) Russian numbers cannot sign up.
 - Messages stay end-to-end encrypted and pass through Italy's mailbox as before.
 - Every 30 minutes the Russian server makes an SQLite copy, encrypts it with `age` to a public
   key whose private key exists only on the owner's Mac, and copies it to Italy for disaster

@@ -1,0 +1,12 @@
+[Unit]
+Description=LastCall ru-store encrypted backup
+
+[Service]
+Type=oneshot
+User=lastcall-ru
+Group=lastcall-ru
+ExecStart=/usr/bin/python3 /opt/lastcall-ru/ru_backup.py
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/lastcall-ru

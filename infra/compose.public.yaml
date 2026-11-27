@@ -46,6 +46,12 @@ services:
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-}
       EMAIL_HASH_SECRET: ${EMAIL_HASH_SECRET:-}
+      # Sign-up through Telegram (docs/TELEGRAM-SIGNUP.md). The same hash key and system account key as
+      # Italy, so numbers in a replica still match. No RU_STORE here: during a failover Russian numbers
+      # cannot sign up (their data must go to Russia first).
+      PHONE_HASH_SECRET: ${PHONE_HASH_SECRET:-}
+      SYSTEM_ACCOUNT_KEY: ${SYSTEM_ACCOUNT_KEY:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       EMAIL_REQUIRED: ${EMAIL_REQUIRED:-}
       EMAIL_GLOBAL_PER_HOUR: ${EMAIL_GLOBAL_PER_HOUR:-200}
       # Registration uses an immutable username and device key; SMS is not used.

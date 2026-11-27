@@ -12,6 +12,8 @@ export interface RuUserRecord {
 export interface RuStore {
   putUser(record: RuUserRecord): Promise<void>;
   deleteUser(userId: string): Promise<void>;
+  /** Every Russian user Italy has; the store forgets anyone else. */
+  syncIndex(userIds: string[]): Promise<void>;
 }
 type Fetch = (url: string, init: { method: string; headers: Record<string, string>; body?: string; signal: AbortSignal }) => Promise<{ ok: boolean; status: number }>;
 
@@ -28,5 +30,6 @@ export function createRuStoreClient(baseUrl: string, token: string, fetchImpl: F
   return {
     putUser: record => call('PUT', `/users/${record.userId}`, record),
     deleteUser: userId => call('DELETE', `/users/${userId}`),
+    syncIndex: userIds => call('POST', '/index', { userIds }),
   };
 }
