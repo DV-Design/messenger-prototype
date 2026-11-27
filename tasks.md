@@ -1,3 +1,13 @@
+# 1.0.52 / code67 — contact search waits for the connection (2026-11-27)
+
+- [X] Owner's phone, 1.0.51: Find friends said "Directory is offline": the contacts permission dialog sends the app to
+  the background and it reconnects on return; the search was sent during the reconnect. findContactsByPhone now waits
+  up to 15 s for the directory
+- [X] `artifacts/LastCall-1.0.52-store.aab` 62551487 bytes, sha256 `11b6bcc51ab08f9cb8ed378417761cce8cb839dc5ea8e018295782048851c65c`; emulator: starts, chat list
+- [X] 2026-11-27, owner's "Выложи": bundle 67 uploaded (closed), open and production from the library; internal
+  published; closed, open and production sent to Google review
+- [ ] Find friends on the owner's phone
+
 # 1.0.51 / code66 — phone book reading fix (2026-11-27)
 
 - [X] Owner's phone, 1.0.50: Find friends showed "Method getContactsAsync ... is deprecated" (expo-contacts 58 throws).
