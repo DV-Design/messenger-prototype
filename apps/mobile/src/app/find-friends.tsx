@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { router } from 'expo-router';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
-import * as Contacts from 'expo-contacts';
+import { requestPermissionsAsync } from 'expo-contacts';
 import type { DirectoryUser } from '@messenger/core';
 import { readPhoneBook } from '../contact-book';
 import { rememberFoundContacts } from '../contact-joins';
@@ -21,7 +21,7 @@ export default function FindFriends() {
   async function search() {
     setError(''); setState('reading');
     try {
-      const permission = await Contacts.requestPermissionsAsync();
+      const permission = await requestPermissionsAsync();
       if (permission.status !== 'granted') { setState('denied'); return; }
       const names = await readPhoneBook();
       const found = names.size ? await findContactsByPhone([...names.keys()].slice(0, 5000)) : [];

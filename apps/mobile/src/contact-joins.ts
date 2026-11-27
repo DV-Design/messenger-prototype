@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import * as Contacts from 'expo-contacts';
+import { getPermissionsAsync } from 'expo-contacts';
 import * as Notifications from 'expo-notifications';
 import { AndroidImportance } from 'expo-notifications';
 import { File, Paths } from 'expo-file-system';
@@ -32,7 +32,7 @@ export async function checkContactJoins(input: { phoneLinked: boolean; force?: b
   if (!dueForJoinCheck(previous, Date.now(), input.force)) return;
   running = true;
   try {
-    if ((await Contacts.getPermissionsAsync()).status !== 'granted') return;
+    if ((await getPermissionsAsync()).status !== 'granted') return;
     const names = await readPhoneBook();
     if (!names.size) return;
     const found = await findContactsByPhone([...names.keys()].slice(0, 5000));

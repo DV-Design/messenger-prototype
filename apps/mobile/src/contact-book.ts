@@ -1,14 +1,15 @@
-import * as Contacts from 'expo-contacts';
+import { Contact, ContactField } from 'expo-contacts';
 import { getLocales } from 'expo-localization';
 import { normalizePhone } from '@messenger/core';
 
 /** Numbers from the phone book (E.164) with the name they are saved under; never leaves the phone as is. */
 export async function readPhoneBook(): Promise<Map<string, string>> {
-  const { data } = await Contacts.getContactsAsync({ fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name] });
+  // The class API (expo-contacts 58); the old getContactsAsync now throws a deprecation error.
+  const rows = await Contact.getAllDetails([ContactField.FULL_NAME, ContactField.PHONES]);
   const region = getLocales()[0]?.regionCode ?? undefined;
   const names = new Map<string, string>();
-  for (const contact of data) for (const number of contact.phoneNumbers ?? []) {
-    try { const e164 = normalizePhone(number.number ?? number.digits ?? '', region); if (!names.has(e164)) names.set(e164, contact.name ?? e164); }
+  for (const contact of rows) for (const phone of contact.phones ?? []) {
+    try { const e164 = normalizePhone(phone.number ?? '', region); if (!names.has(e164)) names.set(e164, contact.fullName?.trim() || e164); }
     catch { /* Not a valid number. */ }
   }
   return names;
