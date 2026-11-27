@@ -1,3 +1,13 @@
+# Next release — one message per tap, freeze log (2026-11-27)
+
+- [X] Tester's phone, 22:14: the app froze, the tester kept tapping send and the peer got "Напиши как пойдёте," eight
+  times. Taps queued during the freeze all ran before the screen redrew, each with the same text. The chat now takes
+  the text from the field in one step (`ComposerText`), so later queued taps find it empty
+- [X] Freeze log: stalls of 1 s or more in the foreground are kept (time, length, work in progress: send / connect /
+  phone book, number of core updates; no text or names) and added to Settings → Connection → Copy connection report
+- [ ] Cause of the freeze itself: unknown (server logs show nothing); read the tester's report after the next freeze
+- [ ] Build, emulator smoke test, publish (needs the owner's yes)
+
 # 1.0.52 / code67 — contact search waits for the connection (2026-11-27)
 
 - [X] Owner's phone, 1.0.51: Find friends said "Directory is offline": the contacts permission dialog sends the app to

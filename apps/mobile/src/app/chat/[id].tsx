@@ -42,6 +42,8 @@ import { mediaKind } from '../../media-model';
 import { viewerKind } from '../../media-viewer-model';
 import { MediaViewer } from '../../components/MediaViewer';
 import { useTopOffset } from '../../top-offset';
+import { ComposerText } from '../../composer-model';
+import { busyWith } from '../../stall-watch';
 
 const FLOATING_DATE_MS = 1200;
 
@@ -93,6 +95,9 @@ export default function Chat() {
   const conversation = snapshot.conversations.find(item => item.id === id);
   // What was typed and not sent comes back when the chat is opened again, as in Telegram.
   const [draft, setDraft] = useState(() => conversation?.draft ?? '');
+  // What the field holds right now, taken (and emptied) by the first tap on send.
+  const [composer] = useState(() => new ComposerText(conversation?.draft ?? ''));
+  const putDraft = (text: string) => { composer.set(text); setDraft(text); };
   const [attachments, setAttachments] = useState(false);
   // Stickers and GIFs panel, opened from the smiley in the message bar.
   const [stickersOpen, setStickersOpen] = useState(false);
@@ -119,9 +124,6 @@ export default function Chat() {
   const [editing, setEditing] = useState<string>();
   const [replying, setReplying] = useState<MessageTarget>();
   const unsentDraft = useRef('');
-  // What the field holds now, for a failed send that puts its text back only into an empty field.
-  const typedNow = useRef(draft);
-  useEffect(() => { typedNow.current = draft; }, [draft]);
   // Saved a moment after typing stops and on leaving the chat; during an edit, the text the edit set aside is kept.
   const savedDraft = useRef<{ chat?: string; text: string }>({ text: '' });
   useEffect(() => {
@@ -222,15 +224,16 @@ export default function Chat() {
     try { await operation(); } catch (cause) { haptic('reject'); if (!(cause instanceof AccessDenied)) setError(errorText(cause)); } finally { setBusy(false); }
   }
   function send() {
-    const text = draft;
+    // Taps that queued while the phone was busy find the field already taken and send nothing.
+    const text = composer.take();
+    if (text === undefined) return;
     const edited = editing;
     const replyTarget = replying;
-    if (!text.trim()) return;
     // The field empties at once, as in Telegram. Clearing it only after the save had finished let
     // the next typed words race the reset: the field kept text while the state was empty, so the
     // send button turned back into the microphone. Texts queue in order inside the client, so the
     // next one can be sent before this one is saved.
-    setEditing(undefined); setReplying(undefined); setDraft(edited ? unsentDraft.current : ''); setError('');
+    setEditing(undefined); setReplying(undefined); putDraft(edited ? unsentDraft.current : ''); setError('');
     const chatId = conversation!.id;
     let operation: Promise<void>;
     if (edited) {
@@ -239,12 +242,14 @@ export default function Chat() {
       const quote = original ? parseReplyText(original.text) : undefined;
       operation = client().editMessage(chatId, edited, quote ? formatReplyText(quote, text) : text);
     } else operation = client().sendText(chatId, replyTarget ? formatReplyText({ type: replyTarget.type, author: replyTarget.author, id: replyTarget.id }, text) : text).then(messageSent);
+    const end = busyWith('send');
+    void operation.finally(end).catch(() => {});
     operation.catch(cause => {
       haptic('reject'); setError(errorText(cause));
       // Nothing typed is lost: the text comes back if the field is still empty.
-      if (typedNow.current.trim()) return;
-      if (edited) { unsentDraft.current = typedNow.current; setEditing(edited); } else if (replyTarget) setReplying(replyTarget);
-      setDraft(text);
+      if (composer.current.trim()) return;
+      if (edited) { unsentDraft.current = composer.current; setEditing(edited); } else if (replyTarget) setReplying(replyTarget);
+      putDraft(text);
     });
   }
   function cancelReply() { setReplying(undefined); }
@@ -313,7 +318,7 @@ export default function Chat() {
     setError(''); haptic('tick');
     void client().react(conversation!.id, record, emoji).catch(cause => setError(errorText(cause)));
   }
-  function cancelEdit() { setEditing(undefined); setDraft(unsentDraft.current); }
+  function cancelEdit() { setEditing(undefined); putDraft(unsentDraft.current); }
   function deleteMessage(target: MessageTarget, scope: 'me' | 'everyone') {
     if (editing === target.id) cancelEdit();
     void action(() => client().deleteMessage(conversation!.id, { id: target.id, type: target.type, author: target.author }, scope));
@@ -436,7 +441,7 @@ export default function Chat() {
         trailing={draft.trim() || editing ? <Pressable style={[styles.send, busy && styles.disabled]} accessibilityRole="button" accessibilityLabel={editing ? t('Save changes') : t('Send message')} disabled={busy || !draft.trim()} onPress={send}><Icon name={editing ? 'checkmark' : 'arrow-up'} color={colors.white} size={25} /></Pressable> : undefined}>
         {!editing && <IconButton name={attachments ? 'close' : 'attach'} label={t('Attach file')} disabled={busy} onPress={() => { setStickersOpen(false); setAttachments(!attachments); }} />}
         {!editing && <IconButton name={stickersOpen ? 'close' : 'happy-outline'} label={t('Stickers and GIF')} onPress={toggleStickers} />}
-        <TextInput style={styles.composerInput} value={draft} onChangeText={setDraft} multiline maxLength={4000} placeholder={t('Message')} placeholderTextColor={colors.secondary} accessibilityLabel={t('Message text')} />
+        <TextInput style={styles.composerInput} value={draft} onChangeText={putDraft} multiline maxLength={4000} placeholder={t('Message')} placeholderTextColor={colors.secondary} accessibilityLabel={t('Message text')} />
       </RecordComposer> : aboveBar}
     </KeyboardSpace></SettledProvider>
     {locationViewer()}
@@ -446,7 +451,7 @@ export default function Chat() {
     {!group && peer && identity && <SafetyCode visible={safetyOpen} title={peer.displayName} code={safety} verified={peerVerified} sessionReady={!!conversation.session?.contentE2E} onClose={() => setSafetyOpen(false)} onVerify={() => void action(async () => { await client().markContactVerified(peer.userId); setSafetyOpen(false); })} />}
     <MessageActions target={selected} onClose={() => setSelected(undefined)} onError={setError} onDelete={deleteMessage} onReact={blockedPeer ? undefined : (target, emoji) => react(target, emoji)}
       onReply={startReply}
-      onEdit={target => { if (!editing) unsentDraft.current = draft; setAttachments(false); setReplying(undefined); setEditing(target.id); setDraft(replyBody(target.text ?? '')); }} />
+      onEdit={target => { if (!editing) unsentDraft.current = draft; setAttachments(false); setReplying(undefined); setEditing(target.id); putDraft(replyBody(target.text ?? '')); }} />
     {identity && <SafetyMenu visible={safetyMenuOpen} group={group} title={conversation.title} targetId={conversation.id}
       peer={!group && peer ? { userId: peer.userId, displayName: peer.displayName } : undefined} blocked={snapshot.blockedContacts}
       onClose={() => setSafetyMenuOpen(false)}
