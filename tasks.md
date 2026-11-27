@@ -1,3 +1,16 @@
+# 1.0.50 / code65 — bot code fallback, contacts joining (2026-11-27)
+
+- [X] Linking a number failed on the owner's phone: Telegram opened from LastCall and closed before /start reached
+  the bot (server log). Now the app opens tg://resolve first and shows a short code (ABCD-EFGH) the person can
+  send to @LastCall_app_bot; 10 wrong codes per chat in 10 minutes stop it. Server test; deployed on Italy
+- [X] "Your contact joined LastCall": the phone rechecks its phone book every 4 hours and on launch (no phone books
+  on the server), first check is a baseline, at most 5 notices, tap opens the chat; Settings → Notifications switch.
+  Policy line published
+- [X] `artifacts/LastCall-1.0.50-store.aab` 62550720 bytes, sha256 `4078d7e8de0046bb1fdb1f406a9d0dcf597a67183bea86e932aa28a218f1a2eb`; emulator: starts, Telegram screen shows the code
+- [X] 2026-11-27, owner's "Залей в гугл": bundle 65 uploaded once (closed), open and production from the library;
+  internal published; closed, open and production sent to Google review (replacing 1.0.49 in review)
+- [ ] Owner's phone: link the number (link or code), contact-joined notice
+
 # 1.0.49 (in progress) — Telegram sign-up, access requests, search by number, Russian data (2026-11-27)
 
 - [X] Server: our Telegram bot (long polling), one-time link, own contact only, no +888; keyed phone hash;
