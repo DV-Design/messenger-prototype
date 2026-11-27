@@ -13,10 +13,10 @@ export const e164PhoneSchema=z.string().regex(/^\+[1-9][0-9]{1,14}$/);
 export const iceServerSchema=z.object({urls:z.union([z.string().min(1).max(2048),z.array(z.string().min(1).max(2048)).min(1).max(10)]),username:z.string().max(512).optional(),credential:z.string().max(4096).optional()}).strict().refine(server=>(Array.isArray(server.urls)?server.urls:[server.urls]).every(url=>/^(?:stuns?|turns?):[^\s]+$/i.test(url)),{message:'Invalid ICE server URL'});
 export const iceServersSchema=z.array(iceServerSchema).max(20);
 /** Parse the whole input, never extract an apparent phone number from arbitrary text. */
-export function normalizePhone(input:string,defaultCountry?:'RU'):string {
+export function normalizePhone(input:string,defaultCountry?:string):string {
   if(typeof input!=='string'||!input.trim()||input.length>80)throw new Error('Invalid phone number');
   try {
-    const phone=parsePhoneNumberWithError(input,{defaultCountry,extract:false});
+    const phone=parsePhoneNumberWithError(input,{defaultCountry:defaultCountry as Parameters<typeof parsePhoneNumberWithError>[1] extends {defaultCountry?:infer C}?C:never,extract:false});
     if(phone.ext||!phone.isValid())throw new Error('Invalid phone number');
     return e164PhoneSchema.parse(phone.number);
   }catch{throw new Error('Invalid phone number');}

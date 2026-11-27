@@ -4,7 +4,8 @@ import * as Clipboard from 'expo-clipboard';
 import { fetchRegistrationPolicyInfo, InviteRequestError, usernameSchema, type CreatedInvite, type InviteStatus, type MessengerClient } from '@messenger/core';
 import { ActionLink, SettingsPage } from '../../components/ui';
 import { intlLocale, t } from '../../i18n';
-import { client, useMessenger } from '../../runtime';
+import { client, decideAccessRequest, listAccessRequests, useMessenger } from '../../runtime';
+import type { AccessRequest } from '@messenger/core';
 import { colors, styles } from '../../styles';
 
 function failure(error: unknown): string {
@@ -28,7 +29,42 @@ export default function Invitations() {
   const { identity, profile, snapshot, retired } = useMessenger();
   return <SettingsPage title={t('Invitations')}>
     {identity && profile && !retired && <InvitationControls key={`${profile.serverUrl}:${identity.userId}`} serverUrl={profile.serverUrl} online={snapshot.status === 'online'} />}
+    {identity && profile && !retired && snapshot.status === 'online' && <AccessRequestsPanel />}
   </SettingsPage>;
+}
+
+/** Administrators only: people without Telegram asking for access. Anyone else sees nothing here. */
+function AccessRequestsPanel() {
+  const [requests, setRequests] = useState<AccessRequest[]>();
+  const [busy, setBusy] = useState<string>();
+  const [error, setError] = useState('');
+  const load = useCallback(() => listAccessRequests().then(setRequests, () => setRequests(undefined)), []);
+  useEffect(() => { void load(); }, [load]);
+  if (!requests) return null;
+  async function decide(id: string, approve: boolean) {
+    setBusy(id); setError('');
+    try { await decideAccessRequest(id, approve); await load(); }
+    catch { setError(t('Could not answer the request. Try again.')); }
+    finally { setBusy(undefined); }
+  }
+  return <>
+    <Text style={styles.sectionTitle}>{t('REQUESTS')}</Text>
+    <View style={[styles.section, styles.content, { marginTop: 0, gap: 14 }]}>
+      {requests.length === 0 && <Text style={styles.info}>{t('No requests waiting.')}</Text>}
+      {requests.map(request => <View key={request.id} style={{ gap: 4 }}>
+        <Text style={[styles.body, { fontWeight: '700' }]}>{request.name}</Text>
+        {!!request.contact && <Text selectable style={styles.info}>{request.contact}</Text>}
+        <Text selectable style={styles.body}>{request.message}</Text>
+        <Text style={styles.info}>{dateTime(request.createdAt)}</Text>
+        <View style={{ flexDirection: 'row', gap: 16 }}>
+          <ActionLink icon="checkmark-circle-outline" busy={busy === request.id} title={t('Approve')} onPress={() => void decide(request.id, true)} />
+          <ActionLink icon="close-circle-outline" danger disabled={busy === request.id} title={t('Decline')} onPress={() => void decide(request.id, false)} />
+        </View>
+      </View>)}
+      {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
+      <Text style={styles.info}>{t('Approving sends an invitation code to the app that asked; the person then signs up with email.')}</Text>
+    </View>
+  </>;
 }
 
 function InvitationControls({ serverUrl, online }: { serverUrl: string; online: boolean }) {

@@ -7,10 +7,11 @@ import { styles } from '../../styles';
 import { t } from '../../i18n';
 
 export default function PrivacySettings() {
-  const { snapshot } = useMessenger();
+  const { snapshot, phone } = useMessenger();
   const [error, setError] = useState('');
   return <SettingsPage title={t('Privacy and safety')}>
-    <MenuGroup><MenuRow icon="shield-checkmark-outline" title={t('App permissions')} subtitle={t('Microphone, camera, notifications, photos')} chevron onPress={() => router.push('/permissions')} /></MenuGroup>
+    <MenuGroup><MenuRow icon="shield-checkmark-outline" title={t('App permissions')} subtitle={t('Microphone, camera, notifications, photos')} chevron onPress={() => router.push('/permissions')} />
+      <MenuRow icon="call-outline" title={t('Who can find me by my number')} value={phone?.phone ? (phone.visibility === 'everyone' ? t('Everyone') : phone.visibility === 'contacts' ? t('My contacts') : t('Nobody')) : undefined} chevron onPress={() => router.push('/settings/phone')} /></MenuGroup>
     <Text style={styles.sectionTitle}>{t('BLOCKED CONTACTS')}</Text>
     <View style={[styles.section, { marginTop: 0 }]}>
       {snapshot.blockedContacts.length === 0 ? <View style={styles.content}><Text style={styles.body}>{t('No blocked contacts.')}</Text></View>

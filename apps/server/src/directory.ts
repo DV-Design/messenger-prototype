@@ -111,7 +111,8 @@ export class Directory {
   private isRussian(userId: string) { return this.phone.record(userId)?.country === 'RU'; }
   /** Primary write in Russia first: without the Russian store a Russian sign-up waits. */
   private async ruFirst(record: RuUserRecord) {
-    if (!this.options.ruStore) return;
+    // No Russian store, no Russian numbers: their data must not land only in Italy.
+    if (!this.options.ruStore) throw new ServiceError('region-unavailable', 'Sign-up for Russian numbers is not available yet');
     try { await this.options.ruStore.putUser(record); }
     catch { throw new ServiceError('region-unavailable', 'Sign-up for Russian numbers is temporarily unavailable; try again later'); }
   }

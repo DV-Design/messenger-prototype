@@ -72,6 +72,8 @@ export function resendSecondsLeft(sentAt: number | undefined, now: number): numb
 /** An older server refuses the unknown frame, which means the same to the user as not configured. */
 export const isEmailUnavailable = (error: unknown) => error instanceof EmailAuthError && (error.code === 'email-unavailable' || error.code === 'invalid-frame');
 export const emailErrorCode = (error: unknown) => error instanceof EmailAuthError ? error.code : undefined;
+/** Telegram sign-in and access requests refuse with the same codes and wording. */
+export const signedRequestMessage = (code: string) => refusals(code);
 
 const refusals = (code: string): string => {
   switch (code) {
@@ -87,6 +89,16 @@ const refusals = (code: string): string => {
     case 'invite-required': return t('Registration requires an invitation. Ask the person who recommended LastCall to you for one.');
     case 'invite-invalid': return t('This invitation does not work: it was already used, has expired, or was not pasted in full. Ask for a new one.');
     case 'registration-closed': return t('New account registration is currently closed. You can still restore an existing account.');
+    case 'phone-proof-invalid': return t('The number confirmation has expired. Confirm your number through Telegram again.');
+    case 'phone-taken': return t('This number already has an account. Restore it instead.');
+    case 'phone-no-account': return t('No account uses this number. Create a new one.');
+    case 'phone-other-account': return t('This number belongs to another account.');
+    case 'phone-required': return t('Link your phone number first.');
+    case 'region-unavailable': return t('Sign-up for this number is temporarily unavailable. Try again later.');
+    case 'telegram-unavailable': return t('Sign-in through Telegram is not available right now. Try another way.');
+    case 'telegram-rate-limited': case 'access-rate-limited': return t('Too many requests. Try again in an hour.');
+    case 'access-pending': return t('Your request is already waiting for the administrator.');
+    case 'access-unavailable': return t('Access requests are not available on this server.');
     default: return t('The server refused the request. Try again later.');
   }
 };
@@ -102,7 +114,7 @@ export function emailNoticeMessage(notice: EmailNotice | undefined): string {
 }
 /** `connect()` reports terminal refusals as `<code>: <message>`. */
 export function registrationErrorCode(message: string | undefined): string | undefined {
-  return /^(username-taken|device-already-registered|email-required|email-taken|account-moved|invite-required|invite-invalid|registration-closed)\b/.exec(message ?? '')?.[1];
+  return /^(username-taken|device-already-registered|email-required|email-taken|account-moved|invite-required|invite-invalid|registration-closed|phone-proof-invalid|phone-taken|region-unavailable)\b/.exec(message ?? '')?.[1];
 }
 export function registrationErrorMessage(message: string): string {
   const code = registrationErrorCode(message);

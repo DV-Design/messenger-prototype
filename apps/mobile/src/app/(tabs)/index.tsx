@@ -1,6 +1,6 @@
 import { richPreview } from '../../sticker-model';
 import { knownSticker } from '../../stickers';
-import { memo, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { router } from 'expo-router';
 import { ActivityIndicator, Alert, FlatList, Pressable, Text, TextInput, View } from 'react-native';
 import type { MessengerSnapshot } from '@messenger/core';
@@ -8,7 +8,7 @@ import { SafeAreaView } from '../../components/SafeArea';
 import { Avatar, Empty, Icon, IconButton, ScreenHeader, time } from '../../components/ui';
 import { AccountMovedNotice } from '../../components/AccountMovedNotice';
 import { shouldShowEmailReminder } from '../../email-flow-model';
-import { client, dismissEmailReminder, errorText, useMessenger } from '../../runtime';
+import { client, dismissEmailReminder, errorText, refreshPhoneState, useMessenger } from '../../runtime';
 import { colors, styles } from '../../styles';
 import { latestEntry } from '../../timeline-model';
 import { mediaKind } from '../../media-model';
@@ -51,7 +51,9 @@ const ChatListRow = memo(function ChatListRow({ id, title, group, online, unread
 const Separator = () => <View style={styles.separator} />;
 
 export default function Chats() {
-  const { snapshot, identity, profile, boundEmail, emailReminderDismissed, retired } = useMessenger();
+  const { snapshot, identity, profile, boundEmail, emailReminderDismissed, retired, phone } = useMessenger();
+  // A number linked through Telegram restores the account too, so the email reminder is not needed then.
+  useEffect(() => { if (snapshot.status === 'online' && phone === undefined) void refreshPhoneState(); }, [snapshot.status, phone]);
   const [query, setQuery] = useState('');
   const blockedKey = snapshot.blockedContacts.join(',');
   const blocked = new Set(snapshot.blockedContacts);
@@ -61,7 +63,7 @@ export default function Chats() {
   return <SafeAreaView style={styles.whiteScreen} edges={['top']}>
     <ScreenHeader title={t('Chats')} subtitle={retired ? undefined : snapshot.status === 'online' ? undefined : snapshot.status === 'connecting' ? t('Connecting…') : t('Waiting for network…')} action={<IconButton name="create-outline" label={t('New chat')} onPress={() => router.push('/(tabs)/contacts')} />} />
     {retired && <AccountMovedNotice />}
-    {shouldShowEmailReminder({ bound: boundEmail, serverUrl: profile?.serverUrl, dismissed: emailReminderDismissed, status: snapshot.status, retired }) && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 15, paddingRight: 4, paddingVertical: 4, backgroundColor: '#FFF6E4' }}>
+    {phone !== undefined && !phone?.phone && shouldShowEmailReminder({ bound: boundEmail, serverUrl: profile?.serverUrl, dismissed: emailReminderDismissed, status: snapshot.status, retired }) && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 15, paddingRight: 4, paddingVertical: 4, backgroundColor: '#FFF6E4' }}>
       <Pressable accessibilityRole="button" accessibilityLabel={t('Add an email in settings')} onPress={() => router.push('/(tabs)/settings')} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}><Icon name="mail-outline" size={17} color="#7B5924" /><Text style={[styles.info, { flex: 1, color: '#7B5924' }]}>{t('Add an email: without it you lose this account if you reinstall the app.')}</Text></Pressable>
       <IconButton name="close" label={t('Not now')} onPress={dismissEmailReminder} />
     </View>}

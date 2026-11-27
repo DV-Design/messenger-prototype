@@ -9,7 +9,7 @@ import { styles } from '../../styles';
 import { t } from '../../i18n';
 
 export default function AccountSettings() {
-  const { retired } = useMessenger();
+  const { retired, phone } = useMessenger();
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
   return <SettingsPage title={t('Account')}>
@@ -17,7 +17,10 @@ export default function AccountSettings() {
     {!retired && <>
       <Text style={styles.sectionTitle}>{t('EMAIL')}</Text>
       <View style={[styles.section, styles.content, { marginTop: 0 }]}><EmailBinding /></View>
-      <MenuGroup><MenuRow icon="person-add-outline" title={t('Invitations')} chevron onPress={() => router.push('/settings/invitations')} /></MenuGroup>
+      <MenuGroup>
+        <MenuRow icon="call-outline" title={t('Phone number')} value={phone?.phone} chevron onPress={() => router.push('/settings/phone')} />
+        <MenuRow icon="person-add-outline" title={t('Invitations')} chevron onPress={() => router.push('/settings/invitations')} />
+      </MenuGroup>
       <Text style={styles.sectionTitle}>{t('DELETE ACCOUNT')}</Text>
       <View style={[styles.section, styles.content, { marginTop: 0, gap: 10 }]}>
         <Text style={styles.body}>{t('Deleting the account removes the profile and push consents on the server, plus the device key, contacts and history on this phone. This cannot be undone.')}</Text>

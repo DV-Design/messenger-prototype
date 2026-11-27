@@ -3134,5 +3134,249 @@
  {
   "key": "Powered by KLIPY",
   "ru": "При поддержке KLIPY"
+ },
+ {
+  "key": "Find friends from contacts",
+  "ru": "Найти друзей из контактов"
+ },
+ {
+  "key": "Link your phone number first.",
+  "ru": "Сначала привяжите свой номер телефона."
+ },
+ {
+  "key": "LastCall checks which numbers from your phone book belong to LastCall users who allow it. The numbers are sent once over an encrypted connection and are not stored.",
+  "ru": "LastCall проверяет, какие номера из вашей записной книжки принадлежат пользователям LastCall, которые это разрешили. Номера отправляются один раз по зашифрованному соединению и не сохраняются."
+ },
+ {
+  "key": "Link number through Telegram",
+  "ru": "Привязать номер через Telegram"
+ },
+ {
+  "key": "Search again",
+  "ru": "Искать снова"
+ },
+ {
+  "key": "Find friends",
+  "ru": "Найти друзей"
+ },
+ {
+  "key": "LastCall needs access to contacts to find friends. You can allow it in the phone settings.",
+  "ru": "LastCall нужен доступ к контактам, чтобы найти друзей. Его можно разрешить в настройках телефона."
+ },
+ {
+  "key": "None of your contacts can be found on LastCall yet.",
+  "ru": "Пока никого из ваших контактов нельзя найти в LastCall."
+ },
+ {
+  "key": "Write",
+  "ru": "Написать"
+ },
+ {
+  "key": "Could not open Telegram. Install it or open the link on another device.",
+  "ru": "Не удалось открыть Telegram. Установите его или откройте ссылку на другом устройстве."
+ },
+ {
+  "key": "Restore your account with the phone number of your Telegram account.",
+  "ru": "Восстановите аккаунт по номеру телефона вашего аккаунта Telegram."
+ },
+ {
+  "key": "LastCall confirms your phone number through Telegram: no SMS, no email.",
+  "ru": "LastCall подтверждает ваш номер телефона через Telegram: без SMS и без почты."
+ },
+ {
+  "key": "No Telegram? Write to the administrator. If they approve, an invitation arrives here and you sign up with email.",
+  "ru": "Нет Telegram? Напишите администратору. Если он одобрит, сюда придёт приглашение и вы зарегистрируетесь по почте."
+ },
+ {
+  "key": "Continue with Telegram",
+  "ru": "Продолжить через Telegram"
+ },
+ {
+  "key": "Other ways to sign up",
+  "ru": "Другие способы регистрации"
+ },
+ {
+  "key": "Through Telegram (phone number)",
+  "ru": "Через Telegram (по номеру)"
+ },
+ {
+  "key": "Through email",
+  "ru": "Через почту"
+ },
+ {
+  "key": "Sign up with email",
+  "ru": "Регистрация по почте"
+ },
+ {
+  "key": "I have an invitation code",
+  "ru": "У меня есть код приглашения"
+ },
+ {
+  "key": "No Telegram? Ask for access",
+  "ru": "Нет Telegram? Запросить доступ"
+ },
+ {
+  "key": "In the LastCall bot, tap “Share my number”, then come back here. The number is used to sign in, restore the account and let people who know your number find you.",
+  "ru": "В боте LastCall нажмите «Отправить мой номер» и вернитесь сюда. Номер нужен для входа, восстановления аккаунта и чтобы вас нашли те, кто знает ваш номер."
+ },
+ {
+  "key": "Open Telegram",
+  "ru": "Открыть Telegram"
+ },
+ {
+  "key": "Waiting for your number…",
+  "ru": "Ждём ваш номер…"
+ },
+ {
+  "key": "Restore this account",
+  "ru": "Восстановить этот аккаунт"
+ },
+ {
+  "key": "Try again",
+  "ru": "Попробовать снова"
+ },
+ {
+  "key": "Can’t use Telegram?",
+  "ru": "Не получается через Telegram?"
+ },
+ {
+  "key": "How to reach you (optional)",
+  "ru": "Как с вами связаться (необязательно)"
+ },
+ {
+  "key": "Email, phone or another messenger",
+  "ru": "Почта, телефон или другой мессенджер"
+ },
+ {
+  "key": "Message to the administrator",
+  "ru": "Сообщение администратору"
+ },
+ {
+  "key": "Who you are and why you can’t use Telegram",
+  "ru": "Кто вы и почему не можете использовать Telegram"
+ },
+ {
+  "key": "Send request",
+  "ru": "Отправить заявку"
+ },
+ {
+  "key": "The request was declined",
+  "ru": "Заявка отклонена"
+ },
+ {
+  "key": "Request sent",
+  "ru": "Заявка отправлена"
+ },
+ {
+  "key": "You can still sign up through Telegram or with an invitation code from someone you know.",
+  "ru": "Вы всё ещё можете зарегистрироваться через Telegram или по коду приглашения от знакомых."
+ },
+ {
+  "key": "The answer will appear here. If the administrator approves, the invitation code is filled in for you.",
+  "ru": "Ответ появится здесь. Если администратор одобрит, код приглашения подставится сам."
+ },
+ {
+  "key": "Confirmed number: {phone}",
+  "ru": "Подтверждённый номер: {phone}"
+ },
+ {
+  "key": "The profile key is stored on this device. A confirmed number or email restores your @username after reinstalling, but not chats or contacts. Compare safety codes with your contacts afterwards. The server helps find friends, see their status and keeps end-to-end encrypted messages until delivery; calls and files travel between participants.",
+  "ru": "Ключ профиля хранится на этом устройстве. Подтверждённый номер или почта вернут ваш @логин после переустановки, но не чаты и не контакты. После этого сверьте коды безопасности с собеседниками. Сервер помогает находить друзей, видеть их статус и хранит сообщения со сквозным шифрованием до доставки; звонки и файлы идут между участниками."
+ },
+ {
+  "key": "Phone number",
+  "ru": "Номер телефона"
+ },
+ {
+  "key": "Could not answer the request. Try again.",
+  "ru": "Не удалось ответить на заявку. Попробуйте ещё раз."
+ },
+ {
+  "key": "REQUESTS",
+  "ru": "ЗАЯВКИ"
+ },
+ {
+  "key": "No requests waiting.",
+  "ru": "Заявок нет."
+ },
+ {
+  "key": "Approve",
+  "ru": "Одобрить"
+ },
+ {
+  "key": "Approving sends an invitation code to the app that asked; the person then signs up with email.",
+  "ru": "При одобрении приложение, отправившее заявку, получит код приглашения; человек зарегистрируется по почте."
+ },
+ {
+  "key": "The link has expired. Try again.",
+  "ru": "Ссылка устарела. Попробуйте ещё раз."
+ },
+ {
+  "key": "{phone} · confirmed through Telegram",
+  "ru": "{phone} · подтверждён через Telegram"
+ },
+ {
+  "key": "Link your number through Telegram: people who have it can find you, and you can restore the account by number.",
+  "ru": "Привяжите номер через Telegram: вас найдут те, у кого он есть, и аккаунт можно будет восстановить по номеру."
+ },
+ {
+  "key": "Change number through Telegram",
+  "ru": "Сменить номер через Telegram"
+ },
+ {
+  "key": "WHO CAN FIND ME BY MY NUMBER",
+  "ru": "КТО МОЖЕТ НАЙТИ МЕНЯ ПО НОМЕРУ"
+ },
+ {
+  "key": "Everyone",
+  "ru": "Все"
+ },
+ {
+  "key": "My contacts",
+  "ru": "Мои контакты"
+ },
+ {
+  "key": "Nobody",
+  "ru": "Никто"
+ },
+ {
+  "key": "The server keeps a protected fingerprint of the number and its last two digits, never your phone book. Russian numbers are also stored on a server in Russia.",
+  "ru": "Сервер хранит защищённый отпечаток номера и две последние цифры, но не вашу записную книжку. Российские номера также хранятся на сервере в России."
+ },
+ {
+  "key": "Who can find me by my number",
+  "ru": "Кто может найти меня по номеру"
+ },
+ {
+  "key": "The number confirmation has expired. Confirm your number through Telegram again.",
+  "ru": "Подтверждение номера устарело. Подтвердите номер через Telegram ещё раз."
+ },
+ {
+  "key": "This number already has an account. Restore it instead.",
+  "ru": "У этого номера уже есть аккаунт. Восстановите его."
+ },
+ {
+  "key": "No account uses this number. Create a new one.",
+  "ru": "Этот номер не привязан ни к одному аккаунту. Создайте новый."
+ },
+ {
+  "key": "This number belongs to another account.",
+  "ru": "Этот номер принадлежит другому аккаунту."
+ },
+ {
+  "key": "Sign-up for this number is temporarily unavailable. Try again later.",
+  "ru": "Регистрация с этим номером временно недоступна. Попробуйте позже."
+ },
+ {
+  "key": "Sign-in through Telegram is not available right now. Try another way.",
+  "ru": "Вход через Telegram сейчас недоступен. Выберите другой способ."
+ },
+ {
+  "key": "Your request is already waiting for the administrator.",
+  "ru": "Ваша заявка уже ждёт ответа администратора."
+ },
+ {
+  "key": "Access requests are not available on this server.",
+  "ru": "Заявки на доступ на этом сервере недоступны."
  }
 ]

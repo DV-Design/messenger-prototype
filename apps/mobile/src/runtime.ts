@@ -4,7 +4,7 @@ import { emailLocale, t } from './i18n';
 import { useEffect, useSyncExternalStore } from 'react';
 import { AppState, NativeModules, Platform } from 'react-native';
 import * as Network from 'expo-network';
-import { EmailAuthError, MessengerClient, fetchRegistrationPolicyInfo, resolveDeviceProfile, startEmailChallenge, verifyEmailChallenge, type DeviceIdentity, type DirectoryUser, type EmailPurpose, type MessengerOptions, type MessengerSnapshot } from '@messenger/core';
+import { EmailAuthError, MessengerClient, SignedRequestError, checkAccess, checkTelegram, fetchRegistrationPolicyInfo, requestAccess, resolveDeviceProfile, startEmailChallenge, startTelegram, verifyEmailChallenge, type AccessState, type PhoneVisibility, type TelegramCheck, type TelegramPurpose, type TelegramSession, type DeviceIdentity, type DirectoryUser, type EmailPurpose, type MessengerOptions, type MessengerSnapshot } from '@messenger/core';
 import { isAccountMoved, type BoundEmail } from './email-flow-model';
 import { nativeRtc, validateServerUrl } from './native';
 import { CanonicalProfileStore, profileSignature, registrationCandidate } from './registration-model';
@@ -17,7 +17,7 @@ import { SharedWakeRuntime, type WakeLease } from './wake-model';
 import { whenTransitionsIdle } from './transition-idle';
 
 const empty: MessengerSnapshot = { status: 'idle', restored: false, contacts: [], conversations: [], verifiedContacts: [], blockedContacts: [], movedContacts: {} };
-type Runtime = { ready: boolean; busy: boolean; registration: 'checking' | 'unregistered' | 'unavailable' | 'bound'; profile: LocalProfile | null; identity?: DeviceIdentity; snapshot: MessengerSnapshot; error?: string; boundEmail?: BoundEmail | null; emailReminderDismissed?: boolean; retired: boolean };
+type Runtime = { ready: boolean; busy: boolean; registration: 'checking' | 'unregistered' | 'unavailable' | 'bound'; profile: LocalProfile | null; identity?: DeviceIdentity; snapshot: MessengerSnapshot; error?: string; boundEmail?: BoundEmail | null; /** The number linked through Telegram (masked) and who may find it; undefined until the server answered. */ phone?: { phone?: string; visibility: PhoneVisibility } | null; emailReminderDismissed?: boolean; retired: boolean };
 let state: Runtime = { ready: false, busy: false, registration: 'checking', profile: null, snapshot: empty, retired: false };
 const listeners = new Set<() => void>();
 const previewScopes = new WeakMap<MessengerClient, string>();
@@ -25,7 +25,7 @@ const observers = new Set<(snapshot: MessengerSnapshot, manager: MessengerClient
 const managers = new SharedWakeRuntime<MessengerClient>();
 let bootPromise: Promise<void> | null = null;
 let generation = 0;
-type RegistrationCredentials = Pick<MessengerOptions, 'emailProof' | 'inviteCode' | 'countryHints'>;
+type RegistrationCredentials = Pick<MessengerOptions, 'emailProof' | 'phoneProof' | 'inviteCode' | 'countryHints'>;
 let profiles = new CanonicalProfileStore(saveProfile);
 let networkRecovery: ReturnType<typeof monitorNetworkRecovery> | undefined;
 let resumeSubscription: ReturnType<typeof AppState.addEventListener> | undefined;
@@ -267,11 +267,66 @@ async function rememberEmail(email: string, serverUrl: string) {
 const emailServer = () => validateServerUrl(state.profile?.serverUrl ?? DEFAULT_SERVER);
 /** Countries the phone reports, kept only while signing up and only if the server weighs them. */
 let signupCountryHints: string[] | undefined;
-export async function checkNewAccountPolicy() {
+/** What the server offers a new account: the email policy, Telegram sign-in and access requests. */
+export async function checkSignupOptions() {
   const hints = await collectCountryHints().catch(() => []);
   const info = await fetchRegistrationPolicyInfo(emailServer(), hints);
   signupCountryHints = info.countryHints && hints.length ? hints : undefined;
-  return info.mode;
+  return { mode: info.mode, telegram: info.telegram === true, accessRequests: info.accessRequests === true };
+}
+export async function checkNewAccountPolicy() { return (await checkSignupOptions()).mode; }
+/** A one-time link to our Telegram bot. register/recover before sign-in, bind for the signed-in account. */
+export async function openTelegramSession(purpose: TelegramPurpose): Promise<TelegramSession> {
+  if (!state.identity) throw new Error(t('The device key is not loaded yet.'));
+  return startTelegram(purpose === 'bind' ? emailServer() : validateServerUrl(DEFAULT_SERVER), state.identity, purpose);
+}
+/**
+ * Asks whether the bot has the number yet. A recovery moves the account here and connects; a
+ * registration returns the proof for registerProfile; a link refreshes the phone state.
+ */
+export async function checkTelegramSession(purpose: TelegramPurpose, sessionId: string): Promise<TelegramCheck> {
+  if (!state.identity) throw new Error(t('The device key is not loaded yet.'));
+  const identity = state.identity;
+  const serverUrl = purpose === 'bind' ? emailServer() : validateServerUrl(DEFAULT_SERVER);
+  let result: TelegramCheck;
+  try { result = await checkTelegram(serverUrl, identity, sessionId); }
+  catch (cause) {
+    if (purpose !== 'recover' || cause instanceof SignedRequestError) throw cause;
+    // The move may have committed before the reply was lost.
+    const user = await resolveDeviceProfile(serverUrl, identity).catch(() => null);
+    if (!user) throw cause;
+    result = { state: 'verified', user };
+  }
+  if (result.state !== 'verified') return result;
+  if (purpose === 'recover') {
+    if (!result.user) throw new Error(t('The server did not confirm the profile.'));
+    publish({ busy: true, error: undefined });
+    try {
+      await connectResolved(serverUrl, result.user);
+      if (state.profile) await profiles.remember(state.profile);
+    } catch (error) { if (!state.profile) throw error; publish({ error: errorText(error) }); }
+    finally { publish({ busy: false }); }
+  }
+  if (purpose === 'bind') void refreshPhoneState();
+  return result;
+}
+export async function refreshPhoneState(): Promise<void> {
+  try { publish({ phone: await client().phoneState() }); } catch { /* Shown again when the server answers. */ }
+}
+export async function setPhoneVisibility(visibility: PhoneVisibility): Promise<void> {
+  publish({ phone: await client().setPhoneVisibility(visibility) });
+}
+export function findContactsByPhone(phones: string[]) { return client().findByPhones(phones); }
+export function listAccessRequests() { return client().accessRequests(); }
+export function decideAccessRequest(id: string, approve: boolean) { return client().decideAccess(id, approve); }
+/** People who cannot use Telegram ask the administrator; the answer comes back to this device. */
+export async function sendAccessRequest(input: { name: string; contact?: string; message: string }): Promise<string> {
+  if (!state.identity) throw new Error(t('The device key is not loaded yet.'));
+  return requestAccess(validateServerUrl(DEFAULT_SERVER), state.identity, input);
+}
+export async function accessRequestState(): Promise<AccessState> {
+  if (!state.identity) throw new Error(t('The device key is not loaded yet.'));
+  return checkAccess(validateServerUrl(DEFAULT_SERVER), state.identity);
 }
 /** Null means another operation was already running. Refusals stay with the caller, which shows them in place. */
 export async function requestEmailCode(purpose: EmailPurpose, email: string, inviteCode?: string): Promise<string | null> {
@@ -337,7 +392,7 @@ export async function recoverAccount(challengeId: string, code: string, email: s
     }
   } finally { publish({ busy: false }); }
 }
-export async function registerProfile(displayName: string, username: string, emailProof?: string, email?: string, inviteCode?: string): Promise<void> {
+export async function registerProfile(displayName: string, username: string, emailProof?: string, email?: string, inviteCode?: string, phoneProof?: string): Promise<void> {
   if (state.busy || state.profile || state.registration !== 'unregistered') return;
   const proposed = { displayName: displayName.trim(), username: username.trim().replace(/^@/, '').toLowerCase(), serverUrl: validateServerUrl(DEFAULT_SERVER) };
   if (!proposed.displayName || proposed.displayName.length > 48) throw new Error(t('The name must contain 1–48 characters.'));
@@ -347,7 +402,7 @@ export async function registerProfile(displayName: string, username: string, ema
   publish({ busy: true, error: undefined });
   try {
     const candidate = await registrationCandidate(proposed, () => resolveDeviceProfile(proposed.serverUrl, identity));
-    await connectCanonical(candidate.profile, candidate.isNew ? { emailProof, inviteCode, ...(signupCountryHints ? { countryHints: signupCountryHints } : {}) } : undefined);
+    await connectCanonical(candidate.profile, candidate.isNew ? { ...(phoneProof ? { phoneProof } : { emailProof, inviteCode }), ...(signupCountryHints ? { countryHints: signupCountryHints } : {}) } : undefined);
     if (!state.profile) throw new Error(t('The server did not confirm the profile.'));
     await profiles.remember(state.profile);
     if (candidate.isNew && email && emailProof) await rememberEmail(email, proposed.serverUrl);
