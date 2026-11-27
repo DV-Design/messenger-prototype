@@ -154,7 +154,7 @@ export const directoryClientFrameSchema=z.discriminatedUnion('type',[
   /** `consent`: who of the watched may wake this phone (pushes, calls); without it, all of them, as before 1.0.42. */
   z.object({type:z.literal('watch'),userIds:z.array(roomIdSchema).max(200),identityMovedV1:z.literal(true).optional(),consent:z.array(roomIdSchema).max(200).optional()}).strict().refine(frame=>!frame.consent||frame.consent.every(id=>frame.userIds.includes(id)),{message:'Consent must be a subset of the watched users'}),
   z.object({type:z.literal('connect'),to:roomIdSchema}).strict(),
-  z.object({type:z.literal('telegram-start'),purpose:telegramPurposeSchema,publicKey:roomIdSchema,signature:signatureSchema}).strict(),
+  z.object({type:z.literal('telegram-start'),purpose:telegramPurposeSchema,publicKey:roomIdSchema,signature:signatureSchema,/** 1.0.50: also return a short code to type into the bot. */codeV1:z.literal(true).optional()}).strict(),
   z.object({type:z.literal('telegram-check'),sessionId:peerIdSchema,publicKey:roomIdSchema,signature:signatureSchema}).strict(),
   z.object({type:z.literal('access-request'),name:accessNameSchema,contact:accessContactSchema.optional(),message:accessMessageSchema,publicKey:roomIdSchema,signature:signatureSchema}).strict(),
   z.object({type:z.literal('access-check'),publicKey:roomIdSchema,signature:signatureSchema}).strict(),
@@ -195,7 +195,7 @@ export const directoryServerFrameSchema=z.discriminatedUnion('type',[
   z.object({type:z.literal('connect'),from:directoryUserSchema}).strict(),
   z.object({type:z.literal('account-deleted'),requestId:peerIdSchema}).strict(),
   z.object({type:z.literal('report-received'),requestId:peerIdSchema}).strict(),
-  z.object({type:z.literal('telegram-started'),sessionId:peerIdSchema,url:z.string().max(200).regex(/^https:\/\/t\.me\/[A-Za-z0-9_]{5,32}\?start=[A-Za-z0-9_-]{16,64}$/),expiresAt:z.number().int().positive()}).strict(),
+  z.object({type:z.literal('telegram-started'),sessionId:peerIdSchema,url:z.string().max(200).regex(/^https:\/\/t\.me\/[A-Za-z0-9_]{5,32}\?start=[A-Za-z0-9_-]{16,64}$/),expiresAt:z.number().int().positive(),code:z.string().regex(/^[A-Z2-9]{4}-[A-Z2-9]{4}$/).optional()}).strict(),
   z.object({type:z.literal('telegram-status'),state:z.enum(['pending','expired','verified']),proof:roomIdSchema.optional(),user:directoryUserSchema.optional(),phone:z.string().max(32).optional()}).strict(),
   z.object({type:z.literal('access-requested'),id:peerIdSchema}).strict(),
   z.object({type:z.literal('access-status'),state:z.enum(['none','pending','approved','declined']),inviteCode:inviteCodeSchema.optional()}).strict(),

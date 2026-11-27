@@ -843,5 +843,9 @@
  "Sign-up for this number is temporarily unavailable. Try again later.": "Die Registrierung mit dieser Nummer ist vorübergehend nicht möglich. Versuche es später.",
  "Sign-in through Telegram is not available right now. Try another way.": "Die Anmeldung über Telegram ist gerade nicht verfügbar. Versuche einen anderen Weg.",
  "Your request is already waiting for the administrator.": "Deine Anfrage wartet bereits auf den Administrator.",
- "Access requests are not available on this server.": "Zugangsanfragen sind auf diesem Server nicht verfügbar."
+ "Access requests are not available on this server.": "Zugangsanfragen sind auf diesem Server nicht verfügbar.",
+ "If Telegram closes by itself, open @LastCall_app_bot in Telegram and send it this code:": "Wenn sich Telegram von selbst schließt, öffne @LastCall_app_bot in Telegram und sende ihm diesen Code:",
+ "Copy code {code}": "Code {code} kopieren",
+ "Copied": "Kopiert",
+ "Tap to copy": "Zum Kopieren tippen"
 }

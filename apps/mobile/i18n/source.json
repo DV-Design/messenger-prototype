@@ -3378,5 +3378,21 @@
  {
   "key": "Access requests are not available on this server.",
   "ru": "Заявки на доступ на этом сервере недоступны."
+ },
+ {
+  "key": "If Telegram closes by itself, open @LastCall_app_bot in Telegram and send it this code:",
+  "ru": "Если Telegram закрывается сам, откройте в Telegram бота @LastCall_app_bot и отправьте ему этот код:"
+ },
+ {
+  "key": "Copy code {code}",
+  "ru": "Скопировать код {code}"
+ },
+ {
+  "key": "Copied",
+  "ru": "Скопировано"
+ },
+ {
+  "key": "Tap to copy",
+  "ru": "Нажмите, чтобы скопировать"
  }
 ]

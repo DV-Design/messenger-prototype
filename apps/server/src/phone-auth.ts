@@ -7,7 +7,10 @@ import type { TelegramContact } from './telegram-bot.js';
 const SESSION_TTL_MS = 600_000;
 const PROOF_TTL_MS = 900_000;
 const MAX_ENTRIES = 4096;
-interface Session { publicKey: string; purpose: TelegramPurpose; token: string; expiresAt: number; chatId?: number; phone?: string }
+interface Session { publicKey: string; purpose: TelegramPurpose; token: string; code: string; expiresAt: number; chatId?: number; phone?: string }
+const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+/** Wrong codes a chat may send in 10 minutes before the bot stops listening to it. */
+const CODE_TRIES = 10;
 export interface PhoneOutcome { purpose: TelegramPurpose; phone: string; phoneHash: string; country?: string; hint: string }
 interface Proof { publicKey: string; outcome: PhoneOutcome; expiresAt: number }
 export interface PhoneQuota { scope: string; key: string; limit: number; amount?: number }
@@ -21,6 +24,8 @@ export class PhoneAuth {
   private sessions = new Map<string, Session>();
   private byToken = new Map<string, string>();
   private byChat = new Map<number, string>();
+  private byCode = new Map<string, string>();
+  private codeTries = new Map<number, { count: number; until: number }>();
   private proofs = new Map<string, Proof>();
   private secret?: Buffer;
   constructor(private db: DatabaseSync, private options: { phoneHashSecret?: string; serviceNow?: () => number; link?: (token: string) => string | undefined }, private reserve: (quotas: PhoneQuota[]) => void) {
@@ -35,7 +40,7 @@ export class PhoneAuth {
   /** Telegram sign-in needs both the hash key and a running bot. */
   get enabled() { return Boolean(this.secret && this.options.link?.('x'.repeat(16))); }
   private hash(e164: string) { return createHmac('sha256', this.secret!).update(JSON.stringify(['lastcall/phone/v1', e164])).digest('hex'); }
-  start(input: { publicKey: string; purpose: TelegramPurpose; userId: string; ip: string }) {
+  start(input: { publicKey: string; purpose: TelegramPurpose; userId: string; ip: string; withCode?: boolean }) {
     if (!this.enabled) throw new ServiceError('telegram-unavailable', 'Telegram sign-in is not configured on this server');
     try {
       this.reserve([{ scope: 'telegram-key', key: input.userId, limit: 10 }, { scope: 'telegram-ip', key: input.ip, limit: 30 }, { scope: 'telegram-global', key: 'all', limit: 2000 }]);
@@ -49,14 +54,29 @@ export class PhoneAuth {
     const sessionId = randomBytes(16).toString('hex');
     const token = randomBytes(24).toString('base64url');
     const expiresAt = this.now() + SESSION_TTL_MS;
-    this.sessions.set(sessionId, { publicKey: input.publicKey, purpose: input.purpose, token, expiresAt });
+    let code: string;
+    do { const bytes = randomBytes(8); code = [...bytes].map(byte => CODE_ALPHABET[byte % CODE_ALPHABET.length]).join(''); code = `${code.slice(0, 4)}-${code.slice(4)}`; } while (this.byCode.has(code));
+    this.sessions.set(sessionId, { publicKey: input.publicKey, purpose: input.purpose, token, code, expiresAt });
     this.byToken.set(token, sessionId);
-    return { sessionId, url: this.options.link!(token)!, expiresAt };
+    this.byCode.set(code, sessionId);
+    console.info(`telegram: link created (${input.purpose})`);
+    return { sessionId, url: this.options.link!(token)!, expiresAt, ...(input.withCode ? { code } : {}) };
   }
-  /** Bot: a deep link was opened in this chat. */
+  /** Bot: a deep link was opened, or the code from the app was typed, in this chat. */
   onStart(token: string, chatId: number): boolean {
-    const id = this.byToken.get(token); const session = id ? this.sessions.get(id) : undefined;
-    if (!id || !session || this.now() >= session.expiresAt || session.phone) return false;
+    const typed = /^[A-Z2-9]{4}-?[A-Z2-9]{4}$/i.test(token.trim());
+    if (typed) {
+      const tries = this.codeTries.get(chatId);
+      if (tries && this.now() < tries.until && tries.count >= CODE_TRIES) { console.info('telegram: too many wrong codes from one chat'); return false; }
+    }
+    const code = typed ? token.trim().toUpperCase().replace(/^(.{4})-?(.{4})$/, '$1-$2') : undefined;
+    const id = code ? this.byCode.get(code) : this.byToken.get(token); const session = id ? this.sessions.get(id) : undefined;
+    if (code && !session) {
+      const tries = this.codeTries.get(chatId);
+      this.codeTries.set(chatId, tries && this.now() < tries.until ? { count: tries.count + 1, until: tries.until } : { count: 1, until: this.now() + 600_000 });
+    }
+    if (!id || !session || this.now() >= session.expiresAt || session.phone) { console.info(`telegram: /start with ${!id ? 'unknown' : 'used or expired'} link`); return false; }
+    console.info(`telegram: /start (${session.purpose})`);
     if (session.chatId !== undefined) this.byChat.delete(session.chatId);
     session.chatId = chatId; this.byChat.set(chatId, id);
     return true;
@@ -64,19 +84,20 @@ export class PhoneAuth {
   /** Bot: the person shared a contact. Only their own number counts. */
   onContact(chatId: number, contact: TelegramContact): 'ok' | 'not-own' | 'anonymous' | 'invalid' | 'no-session' {
     const id = this.byChat.get(chatId); const session = id ? this.sessions.get(id) : undefined;
-    if (!id || !session || this.now() >= session.expiresAt) return 'no-session';
-    if (contact.ownerId === undefined || contact.ownerId !== contact.fromId) return 'not-own';
+    if (!id || !session || this.now() >= session.expiresAt) { console.info('telegram: contact without an open session'); return 'no-session'; }
+    if (contact.ownerId === undefined || contact.ownerId !== contact.fromId) { console.info('telegram: contact is not the sender\'s own'); return 'not-own'; }
     const raw = contact.phone.trim();
     let phone: string;
     try { phone = normalizePhone(raw.startsWith('+') ? raw : `+${raw}`); } catch { return raw.replace(/\D/g, '').startsWith('888') ? 'anonymous' : 'invalid'; }
     if (phone.startsWith('+888')) return 'anonymous';
     session.phone = phone; this.byChat.delete(chatId);
+    console.info(`telegram: number received (${session.purpose})`);
     return 'ok';
   }
   /** pending until the bot has the number; the outcome is handed out once. */
   check(sessionId: string, publicKey: string): { state: 'pending' | 'expired' } | { state: 'verified'; outcome: PhoneOutcome } {
     const session = this.sessions.get(sessionId);
-    if (!session || session.publicKey !== publicKey) return { state: 'expired' };
+    if (!session || session.publicKey !== publicKey) { console.info('telegram: check of an unknown session'); return { state: 'expired' }; }
     if (this.now() >= session.expiresAt) { this.remove(sessionId); return { state: 'expired' }; }
     if (!session.phone) return { state: 'pending' };
     const phone = session.phone; this.remove(sessionId);
@@ -84,7 +105,7 @@ export class PhoneAuth {
   }
   private remove(id: string) {
     const session = this.sessions.get(id); if (!session) return;
-    this.sessions.delete(id); this.byToken.delete(session.token);
+    this.sessions.delete(id); this.byToken.delete(session.token); this.byCode.delete(session.code);
     if (session.chatId !== undefined && this.byChat.get(session.chatId) === id) this.byChat.delete(session.chatId);
   }
   createProof(publicKey: string, outcome: PhoneOutcome) {
@@ -146,6 +167,7 @@ export class PhoneAuth {
     const now = this.now();
     for (const [id, session] of this.sessions) if (now >= session.expiresAt) this.remove(id);
     for (const [key, value] of this.proofs) if (now >= value.expiresAt) this.proofs.delete(key);
+    for (const [chat, tries] of this.codeTries) if (now >= tries.until) this.codeTries.delete(chat);
   }
-  close() { this.sessions.clear(); this.byToken.clear(); this.byChat.clear(); this.proofs.clear(); this.secret?.fill(0); }
+  close() { this.sessions.clear(); this.byToken.clear(); this.byChat.clear(); this.byCode.clear(); this.codeTries.clear(); this.proofs.clear(); this.secret?.fill(0); }
 }

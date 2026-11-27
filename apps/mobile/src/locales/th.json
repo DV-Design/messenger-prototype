@@ -843,5 +843,9 @@
  "Sign-up for this number is temporarily unavailable. Try again later.": "สมัครด้วยหมายเลขนี้ไม่ได้ชั่วคราว ลองใหม่ภายหลัง",
  "Sign-in through Telegram is not available right now. Try another way.": "ขณะนี้เข้าสู่ระบบผ่าน Telegram ไม่ได้ ลองวิธีอื่น",
  "Your request is already waiting for the administrator.": "คำขอของคุณกำลังรอผู้ดูแลอยู่แล้ว",
- "Access requests are not available on this server.": "เซิร์ฟเวอร์นี้ไม่มีคำขอสิทธิ์เข้าใช้"
+ "Access requests are not available on this server.": "เซิร์ฟเวอร์นี้ไม่มีคำขอสิทธิ์เข้าใช้",
+ "If Telegram closes by itself, open @LastCall_app_bot in Telegram and send it this code:": "หาก Telegram ปิดเอง ให้เปิด @LastCall_app_bot ใน Telegram แล้วส่งรหัสนี้",
+ "Copy code {code}": "คัดลอกรหัส {code}",
+ "Copied": "คัดลอกแล้ว",
+ "Tap to copy": "แตะเพื่อคัดลอก"
 }

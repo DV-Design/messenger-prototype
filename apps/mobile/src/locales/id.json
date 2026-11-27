@@ -843,5 +843,9 @@
  "Sign-up for this number is temporarily unavailable. Try again later.": "Pendaftaran dengan nomor ini sementara tidak tersedia. Coba lagi nanti.",
  "Sign-in through Telegram is not available right now. Try another way.": "Masuk lewat Telegram sedang tidak tersedia. Coba cara lain.",
  "Your request is already waiting for the administrator.": "Permintaan Anda sudah menunggu administrator.",
- "Access requests are not available on this server.": "Permintaan akses tidak tersedia di server ini."
+ "Access requests are not available on this server.": "Permintaan akses tidak tersedia di server ini.",
+ "If Telegram closes by itself, open @LastCall_app_bot in Telegram and send it this code:": "Jika Telegram tertutup sendiri, buka @LastCall_app_bot di Telegram dan kirim kode ini:",
+ "Copy code {code}": "Salin kode {code}",
+ "Copied": "Disalin",
+ "Tap to copy": "Ketuk untuk menyalin"
 }

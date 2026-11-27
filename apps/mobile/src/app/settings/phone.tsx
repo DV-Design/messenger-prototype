@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, Linking, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, Text, View } from 'react-native';
 import type { PhoneVisibility, TelegramSession } from '@messenger/core';
 import { ActionLink, MenuGroup, MenuRow, SettingsPage } from '../../components/ui';
 import { checkTelegramSession, openTelegramSession, refreshPhoneState, setPhoneVisibility, useMessenger } from '../../runtime';
 import { telegramErrorMessage } from '../../telegram-signup-model';
+import { openTelegramBot } from '../../telegram-open';
+import { TelegramCode } from '../../components/TelegramCode';
 import { styles } from '../../styles';
 import { t } from '../../i18n';
 
@@ -37,7 +39,7 @@ export default function PhoneSettings() {
     try {
       const next = await openTelegramSession('bind');
       setSession(next);
-      await Linking.openURL(next.url).catch(() => setError(t('Could not open Telegram. Install it or open the link on another device.')));
+      await openTelegramBot(next.url).catch(() => setError(t('Could not open Telegram. Install it or open the link on another device.')));
     } catch (cause) { setError(telegramErrorMessage(cause)); }
   }
   async function choose(visibility: PhoneVisibility) {
@@ -50,7 +52,7 @@ export default function PhoneSettings() {
       {phone === undefined ? <ActivityIndicator /> : linked
         ? <Text style={styles.body}>{t('{phone} · confirmed through Telegram', { phone: linked })}</Text>
         : <Text style={styles.body}>{t('Link your number through Telegram: people who have it can find you, and you can restore the account by number.')}</Text>}
-      {session ? <View style={[styles.row, { gap: 8 }]}><ActivityIndicator /><Text style={styles.info}>{t('Waiting for your number…')}</Text></View>
+      {session ? <View style={{ gap: 10 }}><View style={[styles.row, { gap: 8 }]}><ActivityIndicator /><Text style={styles.info}>{t('Waiting for your number…')}</Text></View>{!!session.code && <TelegramCode code={session.code} />}<ActionLink icon="paper-plane-outline" title={t('Open Telegram')} onPress={() => void openTelegramBot(session.url).catch(() => setError(t('Could not open Telegram. Install it or open the link on another device.')))} /></View>
         : phone !== undefined && <ActionLink icon="paper-plane-outline" title={linked ? t('Change number through Telegram') : t('Link number through Telegram')} onPress={() => void link()} />}
       {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
     </View>

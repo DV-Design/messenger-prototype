@@ -311,11 +311,13 @@ export class Directory {
           if (frame.type === 'telegram-start') {
             if (frame.purpose === 'bind' && !hasProfile) throw new ServiceError('profile-required', 'Register before linking a number');
             if (frame.purpose !== 'bind' && hasProfile) throw new ServiceError('device-already-registered', 'This installation already owns a username');
-            return { type: 'telegram-started', ...this.phone.start({ publicKey: frame.publicKey, purpose: frame.purpose, userId, ip: connection.ip }) };
+            return { type: 'telegram-started', ...this.phone.start({ publicKey: frame.publicKey, purpose: frame.purpose, userId, ip: connection.ip, withCode: frame.codeV1 === true }) };
           }
           if (frame.type === 'telegram-check') {
             const result = this.phone.check(frame.sessionId, frame.publicKey);
-            return result.state === 'verified' ? await this.finishPhone(frame.publicKey, result.outcome) : { type: 'telegram-status', state: result.state };
+            if (result.state !== 'verified') return { type: 'telegram-status', state: result.state };
+            try { const reply = await this.finishPhone(frame.publicKey, result.outcome); console.info(`telegram: ${result.outcome.purpose} done`); return reply; }
+            catch (error) { console.info(`telegram: ${result.outcome.purpose} refused (${error instanceof ServiceError ? error.code : 'error'})`); throw error; }
           }
           if (frame.type === 'access-check') return { type: 'access-status', ...this.access.check(frame.publicKey) };
           if (hasProfile) throw new ServiceError('device-already-registered', 'This installation already owns a username');

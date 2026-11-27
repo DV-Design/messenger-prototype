@@ -843,5 +843,9 @@
  "Sign-up for this number is temporarily unavailable. Try again later.": "Înregistrarea cu acest număr este temporar indisponibilă. Încercați mai târziu.",
  "Sign-in through Telegram is not available right now. Try another way.": "Autentificarea prin Telegram nu este disponibilă acum. Încercați altă cale.",
  "Your request is already waiting for the administrator.": "Cererea dvs. așteaptă deja administratorul.",
- "Access requests are not available on this server.": "Cererile de acces nu sunt disponibile pe acest server."
+ "Access requests are not available on this server.": "Cererile de acces nu sunt disponibile pe acest server.",
+ "If Telegram closes by itself, open @LastCall_app_bot in Telegram and send it this code:": "Dacă Telegram se închide singur, deschideți @LastCall_app_bot în Telegram și trimiteți-i acest cod:",
+ "Copy code {code}": "Copiați codul {code}",
+ "Copied": "Copiat",
+ "Tap to copy": "Atingeți pentru a copia"
 }

@@ -843,5 +843,9 @@
  "Sign-up for this number is temporarily unavailable. Try again later.": "Η εγγραφή με αυτόν τον αριθμό δεν είναι προσωρινά διαθέσιμη. Δοκιμάστε αργότερα.",
  "Sign-in through Telegram is not available right now. Try another way.": "Η σύνδεση μέσω Telegram δεν είναι διαθέσιμη τώρα. Δοκιμάστε άλλον τρόπο.",
  "Your request is already waiting for the administrator.": "Το αίτημά σας περιμένει ήδη τον διαχειριστή.",
- "Access requests are not available on this server.": "Τα αιτήματα πρόσβασης δεν είναι διαθέσιμα σε αυτόν τον διακομιστή."
+ "Access requests are not available on this server.": "Τα αιτήματα πρόσβασης δεν είναι διαθέσιμα σε αυτόν τον διακομιστή.",
+ "If Telegram closes by itself, open @LastCall_app_bot in Telegram and send it this code:": "Αν το Telegram κλείνει μόνο του, ανοίξτε το @LastCall_app_bot στο Telegram και στείλτε του αυτόν τον κωδικό:",
+ "Copy code {code}": "Αντιγραφή κωδικού {code}",
+ "Copied": "Αντιγράφηκε",
+ "Tap to copy": "Πατήστε για αντιγραφή"
 }

@@ -69,13 +69,13 @@ function oneShot<T>(serverUrl: string, identity: DeviceIdentity, build: (challen
   });
 }
 
-export interface TelegramSession { sessionId: string; url: string; expiresAt: number }
+export interface TelegramSession { sessionId: string; url: string; expiresAt: number; /** Typed into the bot when the link does not reach it. */ code?: string }
 /** A one-time link to our bot; the person shares their own number there. */
 export function startTelegram(serverUrl: string, identity: DeviceIdentity, purpose: TelegramPurpose): Promise<TelegramSession> {
   telegramPurposeSchema.parse(purpose);
   return oneShot(serverUrl, identity,
-    challenge => ({ type: 'telegram-start', purpose, publicKey: identity.publicKey, signature: signRequest(identity, challenge, 'telegram-start', [purpose]) }),
-    frame => frame.type === 'telegram-started' ? { sessionId: frame.sessionId, url: frame.url, expiresAt: frame.expiresAt } : undefined);
+    challenge => ({ type: 'telegram-start', purpose, publicKey: identity.publicKey, signature: signRequest(identity, challenge, 'telegram-start', [purpose]), codeV1: true }),
+    frame => frame.type === 'telegram-started' ? { sessionId: frame.sessionId, url: frame.url, expiresAt: frame.expiresAt, ...(frame.code ? { code: frame.code } : {}) } : undefined);
 }
 export interface TelegramCheck { state: 'pending' | 'expired' | 'verified'; proof?: string; user?: DirectoryUser; phone?: string }
 /** register returns `proof` for authenticate, recover returns the moved profile as `user`, bind returns neither. */
@@ -111,4 +111,10 @@ export function maskPhone(e164: string): string {
   let code = '';
   try { code = parsePhoneNumberWithError(e164, { extract: false }).countryCallingCode; } catch { /* Fall back to no country code. */ }
   return `${code ? `+${code} ` : ''}••• ••• ${e164.slice(-2)}`;
+}
+
+/** Telegram's own scheme for the same bot link; opens the Telegram app without a browser hop. */
+export function telegramAppLink(url: string): string | undefined {
+  const match = /^https:\/\/t\.me\/([A-Za-z0-9_]{5,32})\?start=([A-Za-z0-9_-]{16,64})$/.exec(url);
+  return match ? `tg://resolve?domain=${match[1]}&start=${match[2]}` : undefined;
 }

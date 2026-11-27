@@ -843,5 +843,9 @@
  "Sign-up for this number is temporarily unavailable. Try again later.": "التسجيل بهذا الرقم غير متاح مؤقتًا. حاول لاحقًا.",
  "Sign-in through Telegram is not available right now. Try another way.": "تسجيل الدخول عبر Telegram غير متاح الآن. جرّب طريقة أخرى.",
  "Your request is already waiting for the administrator.": "طلبك ينتظر المسؤول بالفعل.",
- "Access requests are not available on this server.": "طلبات الوصول غير متاحة على هذا الخادم."
+ "Access requests are not available on this server.": "طلبات الوصول غير متاحة على هذا الخادم.",
+ "If Telegram closes by itself, open @LastCall_app_bot in Telegram and send it this code:": "إذا أُغلق Telegram من تلقاء نفسه، افتح ‎@LastCall_app_bot في Telegram وأرسل إليه هذا الرمز:",
+ "Copy code {code}": "نسخ الرمز {code}",
+ "Copied": "تم النسخ",
+ "Tap to copy": "اضغط للنسخ"
 }

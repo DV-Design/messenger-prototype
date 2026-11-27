@@ -843,5 +843,9 @@
  "Sign-up for this number is temporarily unavailable. Try again later.": "Aanmelden met dit nummer is tijdelijk niet mogelijk. Probeer het later.",
  "Sign-in through Telegram is not available right now. Try another way.": "Inloggen via Telegram is nu niet beschikbaar. Probeer een andere manier.",
  "Your request is already waiting for the administrator.": "Je verzoek wacht al op de beheerder.",
- "Access requests are not available on this server.": "Toegangsverzoeken zijn niet beschikbaar op deze server."
+ "Access requests are not available on this server.": "Toegangsverzoeken zijn niet beschikbaar op deze server.",
+ "If Telegram closes by itself, open @LastCall_app_bot in Telegram and send it this code:": "Sluit Telegram vanzelf? Open @LastCall_app_bot in Telegram en stuur deze code:",
+ "Copy code {code}": "Code {code} kopiëren",
+ "Copied": "Gekopieerd",
+ "Tap to copy": "Tik om te kopiëren"
 }

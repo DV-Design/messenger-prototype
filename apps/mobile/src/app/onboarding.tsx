@@ -7,8 +7,10 @@ import { EmailCodeForm } from '../components/EmailCodeForm';
 import { Button, Icon } from '../components/ui';
 import { emailErrorCode, emailErrorMessage, emailFlowReducer, emailNoticeMessage, initialEmailFlow, isEmailUnavailable, normalizeInviteCode, registrationErrorCode, registrationErrorMessage } from '../email-flow-model';
 import { telegramErrorCode, telegramErrorMessage, telegramNextStep } from '../telegram-signup-model';
+import { openTelegramBot } from '../telegram-open';
 import { accessRequestState, checkRegistration, checkSignupOptions, checkTelegramSession, confirmRegistrationEmail, errorText, openTelegramSession, recoverAccount, registerProfile, requestEmailCode, sendAccessRequest, useMessenger } from '../runtime';
 import { colors, styles } from '../styles';
+import { TelegramCode } from '../components/TelegramCode';
 import { t } from '../i18n';
 
 type Screen = 'home' | 'restore' | 'other' | 'telegram' | 'access' | 'access-sent';
@@ -105,7 +107,7 @@ export default function Onboarding() {
     try {
       const session = await openTelegramSession(purpose);
       setTelegram({ purpose, session });
-      await Linking.openURL(session.url).catch(() => setLocalError(t('Could not open Telegram. Install it or open the link on another device.')));
+      await openTelegramBot(session.url).catch(() => setLocalError(t('Could not open Telegram. Install it or open the link on another device.')));
     } catch (cause) { setLocalError(telegramErrorMessage(cause)); setTelegram({ purpose, expired: true }); }
   }
   async function createAccount(withInvite = false) {
@@ -215,7 +217,8 @@ export default function Onboarding() {
           {!telegram?.session && !telegram?.expired && <ActivityIndicator color={colors.accent} />}
           {telegram?.session && !telegram.expired && <>
             <Text style={[styles.info, { padding: 12, borderRadius: 12, backgroundColor: '#EEF3F1', color: colors.text }]}>{t('In the LastCall bot, tap “Share my number”, then come back here. The number is used to sign in, restore the account and let people who know your number find you.')}</Text>
-            <Button title={t('Open Telegram')} onPress={() => void Linking.openURL(telegram.session!.url).catch(() => setLocalError(t('Could not open Telegram. Install it or open the link on another device.')))} />
+            <Button title={t('Open Telegram')} onPress={() => void openTelegramBot(telegram.session!.url).catch(() => setLocalError(t('Could not open Telegram. Install it or open the link on another device.')))} />
+            {!!telegram.session.code && <TelegramCode code={telegram.session.code} />}
             <View style={[styles.row, { justifyContent: 'center', gap: 8 }]}><ActivityIndicator color={colors.accent} /><Text style={styles.info}>{t('Waiting for your number…')}</Text></View>
           </>}
           {telegram?.expired && (telegram.refused === 'phone-taken' ? <Button title={t('Restore this account')} disabled={!identity || busy} onPress={() => void startTelegram('recover')} />

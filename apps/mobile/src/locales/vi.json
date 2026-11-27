@@ -843,5 +843,9 @@
  "Sign-up for this number is temporarily unavailable. Try again later.": "Tạm thời không thể đăng ký với số này. Hãy thử lại sau.",
  "Sign-in through Telegram is not available right now. Try another way.": "Hiện không thể đăng nhập qua Telegram. Hãy thử cách khác.",
  "Your request is already waiting for the administrator.": "Yêu cầu của bạn đang chờ quản trị viên.",
- "Access requests are not available on this server.": "Máy chủ này không hỗ trợ yêu cầu truy cập."
+ "Access requests are not available on this server.": "Máy chủ này không hỗ trợ yêu cầu truy cập.",
+ "If Telegram closes by itself, open @LastCall_app_bot in Telegram and send it this code:": "Nếu Telegram tự đóng, hãy mở @LastCall_app_bot trong Telegram và gửi mã này:",
+ "Copy code {code}": "Sao chép mã {code}",
+ "Copied": "Đã sao chép",
+ "Tap to copy": "Chạm để sao chép"
 }

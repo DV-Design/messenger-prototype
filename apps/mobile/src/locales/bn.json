@@ -843,5 +843,9 @@
  "Sign-up for this number is temporarily unavailable. Try again later.": "এই নম্বর দিয়ে নিবন্ধন সাময়িকভাবে বন্ধ। পরে চেষ্টা করুন।",
  "Sign-in through Telegram is not available right now. Try another way.": "Telegram দিয়ে সাইন ইন এখন পাওয়া যাচ্ছে না। অন্য উপায় চেষ্টা করুন।",
  "Your request is already waiting for the administrator.": "আপনার অনুরোধ ইতিমধ্যে অ্যাডমিনিস্ট্রেটরের অপেক্ষায় আছে।",
- "Access requests are not available on this server.": "এই সার্ভারে অ্যাক্সেস অনুরোধ পাওয়া যায় না।"
+ "Access requests are not available on this server.": "এই সার্ভারে অ্যাক্সেস অনুরোধ পাওয়া যায় না।",
+ "If Telegram closes by itself, open @LastCall_app_bot in Telegram and send it this code:": "Telegram নিজে থেকে বন্ধ হয়ে গেলে Telegram-এ @LastCall_app_bot খুলে এই কোডটি পাঠান:",
+ "Copy code {code}": "কোড {code} কপি করুন",
+ "Copied": "কপি হয়েছে",
+ "Tap to copy": "কপি করতে চাপুন"
 }

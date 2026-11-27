@@ -843,5 +843,9 @@
  "Sign-up for this number is temporarily unavailable. Try again later.": "이 번호로는 일시적으로 가입할 수 없습니다. 나중에 다시 시도하세요.",
  "Sign-in through Telegram is not available right now. Try another way.": "지금은 Telegram으로 로그인할 수 없습니다. 다른 방법을 시도하세요.",
  "Your request is already waiting for the administrator.": "요청이 이미 관리자를 기다리고 있습니다.",
- "Access requests are not available on this server.": "이 서버에서는 접근 요청을 사용할 수 없습니다."
+ "Access requests are not available on this server.": "이 서버에서는 접근 요청을 사용할 수 없습니다.",
+ "If Telegram closes by itself, open @LastCall_app_bot in Telegram and send it this code:": "Telegram이 저절로 닫히면 Telegram에서 @LastCall_app_bot을 열고 이 코드를 보내세요:",
+ "Copy code {code}": "코드 {code} 복사",
+ "Copied": "복사됨",
+ "Tap to copy": "눌러서 복사"
 }

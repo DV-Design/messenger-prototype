@@ -139,7 +139,7 @@ it('restores an account by number onto a new device key, keeping its username', 
 it('writes a Russian user to the Russian store first and refuses the sign-up when it is down', async () => {
   const records: RuUserRecord[] = [];
   let up = false;
-  const env = await boot({ ruStore: { putUser: async record => { if (!up) throw new Error('down'); records.push(record); }, deleteUser: async () => undefined } });
+  const env = await boot({ ruStore: { putUser: async record => { if (!up) throw new Error('down'); records.push(record); }, deleteUser: async () => undefined, syncIndex: async () => undefined } });
   const ivan = createDeviceIdentity();
   const verified = await confirmNumber(env, ivan, 'register', '+79161234567');
   if (verified.type !== 'telegram-status' || !verified.proof) throw new Error('No proof');
@@ -242,4 +242,24 @@ it('the bot answers /start with the number button and confirms only the own cont
   await real.handle({ update_id: 4, message: { chat: { id: -9, type: 'group' }, from: { id: 5 }, text: '/start x' } });
   expect(calls.length).toBe(before);
   await real.stop();
+});
+
+it('the code shown in the app works in the bot when the link does not reach it, and wrong codes stop after ten', async () => {
+  const env = await boot();
+  const handlers = directoryOf(env);
+  const plain = await signed(env.url, createDeviceIdentity(), { type: 'telegram-start', purpose: 'register' });
+  expect(plain).toMatchObject({ type: 'telegram-started' });
+  if (plain.type === 'telegram-started') expect(plain.code).toBeUndefined();
+  const identity = createDeviceIdentity();
+  const started = await signed(env.url, identity, { type: 'telegram-start', purpose: 'register', codeV1: true });
+  if (started.type !== 'telegram-started' || !started.code) throw new Error('no code');
+  expect(started.code).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+  expect(handlers.onStart(started.code.replace('-', '').toLowerCase(), 501)).toBe(true);
+  expect(handlers.onContact(501, { phone: '381641110000', ownerId: 501, fromId: 501 })).toBe('ok');
+  expect(await signed(env.url, identity, { type: 'telegram-check', sessionId: started.sessionId })).toMatchObject({ type: 'telegram-status', state: 'verified' });
+  for (let i = 0; i < 10; i++) expect(handlers.onStart('ZZZZ-ZZZZ', 502)).toBe(false);
+  const other = await signed(env.url, createDeviceIdentity(), { type: 'telegram-start', purpose: 'register', codeV1: true });
+  if (other.type !== 'telegram-started' || !other.code) throw new Error('no code');
+  expect(handlers.onStart(other.code, 502)).toBe(false);
+  expect(handlers.onStart(other.code, 503)).toBe(true);
 });

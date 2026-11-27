@@ -843,5 +843,9 @@
  "Sign-up for this number is temporarily unavailable. Try again later.": "この番号での登録は一時的に利用できません。しばらくしてからお試しください。",
  "Sign-in through Telegram is not available right now. Try another way.": "現在 Telegram でのログインは利用できません。別の方法をお試しください。",
  "Your request is already waiting for the administrator.": "申請はすでに管理者の確認待ちです。",
- "Access requests are not available on this server.": "このサーバーではアクセス申請を利用できません。"
+ "Access requests are not available on this server.": "このサーバーではアクセス申請を利用できません。",
+ "If Telegram closes by itself, open @LastCall_app_bot in Telegram and send it this code:": "Telegram が勝手に閉じる場合は、Telegram で @LastCall_app_bot を開き、このコードを送信してください：",
+ "Copy code {code}": "コード {code} をコピー",
+ "Copied": "コピーしました",
+ "Tap to copy": "タップしてコピー"
 }

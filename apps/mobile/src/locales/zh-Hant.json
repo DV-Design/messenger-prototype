@@ -843,5 +843,9 @@
  "Sign-up for this number is temporarily unavailable. Try again later.": "暫時無法用此號碼註冊。請稍後再試。",
  "Sign-in through Telegram is not available right now. Try another way.": "目前無法透過 Telegram 登入。請嘗試其他方式。",
  "Your request is already waiting for the administrator.": "你的申請已在等待管理員處理。",
- "Access requests are not available on this server.": "此伺服器不提供存取申請。"
+ "Access requests are not available on this server.": "此伺服器不提供存取申請。",
+ "If Telegram closes by itself, open @LastCall_app_bot in Telegram and send it this code:": "如果 Telegram 自行關閉，請在 Telegram 中開啟 @LastCall_app_bot 並傳送此代碼：",
+ "Copy code {code}": "複製代碼 {code}",
+ "Copied": "已複製",
+ "Tap to copy": "點按複製"
 }
