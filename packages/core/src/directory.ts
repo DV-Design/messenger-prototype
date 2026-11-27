@@ -19,6 +19,17 @@ export const emailPurposeSchema=z.enum(['register','recover','bind']);
 export const emailLocaleSchema=z.enum(['en','ru']);
 export type EmailPurpose=z.infer<typeof emailPurposeSchema>;
 export type EmailLocale=z.infer<typeof emailLocaleSchema>;
+/** Since 1.0.49: a phone number confirmed by our Telegram bot (docs/TELEGRAM-SIGNUP.md). */
+export const telegramPurposeSchema=z.enum(['register','recover','bind']);
+export type TelegramPurpose=z.infer<typeof telegramPurposeSchema>;
+export const phoneVisibilitySchema=z.enum(['everyone','contacts','nobody']);
+export type PhoneVisibility=z.infer<typeof phoneVisibilitySchema>;
+export const accessNameSchema=z.string().trim().min(1).max(48);
+export const accessContactSchema=z.string().trim().max(120);
+export const accessMessageSchema=z.string().trim().min(1).max(500);
+const signatureSchema=z.string().regex(/^[0-9a-f]{128}$/);
+export const accessRequestSchema=z.object({id:peerIdSchema,name:accessNameSchema,contact:accessContactSchema.optional(),message:accessMessageSchema,createdAt:z.number().int().nonnegative()}).strict();
+export type AccessRequest=z.infer<typeof accessRequestSchema>;
 export function userIdFromPublicKey(publicKey:string):string {
   roomIdSchema.parse(publicKey);const point=ed25519.Point.fromBytes(hexToBytes(publicKey));point.assertValidity();
   if(point.isSmallOrder()||!point.isTorsionFree())throw new Error('Invalid identity public key');
@@ -88,9 +99,9 @@ const inviteStatusSchema = z.object({
 const createdInviteSchema = pendingInviteSchema.extend({ code: inviteCodeSchema });
 export type InviteStatus = z.infer<typeof inviteStatusSchema>;
 export type CreatedInvite = z.infer<typeof createdInviteSchema>;
-const registrationPolicySchema = z.object({ mode: z.enum(['open', 'invite', 'closed']), countryHints: z.literal(true).optional() }).strict();
+const registrationPolicySchema = z.object({ mode: z.enum(['open', 'invite', 'closed']), countryHints: z.literal(true).optional(), telegram: z.literal(true).optional(), accessRequests: z.literal(true).optional() }).strict();
 export type RegistrationPolicy = z.infer<typeof registrationPolicySchema>['mode'];
-export interface RegistrationPolicyInfo { mode: RegistrationPolicy; supportsInvites: boolean; /** The server weighs countries reported by the phone. */ countryHints?: boolean }
+export interface RegistrationPolicyInfo { mode: RegistrationPolicy; supportsInvites: boolean; /** The server weighs countries reported by the phone. */ countryHints?: boolean; /** Sign-up through the Telegram bot (asked with ?v=2). */ telegram?: boolean; accessRequests?: boolean }
 
 /** A correlated refusal of an invitation-management request. */
 export class InviteRequestError extends Error {
@@ -129,7 +140,7 @@ export const directoryClientFrameSchema=z.discriminatedUnion('type',[
   /** The complete list of peers still waiting for this phone's queue. Who and until when, never what. */
   z.object({type:z.literal('delivery-sync'),peers:z.array(z.object({to:roomIdSchema,expiresAt:wakeIntentSchema.shape.expiresAt}).strict()).max(MAX_DELIVERY_PEERS)}).strict(),
   z.object({type:z.literal('wake'),to:roomIdSchema,kind:wakeIntentSchema.shape.kind.optional(),intentId:peerIdSchema.optional(),expiresAt:wakeIntentSchema.shape.expiresAt.optional(),preview:pushPreviewSchema.optional()}).strict().refine(frame=>[frame.kind,frame.intentId,frame.expiresAt].filter(value=>value!==undefined).length%3===0&&(frame.preview===undefined||((frame.kind==='message'||frame.kind==='file')&&pushPreviewSchema.safeParse(frame.preview).success&&JSON.parse(frame.preview).kind===frame.kind)),{message:'Wake metadata must be supplied together; previews require matching message/file intent'}),
-  z.object({type:z.literal('authenticate'),publicKey:roomIdSchema,username:usernameSchema,displayName:displayNameSchema,signature:z.string().regex(/^[0-9a-f]{128}$/),emailProof:roomIdSchema.optional(),inviteCode:inviteCodeSchema.optional(),countryHints:countryHintsSchema.optional()}).strict(),
+  z.object({type:z.literal('authenticate'),publicKey:roomIdSchema,username:usernameSchema,displayName:displayNameSchema,signature:z.string().regex(/^[0-9a-f]{128}$/),emailProof:roomIdSchema.optional(),phoneProof:roomIdSchema.optional(),inviteCode:inviteCodeSchema.optional(),countryHints:countryHintsSchema.optional()}).strict(),
   z.object({type:z.literal('email-start'),purpose:emailPurposeSchema,email:emailAddressSchema,locale:emailLocaleSchema,publicKey:roomIdSchema,signature:z.string().regex(/^[0-9a-f]{128}$/),inviteCode:inviteCodeSchema.optional(),countryHints:countryHintsSchema.optional()}).strict()
     .refine(frame => frame.inviteCode === undefined || frame.purpose === 'register', { message: 'Invitation codes only belong to registration' })
     .refine(frame => frame.countryHints === undefined || frame.purpose === 'register', { message: 'Country hints only belong to registration' }),
@@ -143,6 +154,15 @@ export const directoryClientFrameSchema=z.discriminatedUnion('type',[
   /** `consent`: who of the watched may wake this phone (pushes, calls); without it, all of them, as before 1.0.42. */
   z.object({type:z.literal('watch'),userIds:z.array(roomIdSchema).max(200),identityMovedV1:z.literal(true).optional(),consent:z.array(roomIdSchema).max(200).optional()}).strict().refine(frame=>!frame.consent||frame.consent.every(id=>frame.userIds.includes(id)),{message:'Consent must be a subset of the watched users'}),
   z.object({type:z.literal('connect'),to:roomIdSchema}).strict(),
+  z.object({type:z.literal('telegram-start'),purpose:telegramPurposeSchema,publicKey:roomIdSchema,signature:signatureSchema}).strict(),
+  z.object({type:z.literal('telegram-check'),sessionId:peerIdSchema,publicKey:roomIdSchema,signature:signatureSchema}).strict(),
+  z.object({type:z.literal('access-request'),name:accessNameSchema,contact:accessContactSchema.optional(),message:accessMessageSchema,publicKey:roomIdSchema,signature:signatureSchema}).strict(),
+  z.object({type:z.literal('access-check'),publicKey:roomIdSchema,signature:signatureSchema}).strict(),
+  z.object({type:z.literal('access-list'),requestId:peerIdSchema}).strict(),
+  z.object({type:z.literal('access-decide'),requestId:peerIdSchema,id:peerIdSchema,approve:z.boolean()}).strict(),
+  z.object({type:z.literal('phone-state-get'),requestId:peerIdSchema}).strict(),
+  z.object({type:z.literal('phone-visibility'),requestId:peerIdSchema,visibility:phoneVisibilitySchema}).strict(),
+  z.object({type:z.literal('phone-find'),requestId:peerIdSchema,phones:z.array(e164PhoneSchema).min(1).max(500)}).strict(),
   z.object({type:z.literal('delete-account'),requestId:peerIdSchema}).strict(),
   z.object({type:z.literal('report'),requestId:peerIdSchema,targetId:roomIdSchema,targetKind:z.enum(['user','group']),conversationId:conversationIdSchema.optional(),reason:z.enum(['spam','harassment','illegal','other']),details:z.string().max(500).optional()}).strict(),
 ]);
@@ -175,6 +195,14 @@ export const directoryServerFrameSchema=z.discriminatedUnion('type',[
   z.object({type:z.literal('connect'),from:directoryUserSchema}).strict(),
   z.object({type:z.literal('account-deleted'),requestId:peerIdSchema}).strict(),
   z.object({type:z.literal('report-received'),requestId:peerIdSchema}).strict(),
+  z.object({type:z.literal('telegram-started'),sessionId:peerIdSchema,url:z.string().max(200).regex(/^https:\/\/t\.me\/[A-Za-z0-9_]{5,32}\?start=[A-Za-z0-9_-]{16,64}$/),expiresAt:z.number().int().positive()}).strict(),
+  z.object({type:z.literal('telegram-status'),state:z.enum(['pending','expired','verified']),proof:roomIdSchema.optional(),user:directoryUserSchema.optional(),phone:z.string().max(32).optional()}).strict(),
+  z.object({type:z.literal('access-requested'),id:peerIdSchema}).strict(),
+  z.object({type:z.literal('access-status'),state:z.enum(['none','pending','approved','declined']),inviteCode:inviteCodeSchema.optional()}).strict(),
+  z.object({type:z.literal('access-requests'),requestId:peerIdSchema,requests:z.array(accessRequestSchema).max(100)}).strict(),
+  z.object({type:z.literal('access-decided'),requestId:peerIdSchema}).strict(),
+  z.object({type:z.literal('phone-state'),requestId:peerIdSchema,phone:z.string().max(32).optional(),visibility:phoneVisibilitySchema}).strict(),
+  z.object({type:z.literal('phone-found'),requestId:peerIdSchema,matches:z.array(z.object({phone:e164PhoneSchema,user:directoryUserSchema}).strict()).max(500)}).strict(),
   z.object({type:z.literal('error'),code:z.string().max(100),message:z.string().max(1000),requestId:peerIdSchema.optional()}).strict(),
 ]);
 export type DirectoryClientFrame=z.infer<typeof directoryClientFrameSchema>;
@@ -195,7 +223,8 @@ function withoutQuery(value: string): string {
 
 export async function fetchRegistrationPolicyInfo(serverUrl: string, countryHints?: string[]): Promise<RegistrationPolicyInfo> {
   const hints = countryHints?.length ? countryHintsSchema.parse(countryHints) : undefined;
-  const url = endpointUrl(serverUrl, 'registration-policy').toString();
+  // ?v=2 asks for the 1.0.49 fields; older apps never send it and keep the strict old answer.
+  const url = endpointUrl(serverUrl, 'registration-policy').toString() + '?v=2';
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
   try {
@@ -203,7 +232,7 @@ export async function fetchRegistrationPolicyInfo(serverUrl: string, countryHint
     // No `cache` option: React Native's fetch polyfill turns `no-store` into a `?_=<time>` suffix,
     // which the server does not route. The server answers with `Cache-Control: no-store` anyway.
     const response = await fetch(url, { signal: controller.signal, redirect: 'error', ...(hints ? { headers: { [COUNTRY_HINTS_HEADER]: hints.join(',') } } : {}) });
-    if (response.redirected || (response.url && withoutQuery(response.url) !== url)) {
+    if (response.redirected || (response.url && withoutQuery(response.url) !== withoutQuery(url))) {
       throw new Error('Registration policy request was redirected');
     }
     if (response.status === 404) return { mode: 'open', supportsInvites: false };

@@ -81,7 +81,7 @@ export class RegistrationInvites {
     `);
   }
 
-  private isAdmin(userId: string): boolean {
+  isAdmin(userId: string): boolean {
     return this.admins.has(userId);
   }
 
@@ -127,6 +127,17 @@ export class RegistrationInvites {
       ON CONFLICT(user_id) DO UPDATE SET day = excluded.day, count = excluded.count
     `).run(userId, day, count + 1);
     this.db.prepare('INSERT INTO registration_invites (id, digest, issuer_id, expires_at) VALUES (?, ?, ?, ?)').run(id, codeHash(code), userId, expiresAt);
+    return { id, code, expiresAt };
+  }
+
+  /** An approved access request: an administrator's code outside the daily five. */
+  createApproved(adminId: string) {
+    if (!this.isAdmin(adminId)) throw new ServiceError('invite-not-allowed', 'Only an administrator may approve access requests');
+    const now = this.clock();
+    const id = randomBytes(16).toString('hex');
+    const code = randomBytes(32).toString('hex');
+    const expiresAt = Math.floor(now / DAY_MS) * DAY_MS + INVITE_TTL_MS;
+    this.db.prepare('INSERT INTO registration_invites (id, digest, issuer_id, expires_at) VALUES (?, ?, ?, ?)').run(id, codeHash(code), adminId, expiresAt);
     return { id, code, expiresAt };
   }
 

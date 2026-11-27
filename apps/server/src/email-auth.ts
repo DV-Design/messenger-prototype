@@ -63,9 +63,9 @@ export class EmailAuth {
   /** Callers provide the transaction: unbind before the old profile row goes, record after the new one exists. */
   unbindInside(userId: string) { this.db.prepare('DELETE FROM email_bindings WHERE user_id = ?').run(userId); }
   /** A later move repoints earlier retired keys to the newest key. */
-  recordMoveInside(oldUserId: string, newUserId: string, username: string, emailHash: string) {
+  recordMoveInside(oldUserId: string, newUserId: string, username: string, emailHash?: string) {
     const now = this.now();
-    this.db.prepare('INSERT INTO email_bindings(user_id,email_hash,verified_at) VALUES (?,?,?)').run(newUserId, emailHash, now);
+    if (emailHash) this.db.prepare('INSERT INTO email_bindings(user_id,email_hash,verified_at) VALUES (?,?,?)').run(newUserId, emailHash, now);
     this.db.prepare('UPDATE moved_identities SET new_user_id = ? WHERE new_user_id = ?').run(newUserId, oldUserId);
     this.db.prepare('INSERT INTO moved_identities(old_user_id,new_user_id,username,moved_at) VALUES (?,?,?,?)').run(oldUserId, newUserId, username, now);
   }

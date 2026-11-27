@@ -27,3 +27,7 @@ export function phoneLookupHash(e164:string):string {
   return bytesToHex(sha256(new TextEncoder().encode(JSON.stringify(['lastcall/phone-lookup/v1',e164]))));
 }
 export const phoneHashSchema=roomIdSchema;
+/** ISO country of a canonical E.164 number (libphonenumber metadata), or undefined. */
+export function phoneCountry(e164:string):string|undefined {
+  try{return parsePhoneNumberWithError(e164,{extract:false}).country;}catch{return undefined;}
+}

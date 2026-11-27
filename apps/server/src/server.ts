@@ -8,6 +8,8 @@ import { clientIp, rateKey } from './client-ip.js';
 import { createRegistrationCountryLookup } from './registration-geoip.js';
 import type { ServiceOptions } from './services.js';
 import { DEFAULT_RESTRICTED_COUNTRIES, registrationPolicy, type RegistrationOptions } from './registration-invites.js';
+import { TelegramBot } from './telegram-bot.js';
+import { createRuStoreClient, type RuStore } from './ru-store-client.js';
 
 export interface ServerOptions extends ServiceOptions, RegistrationOptions {
   requireIceAuth?: boolean;
@@ -32,6 +34,14 @@ export interface ServerOptions extends ServiceOptions, RegistrationOptions {
   directoryMaxUsers?: number;
   directoryChallengeTtlMs?: number;
   trustedProxyCidrs?: string[];
+  telegramBotToken?: string;
+  /** Tests: a ready bot stand-in instead of polling Telegram. */
+  telegramBot?: { linkFor(token: string): string | undefined; start?(): Promise<void>; stop?(): Promise<void> };
+  /** Tests: receive the handlers the bot calls, to play Telegram's side. */
+  telegramHandlersForTests?: (handlers: { onStart(token: string, chatId: number): boolean; onContact(chatId: number, contact: { phone: string; ownerId: number | undefined; fromId: number }): string }) => void;
+  phoneHashSecret?: string;
+  systemAccountKey?: string;
+  ruStore?: RuStore;
 }
 type Role = 'initiator' | 'responder';
 interface Peer {
@@ -87,13 +97,17 @@ export function createSignalingServer(options: ServerOptions = {}) {
     }
     return servers;
   }
+  let bot: { linkFor(token: string): string | undefined; start?(): Promise<void>; stop?(): Promise<void>; username?: string } | undefined = options.telegramBot;
+  let botReady = Boolean(options.telegramBot);
   const directory = new Directory({
     ...options, iceServers: () => iceServers(),
+    telegramLink: token => botReady ? bot?.linkFor(token) : undefined,
     dbPath: options.directoryDbPath ?? ':memory:', maxUsers: options.directoryMaxUsers ?? 10_000,
     challengeTtlMs: options.directoryChallengeTtlMs,
     send: (ws, frame) => { const peer = peers.get(ws); if (peer) send(peer, frame); },
     reject: (ws, code, message, close, requestId) => { const peer = peers.get(ws); if (peer) reject(peer, code, message, close, requestId); },
   });
+  options.telegramHandlersForTests?.({ onStart: (token, chatId) => directory.phone.onStart(token, chatId), onContact: (chatId, contact) => directory.phone.onContact(chatId, contact) });
   const originAllowed = (request: IncomingMessage) => request.headers.origin === undefined || allowed.has(request.headers.origin);
   // Headers are trusted only when the direct peer is in an explicitly configured proxy allowlist.
   const clientIpOf = (request: IncomingMessage) => clientIp(request.socket.remoteAddress ?? '', request.headers['x-forwarded-for'], config.trustedProxyCidrs);
@@ -132,7 +146,10 @@ export function createSignalingServer(options: ServerOptions = {}) {
       // Countries the phone reports arrive in a header (never the URL), and are not logged or stored.
       const raw = request.headers[COUNTRY_HINTS_HEADER];
       const parsed = typeof raw === 'string' ? countryHintsSchema.safeParse(raw.split(',').map(value => value.trim())) : undefined;
-      return respond(200, { mode: policyForIp(clientIpOf(request), parsed?.success ? parsed.data : undefined), countryHints: true });
+      // Apps before 1.0.49 parse this strictly; the new fields go only to those asking with ?v=2.
+      const v2 = /[?&]v=2(?:&|$)/.test(request.url ?? '');
+      const features = v2 ? directory.features() : undefined;
+      return respond(200, { mode: policyForIp(clientIpOf(request), parsed?.success ? parsed.data : undefined), countryHints: true, ...(features?.telegram ? { telegram: true } : {}), ...(features?.accessRequests ? { accessRequests: true } : {}) });
     }
     if (path === '/ice') {
       return respond(200, { iceServers: iceServers(!options.requireIceAuth) });
@@ -262,12 +279,19 @@ export function createSignalingServer(options: ServerOptions = {}) {
       });
       const address = http.address();
       if (!address || typeof address === 'string') throw new Error('TCP listener unavailable');
+      if (!bot && options.telegramBotToken) {
+        const real = new TelegramBot(options.telegramBotToken, { start: (token, chatId) => directory.phone.onStart(token, chatId), contact: (chatId, contact) => directory.phone.onContact(chatId, contact) });
+        bot = real;
+        // A Telegram outage must not keep the messenger down: sign-in through Telegram just stays off.
+        void real.start().then(() => { botReady = true; console.info('Telegram bot ready'); }).catch(() => console.error('Telegram bot could not start; Telegram sign-in is off'));
+      }
       return { host: config.host, port: address.port, url: `http://${config.host.includes(':') ? `[${config.host}]` : config.host}:${address.port}` };
     },
     async close() {
       closing = true; clearInterval(heartbeat);
       for (const peer of peers.values()) { cleanup(peer); peer.ws.terminate(); }
       requests.clear();resumes.clear();
+      await bot?.stop?.();
       await new Promise<void>((resolve) => wss.close(() => resolve()));
       if (http.listening) await new Promise<void>((resolve, reject) => http.close((error) => error ? reject(error) : resolve()));
       await directory.close();
@@ -328,5 +352,9 @@ export function optionsFromEnv(env: NodeJS.ProcessEnv = process.env): ServerOpti
     requestLimit: numberEnv(env, 'REQUEST_LIMIT', 120, 1, 100_000),
     rateWindowMs: numberEnv(env, 'RATE_WINDOW_MS', 10_000, 100, 60_000),
     trustedProxyCidrs: list('TRUSTED_PROXY_CIDRS'),
+    ...(env.TELEGRAM_BOT_TOKEN ? { telegramBotToken: env.TELEGRAM_BOT_TOKEN } : {}),
+    ...(env.PHONE_HASH_SECRET ? { phoneHashSecret: env.PHONE_HASH_SECRET } : {}),
+    ...(env.SYSTEM_ACCOUNT_KEY ? { systemAccountKey: env.SYSTEM_ACCOUNT_KEY } : {}),
+    ...(env.RU_STORE_URL || env.RU_STORE_TOKEN ? { ruStore: createRuStoreClient(env.RU_STORE_URL ?? '', env.RU_STORE_TOKEN ?? '') } : {}),
   };
 }

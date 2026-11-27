@@ -19,7 +19,7 @@ describe('registration policy discovery', () => {
     vi.stubGlobal('fetch', fetch);
     await expect(fetchRegistrationPolicyInfo(base)).resolves.toEqual({ mode: 'open', supportsInvites: true });
     await expect(fetchRegistrationPolicyInfo(base)).resolves.toEqual({ mode: 'open', supportsInvites: false });
-    expect(fetch).toHaveBeenCalledWith(`${base}/registration-policy`, expect.objectContaining({ redirect: 'error' }));
+    expect(fetch).toHaveBeenCalledWith(`${base}/registration-policy?v=2`, expect.objectContaining({ redirect: 'error' }));
     expect(fetch.mock.calls[0]?.[1]).not.toHaveProperty('cache');
   });
 

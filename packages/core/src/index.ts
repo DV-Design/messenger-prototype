@@ -4,6 +4,7 @@ export * from './audio.js';
 export * from './session.js';
 export * from './directory.js';
 export * from './email-auth.js';
+export * from './phone-auth.js';
 export * from './persistence.js';
 export * from './local-records.js';
 export * from './messenger.js';
