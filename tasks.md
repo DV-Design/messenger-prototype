@@ -8,7 +8,8 @@
   RU or none → invitation
 - [X] `artifacts/LastCall-1.0.48-store.aab` 62469619 bytes, sha256 `f9648f1bd13c17eb97a7844f6d56cb951a252aa66c5dc923e3293691a670d1a7`; smoke-tested on the emulator
   (chat list, chat, sending)
-- [ ] Publish to Play (internal, closed, open, production)
+- [X] 2026-11-27, owner's "Выкати": bundle 63 uploaded once (closed), open and production from the library;
+  internal published; closed, open and production sent to Google review. Notes en-US + ru-RU
 
 # Replication — Italy primary, Mac standby (2026-11-26)
 
