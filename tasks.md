@@ -10,8 +10,12 @@
 - [X] Russian numbers: ru-store on the Russian server (Python, localhost, tunnel from Italy), written
   first; 10-minute reconciliation; age-encrypted copies every 30 minutes fetched by Italy (key only on
   the Mac). Deployed; Italy server deployed (access requests on, Telegram off until the bot token)
-- [ ] Bot token from the owner (@BotFather), then TELEGRAM_BOT_TOKEN on Italy and the Mac standby
-- [ ] Emulator check of the whole flow with the real bot, then build 1.0.49 (owner's yes to publish)
+- [X] Bot @LastCall_app_bot ("LastCall", the owner's separate bot): token on Italy and the Mac standby, description
+  ru/en; Italy reports `telegram: true`
+- [X] `artifacts/LastCall-1.0.49-store.aab` 62540208 bytes, sha256 `f599e99f0c4435633a35dcd801381624a6ad80318f71ff790a7d4671fd4e3614`. Emulator (fresh install): start screen,
+  Telegram screen with the bot link, access request form; real round with the owner's phone: restore by number →
+  bot → own contact → the app noticed it → "No account uses this number" (nothing stored)
+- [ ] Publish 1.0.49 (owner's yes), together with Play Data safety (phone number; contacts sent for search, not stored)
 - [ ] Play Data safety: phone number (collected, account management), contacts (sent for search, not
   stored); privacy policy text — the owner said not to publish the country paragraph
 - [ ] Roskomnadzor notices (personal data operator, cross-border transfer) — owner / lawyer
