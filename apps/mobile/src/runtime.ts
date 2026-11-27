@@ -316,7 +316,25 @@ export async function refreshPhoneState(): Promise<void> {
 export async function setPhoneVisibility(visibility: PhoneVisibility): Promise<void> {
   publish({ phone: await client().setPhoneVisibility(visibility) });
 }
-export function findContactsByPhone(phones: string[]) { return client().findByPhones(phones); }
+/**
+ * Waits for the directory connection (it reconnects after the app was in the background, e.g. behind a
+ * permission dialog) instead of failing at once with "Directory is offline".
+ */
+async function onlineClient(ms = 15_000): Promise<MessengerClient> {
+  const current = client();
+  if (current.getSnapshot().status === 'online') return current;
+  void reconnect();
+  return new Promise((resolve, reject) => {
+    let done = false;
+    const finish = (manager?: MessengerClient) => {
+      if (done) return; done = true; clearTimeout(timer); queueMicrotask(() => stop());
+      if (manager) resolve(manager); else reject(new Error(t('Could not reach the server. Check your connection and try again.')));
+    };
+    const timer = setTimeout(() => finish(), ms);
+    const stop = registerMessengerObserver((snapshot, manager) => { if (snapshot.status === 'online') finish(manager); });
+  });
+}
+export async function findContactsByPhone(phones: string[]) { return (await onlineClient()).findByPhones(phones); }
 export function listAccessRequests() { return client().accessRequests(); }
 export function decideAccessRequest(id: string, approve: boolean) { return client().decideAccess(id, approve); }
 /** People who cannot use Telegram ask the administrator; the answer comes back to this device. */
