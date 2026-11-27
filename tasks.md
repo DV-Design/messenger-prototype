@@ -9,7 +9,9 @@
 - [X] `artifacts/LastCall-1.0.50-store.aab` 62550720 bytes, sha256 `4078d7e8de0046bb1fdb1f406a9d0dcf597a67183bea86e932aa28a218f1a2eb`; emulator: starts, Telegram screen shows the code
 - [X] 2026-11-27, owner's "Залей в гугл": bundle 65 uploaded once (closed), open and production from the library;
   internal published; closed, open and production sent to Google review (replacing 1.0.49 in review)
-- [ ] Owner's phone: link the number (link or code), contact-joined notice
+- [X] Owner's phone, 1.0.50: number linked through the bot link (tg:// reached /start this time: link → /start → contact →
+  bind done); Russian number, written to ru-store first (1 user, number present)
+- [ ] Owner's phone: contact-joined notice (needs a contact who signs up later)
 
 # 1.0.49 (in progress) — Telegram sign-up, access requests, search by number, Russian data (2026-11-27)
 
