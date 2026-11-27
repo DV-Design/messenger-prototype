@@ -847,5 +847,9 @@
  "If Telegram closes by itself, open @LastCall_app_bot in Telegram and send it this code:": "Nếu Telegram tự đóng, hãy mở @LastCall_app_bot trong Telegram và gửi mã này:",
  "Copy code {code}": "Sao chép mã {code}",
  "Copied": "Đã sao chép",
- "Tap to copy": "Chạm để sao chép"
+ "Tap to copy": "Chạm để sao chép",
+ "Contacts joining LastCall": "Danh bạ tham gia LastCall",
+ "A notice when someone from your phone book joins. The phone checks itself every few hours; the server keeps no phone books.": "Thông báo khi có người trong danh bạ tham gia. Điện thoại tự kiểm tra vài giờ một lần; máy chủ không lưu danh bạ.",
+ "{name} joined LastCall": "{name} đã tham gia LastCall",
+ "Your contact is now on LastCall. Tap to write.": "Liên hệ của bạn đã có trên LastCall. Chạm để nhắn tin."
 }

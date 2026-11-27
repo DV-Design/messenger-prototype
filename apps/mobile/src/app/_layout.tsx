@@ -12,6 +12,7 @@ import { PermissionSetupGate } from '../components/PermissionSetupGate';
 import { NotificationNavigationBridge } from '../components/NotificationNavigationBridge';
 import { UpdateNotice } from '../components/UpdateNotice';
 import { ShareIntentBridge } from '../components/ShareIntentBridge';
+import { ContactJoinBridge } from '../components/ContactJoinBridge';
 import { useMessenger } from '../runtime';
 import { pruneMediaCache } from '../attachments';
 import { pruneCircleThumbnails } from '../circle-thumbnail';
@@ -30,7 +31,7 @@ export default function RootLayout() {
         <Stack.Screen name="permissions" options={{ presentation: 'modal' }} />
         <Stack.Screen name="share" options={{ presentation: 'modal' }} />
         <Stack.Screen name="requests" />
-      </Stack></NowPlayingLayout></LiveLocationBarLayout></CallBarLayout><PermissionSetupGate /><PushBridge /><NotificationNavigationBridge /><ShareIntentBridge /><UpdateNotice /><CallOverlay />
+      </Stack></NowPlayingLayout></LiveLocationBarLayout></CallBarLayout><PermissionSetupGate /><PushBridge /><NotificationNavigationBridge /><ShareIntentBridge /><ContactJoinBridge /><UpdateNotice /><CallOverlay />
     </>}
   </SafeAreaProvider>;
 }

@@ -847,5 +847,9 @@
  "If Telegram closes by itself, open @LastCall_app_bot in Telegram and send it this code:": "Telegram이 저절로 닫히면 Telegram에서 @LastCall_app_bot을 열고 이 코드를 보내세요:",
  "Copy code {code}": "코드 {code} 복사",
  "Copied": "복사됨",
- "Tap to copy": "눌러서 복사"
+ "Tap to copy": "눌러서 복사",
+ "Contacts joining LastCall": "LastCall에 가입한 연락처",
+ "A notice when someone from your phone book joins. The phone checks itself every few hours; the server keeps no phone books.": "주소록의 누군가가 가입하면 알려 드립니다. 휴대폰이 몇 시간마다 직접 확인하며, 서버는 주소록을 보관하지 않습니다.",
+ "{name} joined LastCall": "{name}님이 LastCall에 가입했습니다",
+ "Your contact is now on LastCall. Tap to write.": "연락처가 이제 LastCall에 있습니다. 눌러서 메시지를 보내세요."
 }

@@ -3394,5 +3394,21 @@
  {
   "key": "Tap to copy",
   "ru": "Нажмите, чтобы скопировать"
+ },
+ {
+  "key": "Contacts joining LastCall",
+  "ru": "Контакты в LastCall"
+ },
+ {
+  "key": "A notice when someone from your phone book joins. The phone checks itself every few hours; the server keeps no phone books.",
+  "ru": "Уведомление, когда кто-то из записной книжки регистрируется. Телефон проверяет это сам раз в несколько часов; сервер не хранит записные книжки."
+ },
+ {
+  "key": "{name} joined LastCall",
+  "ru": "{name} теперь в LastCall"
+ },
+ {
+  "key": "Your contact is now on LastCall. Tap to write.",
+  "ru": "Ваш контакт теперь в LastCall. Нажмите, чтобы написать."
  }
 ]

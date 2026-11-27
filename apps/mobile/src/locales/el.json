@@ -847,5 +847,9 @@
  "If Telegram closes by itself, open @LastCall_app_bot in Telegram and send it this code:": "Αν το Telegram κλείνει μόνο του, ανοίξτε το @LastCall_app_bot στο Telegram και στείλτε του αυτόν τον κωδικό:",
  "Copy code {code}": "Αντιγραφή κωδικού {code}",
  "Copied": "Αντιγράφηκε",
- "Tap to copy": "Πατήστε για αντιγραφή"
+ "Tap to copy": "Πατήστε για αντιγραφή",
+ "Contacts joining LastCall": "Επαφές που μπαίνουν στο LastCall",
+ "A notice when someone from your phone book joins. The phone checks itself every few hours; the server keeps no phone books.": "Ειδοποίηση όταν κάποιος από τις επαφές σας εγγράφεται. Το τηλέφωνο ελέγχει μόνο του κάθε λίγες ώρες· ο διακομιστής δεν κρατά λίστες επαφών.",
+ "{name} joined LastCall": "Ο/Η {name} μπήκε στο LastCall",
+ "Your contact is now on LastCall. Tap to write.": "Η επαφή σας είναι πλέον στο LastCall. Πατήστε για να γράψετε."
 }

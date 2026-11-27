@@ -847,5 +847,9 @@
  "If Telegram closes by itself, open @LastCall_app_bot in Telegram and send it this code:": "如果 Telegram 自行關閉，請在 Telegram 中開啟 @LastCall_app_bot 並傳送此代碼：",
  "Copy code {code}": "複製代碼 {code}",
  "Copied": "已複製",
- "Tap to copy": "點按複製"
+ "Tap to copy": "點按複製",
+ "Contacts joining LastCall": "加入 LastCall 的聯絡人",
+ "A notice when someone from your phone book joins. The phone checks itself every few hours; the server keeps no phone books.": "通訊錄中有人加入時通知你。手機每隔幾小時自行檢查；伺服器不保存通訊錄。",
+ "{name} joined LastCall": "{name} 加入了 LastCall",
+ "Your contact is now on LastCall. Tap to write.": "你的聯絡人現在在 LastCall 上。點按即可傳訊息。"
 }

@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { router } from 'expo-router';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import * as Contacts from 'expo-contacts';
-import { getLocales } from 'expo-localization';
-import { normalizePhone, type DirectoryUser } from '@messenger/core';
+import type { DirectoryUser } from '@messenger/core';
+import { readPhoneBook } from '../contact-book';
+import { rememberFoundContacts } from '../contact-joins';
 import { Avatar, Button, SettingsPage } from '../components/ui';
 import { client, errorText, findContactsByPhone, useMessenger } from '../runtime';
 import { colors, styles } from '../styles';
@@ -22,14 +23,9 @@ export default function FindFriends() {
     try {
       const permission = await Contacts.requestPermissionsAsync();
       if (permission.status !== 'granted') { setState('denied'); return; }
-      const { data } = await Contacts.getContactsAsync({ fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name] });
-      const region = getLocales()[0]?.regionCode ?? undefined;
-      const names = new Map<string, string>();
-      for (const contact of data) for (const number of contact.phoneNumbers ?? []) {
-        try { const e164 = normalizePhone(number.number ?? number.digits ?? '', region); if (!names.has(e164)) names.set(e164, contact.name ?? e164); }
-        catch { /* Not a valid number. */ }
-      }
+      const names = await readPhoneBook();
       const found = names.size ? await findContactsByPhone([...names.keys()].slice(0, 5000)) : [];
+      rememberFoundContacts(found);
       const own = client().getSnapshot().contacts.map(contact => contact.userId);
       setMatches(found.filter(match => !own.includes(match.user.userId)).map(match => ({ name: names.get(match.phone) ?? match.user.displayName, user: match.user })));
       setState('done');

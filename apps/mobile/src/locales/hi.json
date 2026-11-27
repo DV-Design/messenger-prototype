@@ -847,5 +847,9 @@
  "If Telegram closes by itself, open @LastCall_app_bot in Telegram and send it this code:": "अगर Telegram अपने-आप बंद हो जाए, तो Telegram में @LastCall_app_bot खोलें और उसे यह कोड भेजें:",
  "Copy code {code}": "कोड {code} कॉपी करें",
  "Copied": "कॉपी हो गया",
- "Tap to copy": "कॉपी करने के लिए दबाएँ"
+ "Tap to copy": "कॉपी करने के लिए दबाएँ",
+ "Contacts joining LastCall": "LastCall से जुड़ने वाले संपर्क",
+ "A notice when someone from your phone book joins. The phone checks itself every few hours; the server keeps no phone books.": "जब आपकी फ़ोन बुक से कोई जुड़े तो सूचना। फ़ोन हर कुछ घंटों में खुद जाँचता है; सर्वर फ़ोन बुक नहीं रखता।",
+ "{name} joined LastCall": "{name} अब LastCall पर हैं",
+ "Your contact is now on LastCall. Tap to write.": "आपका संपर्क अब LastCall पर है। लिखने के लिए दबाएँ।"
 }
