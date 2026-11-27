@@ -15,9 +15,11 @@
 - [X] `artifacts/LastCall-1.0.49-store.aab` 62540208 bytes, sha256 `f599e99f0c4435633a35dcd801381624a6ad80318f71ff790a7d4671fd4e3614`. Emulator (fresh install): start screen,
   Telegram screen with the bot link, access request form; real round with the owner's phone: restore by number →
   bot → own contact → the app noticed it → "No account uses this number" (nothing stored)
-- [ ] Publish 1.0.49 (owner's yes), together with Play Data safety (phone number; contacts sent for search, not stored)
-- [ ] Play Data safety: phone number (collected, account management), contacts (sent for search, not
-  stored); privacy policy text — the owner said not to publish the country paragraph
+- [X] 2026-11-27, owner's yes: privacy policy (27 Nov: phone number through @LastCall_app_bot, contact search, access
+  requests) published, previous copy `artifacts/privacy-live-before-2026-11-27.html`; Play Data safety: Phone number
+  added (collected, stored, optional; app functionality, security/compliance, account management), Contacts unchanged;
+  bundle 64 uploaded once (closed), open and production from the library; internal published; closed, open,
+  production and Data safety sent to Google review. Notes en-US + ru-RU
 - [ ] Roskomnadzor notices (personal data operator, cross-border transfer) — owner / lawyer
 
 # 1.0.48 / code63 — server choice, Google Play country (2026-11-27)
