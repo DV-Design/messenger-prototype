@@ -1,3 +1,12 @@
+# 1.0.51 / code66 — phone book reading fix (2026-11-27)
+
+- [X] Owner's phone, 1.0.50: Find friends showed "Method getContactsAsync ... is deprecated" (expo-contacts 58 throws).
+  The phone book is now read with Contact.getAllDetails, as the Share contact screen already does; same for the
+  contact-joined check
+- [X] `artifacts/LastCall-1.0.51-store.aab` 62550603 bytes, sha256 `fe4cc7e03a48b78e32a7440008e7de66d08dc2c7a732f303b67c2fa4910277d9`; emulator: starts, Find friends opens (the read
+  itself needs a linked number, not available on the emulator)
+- [ ] Publish (owner's yes), then Find friends on the owner's phone
+
 # 1.0.50 / code65 — bot code fallback, contacts joining (2026-11-27)
 
 - [X] Linking a number failed on the owner's phone: Telegram opened from LastCall and closed before /start reached
