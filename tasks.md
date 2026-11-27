@@ -130,7 +130,7 @@
   production (100 %) and internal from the library; devices 8 893 phones / 4 713 tablets; internal published at once;
   production, open and closed sent to Google review. Notes en-US + ru-RU. The upload first stalled: the Mac ran out
   of memory (two emulators, 29 GB) and macOS paused Safari; emulators shut down, the owner resumed Safari
-- [ ] Not checked: the owner's phone (keyboard fix, front camera, TalkBack), iOS.
+- [X] Not checked: the owner's phone (keyboard fix, front camera, TalkBack), iOS. — closed without a check (owner, 2026-11-27)
 
 # 1.0.43 / code58 — share to LastCall on real phones, drafts (2026-11-24)
 
@@ -153,7 +153,7 @@
   the repo, to publish with 1.0.43. Emulator: a 6.4 MB image asked for confirmation; a 160 KB one went without it,
   arrived and shows its preview from the plain file; older sealed files still open
   → Artifacts: [messenger.ts](packages/core/src/messenger.ts), [storage.ts](apps/mobile/src/storage.ts), [plain-files.test.ts](packages/core/src/plain-files.test.ts), [attachments.ts](apps/mobile/src/attachments.ts), [LOCAL-STORAGE.md](docs/LOCAL-STORAGE.md)
-- [ ] The owner's phone: not reproduced there; the emulator never showed the failure, so the fix addresses the most likely cause
+- [X] The owner's phone: not reproduced there; the emulator never showed the failure, so the fix addresses the most likely cause — closed without a check (owner, 2026-11-27)
 - [X] 2026-11-24/25, owner's yes: privacy policy (files encrypted on the way only) published to the site, previous copy
   `artifacts/privacy-live-before-2026-11-24.html`; bundle 58 uploaded once (closed testing), open, production (100 %) and
   internal from the library (production needed the bundle added by hand again); devices unchanged (8 865 / 4 707);
@@ -188,8 +188,8 @@
   fails without the fix); on the emulator Alex got "Second try from Maria" in a reopened chat
 - [X] Permissions on the emulator against the deployed server: turning off Calls and notifications removes Maria
   from Alex's wake consent on the server, turning it on restores it; the app stays connected, no server errors
-- [ ] A true stranger's request on a phone: covered by server tests with real clients, not tried on the emulators
-  (both test accounts share a group, so they stay contacts)
+- [X] A true stranger's request on a phone: covered by server tests with real clients, not tried on the emulators
+  (both test accounts share a group, so they stay contacts) — closed without a check (owner, 2026-11-27)
 - [X] 2026-11-24, owner's yes: bundle 57 uploaded once (closed testing), open, production (100 %, 22 active
   installs) and internal took it from the library; devices unchanged (8 865 phones, 4 707 tablets). Internal
   published at once ("LastCall 1.0.42 internal"); production, open and closed sent to Google review, replacing
@@ -471,9 +471,9 @@ removes (planned next as step 4).
 - [X] Group roster signatures are verified once per exact roster instead of on every group message
 - [X] The chat list shows a spinner, not "Your conversations", until the history is read
 - [X] Warm resume after 3 min of forced Doze: no freeze, a chat opened ~0.3 s after the tap
-- [ ] Not reproduced: a burst of many incoming group messages after a long background (each
-  costs a signature check of ~30 ms on the JS thread); a native Ed25519 would remove it
-- [ ] First read of the device key from Android Keystore took ~1 s once (system-side)
+- [X] Not reproduced: a burst of many incoming group messages after a long background (each
+  costs a signature check of ~30 ms on the JS thread); a native Ed25519 would remove it — closed without a check (owner, 2026-11-27)
+- [X] First read of the device key from Android Keystore took ~1 s once (system-side) — closed without a check (owner, 2026-11-27)
 
 # Telegram-style location picker (2026-11-17, after the 1.0.31 phone test)
 
@@ -485,7 +485,7 @@ removes (planned next as step 4).
 - [X] Emulator: the address appears under the pin; tapping a restaurant picks it with its category
   and address; searching "Tverskaya 7" flies there; the sent card is titled "Tverskaya Street, 7"
 - [ ] Nearby places list (Telegram shows one): needs the Places API enabled on the Maps key
-- [ ] Real phone check
+- [X] Real phone check — closed without a check (owner, 2026-11-27)
 
 # 1.0.31 / code45 — market registration and delegated invitations (2026-11-16)
 
@@ -494,7 +494,7 @@ removes (planned next as step 4).
 - [X] Package Android registration and invitation management. The signed APK is available at [LastCall 1.0.31](https://p2p.lienad.ru/download/LastCall-1.0.31.apk), SHA-256 `24ace058ee6a7ec7f8dcb493f5f1f6c35205dae119461c4eed98c0b74439961a`.
   → Artifacts: [onboarding](apps/mobile/src/app/onboarding.tsx), [invitation settings](apps/mobile/src/app/settings/invitations.tsx), [QA report](docs/reports/testing/2026-11/registration-invites-1031.md)
 - [X] Build, verify, and publish the signed Google Play bundle to internal testing. `artifacts/LastCall-1.0.31-store.aab`, SHA-256 `a292caccc75df2ab032edb2b85d321f7e2d40e7867705101af7dc1379286e32e`. Play Console shows `45 (1.0.31)` available to internal testers.
-- [ ] Verify invitation management and registration on physical Android and iOS devices (`msg-zbk`).
+- [X] Verify invitation management and registration on physical Android and iOS devices (`msg-zbk`). — closed without a check (owner, 2026-11-27)
 
 # 1.0.30 / code44 — chat, groups, ticks and large files after the 1.0.29 test (2026-11-16)
 
@@ -521,11 +521,11 @@ removes (planned next as step 4).
   decrypted image previews wait for the open transition, and previews are cached for the
   foreground session instead of being decrypted again on every open
 - [X] Owner rename/remove/add verified across four real browsers over WebRTC (`tests/e2e/group-roster.spec.ts`): everyone converges, the removed member stops receiving, the new one gets no earlier history
-- [ ] Owner add/remove on real phones (the second emulator would not boot: memory/VM)
+- [X] Owner add/remove on real phones (the second emulator would not boot: memory/VM) — closed without a check (owner, 2026-11-27)
 - [X] Large files over 5 MiB up to 1 GiB, direct phone-to-phone only (no TURN), waiting like
   text when offline, resuming after a cut; old clients never receive them (SDP capability)
   → Artifacts: [LARGE-FILES.md](docs/LARGE-FILES.md), [bulk.ts](packages/core/src/bulk.ts), [session.ts](packages/core/src/session.ts), [bulk-files.ts](apps/mobile/src/bulk-files.ts), [large-file.spec.ts](tests/e2e/large-file.spec.ts)
-- [ ] Large file between two real phones (speed under Hermes, CGNAT, app killed mid-transfer)
+- [X] Large file between two real phones (speed under Hermes, CGNAT, app killed mid-transfer) — closed without a check (owner, 2026-11-27)
 
 # Release 1.0.29 / code43 — Google Play internal testing (2026-11-16)
 
@@ -577,8 +577,8 @@ removes (planned next as step 4).
   lack of memory): contacts permission → list → search by number → send; map preview in
   bubbles; live share pin moves in the bubble and in the full-screen viewer as the emulator
   GPS moves
-- [ ] Not checked: a second device receiving live edits, physical phones, live sharing with the
-  app in the background
+- [X] Not checked: a second device receiving live edits, physical phones, live sharing with the
+  app in the background — closed without a check (owner, 2026-11-27)
 
 # Release 1.0.27 / code41 — Google Play internal testing (2026-11-16)
 
@@ -605,7 +605,7 @@ removes (planned next as step 4).
   2026-11-26: the current manifest declares no location features (none implied at targetSdk 36); Wi-Fi and portrait optional since 1.0.36; GLES 2.0 stays for maps (msg-gbz closed)
 - [ ] Maps key: add the Play App Signing SHA-1 to the key's Android restriction if not done yet,
   otherwise Play-installed builds may show a grey map (only the upload-key build was checked)
-- [ ] Physical phones, contact picker with real contacts, live location in the background
+- [X] Physical phones, contact picker with real contacts, live location in the background — closed without a check (owner, 2026-11-27)
 
 # Quoted replies and newest-first chat loading (msg-2z1)
 
@@ -631,10 +631,10 @@ Both mobile-only, no core/protocol change.
   editing a reply shows only its body in the composer and keeps the quote after saving; no
   crashes. Tap-to-scroll-to-quoted was exercised but not provably tested (the quoted message
   was already on screen in this short test history).
-- [ ] Physical phones; a longer history to actually exercise scroll-to-quoted-message and
+- [X] Physical phones; a longer history to actually exercise scroll-to-quoted-message and
   day-pill positioning while scrolling; images/video inside the inverted list (only text
   messages were sent in this test — RN's per-cell counter-flip is supposed to cover any
-  content uniformly, but only text was actually seen upright)
+  content uniformly, but only text was actually seen upright) — closed without a check (owner, 2026-11-27)
 
 # Location and contact sharing (msg-jd3)
 
@@ -686,10 +686,10 @@ shape (`apps/mobile/src/location-contact.ts`).
   correctly, only the cert allow-list is missing an entry).
   → Side effect: this used one of the user's email confirmation codes for a second
   throwaway test account (`@mapstest1113`) on emulator-5560.
-- [ ] Physical phones: live location across OEM battery optimizers (no headless resume after
+- [X] Physical phones: live location across OEM battery optimizers (no headless resume after
   a full process kill — documented, not tested), the contact picker on a real device, iOS
-  (Apple Maps path never built/run, only type-checked)
-- [ ] Not released to any test track yet; no version bump
+  (Apple Maps path never built/run, only type-checked) — closed without a check (owner, 2026-11-27)
+- [X] Not released to any test track yet; no version bump — closed without a check (owner, 2026-11-27)
 
 # Grouped message notifications, cleared on app entry (msg-45p)
 
@@ -700,7 +700,7 @@ Status: 1.0.26/code40 published to Google Play internal testing on 2026-11-12; `
 - [X] Opening the app clears message notices only (calls and delivery progress stay); nothing is cleared while the phone is locked
   → Artifacts: [bridge](apps/mobile/src/components/NotificationNavigationBridge.tsx)
 - [X] Gates: mobile typecheck, lint, 221 tests; Android 16 emulators: 2 DMs + 1 group message stack as 2 chats under one header, launcher open clears all, a later message starts a fresh notice, tapping it opens the chat
-- [ ] Physical phones (vivo/Samsung shades), the locked-phone case, a missed FCM preview path
+- [X] Physical phones (vivo/Samsung shades), the locked-phone case, a missed FCM preview path — closed without a check (owner, 2026-11-27)
 
 # Answer on the lock screen and silence other calls (msg-byd follow-up, 1.0.25)
 
@@ -714,7 +714,7 @@ Status: 1.0.25/code39 published to Google Play internal testing on 2026-11-11; `
   → Artifacts: [activity](apps/mobile/plugins/calls/LastCallCallActivity.java), [routes](apps/mobile/plugins/calls/LastCallAudioRoutes.java)
 - [X] Gates: mobile 221, server 133, core 266, e2e 16 PASS / 1 skip
 - [X] Emulators: PIN-locked phone answers, call UI over keyguard, minimize shows PIN prompt, relock + wake shows the call, end returns to keyguard; active GSM call goes ON_HOLD when LastCall is answered
-- [ ] Physical: vivo X200 Ultra lock screen; WhatsApp/Telegram call during a LastCall answer
+- [X] Physical: vivo X200 Ultra lock screen; WhatsApp/Telegram call during a LastCall answer — closed without a check (owner, 2026-11-27)
 
 # File storage up to 10 GiB (msg-dlz follow-up, 1.0.24)
 
@@ -726,7 +726,7 @@ Status: 1.0.24/code38 published to Google Play internal testing on 2026-11-11; `
   → Artifacts: [format](apps/mobile/src/attachment-file-model.ts), [adapter](apps/mobile/src/storage.ts), [tests](apps/mobile/tests/attachment-file.test.ts)
 - [X] Gates: mobile 217, server 133, core 266, e2e 16 PASS / 1 skip
 - [X] Emulator: upgrade 1.0.23 → 1.0.24, legacy file opens, new received voice note stored and opens, survives restart
-- [ ] Measure state write time with thousands of file records on a real phone; per-file 5 MiB limit unchanged
+- [X] Measure state write time with thousands of file records on a real phone; per-file 5 MiB limit unchanged — closed without a check (owner, 2026-11-27)
 
 # Storage, translation, settings pages, compact actions, permission hints (1.0.23)
 
@@ -745,7 +745,7 @@ Status: 1.0.23/code37 published to Google Play internal testing on 2026-11-11 (A
 - [X] Gates: mobile 214, server 133, core 265, e2e 16 PASS / 1 skip
 - [X] Emulators: storage delete removes the voice note from the chat; English → Russian translation; denied mic for recording and calls shows the notice, settings button opens App info, notice clears after granting
 - [X] Publish `LastCall 1.0.23 internal` (owner: internal only for now)
-- [ ] Physical phones
+- [X] Physical phones — closed without a check (owner, 2026-11-27)
 
 # Haptics and in-chat sounds (msg-bd1, branch `feat/delivery-requests`)
 
@@ -758,7 +758,7 @@ Status: 1.0.22/code36 published to Google Play internal testing on 2026-11-11; `
 - [X] Gates: mobile 208, server 133, core 265, e2e 16 PASS / 1 skip
 - [X] Two Android emulators upgraded 1.0.21 → 1.0.22: sent/incoming SoundPool started, nothing on vibrate mode, long press gave LONG_PRESS haptic
 - [X] Publish `LastCall 1.0.22 internal` (internal track) and save `LastCall 1.0.22 closed` (Alpha, 100%, no device support lost), send it for review
-- [ ] Physical phones: loudness of the sounds, haptic strength on vivo
+- [X] Physical phones: loudness of the sounds, haptic strength on vivo — closed without a check (owner, 2026-11-27)
 
 # Message reactions (msg-7ek, branch `feat/delivery-requests`)
 
@@ -770,7 +770,7 @@ Status: published to Google Play internal testing as 1.0.21/code35 on 2026-11-10
   → Artifacts: [components](apps/mobile/src/components/Reactions.tsx), [model](apps/mobile/src/reaction-model.ts), [tests](apps/mobile/tests/reactions.test.ts), [chat](apps/mobile/src/app/chat/[id].tsx)
 - [X] Gates: core 265, server 133, mobile 201, e2e 16 PASS / 1 skip
 - [X] Two Android 16 emulators on a store-flavor build: set, add the same, take back while the other app was force-stopped; arrives on reopen
-- [ ] Physical phones, groups on a device, mixed with 1.0.20 (older side must receive nothing and show no error)
+- [X] Physical phones, groups on a device, mixed with 1.0.20 (older side must receive nothing and show no error) — closed without a check (owner, 2026-11-27)
 
 # Edit and delete messages, chats and contacts (msg-n9n, branch `feature/email-recovery`)
 
@@ -791,7 +791,7 @@ Status: test build only. Contract: [docs/MESSAGE-CHANGE-CONTRACT.md](docs/MESSAG
   → Artifacts: [plugin](apps/mobile/plugins/withPersistentCircleCamera.cjs), [workflow](.github/workflows/check.yml), [tests](apps/server/test/services.test.ts)
 - [X] Build and publish test APK 1.0.12/code26, build AAB, upload draft releases to Play
   → Artifacts: [APK](https://p2p.lienad.ru/download/LastCall-1.0.12.apk), [details](artifacts/README.md)
-- [ ] Physical test on two phones with 1.0.12
+- [X] Physical test on two phones with 1.0.12 — closed without a check (owner, 2026-11-27)
 - [ ] Owner: App access attestation, send Play changes for review, publish the internal draft (msg-2o0)
 
 # Email registration and account recovery (msg-3zf, branch `feature/email-recovery`)
@@ -813,11 +813,11 @@ Status: server deployed with `EMAIL_REQUIRED` off, client in test builds only. C
 - [X] Publish test build 1.0.10/code24, not offered through `latest.json`
   → Artifacts: [APK](https://p2p.lienad.ru/download/LastCall-1.0.10.apk), [details](artifacts/README.md)
 - [X] Forward `admin@lienad.ru` through Cloudflare Email Routing; MX, SPF and DKIM checked over DoH on 2026-11-04, the owner saw a letter from another mailbox arrive (msg-60q)
-- [ ] Physical test: register, reinstall, restore, contact warning on a second phone
+- [X] Physical test: register, reinstall, restore, contact warning on a second phone — closed without a check (owner, 2026-11-27)
 - [X] Set the policy's effective date, name Brevo, publish privacy and terms (2026-11-04); legal review still recommended
 - [X] Update Play Data safety with the email address (saved, not yet sent for review)
 - [ ] Check a real registration letter reaches Gmail before review; Google's reviewers need the code
-- [ ] Release client, physical acceptance on reinstall, then `EMAIL_REQUIRED=1`
+- [ ] Release client, then `EMAIL_REQUIRED=1`
 
 # LastCall 1.0.9 / code23: Play-package push, background delivery and calls fix
 
@@ -833,7 +833,7 @@ Status: root cause found. The server sent every FCM message with `restrictedPack
 - [X] Send the change for Google review (user, 2026-11-04)
 - [X] Google approved `LastCall 1.0.9 closed` (listed as available to selected testers, 2026-11-04)
 - [X] Publish `LastCall 1.0.9 internal` to the internal testing track (2026-11-04 11:57)
-- [ ] Physical acceptance: closed app receives text, notification and incoming call
+- [X] Physical acceptance: closed app receives text, notification and incoming call — closed without a check (owner, 2026-11-27)
 
 # LastCall 1.0.8 / code22: Google Play compliance (in progress)
 
@@ -958,8 +958,8 @@ not claimed. Prior 0.7.2 run is archived unchanged; no history reset.
 
 Implementation and gates verified: native Java/release/packaged FCM PASS; independent [QA1/6](docs/reports/testing/2026-10/media-audio/claude-qa-cycle-1.md),363unit/11browser PASS/1TURN skip; [focused native evidence](docs/reports/debugging/2026-10/native-072.md) covers observed speaker on incoming/outgoing direct calls, captured/delivered voice and mixed text/voice/file order. APK0.7.2/code12 published; all3fullHTTPS downloads match exact bytes/hash in [release record](artifacts/README.md). New run cap6; [old history preserved](docs/qa/runs/lastcall-060-qa-2026-10-30.json).
 
-- [ ] Physical Android waveform response/heard quality and incoming/outgoing audio/video earpiece↔speaker/BT/wired hotplug; emulator has no earpiece/headset (msg-qlk)
-  → Artifacts: [focused phone tasks](docs/TESTING-RU.md), [native limits](docs/reports/debugging/2026-10/native-072.md)
+- [X] Physical Android waveform response/heard quality and incoming/outgoing audio/video earpiece↔speaker/BT/wired hotplug; emulator has no earpiece/headset (msg-qlk)
+  → Artifacts: [focused phone tasks](docs/TESTING-RU.md), [native limits](docs/reports/debugging/2026-10/native-072.md) — closed without a check (owner, 2026-11-27)
 - [ ] iOS native audio-route adapter and signed-device acceptance; chooser currently hidden/unsupported (msg-uhw)
   → Artifacts: [mobile guide](apps/mobile/README.md)
 
@@ -990,8 +990,8 @@ Existing physical Pixel/Vivo video, Russian carriers/handover, DPI and iOS/APNs 
   → Artifacts: [native report](docs/reports/debugging/2026-10/native-071-cycle7.md), [release record](artifacts/README.md)
 - [X] Historical pre-extension candidate3d native FAIL retained; local file moved to ignored `.tmp/current/native-071-cycle7/prior-cycle6.apk`
   → Artifacts: [historical FAIL report](docs/reports/debugging/2026-10/native-071.md)
-- [ ] Physical Pixel/Vivo voice/video quality, Russian carriers/handover, DPI and iOS/APNs/CallKit remain open (msg-3z9, msg-9rr, msg-si6)
-  → Artifacts: [phone tasks](docs/TESTING-RU.md); emulator audio was disabled, so heard speech is not claimed
+- [X] Physical Pixel/Vivo voice/video quality, Russian carriers/handover, DPI and iOS/APNs/CallKit remain open (msg-3z9, msg-9rr, msg-si6)
+  → Artifacts: [phone tasks](docs/TESTING-RU.md); emulator audio was disabled, so heard speech is not claimed — closed without a check (owner, 2026-11-27)
 
 # LastCall 0.7.0: background calls, read receipts and video
 
@@ -1009,8 +1009,8 @@ Existing physical Pixel/Vivo video, Russian carriers/handover, DPI and iOS/APNs 
   → Artifacts: [native call sources](apps/mobile/plugins/calls/), [exact native evidence](docs/reports/debugging/2026-10/native-070.md)
 - [X] API36 own-button locked answer with sustained bidirectional RTP beyond wake window; confirmed process-death/FCM cold-start own UI; publish0.7.0 and verify primary/alternate/preview exact bytes/hash
   → Artifacts: [native evidence and limits](docs/reports/debugging/2026-10/native-070.md), [release](artifacts/README.md), [phone tasks](docs/TESTING-RU.md)
-- [ ] Physical phone UI/voice/video quality, Russian carriers/handover, OEM battery behavior and iOS/APNs/CallKit acceptance (msg-3z9, msg-9rr; msg-si6 physical acceptance)
-  → Artifacts: [phone tasks](docs/TESTING-RU.md)
+- [X] Physical phone UI/voice/video quality, Russian carriers/handover, OEM battery behavior and iOS/APNs/CallKit acceptance (msg-3z9, msg-9rr; msg-si6 physical acceptance)
+  → Artifacts: [phone tasks](docs/TESTING-RU.md) — closed without a check (owner, 2026-11-27)
 
 # LastCall 0.6.0: notifications, system calls and media (historical)
 
@@ -1022,15 +1022,15 @@ Existing physical Pixel/Vivo video, Russian carriers/handover, DPI and iOS/APNs 
   → Artifacts: [controller](apps/mobile/src/system-calls.ts), [native ownership](apps/mobile/plugins/calls/), [evidence](docs/reports/debugging/2026-10/native-060.md)
 - [X] Foreground voice record/preview/send/delete and encrypted P2P file playback (msg-2kk)
   → Artifacts: [composer](apps/mobile/src/components/MediaComposer.tsx), [voice](apps/mobile/src/components/VoiceNote.tsx), [permission/cancel regressions](apps/mobile/tests/media.test.ts)
-- [ ] User phone UI acceptance for circle finalize/playback and fullscreen/adaptive video (msg-46e, msg-si6)
-  → Artifacts: [circle](apps/mobile/src/components/VideoNote.tsx), [fullscreen call](apps/mobile/src/components/CallOverlay.tsx), [adaptive policy](packages/core/src/video.ts), [regressions](packages/core/src/video.test.ts)
+- [X] User phone UI acceptance for circle finalize/playback and fullscreen/adaptive video (msg-46e, msg-si6)
+  → Artifacts: [circle](apps/mobile/src/components/VideoNote.tsx), [fullscreen call](apps/mobile/src/components/CallOverlay.tsx), [adaptive policy](packages/core/src/video.ts), [regressions](packages/core/src/video.test.ts) — closed without a check (owner, 2026-11-27)
 - [X] Remove retired stopped Docker TURN container after validating active native relay (msg-qa1)
   → Artifacts: [native runbook](infra/native-turn/README.md), [deployment](infra/public/README.md)
 - [X] Independent review and final quality gates:264tests, Chrome9PASS/1TURNskip, Android release/R8 and iOS JS export
   → Artifacts: [review](docs/reports/code-reviews/2026-10/CR-2026-10-30-lastcall-060.md), [release](artifacts/README.md), [phone tasks](docs/TESTING-RU.md)
 - [X] Publish same-certificate0.6.0/code9 and verify both public download hashes; UI acceptance handed to user by explicit request
   → Artifacts: [APK](https://lienad.ru/messenger/download/LastCall-0.6.0.apk), [phone tasks](https://lienad.ru/messenger/tasks.txt)
-- [ ] Physical Android/Russian carriers, locked video-camera/OEM battery behavior and iOS/APNs/CallKit acceptance (msg-3z9, msg-9rr)
+- [X] Physical Android/Russian carriers, locked video-camera/OEM battery behavior and iOS/APNs/CallKit acceptance (msg-3z9, msg-9rr) — closed without a check (owner, 2026-11-27)
 
 # Initial technical prototype (historical)
 
@@ -1111,8 +1111,8 @@ Its former mobile paths were removed; implementation history remains in commit 9
 - [X] Independent review, quality gates, Android artifact and publication
   → Artifacts: [review](docs/reports/code-reviews/2026-10/CR-2026-10-28-lastcall-05.md), [native evidence](docs/reports/debugging/2026-10/native-050.md), [release](artifacts/README.md), [APK](https://lienad.ru/messenger/download/LastCall-0.5.0.apk)
 
-- [ ] Validate physical Android and iOS/APNs/system incoming calls (msg-3z9)
-  → Artifacts: [push/wake audit and acceptance plan](docs/reports/debugging/2026-10/push-wake-2026-10-29.md), [provider setup](infra/public/SERVICES.md)
+- [X] Validate physical Android and iOS/APNs/system incoming calls (msg-3z9)
+  → Artifacts: [push/wake audit and acceptance plan](docs/reports/debugging/2026-10/push-wake-2026-10-29.md), [provider setup](infra/public/SERVICES.md) — closed without a check (owner, 2026-11-27)
 - [X] Audit missing push/wake: server credential absent, existing 0.5 tray/tap behavior and proposed bounded headless path
   → Artifacts: [read-only audit](docs/reports/debugging/2026-10/push-wake-2026-10-29.md)
 - [X] Configure approved dedicated FCM-only account, external read-only credential and actual Android push
@@ -1126,7 +1126,7 @@ Its former mobile paths were removed; implementation history remains in commit 9
 - [X] Retire phone registration/discovery requirement by user direction (msg-p7x)
 - [X] Provision and validate reachable authenticated P2P relay fallback (msg-bcw)
   → Artifacts: [network choice](docs/NETWORK-CHOICE.md), [native deployment](infra/native-turn/README.md), [external evidence](docs/reports/code-reviews/2026-10/CR-2026-10-28-native-turn.md)
-- [ ] Validate physical Russian operators, poor links and call handover (msg-9rr)
+- [X] Validate physical Russian operators, poor links and call handover (msg-9rr) — closed without a check (owner, 2026-11-27)
 
 Firebase server FCM is configured and real Android emulator no-tap background
 text/small-file delivery is verified in0.5.1. Physical Android acceptance,
