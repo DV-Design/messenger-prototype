@@ -1,3 +1,15 @@
+# 1.0.48 / code63 — server choice, Google Play country (2026-11-27)
+
+- [X] The app learns the server list after sign-in and connects to the Italian server directly
+  (`https://p2p-it.lienad.ru:4443`), falling back to `p2p.lienad.ru`. Emulator: after a restart the app
+  held 2 connections on Italy's :4443 and a text went out (one tick, mailbox)
+- [X] Sign-up country: only the Google Play account country (owner's decision); the server ignores the
+  address (`REGISTRATION_COUNTRY_SOURCE=play`, live on Italy and the Mac standby): RS → open,
+  RU or none → invitation
+- [X] `artifacts/LastCall-1.0.48-store.aab` 62469619 bytes, sha256 `f9648f1bd13c17eb97a7844f6d56cb951a252aa66c5dc923e3293691a670d1a7`; smoke-tested on the emulator
+  (chat list, chat, sending)
+- [ ] Publish to Play (internal, closed, open, production)
+
 # Replication — Italy primary, Mac standby (2026-11-26)
 
 - [X] Owner's decision: Independence (Italy) is the primary server at `https://p2p-it.lienad.ru:4443` (Docker
