@@ -5,7 +5,9 @@
   contact-joined check
 - [X] `artifacts/LastCall-1.0.51-store.aab` 62550603 bytes, sha256 `fe4cc7e03a48b78e32a7440008e7de66d08dc2c7a732f303b67c2fa4910277d9`; emulator: starts, Find friends opens (the read
   itself needs a linked number, not available on the emulator)
-- [ ] Publish (owner's yes), then Find friends on the owner's phone
+- [X] 2026-11-27, owner's yes: bundle 66 uploaded (closed), open and production from the library; internal published;
+  closed, open and production sent to Google review
+- [ ] Find friends on the owner's phone
 
 # 1.0.50 / code65 — bot code fallback, contacts joining (2026-11-27)
 
