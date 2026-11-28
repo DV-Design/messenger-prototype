@@ -68,7 +68,23 @@ export function directConversationId(first:string,second:string):string {
   roomIdSchema.parse(first);roomIdSchema.parse(second);if(first===second)throw new Error('Cannot create conversation with self');
   return 'dm:'+bytesToHex(sha256(utf8(JSON.stringify(['messenger-pair/v1',...[first,second].sort()]))));
 }
+/**
+ * Pair keys already derived in this process. The X25519 step is by far the costliest thing done
+ * per message (pure JavaScript, and much slower on a phone's engine than on a server); every
+ * mailbox item to or from a contact used to repeat it. The key is the same each time, so it is
+ * kept in memory like any session key; nothing is written anywhere.
+ */
+const pairKeys=new Map<string,string>();
+const MAX_PAIR_KEYS=512;
 export function conversationInvite(identity:DeviceIdentity,remotePublicKey:string):string {
+  const cacheKey=identity.userId+'|'+identity.privateKey+'|'+remotePublicKey;
+  const known=pairKeys.get(cacheKey);
+  if(known!==undefined){pairKeys.delete(cacheKey);pairKeys.set(cacheKey,known);return known;}
+  const derived=derivePairKey(identity,remotePublicKey);
+  pairKeys.set(cacheKey,derived);if(pairKeys.size>MAX_PAIR_KEYS)pairKeys.delete(pairKeys.keys().next().value!);
+  return derived;
+}
+function derivePairKey(identity:DeviceIdentity,remotePublicKey:string):string {
   validateDeviceIdentity(identity);const remote=userIdFromPublicKey(remotePublicKey);const conversationId=directConversationId(identity.userId,remote);
   const secret=ed25519.utils.toMontgomerySecret(hexToBytes(identity.privateKey));
   const shared=x25519.getSharedSecret(secret,ed25519.utils.toMontgomery(hexToBytes(remotePublicKey)));

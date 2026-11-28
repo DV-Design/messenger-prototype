@@ -1,12 +1,23 @@
-# Next release — one message per tap, freeze log (2026-11-27)
+# 1.0.53 / code68 — instant send, as in Telegram (2026-11-28)
 
 - [X] Tester's phone, 22:14: the app froze, the tester kept tapping send and the peer got "Напиши как пойдёте," eight
   times. Taps queued during the freeze all ran before the screen redrew, each with the same text. The chat now takes
   the text from the field in one step (`ComposerText`), so later queued taps find it empty
-- [X] Freeze log: stalls of 1 s or more in the foreground are kept (time, length, work in progress: send / connect /
-  phone book, number of core updates; no text or names) and added to Settings → Connection → Copy connection report
-- [ ] Cause of the freeze itself: unknown (server logs show nothing); read the tester's report after the next freeze
-- [ ] Build, emulator smoke test, publish (needs the owner's yes)
+- [X] Owner: sending must not depend on the network; instant in the app, then the network. Telegram: the message gets a
+  local id and a `random_id`, appears at once with a clock, the database write and the network run on other threads,
+  the server drops repeats by `random_id`. Here: `sendText` puts the text into the chat and the outbox at once, before
+  the queue, the disk and any network; the save waits until the frame with the message is drawn; only a saved message
+  is handed to the network; receivers already drop repeats by message id
+- [X] The pair key (X25519, pure JavaScript and slow on a phone) was derived again for every mailbox item sent or
+  received; it is now derived once per contact and kept in memory
+- [X] The owner declined freeze logs: none are collected
+- [X] Tests: core 322 (5 new: shown before the disk write, order kept, failed save removes it, blank refused, pair
+  key derived once; 3 of them fail on the old code), server 166, mobile 297
+- [X] `artifacts/LastCall-1.0.53-store.aab` 62552263 bytes, sha256 `1afd147e70dcf9034aeccefc002964d7e4559cb2c561e11892706cf703d914f3`;
+  emulator: starts, onboarding and restore screens, no JS errors. The emulator has no account any more (state is not
+  saved between boots), so sending was not tried there
+- [ ] On a phone: send with the network off (instant, clock), then on (delivered once)
+- [ ] Publish (needs the owner's yes)
 
 # 1.0.52 / code67 — contact search waits for the connection (2026-11-27)
 

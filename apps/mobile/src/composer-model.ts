@@ -15,18 +15,3 @@ export class ComposerText {
     return text;
   }
 }
-
-/** One moment when the app did not respond: no message text, only times and labels. */
-export interface Stall { at: number; ms: number; busy: string[]; updates: number; state: string }
-export const STALL_MS = 1000;
-export const MAX_STALLS = 12;
-
-/** Keeps the longest recent stalls, newest last. */
-export function addStall(list: readonly Stall[], stall: Stall): Stall[] {
-  return [...list, stall].slice(-MAX_STALLS);
-}
-
-export function formatStall(stall: Stall, offsetMinutes = 0): string {
-  const time = new Date(stall.at - offsetMinutes * 60_000).toISOString().slice(5, 19).replace('T', ' ');
-  return `${time} · ${(stall.ms / 1000).toFixed(1)} s · ${stall.state} · ${stall.busy.length ? stall.busy.join(', ') : '—'} · updates ${stall.updates}`;
-}

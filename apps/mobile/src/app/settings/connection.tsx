@@ -9,7 +9,6 @@ import { connectionNeedsUser, isTransientConnectionError } from '../../connectio
 import { isAccountMoved } from '../../email-flow-model';
 import { callDiagnosticLines } from '../../system-calls';
 import { formatMediaDiagnostics, sanitizeDiagnostic } from '../../diagnostics';
-import { stallReport } from '../../stall-watch';
 import { colors, styles } from '../../styles';
 import { collectCountryHints } from '../../country-hints';
 import { t } from '../../i18n';
@@ -37,7 +36,7 @@ export default function ConnectionSettings() {
         status: item.session?.status ?? 'idle',
         route: item.session?.route ?? 'unknown',
         error: sanitize(item.session?.error),
-      }), ...formatMediaDiagnostics(item.session?.stats)]), ...await callDiagnosticLines(), ...stallReport()].join('\n');
+      }), ...formatMediaDiagnostics(item.session?.stats)]), ...await callDiagnosticLines()].join('\n');
     try { await Clipboard.setStringAsync(report); setReportCopied(true); }
     catch (cause) { setLocalError(errorText(cause)); }
   }

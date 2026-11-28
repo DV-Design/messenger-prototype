@@ -15,7 +15,6 @@ import { monitorNetworkRecovery, shouldForceNetworkResume } from './network-reco
 import { ConnectionSupervisor } from './connection-supervisor';
 import { SharedWakeRuntime, type WakeLease } from './wake-model';
 import { whenTransitionsIdle } from './transition-idle';
-import { busyWith, countUpdate } from './stall-watch';
 
 const empty: MessengerSnapshot = { status: 'idle', restored: false, contacts: [], conversations: [], verifiedContacts: [], blockedContacts: [], movedContacts: {} };
 type Runtime = { ready: boolean; busy: boolean; registration: 'checking' | 'unregistered' | 'unavailable' | 'bound'; profile: LocalProfile | null; identity?: DeviceIdentity; snapshot: MessengerSnapshot; error?: string; boundEmail?: BoundEmail | null; /** The number linked through Telegram (masked) and who may find it; undefined until the server answered. */ phone?: { phone?: string; visibility: PhoneVisibility } | null; emailReminderDismissed?: boolean; retired: boolean };
@@ -54,11 +53,23 @@ function acceptCanonical(serverUrl: string, user: DirectoryUser) {
   }
   return profile;
 }
-async function buildManager(profile: LocalProfile, signal?: AbortSignal, registration?: RegistrationCredentials, connectUrl?: string): Promise<MessengerClient> {
-  const end = busyWith('connect');
-  try { return await buildManagerNow(profile, signal, registration, connectUrl); } finally { end(); }
+/**
+ * Before a save starts its JavaScript work (encrypting changed records), the screen first shows
+ * what just changed: a sent message appears at once, as in Telegram, and the write follows. Never
+ * holds a save for long, and not at all in the background, where no frames are drawn.
+ */
+function afterPaint(): Promise<void> {
+  if (AppState.currentState !== 'active') return Promise.resolve();
+  return new Promise(resolve => {
+    let done = false;
+    const finish = () => { if (done) return; done = true; clearTimeout(cap); resolve(); };
+    const cap = setTimeout(finish, 120);
+    // The snapshot reaches React within 16 ms; the frame after that has drawn it.
+    setTimeout(() => requestAnimationFrame(() => setTimeout(finish, 0)), 20);
+  });
 }
-async function buildManagerNow(profile: LocalProfile, signal?: AbortSignal, registration?: RegistrationCredentials, connectUrl?: string): Promise<MessengerClient> {
+async function whenReadyToSave() { await whenTransitionsIdle(); await afterPaint(); }
+async function buildManager(profile: LocalProfile, signal?: AbortSignal, registration?: RegistrationCredentials, connectUrl?: string): Promise<MessengerClient> {
   if (!state.identity) throw new Error(t('The device key is not loaded yet.'));
   const persistence = { ...await sealedStateAdapter(state.identity, profile.serverUrl), bulkFiles };
   // The account (and its local history) stays bound to profile.serverUrl; the connection goes to
@@ -66,10 +77,9 @@ async function buildManagerNow(profile: LocalProfile, signal?: AbortSignal, regi
   const serverUrl = connectUrl ?? await chooseServer(profile.serverUrl);
   if (signal?.aborted) throw new Error('Wake expired');
   const current = ++generation;
-  const next = new MessengerClient({ whenIdle: whenTransitionsIdle, reconcileDeliveryOnConnect: true, mailbox: true, callCaptions: Platform.OS === 'android' && Number(Platform.Version) >= 33 && !!NativeModules.LastCallCaptions, ...profile, serverUrl, onEndpoints: saveEndpoints, ...registration, identity: state.identity, ...nativeRtc, ...persistence,
+  const next = new MessengerClient({ whenIdle: whenReadyToSave, reconcileDeliveryOnConnect: true, mailbox: true, callCaptions: Platform.OS === 'android' && Number(Platform.Version) >= 33 && !!NativeModules.LastCallCaptions, ...profile, serverUrl, onEndpoints: saveEndpoints, ...registration, identity: state.identity, ...nativeRtc, ...persistence,
     onChange: snapshot => {
       if (current !== generation) return;
-      countUpdate();
       // Bursts of core changes (opening a chat marks it read, saves, sends receipts) reach React once per frame.
       // A timer, not requestAnimationFrame: frames stop in the background, where the connection
       // supervisor still has to see status changes; there it is published at once.

@@ -1,6 +1,6 @@
 {
   "name": "@messenger/mobile",
-  "version": "1.0.52",
+  "version": "1.0.53",
   "main": "index.js",
   "dependencies": {
     "@config-plugins/react-native-webrtc": "15.0.2",

@@ -882,13 +882,33 @@ export class MessengerClient {
     }catch(error){this.report(error);}finally{pair.flushing=false;this.scheduleOutbox(peerId);}
   }
   private scheduleOutbox(peerId:string){const pair=this.pairs.get(peerId);if(!pair||pair.pump||this.stopped||pair.session.getSnapshot().status!=='connected')return;const relay=[...this.conversations.values()].some(c=>c.kind==='group'&&c.memberIds.includes(peerId)&&(c.messages.some(m=>m.metadata&&Date.now()<(m.expiresAt??0))||c.files.some(f=>f.metadata&&f.blobKey&&Date.now()<(f.expiresAt??0))));if(!this.pending.some(p=>p.remaining.includes(peerId)&&!this.viaMailbox(p,peerId))&&!relay&&![...this.conversations.values()].some(c=>c.memberIds.includes(peerId)&&(this.unsentChanges(c,peerId,pair).length||this.unsentReactions(c,peerId,pair).length)))return;pair.pump=setTimeout(()=>{pair.pump=undefined;void this.flushPeer(peerId);},5000);}
-  async sendText(conversationId:string,text:string):Promise<void>{return this.serial(async()=>{
-    await this.restore();await this.expirePending();const c=this.conversations.get(conversationId);if(!c)throw new Error('Unknown conversation');if(!text.trim()||text.length>MAX_TEXT_CHARS)throw new Error('Text must contain 1–4000 characters');if(this.pending.filter(p=>p.type!=='file').length>=MAX_PENDING_MESSAGES)throw new Error('Local outbox is full');
+  /**
+   * As in Telegram, the text is in the chat (with a clock) the moment it is sent: it is placed in
+   * memory and shown before the disk write, the encryption and any network. The saved outbox then
+   * delivers it whenever a path exists, and its id lets every receiver drop copies a retry brings.
+   */
+  async sendText(conversationId:string,text:string):Promise<void>{
+    this.assertActive();
+    // Validation errors reject this call at once; a full outbox is checked again after expiry below.
+    const early=this.loaded?this.stageText(conversationId,text,false):undefined;
+    return this.serial(async()=>{
+      await this.restore();await this.expirePending();
+      const staged=early??this.stageText(conversationId,text,true)!;const {c,message,p}=staged;
+      // An earlier queued operation (deleting the chat, a failed save restoring it) may have taken it out.
+      if(this.conversations.get(conversationId)!==c||!c.messages.includes(message)){this.pending=this.pending.filter(item=>item!==p);c.messages=c.messages.filter(m=>m!==message);this.emit();throw new Error('Unknown conversation');}
+      try{await this.durable();}catch(error){c.messages=c.messages.filter(m=>m!==message);this.pending=this.pending.filter(item=>item!==p);c.hidden=staged.hidden;c.implicit=staged.implicit;this.dirty=true;this.emit();throw error;}this.committed.add(this.pendingKey(p));await this.expirePending();this.kick(c);
+    });
+  }
+  /** Puts a new own text into the chat and the outbox (not yet saved, so not yet sendable) and shows it. */
+  private stageText(conversationId:string,text:string,strict:boolean){
+    const c=this.conversations.get(conversationId);if(!c)throw new Error('Unknown conversation');if(!text.trim()||text.length>MAX_TEXT_CHARS)throw new Error('Text must contain 1–4000 characters');
+    if(this.pending.filter(p=>p.type!=='file').length>=MAX_PENDING_MESSAGES){if(strict)throw new Error('Local outbox is full');return undefined;}
     if((c as InternalConversation).removed)throw new Error('You are no longer a member of this group');
     const timestamp=Date.now();const expiresAt=timestamp+OUTBOX_TTL_MS;const id=this.id();const peers=c.memberIds.filter(id=>id!==this.options.identity.userId);const metadata=c.kind==='group'?JSON.stringify(signGroupOrigin(this.options.identity,{groupId:this.definition(c).id,id,type:'message',timestamp,expiresAt,hash:contentHash('message',text)})):undefined;
     const message:MessengerMessage={id,text,from:this.options.identity.userId,timestamp,expiresAt,metadata,status:'pending',conversationId,recipientIds:peers,deliveredTo:[]};const p:PendingMessage={conversationId,messageId:id,remaining:peers,type:'message',author:this.options.identity.userId,createdAt:timestamp,expiresAt};const hidden=c.hidden,implicit=c.implicit;c.hidden=undefined;c.implicit=undefined;c.messages.push(message);c.updatedAt=timestamp;this.pending.push(p);
-    try{await this.durable();}catch(error){c.messages=c.messages.filter(m=>m!==message);this.pending=this.pending.filter(item=>item!==p);c.hidden=hidden;c.implicit=implicit;this.dirty=true;throw error;}this.committed.add(this.pendingKey(p));await this.expirePending();this.kick(c);
-  });}
+    this.emit();
+    return {c,message,p,hidden,implicit};
+  }
   private operation(conversationId:string,timeout:number,peerId?:string):PendingOperation {
     const operation:PendingOperation={controller:new AbortController(),started:this.now(),timeout,conversationId,peerId};
     operation.timer=setTimeout(()=>operation.controller.abort(new Error('Recipient connection timed out')),timeout);return operation;

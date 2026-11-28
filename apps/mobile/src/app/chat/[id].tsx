@@ -43,7 +43,6 @@ import { viewerKind } from '../../media-viewer-model';
 import { MediaViewer } from '../../components/MediaViewer';
 import { useTopOffset } from '../../top-offset';
 import { ComposerText } from '../../composer-model';
-import { busyWith } from '../../stall-watch';
 
 const FLOATING_DATE_MS = 1200;
 
@@ -242,8 +241,6 @@ export default function Chat() {
       const quote = original ? parseReplyText(original.text) : undefined;
       operation = client().editMessage(chatId, edited, quote ? formatReplyText(quote, text) : text);
     } else operation = client().sendText(chatId, replyTarget ? formatReplyText({ type: replyTarget.type, author: replyTarget.author, id: replyTarget.id }, text) : text).then(messageSent);
-    const end = busyWith('send');
-    void operation.finally(end).catch(() => {});
     operation.catch(cause => {
       haptic('reject'); setError(errorText(cause));
       // Nothing typed is lost: the text comes back if the field is still empty.
