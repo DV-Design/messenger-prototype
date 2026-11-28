@@ -17,7 +17,8 @@
   emulator: starts, onboarding and restore screens, no JS errors. The emulator has no account any more (state is not
   saved between boots), so sending was not tried there
 - [ ] On a phone: send with the network off (instant, clock), then on (delivered once)
-- [ ] Publish (needs the owner's yes)
+- [X] 2026-11-28, owner's "Выкладывай везде": bundle 68 uploaded (closed), open and production (100 %) from the library;
+  internal published; closed, open and production sent to Google review. Devices unchanged (8 966 phones, 4 722 tablets)
 
 # 1.0.52 / code67 — contact search waits for the connection (2026-11-27)
 
